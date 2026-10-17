@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hospital-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "hospital-snapshot",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "preview", "--outDir", "/private/tmp/claude-501/hospital-snapshot", "--host", "127.0.0.1", "--port", "5174", "--strictPort"],
+      "port": 5174
+    }
+  ]
+}

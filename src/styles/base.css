@@ -1,0 +1,23 @@
+:root {
+  --bg: #f3f5f4;
+  --ink: #1c2b2a;
+  --mint: #7fd1c1;
+  --teal: #1f9e8f;
+  --amber: #f0a33a;
+  --oak: #d9c3a0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+}

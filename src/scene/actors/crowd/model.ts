@@ -1,0 +1,668 @@
+// Ported from Waltz City (src/scene/actors/crowd/model.ts): the slot/row bookkeeping, measured motion, fade in and out, LOD lists and rims. New: sit/lie levels, held
+// items, wheeled vehicles and their riders, blob shadows, capsule picking, and nothing that allocates in a frame.
+/**
+ * The crowd model: every person that is drawn, their state and the pose texture data, with no GL in it.
+ *
+ * Each frame `update` walks the sim's entities, keeps one `PersonSlot` per person, estimates real motion from how far they
+ * actually moved, runs the rig solver and writes the person's row of the pose texture. It decides which of the three bodies (high,
+ * mid, far) each person is drawn with, which of them holds a prop or pushes a vehicle, and builds the instance lists of every draw.
+ *
+ * Nobody pops: a new person fades in over 0.35 s, a person the sim removes keeps standing where they were and fades out, and the
+ * sim's own `fade` (0..1) multiplies in on top. Rows of the texture are allocated once per person and stay stable.
+ *
+ * Riders: a person with `riding` set sits or lies on the vehicle of the person pushing it. Only the pusher's slot draws the vehicle;
+ * the rider is drawn ON the vehicle, snapped to the vehicle's place in front of the pusher, so the two can never drift apart. A
+ * rider with no pusher nearby (a parked wheelchair) draws its own vehicle under itself.
+ */
+import type { Entity, Outfit, PropKind, Role, VehicleKind } from '@/sim/types'
+import { MAX_PEOPLE, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
+import { levelsOf, type Levels } from './head'
+import { lodBounds, lodWeights, type LodWeights } from './lod'
+import { clamp, damp } from './math'
+import { modeFor, type Mode, type Posture } from './blend'
+import { lookFor, type Look } from './outfit'
+import { GEAR_BIT } from './staff'
+import { aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
+import { pickRadius, rayVsSegment } from './picking'
+import { VEHICLE_FOOTPRINT } from './gear'
+import { reclineAngle, reclineOfEntity } from '@/scene/rooms/bedPose'
+
+export const FADE_SECONDS = 0.35
+const RIM_SECONDS = 0.15
+/** Instances the gear draws can hold. */
+export const MAX_VEHICLES = 96
+export const MAX_PROPS = MAX_PEOPLE
+/** One blob for each person and each vehicle. */
+export const MAX_BLOBS = MAX_PEOPLE + MAX_VEHICLES
+/** A rider within this distance of the place a vehicle would be is the one on it. */
+const RIDER_SNAP = 1.7
+/** Height of the footplate of a wheelchair (the rider's feet rest on it). */
+const FOOT_REST = 0.178
+/** How fast a patient's torso follows the bed head being raised or lowered (per second): the bed layer already smooths, this only catches a step. */
+const RECLINE_RATE = 10
+/** Blob shadow: a person's footprint and how dark it is. */
+const BLOB_PERSON = 0.95
+const BLOB_ALPHA = 0.9
+const BLOB_LIFT = 0.03
+
+const PROP_OF: Record<PropKind, number> = { none: PROP.none, tablet: PROP.tablet, folder: PROP.folder, tray: PROP.tray, coffee: PROP.cup, bag: PROP.bag, flowers: PROP.flowers }
+const VEHICLE_OF: Record<VehicleKind, number> = { none: VEHICLE.none, wheelchair: VEHICLE.wheelchair, stretcher: VEHICLE.stretcher, cleaningCart: VEHICLE.cleaningCart, linenCart: VEHICLE.linenCart }
+
+export interface PersonSlot {
+  key: string
+  row: number
+  look: Look
+  /** What the look was made from (role and outfit class): it is rebuilt when a patient is admitted and changes into a gown. */
+  lookRole: Role
+  lookOutfit: Outfit | undefined
+  rig: PersonRig
+  entity: Entity | null
+  seen: number
+  /** Fade-in ramp 0..1 (and the fade-out of a person the sim removed). */
+  ramp: number
+  /** The sim's own fade, 0..1. */
+  simFade: number
+  /** ramp * simFade: what the dither shows. */
+  presence: number
+  ghost: boolean
+  hasPrev: boolean
+  px: number
+  pz: number
+  vx: number
+  vz: number
+  speed: number
+  // last state, for picking, rings and ghosts
+  x: number
+  y: number
+  z: number
+  heading: number
+  dist: number
+  rim: number
+  rimKind: 0 | 1 | 2 | 3
+  mode: Mode
+  posture: Posture
+  seatHeight: number
+  /** L1: how far the bed head is raised under this person (0..1), smoothed; drives the torso of the 'lie' pose. */
+  recline: number
+  prop: number
+  // vehicles
+  /** The vehicle this slot draws (VEHICLE value; 0 = none) and how far in front of its root. */
+  vKind: number
+  vOff: number
+  /** The vehicle kind of a rider / pusher (VEHICLE value) and the partner. */
+  rideKind: number
+  rider: PersonSlot | null
+  pusher: PersonSlot | null
+  // capsule for picking
+  ax: number
+  ay: number
+  az: number
+  bx: number
+  by: number
+  bz: number
+}
+
+export interface FrameInput {
+  dt: number
+  time: number
+  camX: number
+  camY: number
+  camZ: number
+  entities: ReadonlyMap<string, Entity>
+  followId: string | null
+  selectedId: string | null
+  hoverId: string | null
+}
+
+export interface CrowdStats {
+  people: number
+  high: number
+  mid: number
+  far: number
+  solved: number
+  ghosts: number
+  props: number
+  vehicles: number
+  blobs: number
+  riders: number
+  /** Entities that did not fit in the pose texture (should be 0). */
+  overflow: number
+}
+
+const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+const linearCache = new Map<string, [number, number, number]>()
+export function hexToLinear(hex: string): [number, number, number] {
+  let v = linearCache.get(hex)
+  if (!v) {
+    const n = parseInt(hex.slice(1), 16)
+    v = [srgbToLinear(((n >> 16) & 255) / 255), srgbToLinear(((n >> 8) & 255) / 255), srgbToLinear((n & 255) / 255)]
+    linearCache.set(hex, v)
+  }
+  return v
+}
+
+const RIM_KIND_COLOR = [RIM_COLORS.hovered, RIM_COLORS.hovered, RIM_COLORS.selected, RIM_COLORS.followed] as const
+const RIM_KIND_STRENGTH = [0, 0.5, 0.9, 1.0] as const
+
+const rowsHigh = () => new Float32Array(MAX_PEOPLE)
+
+export class CrowdModel {
+  /** The pose texture's pixels: MAX_PEOPLE rows of ROW_FLOATS floats. */
+  readonly data = new Float32Array(MAX_PEOPLE * ROW_FLOATS)
+  readonly people = new Map<string, PersonSlot>()
+  readonly rowsHigh = rowsHigh()
+  readonly rowsMid = rowsHigh()
+  readonly rowsFar = rowsHigh()
+  /** Props draw: carrier row and kind per instance. */
+  readonly propRows = new Float32Array(MAX_PROPS)
+  readonly propKinds = new Float32Array(MAX_PROPS)
+  /** Vehicles draw: pusher (or parked rider) row, kind, and metres in front of that row's root. */
+  readonly vehRows = new Float32Array(MAX_VEHICLES)
+  readonly vehKinds = new Float32Array(MAX_VEHICLES)
+  readonly vehOffs = new Float32Array(MAX_VEHICLES)
+  /** Blob shadows: a 4x4 matrix and a fade per instance (written straight into the InstancedMesh's attributes). */
+  readonly blobMatrix = new Float32Array(MAX_BLOBS * 16)
+  readonly blobFade = new Float32Array(MAX_BLOBS)
+  readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0 }
+  frame = 0
+
+  private readonly free: number[] = []
+  private nextRow = 0
+  private readonly inp: RigInput = makeInput()
+  private readonly w: LodWeights = { high: 1, mid: 0, far: 0 }
+  private readonly bounds: [number, number, number] = [0, 0, 0]
+  private readonly lv: Levels = { posture: 'stand', floorY: 0, surface: 0 }
+  private readonly pushers: PersonSlot[] = []
+  private readonly riders: PersonSlot[] = []
+  private nPushers = 0
+  private nRiders = 0
+  // the frame being processed (so the per-entity and per-slot callbacks can be allocated once)
+  private cur: FrameInput = { dt: 0, time: 0, camX: 0, camY: 0, camZ: 0, entities: new Map(), followId: null, selectedId: null, hoverId: null }
+  private dt = 0
+  private warm = false
+  private readonly visitFn = (e: Entity): void => this.visit(e)
+  private readonly tickFn = (p: PersonSlot): void => this.tick(p)
+
+  /** Slot of a person by entity id. */
+  get(key: string): PersonSlot | undefined {
+    return this.people.get(key)
+  }
+
+  private allocRow(): number {
+    if (this.free.length) return this.free.pop()!
+    return this.nextRow < MAX_PEOPLE ? this.nextRow++ : -1
+  }
+
+  private writeLook(row: number, look: Look): void {
+    const o = row * ROW_FLOATS
+    // palette, in slot order (constants.SLOT)
+    const pal = [look.skin, look.hair, look.top, look.pants, look.shoes, look.front, look.accent, look.sleeve, look.lowerLeg, look.lanyard, look.upperLeg, look.glasses, look.coat, look.gear, look.badge]
+    for (let i = 0; i < pal.length; i++) {
+      const c = hexToLinear(pal[i])
+      const b = o + (TEX.palette + i) * 4
+      this.data[b] = c[0]
+      this.data[b + 1] = c[1]
+      this.data[b + 2] = c[2]
+      this.data[b + 3] = 1
+    }
+    const s = o + TEX.size * 4
+    this.data[s] = look.scale
+    this.data[s + 1] = look.scale * (0.5 + 0.5 * look.build)
+    // what the close-up body shows of this person's details: the badge, and the stethoscope, dosimeter, apron bib and glasses (staff.ts)
+    const g = o + TEX.gear * 4
+    this.data[g] = look.badgeKind
+    this.data[g + 1] = (look.stethoscope ? GEAR_BIT.stethoscope : 0) | (look.dosimeter ? GEAR_BIT.dosimeter : 0) | (look.apron ? GEAR_BIT.bib : 0) | (look.glassesOn ? GEAR_BIT.glasses : 0)
+  }
+
+  private create(e: Entity, warm: boolean): PersonSlot | null {
+    const row = this.allocRow()
+    if (row < 0) return null
+    const o = row * ROW_FLOATS
+    this.data.fill(0, o, o + ROW_FLOATS)
+    const look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant })
+    this.writeLook(row, look)
+    const slot: PersonSlot = {
+      key: e.id,
+      row,
+      look,
+      lookRole: e.role,
+      lookOutfit: e.outfit,
+      rig: createRig(look),
+      entity: null,
+      seen: 0,
+      ramp: warm ? 1 : 0,
+      simFade: 1,
+      presence: 0,
+      ghost: false,
+      hasPrev: false,
+      px: 0,
+      pz: 0,
+      vx: 0,
+      vz: 0,
+      speed: 0,
+      x: e.position.x,
+      y: e.position.y,
+      z: e.position.z,
+      heading: e.heading,
+      dist: 0,
+      rim: 0,
+      rimKind: 1,
+      mode: 'relaxed',
+      posture: 'stand',
+      seatHeight: 0,
+      recline: 0,
+      prop: PROP.none,
+      vKind: 0,
+      vOff: 0,
+      rideKind: 0,
+      rider: null,
+      pusher: null,
+      ax: 0,
+      ay: 0,
+      az: 0,
+      bx: 0,
+      by: 0,
+      bz: 0,
+    }
+    this.people.set(e.id, slot)
+    return slot
+  }
+
+  private release(slot: PersonSlot): void {
+    this.people.delete(slot.key)
+    const o = slot.row * ROW_FLOATS
+    this.data.fill(0, o, o + ROW_FLOATS)
+    this.free.push(slot.row)
+  }
+
+  /** Pass A, once per entity: find or make the slot, read where the body is. */
+  private visit(e: Entity): void {
+    let p = this.people.get(e.id)
+    if (!p) {
+      p = this.create(e, this.warm) ?? undefined
+      if (!p) {
+        this.stats.overflow++
+        return
+      }
+    }
+    p.entity = e
+    p.ghost = false
+    p.seen = this.frame
+    p.rider = null
+    p.pusher = null
+    p.vKind = 0
+    p.vOff = 0
+    p.rideKind = 0
+    // a patient who is admitted changes into a gown: the clothes follow the role and outfit class
+    if (e.role !== p.lookRole || e.outfit !== p.lookOutfit) {
+      p.lookRole = e.role
+      p.lookOutfit = e.outfit
+      p.look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant })
+      p.rig.look = p.look
+      this.writeLook(p.row, p.look)
+    }
+    const lv = levelsOf(e, this.lv)
+    p.posture = lv.posture
+    p.seatHeight = lv.surface
+    p.x = e.position.x
+    p.z = e.position.z
+    p.y = lv.floorY
+    p.heading = e.heading
+    const vk = e.vehicle ? VEHICLE_OF[e.vehicle] : VEHICLE.none
+    if (vk !== VEHICLE.none) {
+      p.rideKind = vk
+      if (e.riding) this.riders[this.nRiders++] = p
+      else this.pushers[this.nPushers++] = p
+    }
+  }
+
+  /** Pass M: put each rider on the vehicle of the nearest pusher without one, or give it a parked vehicle of its own. */
+  private matchRiders(): void {
+    for (let i = 0; i < this.nPushers; i++) {
+      const p = this.pushers[i]
+      p.vKind = p.rideKind
+      p.vOff = VEHICLE_AHEAD[p.rideKind]
+    }
+    for (let i = 0; i < this.nRiders; i++) {
+      const r = this.riders[i]
+      let best: PersonSlot | null = null
+      let bestD = RIDER_SNAP * RIDER_SNAP
+      for (let j = 0; j < this.nPushers; j++) {
+        const p = this.pushers[j]
+        if (p.rider || p.rideKind !== r.rideKind) continue
+        const ahead = VEHICLE_AHEAD[p.rideKind]
+        const sx = p.x + Math.sin(p.heading) * ahead
+        const sz = p.z + Math.cos(p.heading) * ahead
+        const d = (sx - r.x) * (sx - r.x) + (sz - r.z) * (sz - r.z)
+        if (d < bestD) {
+          bestD = d
+          best = p
+        }
+      }
+      if (best) {
+        best.rider = r
+        r.pusher = best
+        const ahead = VEHICLE_AHEAD[best.rideKind]
+        // the rider is drawn on the vehicle: its place, the pusher's heading
+        r.x = best.x + Math.sin(best.heading) * ahead
+        r.z = best.z + Math.cos(best.heading) * ahead
+        r.heading = best.heading
+      } else {
+        // a parked wheelchair or stretcher: it sits under its rider
+        r.vKind = r.rideKind
+        r.vOff = 0
+      }
+    }
+  }
+
+  update(f: FrameInput): void {
+    this.frame++
+    this.warm = this.frame <= 1
+    this.dt = clamp(f.dt, 0, 0.1)
+    this.cur = f
+    const st = this.stats
+    st.people = 0
+    st.high = 0
+    st.mid = 0
+    st.far = 0
+    st.solved = 0
+    st.ghosts = 0
+    st.props = 0
+    st.vehicles = 0
+    st.blobs = 0
+    st.riders = 0
+    st.overflow = 0
+    this.nPushers = 0
+    this.nRiders = 0
+    f.entities.forEach(this.visitFn)
+    this.matchRiders()
+    this.people.forEach(this.tickFn)
+  }
+
+  /** Pass B, once per slot: motion, rig, texels and the instance lists. */
+  private tick(p: PersonSlot): void {
+    const f = this.cur
+    const st = this.stats
+    const frame = this.frame
+    const dt = this.dt
+    if (p.seen !== frame && !p.ghost) {
+      // left the world (entity removed): stand where they were and fade out
+      p.ghost = true
+      p.entity = null
+      p.rider = null
+      p.pusher = null
+    }
+    const e = p.entity
+    if (e) p.simFade = e.fade === undefined ? 1 : clamp(e.fade, 0, 1)
+    const rampTarget = p.ghost ? 0 : 1
+    p.ramp += clamp(rampTarget - p.ramp, -dt / FADE_SECONDS, dt / FADE_SECONDS)
+    p.presence = p.ramp * p.simFade
+    const o = p.row * ROW_FLOATS
+    if (p.ghost && p.ramp <= 0.001) {
+      this.release(p)
+      return
+    }
+    const d = this.data
+    if (p.presence <= 0.001) {
+      // invisible for now (the sim has it at fade 0): keep tracking where it is, draw nothing
+      d[o + TEX.lod * 4 + 2] = 0
+      if (e) this.trackMotion(p, dt)
+      return
+    }
+    st.people++
+    if (p.ghost) st.ghosts++
+    if (e && p.rideKind !== 0 && e.riding) st.riders++
+
+    if (e) {
+      this.trackMotion(p, dt)
+      const posture = p.posture
+      // what is in the right hand
+      let prop = e.prop ? PROP_OF[e.prop] : PROP.none
+      if (posture === 'lie') prop = PROP.none
+      else if (prop === PROP.none && posture === 'stand') {
+        if (e.anim === 'tablet') prop = PROP.tablet
+        else if (e.anim === 'carry') prop = PROP.folder
+      }
+      p.prop = prop
+      // whoever has a vehicle in front of them and is not riding it is pushing it, whatever the sim called the animation
+      p.mode = p.rideKind !== 0 && !e.riding && posture === 'stand' ? 'push' : modeFor(e.anim, posture, prop === PROP.tablet ? 'tablet' : 'none')
+      const inp = this.inp
+      inp.dt = dt
+      inp.time = f.time
+      inp.x = p.x
+      inp.y = p.y
+      inp.z = p.z
+      inp.heading = p.heading
+      inp.vx = p.vx
+      inp.vz = p.vz
+      inp.speed = p.speed
+      inp.mode = p.mode
+      inp.posture = posture
+      inp.mood = e.mood
+      inp.seatHeight = p.seatHeight
+      // a patient in a bed follows the head of the bed (src/scene/rooms/bedPose.ts); everybody else is flat
+      p.recline = posture === 'lie' ? damp(p.recline, reclineOfEntity(e), RECLINE_RATE, dt) : 0
+      if (p.recline < 0.002) p.recline = 0
+      p.rig.ctx.recline = p.recline
+      inp.footRest = e.riding && e.vehicle === 'wheelchair' ? FOOT_REST : 0
+      inp.prop = prop
+      const target = e.lookAt
+      inp.hasLook = !!target
+      if (target) {
+        inp.lookX = target.x
+        inp.lookY = target.y
+        inp.lookZ = target.z
+      }
+      const k = p.look.scale
+      // distance first: the far figure needs no skeleton
+      const cdx = p.x - f.camX
+      const cdy = p.y + 1 - f.camY
+      const cdz = p.z - f.camZ
+      p.dist = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz)
+      lodWeights(p.dist, this.w)
+      if (this.w.far < 1) {
+        const headY = posture === 'stand' ? STAND_HEAD_CENTRE * k : posture === 'sit' ? p.seatHeight + SEATED_HEAD_CENTRE * k : p.seatHeight + 0.2 + (BODY.neck + BODY.headCentre) * k * Math.sin(reclineAngle(p.recline))
+        aimHead(p.rig, dt, inp, headY)
+        solveRig(p.rig, inp, d, o + TEX.parts * 4)
+        const face = p.rig.face
+        const fo = o + TEX.face * 4
+        d[fo] = face.eyeYaw
+        d[fo + 1] = face.eyePitch
+        d[fo + 2] = face.expression
+        d[fo + 3] = face.blink
+        d[o + TEX.gear * 4 + 3] = face.mouthOpen
+        st.solved++
+      } else {
+        // far only: keep the feet planted under the body so nothing is stale when the camera comes in
+        p.rig.planter.initialised = false
+        p.rig.propDraw = PROP.none
+      }
+      this.capsule(p, posture, k)
+    } else {
+      const cdx = p.x - f.camX
+      const cdy = p.y + 1 - f.camY
+      const cdz = p.z - f.camZ
+      p.dist = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz)
+      lodWeights(p.dist, this.w)
+    }
+
+    const w = this.w
+    lodBounds(w, p.presence, this.bounds)
+    d[o] = p.x
+    d[o + 1] = p.y
+    d[o + 2] = p.z
+    d[o + 3] = p.heading
+
+    // emphasis: followed > selected > hovered
+    let kind: 0 | 1 | 2 | 3 = 0
+    let want = 0
+    if (f.followId === p.key) {
+      kind = 3
+      want = RIM_KIND_STRENGTH[3]
+    } else if (f.selectedId === p.key) {
+      kind = 2
+      want = RIM_KIND_STRENGTH[2]
+    } else if (f.hoverId === p.key) {
+      kind = 1
+      want = RIM_KIND_STRENGTH[1]
+    }
+    if (want > 0) p.rimKind = kind
+    p.rim = damp(p.rim, want, 1 / RIM_SECONDS, dt)
+    if (p.rim < 0.003) p.rim = 0
+    const rc = hexToLinear(RIM_KIND_COLOR[p.rimKind])
+    const lo = o + TEX.lod * 4
+    d[lo] = this.bounds[0]
+    d[lo + 1] = this.bounds[1]
+    d[lo + 2] = this.bounds[2]
+    d[lo + 3] = p.rim
+    const ro = o + TEX.rim * 4
+    d[ro] = rc[0]
+    d[ro + 1] = rc[1]
+    d[ro + 2] = rc[2]
+
+    if (w.high > 0) this.rowsHigh[st.high++] = p.row
+    if (w.mid > 0) this.rowsMid[st.mid++] = p.row
+    if (w.far > 0) this.rowsFar[st.far++] = p.row
+    if (p.rig.propDraw !== PROP.none && p.rig.propScale > 0.01 && st.props < MAX_PROPS) {
+      this.propRows[st.props] = p.row
+      this.propKinds[st.props++] = p.rig.propDraw
+    }
+    if (p.vKind !== 0 && st.vehicles < MAX_VEHICLES) {
+      this.vehRows[st.vehicles] = p.row
+      this.vehKinds[st.vehicles] = p.vKind
+      this.vehOffs[st.vehicles++] = p.vOff
+    }
+    this.blobs(p)
+  }
+
+  /** The measured, smoothed ground velocity: how far the body actually moved this frame. */
+  private trackMotion(p: PersonSlot, dt: number): void {
+    if (!p.hasPrev) {
+      p.px = p.x
+      p.pz = p.z
+      p.hasPrev = true
+    }
+    if (p.posture !== 'stand') {
+      p.vx = 0
+      p.vz = 0
+      p.speed = 0
+    } else if (dt > 1e-5) {
+      const dx = p.x - p.px
+      const dz = p.z - p.pz
+      const jump = dx * dx + dz * dz
+      if (jump > 6.25) {
+        p.vx = 0
+        p.vz = 0
+        p.speed = 0
+      } else {
+        let rx = dx / dt
+        let rz = dz / dt
+        if (rx * rx + rz * rz < 0.0064) {
+          rx = 0
+          rz = 0
+        }
+        p.vx = damp(p.vx, rx, 1 / 0.1, dt)
+        p.vz = damp(p.vz, rz, 1 / 0.1, dt)
+        p.speed = Math.sqrt(p.vx * p.vx + p.vz * p.vz)
+        if (p.speed < 0.02) {
+          p.vx = 0
+          p.vz = 0
+          p.speed = 0
+        }
+      }
+    }
+    p.px = p.x
+    p.pz = p.z
+  }
+
+  /** The pick capsule: feet to head, seat to head, or hips-to-feet and head along a bed. */
+  private capsule(p: PersonSlot, posture: Posture, k: number): void {
+    const sx = Math.sin(p.heading)
+    const cz = Math.cos(p.heading)
+    if (posture === 'stand') {
+      p.ax = p.x
+      p.ay = p.y + 0.12
+      p.az = p.z
+      p.bx = p.x
+      p.by = p.y + p.look.height - 0.12
+      p.bz = p.z
+    } else if (posture === 'sit') {
+      p.ax = p.x
+      p.ay = p.y + p.seatHeight + 0.15
+      p.az = p.z
+      p.bx = p.x
+      p.by = p.y + p.seatHeight + SEATED_HEAD_CENTRE * k
+      p.bz = p.z
+    } else {
+      const y = p.y + p.seatHeight + 0.12
+      const head = (BODY.waist + BODY.neck + BODY.headCentre) * k
+      p.ax = p.x - sx * head
+      p.ay = y
+      p.az = p.z - cz * head
+      p.bx = p.x + sx * 0.8 * k
+      p.by = y
+      p.bz = p.z + cz * 0.8 * k
+    }
+  }
+
+  /** The soft ground blobs of a person and of the vehicle this slot draws. */
+  private blobs(p: PersonSlot): void {
+    const st = this.stats
+    const fade = BLOB_ALPHA * p.presence
+    if (p.posture !== 'lie' && st.blobs < MAX_BLOBS) {
+      const s = BLOB_PERSON * p.look.scale
+      this.setBlob(st.blobs, p.x, p.y + BLOB_LIFT, p.z, p.heading, s, s, fade)
+      st.blobs++
+    }
+    if (p.vKind !== 0 && st.blobs < MAX_BLOBS) {
+      const [hw, hl] = VEHICLE_FOOTPRINT[p.vKind]
+      const sn = Math.sin(p.heading)
+      const cs = Math.cos(p.heading)
+      this.setBlob(st.blobs, p.x + sn * p.vOff, p.y + BLOB_LIFT * 1.2, p.z + cs * p.vOff, p.heading, hw * 2.3, hl * 2.1, fade)
+      st.blobs++
+    }
+  }
+
+  /** A column-major matrix: width sx on the heading's X, length sz on its Z, at (x, y, z). */
+  private setBlob(i: number, x: number, y: number, z: number, heading: number, sx: number, sz: number, fade: number): void {
+    const m = this.blobMatrix
+    const o = i * 16
+    const c = Math.cos(heading)
+    const s = Math.sin(heading)
+    m[o] = c * sx
+    m[o + 1] = 0
+    m[o + 2] = -s * sx
+    m[o + 3] = 0
+    m[o + 4] = 0
+    m[o + 5] = 1
+    m[o + 6] = 0
+    m[o + 7] = 0
+    m[o + 8] = s * sz
+    m[o + 9] = 0
+    m[o + 10] = c * sz
+    m[o + 11] = 0
+    m[o + 12] = x
+    m[o + 13] = y
+    m[o + 14] = z
+    m[o + 15] = 1
+    this.blobFade[i] = fade
+  }
+
+  /**
+   * Which person is under a ray (origin o, unit direction u), nearest first; null if none. The pick radius grows with distance
+   * so somebody 150 m away is still about 14 px wide to click. People who are mostly faded out are not pickable.
+   */
+  pick(ox: number, oy: number, oz: number, ux: number, uy: number, uz: number, maxDist = 1e9): string | null {
+    let best: string | null = null
+    let bestT = maxDist
+    for (const p of this.people.values()) {
+      if (p.ghost || p.presence < 0.4 || !p.entity) continue
+      const hit = rayVsSegment(ox, oy, oz, ux, uy, uz, p.ax, p.ay, p.az, p.bx, p.by, p.bz, pickRadius(p.dist))
+      if (hit && hit.t < bestT) {
+        bestT = hit.t
+        best = p.key
+      }
+    }
+    return best
+  }
+}

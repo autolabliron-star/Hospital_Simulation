@@ -1,0 +1,586 @@
+/* M1 HUD: frosted-glass cards over the 3D view. Colours come from the variables in src/styles/base.css. */
+
+.hud {
+  --hud-card: rgba(255, 255, 255, 0.8);
+  --hud-border: color-mix(in srgb, var(--ink) 9%, transparent);
+  --hud-shadow: 0 8px 28px color-mix(in srgb, var(--ink) 11%, transparent), 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent);
+  --hud-muted: color-mix(in srgb, var(--ink) 58%, transparent);
+  --hud-faint: color-mix(in srgb, var(--ink) 14%, transparent);
+  --hud-radius: 16px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink);
+  user-select: none;
+}
+
+.hud-card {
+  pointer-events: auto;
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border);
+  border-radius: var(--hud-radius);
+  box-shadow: var(--hud-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.25);
+  box-sizing: border-box;
+}
+
+.hud button,
+.hud select,
+.hud input {
+  font: inherit;
+  color: inherit;
+}
+
+.hud button {
+  cursor: pointer;
+}
+
+.hud :focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* ---------- placement ---------- */
+
+.hud-tl {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+}
+
+.hud-tr {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 292px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hud-bottom {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(660px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* ---------- title, clock, speed ---------- */
+
+.hud-title {
+  padding: 14px 16px 14px;
+  min-width: 236px;
+}
+
+.hud-title__name {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--teal);
+}
+
+.hud-title__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hud-clock {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.hud-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.hud-seg__btn {
+  min-width: 34px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--hud-muted);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.hud-seg__btn:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.hud-seg__btn[aria-pressed='true'] {
+  background: var(--teal);
+  color: #fff;
+}
+
+.hud-seg__btn--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hud-seg__btn--icon[aria-pressed='true'] {
+  background: var(--amber);
+}
+
+/* ---------- jump button (clock card) ---------- */
+
+.hud-jump {
+  margin-top: 10px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-weight: 600;
+  font-size: 12.5px;
+  border: 1px solid var(--hud-faint);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.hud-jump:hover {
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--mint) 18%, transparent);
+}
+
+/* ---------- KPI card ---------- */
+
+.hud-kpi {
+  padding: 14px 16px 16px;
+}
+
+.hud-kpi__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.hud-kpi__title {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.hud-kpi__sub {
+  margin: 14px 0 10px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--hud-faint);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+/* the bed state line in a ward room's panel (roomPanel.css has the rest) */
+.rp-bed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-chip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal);
+  background: color-mix(in srgb, var(--mint) 28%, transparent);
+}
+
+.hud-kpi__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 12px;
+}
+
+.hud-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hud-metric__value {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-metric__unit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hud-muted);
+  letter-spacing: 0;
+}
+
+.hud-metric__label {
+  font-size: 11.5px;
+  color: var(--hud-muted);
+}
+
+/* ---------- event line ---------- */
+
+.hud-event {
+  margin: 0;
+  min-height: 40px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 999px;
+}
+
+.hud-event__text {
+  animation: hud-fade-in 0.4s ease both;
+}
+
+.hud-event__idle {
+  color: var(--hud-muted);
+  font-size: 13px;
+}
+
+@keyframes hud-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- order rail ---------- */
+
+.hud-rail {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 22px 12px;
+}
+
+.hud-rail__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 64px;
+  flex: none;
+}
+
+.hud-rail__count {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-muted);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border: 1.5px solid var(--hud-faint);
+  transition:
+    background 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.hud-rail__stage[data-active='true'] .hud-rail__count {
+  color: #fff;
+  background: var(--teal);
+  border-color: var(--teal);
+  transform: scale(1.06);
+}
+
+.hud-rail__label {
+  font-size: 11.5px;
+  color: var(--hud-muted);
+  white-space: nowrap;
+}
+
+.hud-rail__stage[data-active='true'] .hud-rail__label {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.hud-rail__link {
+  flex: 1;
+  min-width: 8px;
+  height: 2px;
+  margin-top: 15px;
+  border-radius: 1px;
+  background: var(--hud-faint);
+}
+
+/* ---------- dev prescribe ---------- */
+
+.hud-rx-open {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 16px;
+  font-weight: 600;
+  font-size: 12.5px;
+  border-radius: 999px;
+}
+
+.hud-rx-open:hover {
+  border-color: var(--teal);
+}
+
+.hud-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--hud-muted);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.hud-rx {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 16px 16px;
+}
+
+.hud-rx__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hud-rx__title {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.hud-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--hud-muted);
+}
+
+.hud-icon-btn:hover {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink);
+}
+
+.hud-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hud-field__label {
+  padding: 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+.hud-select {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-faint);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.hud-meds {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.hud-meds__count {
+  margin-left: 4px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.hud-meds__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: min(34vh, 300px);
+  overflow-y: auto;
+  border-radius: 10px;
+  border: 1px solid var(--hud-faint);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.hud-med {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.hud-med:hover {
+  background: color-mix(in srgb, var(--mint) 16%, transparent);
+}
+
+.hud-med[data-on='true'] {
+  background: color-mix(in srgb, var(--mint) 26%, transparent);
+}
+
+.hud-med[data-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hud-med input {
+  margin: 0;
+  accent-color: var(--teal);
+}
+
+.hud-med__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.hud-med__name {
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-med__strength {
+  font-size: 11.5px;
+  color: var(--hud-muted);
+  white-space: nowrap;
+}
+
+.hud-rx__notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  background: color-mix(in srgb, var(--amber) 20%, transparent);
+  color: #7a4a05;
+}
+
+.hud-rx__notice[data-ok='true'] {
+  background: color-mix(in srgb, var(--mint) 30%, transparent);
+  color: #0d5f56;
+}
+
+.hud-send {
+  height: 36px;
+  border: 0;
+  border-radius: 11px;
+  font-weight: 650;
+  color: #fff;
+  background: var(--teal);
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.hud-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--teal) 86%, #000);
+}
+
+.hud-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- small windows and reduced motion ---------- */
+
+@media (max-width: 900px) {
+  .hud-tr {
+    width: 236px;
+  }
+
+  .hud-metric__value {
+    font-size: 20px;
+  }
+
+  .hud-rail {
+    padding: 12px 10px 10px;
+  }
+
+  .hud-rail__stage {
+    width: 52px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-event__text {
+    animation: none;
+  }
+
+  .hud-rail__count,
+  .hud-seg__btn,
+  .hud-send {
+    transition: none;
+  }
+}

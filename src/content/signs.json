@@ -1,0 +1,51 @@
+{
+  "destinations": {
+    "lobby": { "label": "Entrance", "detail": "Reception and check-in", "accent": "neutral" },
+    "triage": { "label": "Triage", "detail": "Four assessment bays", "accent": "emergency" },
+    "er": { "label": "Emergency", "detail": "Six treatment bays", "accent": "emergency" },
+    "corridorA": { "label": "Ward A", "detail": "Rooms A1 to A8", "accent": "wardA" },
+    "corridorB": { "label": "Ward B", "detail": "Rooms B1 to B8", "accent": "wardB" },
+    "imagingHall": { "label": "Imaging", "detail": "MRI, CT, X-ray, ultrasound", "accent": "diagnostics" },
+    "liftA": { "label": "Lifts", "detail": "To the upper floors", "accent": "neutral" },
+    "liftB": { "label": "Lifts", "detail": "To the upper floors", "accent": "neutral" },
+    "hubA": { "label": "Nurse hub A", "detail": "Ward A station", "accent": "wardA" },
+    "hubB": { "label": "Nurse hub B", "detail": "Ward B station", "accent": "wardB" },
+    "core": { "label": "Pharmacy core", "detail": "MedVend and MedPods", "accent": "neutral" },
+    "command": { "label": "Command center", "detail": "Every pod, room and order", "accent": "neutral" },
+    "atrium": { "label": "Healing atrium", "detail": "Garden and café", "accent": "atrium" }
+  },
+  "signs": {
+    "lobby-east": { "title": "Main corridor" },
+    "spine-north": { "title": "Main corridor north" },
+    "spine-south": { "title": "Main corridor south" },
+    "wardA-west": { "title": "Ward A corridor" },
+    "wardB-west": { "title": "Ward B corridor" },
+    "wardA-east": { "title": "Ward A corridor" },
+    "wardB-east": { "title": "Ward B corridor" }
+  },
+  "plates": {
+    "room": { "caption": "Room" },
+    "doors": {
+      "triage": { "label": "Triage" },
+      "er": { "label": "Emergency" },
+      "liftA": { "label": "Lifts" },
+      "liftB": { "label": "Lifts" },
+      "imaging": { "label": "Imaging" },
+      "mriControl": { "label": "MRI control" },
+      "mriRoom": { "label": "MRI scanner" },
+      "ctControl": { "label": "CT control" },
+      "ctRoom": { "label": "CT scanner" },
+      "xray": { "label": "X-ray" },
+      "ultrasound": { "label": "Ultrasound" },
+      "bloodDraw": { "label": "Blood draw" },
+      "commandA": { "label": "Command center" },
+      "commandB": { "label": "Command center" },
+      "pharmacistA": { "label": "Pharmacy core" },
+      "pharmacistB": { "label": "Pharmacy core" },
+      "staffA": { "label": "Staff room" },
+      "supplyB": { "label": "Clean supply" },
+      "loungeA": { "label": "Family lounge" },
+      "quietB": { "label": "Quiet room" }
+    }
+  }
+}

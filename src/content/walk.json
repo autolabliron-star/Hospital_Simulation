@@ -1,0 +1,64 @@
+{
+  "prompt": {
+    "prescribe": "Prescribe for {patient}",
+    "bedEmpty": "{room} has no patient right now",
+    "talk": "Talk to {name}",
+    "console": "Open the {device} console",
+    "drawer": "See what is in {room}'s drawer",
+    "sit": "Sit down",
+    "standUp": "Stand up",
+    "commandWall": "Look at the command wall",
+    "kiosk": "Use the check-in kiosk",
+    "lift": "Call the lift"
+  },
+  "toast": {
+    "kiosk": "Check-in kiosks are for arriving patients: reception will take it from here.",
+    "lift": "The wards upstairs aren't open in this demo.",
+    "busy": "{name} is busy right now.",
+    "seatTaken": "Somebody just took that seat."
+  },
+  "device": {
+    "mri": "MRI",
+    "ct": "CT",
+    "xray": "X-ray",
+    "us": "ultrasound"
+  },
+  "objective": {
+    "prescribed": "{pharmacist} is checking your order for {room}",
+    "verifiedWaiting": "Your order for {room} is checked and waiting for a pod",
+    "verifiedPod": "Pod {pod} is on its way to collect your order for {room}",
+    "picking": "MedVend is loading your order into pod {pod}",
+    "enRoute": "Pod {pod} is bringing your order to {room}: {eta}",
+    "inDrawer": "Your order is in {room}'s drawer",
+    "inDrawerNurse": "Your order is in {room}'s drawer: a nurse is on the way",
+    "given": "Given to {patient} in {room}",
+    "cancelled": "Your order for {room} was cancelled: the patient has left the room"
+  },
+  "eta": {
+    "underMinute": "under a minute",
+    "minutes": "about {n} min"
+  },
+  "drawerCard": {
+    "title": "{room} medicine drawer",
+    "loaded": "Loaded",
+    "empty": "Empty",
+    "dueNow": "Dose due",
+    "locked": "Locked to {patient}'s wristband.",
+    "nothing": "Nothing in it right now.",
+    "yours": "Your order is on its way to this drawer.",
+    "close": "Close the drawer card"
+  },
+  "hud": {
+    "minimap": "Minimap",
+    "minimapAlt": "Floor plan with your position and the medicine pods",
+    "clockLabel": "Simulated time {time}",
+    "paused": "paused",
+    "drawerCloseTitle": "Close (E)"
+  },
+  "hint": [
+    { "action": "walk", "label": "Overview" },
+    { "action": "firstPerson", "label": "First person" },
+    { "action": "interact", "label": "Use" },
+    { "action": "shoulderSwap", "label": "Shoulder" }
+  ]
+}

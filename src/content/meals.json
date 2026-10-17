@@ -1,0 +1,26 @@
+{
+  "breakfast": [
+    { "name": "Porridge", "description": "Oats with sliced banana and a little honey" },
+    { "name": "Scrambled eggs", "description": "Soft eggs on toast with grilled tomato" },
+    { "name": "Yoghurt and fruit", "description": "Natural yoghurt, berries and a sliced pear" },
+    { "name": "Wholegrain cereal", "description": "Flakes with semi-skimmed milk and a banana" },
+    { "name": "Marmalade toast", "description": "Two slices of toast with butter and marmalade" },
+    { "name": "Pancakes", "description": "Small pancakes with warm stewed apple" }
+  ],
+  "lunch": [
+    { "name": "Lentil soup", "description": "Red lentil soup with warm bread and butter" },
+    { "name": "Chicken sandwich", "description": "Roast chicken, lettuce and mayonnaise on wholemeal" },
+    { "name": "Tomato pasta", "description": "Penne with tomato sauce and roasted peppers" },
+    { "name": "Baked fish", "description": "Baked white fish with new potatoes and peas" },
+    { "name": "Cheese sandwich", "description": "Cheddar, tomato and cress on wholemeal bread" },
+    { "name": "Jacket potato", "description": "Baked potato with beans or grated cheese" }
+  ],
+  "dinner": [
+    { "name": "Chicken curry", "description": "Mild chicken curry with rice and naan" },
+    { "name": "Beef stew", "description": "Slow-cooked beef and vegetables with mashed potato" },
+    { "name": "Vegetable lasagne", "description": "Layered pasta with tomato and cheese sauce" },
+    { "name": "Salmon", "description": "Salmon fillet with herb sauce and steamed greens" },
+    { "name": "Shepherd's pie", "description": "Minced lamb under mashed potato, with carrots" },
+    { "name": "Bean chilli", "description": "Mild bean chilli with rice and soured cream" }
+  ]
+}

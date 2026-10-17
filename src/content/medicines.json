@@ -1,0 +1,20 @@
+[
+  { "id": "paracetamol", "name": "Paracetamol", "strength": "500 mg", "form": "tablet", "color": "#4eb7e4", "bin": 1 },
+  { "id": "ibuprofen", "name": "Ibuprofen", "strength": "400 mg", "form": "tablet", "color": "#de9c9c", "bin": 6 },
+  { "id": "omeprazole", "name": "Omeprazole", "strength": "20 mg", "form": "capsule", "color": "#5ad89f", "bin": 10 },
+  { "id": "amoxicillin", "name": "Amoxicillin", "strength": "500 mg", "form": "capsule", "color": "#d8935a", "bin": 15 },
+  { "id": "metformin", "name": "Metformin", "strength": "500 mg", "form": "tablet", "color": "#b994e6", "bin": 20 },
+  { "id": "atorvastatin", "name": "Atorvastatin", "strength": "20 mg", "form": "tablet", "color": "#ccc266", "bin": 23 },
+  { "id": "amlodipine", "name": "Amlodipine", "strength": "5 mg", "form": "tablet", "color": "#81d5cd", "bin": 24 },
+  { "id": "bisoprolol", "name": "Bisoprolol", "strength": "2.5 mg", "form": "tablet", "color": "#ee8cc2", "bin": 29 },
+  { "id": "furosemide", "name": "Furosemide", "strength": "40 mg", "form": "tablet", "color": "#6da5e9", "bin": 33 },
+  { "id": "ondansetron", "name": "Ondansetron", "strength": "4 mg", "form": "tablet", "color": "#a2d581", "bin": 38 },
+  { "id": "levothyroxine", "name": "Levothyroxine", "strength": "50 micrograms", "form": "tablet", "color": "#e6c594", "bin": 42 },
+  { "id": "apixaban", "name": "Apixaban", "strength": "5 mg", "form": "tablet", "color": "#f2a6f2", "bin": 45 },
+  { "id": "senna", "name": "Senna", "strength": "7.5 mg", "form": "tablet", "color": "#eea98c", "bin": 48 },
+  { "id": "macrogol", "name": "Macrogol", "strength": "13.8 g", "form": "sachet", "color": "#4ecee4", "bin": 53 },
+  { "id": "salbutamol", "name": "Salbutamol", "strength": "100 micrograms/dose", "form": "inhaler", "color": "#d8ac5a", "bin": 56 },
+  { "id": "lactulose", "name": "Lactulose", "strength": "15 ml", "form": "oral solution", "color": "#ee8ca4", "bin": 63 },
+  { "id": "colecalciferol", "name": "Vitamin D3 (colecalciferol)", "strength": "1000 units", "form": "tablet", "color": "#b3b5e6", "bin": 67 },
+  { "id": "cetirizine", "name": "Cetirizine", "strength": "10 mg", "form": "tablet", "color": "#e6b3d6", "bin": 70 }
+]

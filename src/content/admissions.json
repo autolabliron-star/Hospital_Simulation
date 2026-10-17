@@ -1,0 +1,28 @@
+{
+  "profiles": [
+    { "id": "adm-breathing", "reasons": ["Severe difficulty breathing", "Breathless and struggling to speak"], "wardReason": "Breathing support and close observation", "ageRange": [58, 84], "usualMeds": ["salbutamol", "amoxicillin", "paracetamol"] },
+    { "id": "adm-collapse", "reasons": ["Collapsed, not fully conscious", "Collapsed at home, slow to respond"], "wardReason": "Monitoring after a collapse", "ageRange": [60, 88], "usualMeds": ["bisoprolol", "paracetamol"] },
+    { "id": "adm-chest-pain", "reasons": ["Chest pain spreading to arm", "Chest pain at rest, sweating"], "wardReason": "Chest pain assessment and monitoring", "ageRange": [48, 80], "usualMeds": ["atorvastatin", "bisoprolol"] },
+    { "id": "adm-weakness", "reasons": ["Sudden weakness down one side"], "wardReason": "Observation after sudden weakness", "ageRange": [60, 85], "usualMeds": ["apixaban", "atorvastatin", "amlodipine"] },
+    { "id": "adm-fit-confusion", "reasons": ["Confused and very drowsy today", "Fit that has now stopped"], "wardReason": "Observation after a fit or confusion", "ageRange": [55, 88], "usualMeds": ["paracetamol", "colecalciferol"] },
+    { "id": "adm-fever", "reasons": ["High fever since yesterday"], "wardReason": "High fever, fluids and antibiotics", "ageRange": [24, 80], "usualMeds": ["amoxicillin", "paracetamol"] },
+    { "id": "adm-abdominal", "reasons": ["Severe abdominal pain, vomiting"], "wardReason": "Abdominal pain, tests and observation", "ageRange": [24, 70], "usualMeds": ["ondansetron", "omeprazole", "paracetamol"] },
+    { "id": "adm-faint", "reasons": ["Fainted at work this morning"], "wardReason": "Observation after fainting", "ageRange": [24, 55], "usualMeds": ["bisoprolol", "paracetamol"] },
+    { "id": "adm-asthma", "reasons": ["Asthma getting worse, wheezing"], "wardReason": "Asthma flare with inhaler and observation", "ageRange": [24, 60], "usualMeds": ["salbutamol", "cetirizine"] },
+    { "id": "adm-dizzy", "reasons": ["Dizzy and vomiting since morning"], "wardReason": "Dizziness and vomiting, observed overnight", "ageRange": [30, 75], "usualMeds": ["ondansetron", "omeprazole"] },
+    { "id": "adm-headache", "reasons": ["Severe headache, feels unwell"], "wardReason": "Headache assessment and observation", "ageRange": [24, 60], "usualMeds": ["paracetamol", "ibuprofen"] },
+    { "id": "adm-fall", "reasons": ["Ankle swollen after a fall", "Confused after a fall"], "wardReason": "Observation after a fall", "ageRange": [70, 89], "usualMeds": ["paracetamol", "colecalciferol"] },
+    { "id": "adm-hip", "reasons": ["Fall at home, hip pain"], "wardReason": "Hip pain after a fall, mobility checks", "ageRange": [70, 89], "usualMeds": ["paracetamol", "macrogol", "colecalciferol"] },
+    { "id": "adm-allergy", "reasons": ["Rash and itchy eyes", "Allergic reaction, face swollen"], "wardReason": "Allergic reaction, observed after treatment", "ageRange": [24, 65], "usualMeds": ["cetirizine", "paracetamol"] },
+    { "id": "adm-throat-ear", "reasons": ["Ear pain for three days", "Sore throat and swollen glands"], "wardReason": "Throat and ear infection, antibiotics", "ageRange": [24, 60], "usualMeds": ["amoxicillin", "ibuprofen"] },
+    { "id": "adm-back", "reasons": ["Back pain after lifting boxes"], "wardReason": "Back pain, pain relief and mobility", "ageRange": [24, 65], "usualMeds": ["ibuprofen", "omeprazole"] },
+    { "id": "adm-urine", "reasons": ["Burning feeling when passing urine"], "wardReason": "Urine infection, antibiotics and fluids", "ageRange": [24, 75], "usualMeds": ["amoxicillin", "paracetamol"] },
+    { "id": "adm-chest-infection", "reasons": ["Cough and fever for a week"], "wardReason": "Chest infection, antibiotics and fluids", "ageRange": [60, 89], "usualMeds": ["amoxicillin", "paracetamol", "salbutamol"] },
+    { "id": "adm-hand", "reasons": ["Cut finger needing stitches"], "wardReason": "Hand check and pain relief", "ageRange": [24, 60], "usualMeds": ["paracetamol", "ibuprofen"] },
+    { "id": "adm-sprain", "reasons": ["Twisted ankle playing football", "Sprained wrist from a bike fall"], "wardReason": "Pain relief and mobility check", "ageRange": [24, 45], "usualMeds": ["ibuprofen", "paracetamol"] },
+    { "id": "adm-medicine-review", "reasons": ["Prescription running out, needs review"], "wardReason": "Medicine review and a new prescription", "ageRange": [55, 89], "usualMeds": ["amlodipine", "bisoprolol", "atorvastatin"] },
+    { "id": "adm-cold", "reasons": ["Mild cold symptoms for days"], "wardReason": "Cold symptoms, rest and fluids", "ageRange": [24, 70], "usualMeds": ["paracetamol", "cetirizine"] },
+    { "id": "adm-sunburn", "reasons": ["Sunburn, feels sore and hot"], "wardReason": "Sunburn care and observation", "ageRange": [24, 60], "usualMeds": ["ibuprofen", "cetirizine"] },
+    { "id": "adm-neck", "reasons": ["Minor car bump, neck sore"], "wardReason": "Neck pain check after a car bump", "ageRange": [24, 60], "usualMeds": ["paracetamol", "ibuprofen"] }
+  ]
+}

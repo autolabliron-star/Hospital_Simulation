@@ -1,0 +1,207 @@
+/* "Jump to…" menu and the cover that hides a jump. Uses the HUD variables (hud.css) and the page colours (base.css). */
+
+/* ---------- the menu ---------- */
+
+.jm-layer {
+  z-index: 20;
+}
+
+.jm-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  animation: jm-backdrop-in 0.18s ease both;
+}
+
+.jm {
+  width: min(460px, 100%);
+  max-height: min(640px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  overflow: hidden;
+  animation: jm-in 0.2s ease both;
+}
+
+.jm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.jm-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.jm-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--hud-muted);
+}
+
+.jm-sub__clock {
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.jm-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.jm-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.jm-item:hover {
+  background: color-mix(in srgb, var(--mint) 22%, transparent);
+}
+
+.jm-item[data-now='true'] {
+  border-color: color-mix(in srgb, var(--teal) 55%, transparent);
+  background: color-mix(in srgb, var(--mint) 20%, transparent);
+}
+
+.jm-item[data-past='true'] .jm-item__label {
+  color: var(--hud-muted);
+}
+
+.jm-item__time {
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--teal);
+}
+
+.jm-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.jm-item__label {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.jm-item__caption {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--hud-muted);
+}
+
+.jm-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--hud-muted);
+}
+
+@keyframes jm-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes jm-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- the cover (fade out, rebuild, fade in) ---------- */
+
+.jm-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: #e9eeed;
+  color: var(--ink);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  /* fading in: the cover goes away over the length of FADE_IN_MS (jumpFlow.ts) */
+  transition:
+    opacity 0.5s ease,
+    visibility 0s linear 0.5s;
+}
+
+.jm-cover[data-covered='true'] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  /* fading out: FADE_OUT_MS */
+  transition:
+    opacity 0.4s ease,
+    visibility 0s;
+}
+
+.jm-cover__text {
+  text-align: center;
+  padding: 0 24px;
+}
+
+.jm-cover__time {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.jm-cover__label {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jm-backdrop,
+  .jm {
+    animation: none;
+  }
+
+  .jm-item,
+  .jm-cover,
+  .jm-cover[data-covered='true'] {
+    transition-duration: 0.01s;
+  }
+}

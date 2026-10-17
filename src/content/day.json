@@ -1,0 +1,144 @@
+{
+  "moments": [
+    { "hour": 7.0, "label": "Shift handover", "caption": "Night and day nurses swap notes at the nurse hub, then at each bedside." },
+    { "hour": 7.75, "label": "Breakfast", "caption": "Trays go out by MealBot, and the host takes each one into the room." },
+    { "hour": 9.0, "label": "Ward rounds", "caption": "Doctors see each patient and plan today's medicines and discharges." },
+    { "hour": 10.5, "label": "Discharges", "caption": "Patients go home with their families, and their rooms are cleaned for the next person." },
+    { "hour": 12.0, "label": "Lunch and the midday dose wave", "caption": "Lunch goes out, and the midday medicines follow close behind." },
+    { "hour": 15.0, "label": "Visiting", "caption": "Families arrive in the afternoon, and the lobby fills up." },
+    { "hour": 18.0, "label": "Dinner", "caption": "The last meal of the day, then the evening medicines." },
+    { "hour": 19.0, "label": "Evening handover", "caption": "The day team hands over to the night team, ward by ward." },
+    { "hour": 22.5, "label": "Night", "caption": "Lights dim, one nurse per ward checks in on each room, and the ER runs at night rates." }
+  ],
+  "events": {
+    "dischargeSigned": "{doctor} signed {patient}'s discharge from {room}.",
+    "wentHome": "{patient} went home after {days} days.",
+    "roomCleaned": "Room {room} is clean and ready.",
+    "bedAssigned": "Bed {room} assigned to {patient} ({bay}).",
+    "patientBoarding": "{patient} is boarding in {bay} until bed {room} is ready.",
+    "admittedToWard": "{nurse} admitted {patient} to {room}.",
+    "huddle": "{hub} huddle: {topic}.",
+    "shiftHandover": "{nurse} took over {ward} from {colleague}.",
+    "mealServed": "{host} served {dish} in {room}.",
+    "trayCollected": "{host} collected the tray from {room}.",
+    "doseWave": "The {time} dose wave is on its way: {count} rooms."
+  },
+  "ui": {
+    "simulated": "simulated",
+    "jump": {
+      "title": "Jump to…",
+      "button": "Jump to…",
+      "buttonTitle": "Jump to a moment of the day (J)",
+      "closeLabel": "Close the jump menu",
+      "closeTitle": "Close (Esc)",
+      "listLabel": "Moments of the day",
+      "now": "Now",
+      "nowChip": "Now",
+      "hint": "The hospital is rebuilt at that time, with the same people and the same day plan.",
+      "overlay": "Jumping to {time}"
+    },
+    "beds": {
+      "title": "Beds",
+      "wardA": "A",
+      "wardB": "B",
+      "dischargesToday": "Discharges today",
+      "beforeNoon": "{n} before noon",
+      "admissionsToday": "Admissions today",
+      "boarding": "ER boarding",
+      "boardingNone": "none",
+      "boardingLongest": "longest {n} min",
+      "boardingTile": "ER {n} min",
+      "onTheWay": "On the way",
+      "predicted": "Predicted discharges today",
+      "predictedValue": "{planned} planned, {left} to come",
+      "predictedNext": "next about {time}",
+      "inProgress": "striped: in progress",
+      "legend": {
+        "occupied": "Occupied",
+        "going": "Going home",
+        "clean": "Cleaning",
+        "ready": "Ready",
+        "reserved": "Reserved"
+      }
+    },
+    "kpi": {
+      "bedsHeading": "Beds and meals",
+      "bedsOccupiedReady": "Beds occupied / ready",
+      "dischargesBeforeNoon": "Discharges before noon",
+      "erBoarding": "ER boarding, longest wait",
+      "erBoardingNone": "None",
+      "erBoardingValue": "{n} · {min} min",
+      "mealsOnTime": "Meals served on time"
+    },
+    "room": {
+      "patient": "Patient",
+      "bedState": "Bed",
+      "todaysPlan": "Today's plan",
+      "dayOfStay": "Day {n} of stay",
+      "admittedFromEr": "Admitted from the ER",
+      "emptyReady": "Ready for the next patient",
+      "emptyNeedsCleaning": "Empty: waiting for a cleaner",
+      "emptyCleaning": "Empty: being cleaned",
+      "reservedFor": "Reserved for {name}",
+      "onTheWay": "{name} is on the way.",
+      "boardingIn": "{name} is boarding in {bay} ({n} min) until this bed is ready.",
+      "since": "since {time}",
+      "nextDose": "Next dose",
+      "nextDoseDue": "{time}, due now",
+      "nextDoseAt": "{time}",
+      "nextDoseWave": "{time}, with the scheduled round",
+      "noMoreDoses": "No more scheduled doses today",
+      "meals": "Meals",
+      "mealBeingServed": "{meal}: being served",
+      "mealNotServed": "{meal}: not served",
+      "mealServed": "{meal}: tray served",
+      "mealEaten": "{meal}: eaten",
+      "mealNext": "{meal} at {time}",
+      "mealsDone": "All meals done for today",
+      "discharge": "Planned discharge",
+      "dischargeGoing": "Going home today, about {time}",
+      "dischargeSigned": "Going home today. The doctor has signed it.",
+      "dischargeLeaving": "Going home now",
+      "dischargeStaying": "Staying on the ward",
+      "dischargeNotPlanned": "Not planned yet",
+      "bay": "ER bay {n}"
+    },
+    "bedStates": {
+      "occupied": {
+        "label": "Occupied",
+        "short": "Occupied",
+        "detail": "A patient lives here."
+      },
+      "dischargeSigned": {
+        "label": "Going home",
+        "short": "Signed",
+        "detail": "The doctor signed today's planned discharge."
+      },
+      "leaving": {
+        "label": "Leaving",
+        "short": "Leaving",
+        "detail": "Take-home medicines, family and changing, then the walk out."
+      },
+      "needsCleaning": {
+        "label": "Needs cleaning",
+        "short": "To clean",
+        "detail": "Empty, waiting for a cleaner."
+      },
+      "cleaning": {
+        "label": "Being cleaned",
+        "short": "Cleaning",
+        "detail": "A cleaner is in the room and fresh linen is on its way."
+      },
+      "ready": {
+        "label": "Ready",
+        "short": "Ready",
+        "detail": "Clean and made up for the next patient."
+      },
+      "reserved": {
+        "label": "Reserved",
+        "short": "Reserved",
+        "detail": "Assigned to a patient who is on the way."
+      }
+    }
+  }
+}

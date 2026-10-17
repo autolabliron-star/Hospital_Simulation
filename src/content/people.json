@@ -1,0 +1,61 @@
+{
+  "firstNames": [
+    "Aaron", "Abena", "Adam", "Aiko", "Akira", "Alejandro", "Alice", "Amina", "Andreas", "Anika",
+    "Anton", "Arjun", "Astrid", "Ayesha", "Bela", "Beatriz", "Ben", "Bilal", "Camille", "Carlos",
+    "Chiara", "Chidi", "Clara", "Dariusz", "Diego", "Elena", "Emeka", "Eszter", "Ethan", "Farah",
+    "Fiona", "Gareth", "Gustavo", "Hana", "Hamid", "Henrik", "Ibrahim", "Imani", "Isla", "Jamal",
+    "Jin", "Jonas", "Joseph", "Karim", "Keiko", "Kwame", "Laila", "Lars", "Lina", "Mateo",
+    "Matthew", "Mei", "Miriam", "Mohammed", "Nadia", "Naveen", "Niamh", "Nikolai", "Nkechi", "Olga",
+    "Omar", "Paolo", "Pedro", "Petra", "Quinn", "Rahul", "Rania", "Sadia", "Seun", "Sofia",
+    "Haeun", "Teodor", "Thandiwe", "Tuan", "Valentina", "Wei", "Xiomara", "Yannick", "Zainab", "Zoltan"
+  ],
+  "lastNames": [
+    "Abbott", "Abara", "Aguilar", "Andersen", "Ansah", "Bakr", "Baptiste", "Becker", "Bello", "Bianchi",
+    "Bhatt", "Carvalho", "Chowdhury", "Chu", "Costa", "Dimitrov", "Dubois", "Eriksson", "Eze", "Farouk",
+    "Fernandes", "Fischer", "Gallagher", "Garcia", "Gupta", "Haas", "Hartley", "Hosseini", "Idowu", "Ishikawa",
+    "Jankowski", "Johansson", "Kaminski", "Karlsson", "Kovács", "Kowalczyk", "Larsen", "Laurent", "Lindqvist", "Lopes",
+    "Madsen", "Malik", "Marchetti", "Mendes", "Moreau", "Mwangi", "Nakamura", "Nasser", "Nguyen", "Novak",
+    "Odhiambo", "Okonkwo", "Oliveira", "Ortega", "Pappas", "Pereira", "Petrov", "Rahman", "Reyes", "Rossi",
+    "Sandoval", "Sato", "Schmidt", "Shah", "Silva", "Sorensen", "Suarez", "Svensson", "Tran", "Turner",
+    "Ueda", "Vasquez", "Vidal", "Vogel", "Walsh", "Wójcik", "Yamamoto", "Yildiz", "Zhang", "Zielinski"
+  ],
+  "erReasons": [
+    { "text": "Severe difficulty breathing", "acuity": 1 },
+    { "text": "Collapsed, not fully conscious", "acuity": 1 },
+    { "text": "Chest pain spreading to arm", "acuity": 2 },
+    { "text": "Sudden weakness down one side", "acuity": 2 },
+    { "text": "Confused and very drowsy today", "acuity": 2 },
+    { "text": "High fever since yesterday", "acuity": 3 },
+    { "text": "Severe abdominal pain, vomiting", "acuity": 3 },
+    { "text": "Fainted at work this morning", "acuity": 3 },
+    { "text": "Asthma getting worse, wheezing", "acuity": 3 },
+    { "text": "Dizzy and vomiting since morning", "acuity": 3 },
+    { "text": "Severe headache, feels unwell", "acuity": 3 },
+    { "text": "Ankle swollen after a fall", "acuity": 4 },
+    { "text": "Rash and itchy eyes", "acuity": 4 },
+    { "text": "Ear pain for three days", "acuity": 4 },
+    { "text": "Sore throat and swollen glands", "acuity": 4 },
+    { "text": "Back pain after lifting boxes", "acuity": 4 },
+    { "text": "Burning feeling when passing urine", "acuity": 4 },
+    { "text": "Cough and fever for a week", "acuity": 4 },
+    { "text": "Twisted ankle playing football", "acuity": 5 },
+    { "text": "Cut finger needing stitches", "acuity": 5 },
+    { "text": "Prescription running out, needs review", "acuity": 5 },
+    { "text": "Sprained wrist from a bike fall", "acuity": 5 },
+    { "text": "Mild cold symptoms for days", "acuity": 5 },
+    { "text": "Sunburn, feels sore and hot", "acuity": 5 }
+  ],
+  "ambulanceReasons": [
+    { "text": "Fall at home, hip pain", "acuity": 2 },
+    { "text": "Collapsed at home, slow to respond", "acuity": 1 },
+    { "text": "Breathless and struggling to speak", "acuity": 1 },
+    { "text": "Chest pain at rest, sweating", "acuity": 2 },
+    { "text": "Fit that has now stopped", "acuity": 2 },
+    { "text": "Allergic reaction, face swollen", "acuity": 2 },
+    { "text": "Confused after a fall", "acuity": 3 },
+    { "text": "Minor car bump, neck sore", "acuity": 3 }
+  ],
+  "visitorRelations": [
+    "daughter", "son", "partner", "friend", "grandson", "granddaughter", "brother", "sister", "neighbour", "parent"
+  ]
+}

@@ -1,0 +1,334 @@
+/*
+ * W1 walk mode: the quiet HUD of the doctor on foot. Same frosted cards as hud.css; colours from src/styles/base.css.
+ *
+ *   top left      a small clock
+ *   top right     the minimap (inside .hud-tr, so it makes way for the room panel like the KPI card does)
+ *   top centre    a toast
+ *   bottom centre the interact prompt, and under it the objective line
+ *   bottom left   the key hint (fades)
+ *   bottom right  the MedDrawer card
+ *
+ * Everything here except the drawer card lets the mouse through: walking with the mouse captured never clicks a HUD card.
+ */
+
+/* ---------- clock ---------- */
+
+.walk-clock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.walk-clock__time {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.walk-clock__tag {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+/* ---------- minimap ---------- */
+
+.walk-map {
+  position: relative;
+  padding: 6px;
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.walk-map__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 9px;
+  background: #e9eeed;
+}
+
+.walk-map__north {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: color-mix(in srgb, var(--ink) 70%, transparent);
+}
+
+/* ---------- interact prompt ---------- */
+
+.walk-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: max(88px, 16vh);
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 7px 18px 7px 8px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 560;
+  pointer-events: none;
+  animation: walk-pop 0.16s ease-out both;
+}
+
+.walk-prompt[data-locked='true'] {
+  padding: 8px 18px;
+  font-weight: 500;
+  color: var(--hud-muted);
+}
+
+.walk-prompt__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.walk-key {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ink);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+@keyframes walk-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+/* ---------- objective line ---------- */
+
+.walk-objective {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(600px, calc(100vw - 32px));
+  margin: 0;
+  padding: 9px 18px 9px 14px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 540;
+  pointer-events: none;
+  animation: hud-fade-in 0.4s ease both;
+}
+
+.walk-objective__icon {
+  flex: none;
+  color: var(--teal);
+}
+
+.walk-objective__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- key hint ---------- */
+
+.walk-hint {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  max-width: min(360px, 38vw);
+  font-size: 12px;
+  font-weight: 540;
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.85), 0 0 2px rgba(255, 255, 255, 0.9);
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  pointer-events: none;
+}
+
+.walk-hint[data-visible='true'] {
+  opacity: 1;
+}
+
+.walk-hint__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* ---------- toast ---------- */
+
+.walk-toast {
+  --toast-ms: 3200ms;
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px));
+  margin: 0;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 540;
+  text-align: center;
+  pointer-events: none;
+  animation: walk-toast var(--toast-ms) ease both;
+}
+
+@keyframes walk-toast {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  7% {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+  86% {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%);
+  }
+}
+
+/* ---------- the MedDrawer card ---------- */
+
+.walk-drawer {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: min(292px, calc(100vw - 32px));
+  padding: 12px 14px 14px;
+  animation: hud-fade-in 0.25s ease both;
+}
+
+.walk-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.walk-drawer__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.walk-drawer__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.walk-drawer__chips .hud-chip[data-tone='idle'] {
+  color: var(--hud-muted);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.walk-drawer__chips .hud-chip[data-tone='due'] {
+  color: #7a4a05;
+  background: color-mix(in srgb, var(--amber) 30%, transparent);
+}
+
+.walk-drawer__list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.walk-drawer__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 540;
+}
+
+.walk-drawer__swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.walk-drawer__note {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--hud-muted);
+}
+
+.walk-drawer__note--yours {
+  color: #b24a06;
+  font-weight: 560;
+}
+
+/* ---------- small windows and reduced motion ---------- */
+
+@media (max-width: 900px) {
+  .walk-hint {
+    display: none;
+  }
+
+  .walk-prompt {
+    bottom: max(76px, 14vh);
+    font-size: 13.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-prompt,
+  .walk-objective,
+  .walk-drawer {
+    animation: none;
+  }
+
+  .walk-toast {
+    animation: none;
+  }
+
+  .walk-hint {
+    transition: none;
+  }
+}

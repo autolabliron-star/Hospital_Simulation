@@ -1,0 +1,364 @@
+{
+  "timeOfDay": {
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "evening": "Evening",
+    "night": "Hello"
+  },
+  "greetings": {
+    "doctor": [
+      "{hello}, Doctor.",
+      "Hi, Doctor. Another busy one!",
+      "Good to see you, Doctor."
+    ],
+    "nurse": [
+      "{hello}, Doctor.",
+      "Hi, Doctor. All quiet on my side.",
+      "Hello, Doctor. Shout if you need anything."
+    ],
+    "pharmacist": [
+      "{hello}, Doctor. Orders are flowing nicely.",
+      "Hi, Doctor. The pods are running well.",
+      "Hello, Doctor."
+    ],
+    "porter": [
+      "{hello}, Doctor. Mind the wheels!",
+      "Hi, Doctor. Coming through gently.",
+      "Hello, Doctor."
+    ],
+    "cleaner": [
+      "{hello}, Doctor. Mind the damp floor.",
+      "Hi, Doctor.",
+      "Hello, Doctor. Nearly done here."
+    ],
+    "receptionist": [
+      "{hello}, Doctor. Welcome in.",
+      "Hi, Doctor.",
+      "Hello, Doctor. Need anything from reception?"
+    ],
+    "coordinator": [
+      "{hello}, Doctor.",
+      "Hi, Doctor. The beds are looking steady.",
+      "Hello, Doctor. The wall is all yours."
+    ],
+    "paramedic": [
+      "{hello}, Doctor.",
+      "Hi, Doctor. Quiet one so far.",
+      "Hello, Doctor."
+    ],
+    "radiographer": [
+      "{hello}, Doctor. Scanner's ready when you are.",
+      "Hi, Doctor.",
+      "Hello, Doctor. Come and see the images."
+    ],
+    "sonographer": [
+      "{hello}, Doctor.",
+      "Hi, Doctor. Ultrasound is ready.",
+      "Hello, Doctor."
+    ],
+    "host": [
+      "{hello}, Doctor. Meals are on their way.",
+      "Hi, Doctor.",
+      "Hello, Doctor. Can I get you a tea?"
+    ],
+    "patient": [
+      "{hello}, Doctor.",
+      "Hello, Doctor. Thank you for coming.",
+      "Hi, Doctor."
+    ],
+    "visitor": [
+      "{hello}, Doctor.",
+      "Hello, Doctor. Thank you.",
+      "Hi there, Doctor."
+    ]
+  },
+  "talk": {
+    "er.arriving": [
+      "I'm just finding the reception desk.",
+      "Hello. I think check-in is over there?"
+    ],
+    "er.checkIn": [
+      "I'm checking in now. Everyone's been so helpful.",
+      "Just registering. It's quick, thankfully."
+    ],
+    "er.waitingTriage": [
+      "I'm waiting for the triage nurse. Thank you for asking.",
+      "Waiting to be called. They said it won't be long."
+    ],
+    "er.triage": [
+      "The triage nurse is asking me a few questions.",
+      "I'm being looked after. Everyone is very kind."
+    ],
+    "er.waitingDoctor": [
+      "I'm waiting to see the doctor. Everyone's been kind.",
+      "I'm comfortable, thank you. Just waiting my turn."
+    ],
+    "er.inBay": [
+      "I'm in my bay now. The doctor will be along soon.",
+      "They've made me very comfortable here."
+    ],
+    "er.exam": [
+      "The doctor is just looking me over.",
+      "I'm being seen right now. Thank you!"
+    ],
+    "er.bloodTest": [
+      "I'm waiting for my blood test. It's quick, they say.",
+      "Off for my blood test in a moment."
+    ],
+    "er.scanWaiting": [
+      "I'm waiting for my {modality}. They'll call me soon.",
+      "Heading for my {modality} in a minute."
+    ],
+    "er.scanResults": [
+      "I'm waiting for my {modality} results.",
+      "Scan's done. Now I'm waiting on the {modality} results."
+    ],
+    "er.bloodResults": [
+      "I'm waiting for my blood test results.",
+      "Test done. Now we wait for the results."
+    ],
+    "er.decision": [
+      "The doctor is deciding what happens next.",
+      "I'm just waiting to hear the plan."
+    ],
+    "er.leavingHome": [
+      "I'm heading home. Thank you for everything.",
+      "Going home now. Everyone was lovely."
+    ],
+    "er.leavingTired": [
+      "Sorry, I have to go. Thank you for asking.",
+      "I'll come back another day. Thanks for stopping."
+    ],
+    "er.admitted": [
+      "They're taking me up to a ward. Thank you.",
+      "I'm being admitted. The staff have been great."
+    ],
+    "ward.rested": [
+      "I'm resting comfortably, thank you.",
+      "It's quiet here. The nurses are lovely."
+    ],
+    "ward.served.breakfast": [
+      "Breakfast is here. The {dish} looks lovely.",
+      "The {dish} smells lovely, thank you."
+    ],
+    "ward.served.lunch": [
+      "Lunch is here. The {dish} looks lovely.",
+      "The {dish} smells lovely, thank you."
+    ],
+    "ward.served.dinner": [
+      "Dinner is here. The {dish} looks lovely.",
+      "The {dish} smells lovely, thank you."
+    ],
+    "ward.eaten.breakfast": [
+      "Breakfast was lovely, thank you.",
+      "I enjoyed my breakfast. They're so kind here."
+    ],
+    "ward.eaten.lunch": [
+      "Lunch was lovely, thank you.",
+      "I enjoyed my lunch. They're so kind here."
+    ],
+    "ward.eaten.dinner": [
+      "Dinner was lovely, thank you.",
+      "I enjoyed my dinner. They're so kind here."
+    ],
+    "ward.medsReady": [
+      "I think my medicines are in the drawer.",
+      "The nurse will bring my medicines soon, I'm told."
+    ],
+    "ward.medsGiven": [
+      "The nurse just brought my medicines. So kind.",
+      "All settled. Thank you for looking in on me."
+    ],
+    "ward.dischargeSigned": [
+      "I hear I'm going home today. I'm so happy.",
+      "They say I can go home soon. Thank you!"
+    ],
+    "ward.leaving": [
+      "I'm off home. Thank you for everything.",
+      "Getting ready to go home. Everyone has been wonderful."
+    ],
+    "ward.up": [
+      "I'm just stretching my legs.",
+      "Back from my appointment and happy to be up."
+    ],
+    "outpatient.checkIn": [
+      "I'm here for my scan. Just checking in.",
+      "Checking in for my appointment. Nice and easy."
+    ],
+    "outpatient.waiting": [
+      "I'm waiting for my {modality} appointment.",
+      "They'll call me for my {modality} soon."
+    ],
+    "outpatient.after": [
+      "All done. That was easier than I expected.",
+      "Scan finished. Everyone was so kind."
+    ],
+    "visitor.arriving": [
+      "I'm here to see {patient}.",
+      "Looking for {patient}'s room. Nearly there."
+    ],
+    "visitor.visit": [
+      "I'm visiting {patient}. They seem cheerful today.",
+      "It's lovely to sit with {patient} for a while."
+    ],
+    "visitor.cafe": [
+      "Just a quick coffee before I head home.",
+      "The café here is lovely."
+    ],
+    "visitor.leaving": [
+      "I'm heading home now. Thank you.",
+      "Time to go. Thanks for everything."
+    ],
+    "visitor.collecting": [
+      "We're taking {patient} home today!",
+      "Just waiting for {patient} to get ready."
+    ],
+    "ambient.waiting": [
+      "Just waiting for a friend.",
+      "Having a sit. It's a calm spot."
+    ],
+    "ambient.cafe": [
+      "Just having a coffee. It's a lovely café.",
+      "Nice place for a break, isn't it?"
+    ],
+    "ambient.resting": [
+      "Just resting my legs for a moment.",
+      "Lovely quiet bench, this."
+    ],
+    "companion.waiting": [
+      "I'm here with {patient}. We're waiting to be seen.",
+      "Keeping {patient} company. They're being very patient."
+    ],
+    "companion.standing": [
+      "I'm staying with {patient}.",
+      "Just here to support {patient}. Thank you for asking."
+    ],
+    "nurse.charting": [
+      "Just updating the charts. All calm here.",
+      "Charting at the hub. Everything's on track."
+    ],
+    "nurse.drawerLoaded": [
+      "{room}'s medicines are in the drawer. I'll take them over soon.",
+      "Medicines have arrived for {room}. I'm about to go."
+    ],
+    "nurse.giving": [
+      "I'm giving {room} their medicines. Won't be long.",
+      "Just with {room} at the bedside right now."
+    ],
+    "nurse.checking": [
+      "I'm welcoming a new patient in {room}.",
+      "Just settling someone new into {room}."
+    ],
+    "nurse.walking": [
+      "On my way to a bedside.",
+      "Heading to a patient. Good to see you, Doctor."
+    ],
+    "nurse.er": [
+      "It's steady in the ER. Everyone's being looked after.",
+      "Keeping the bays ready for the next patient."
+    ],
+    "nurse.triage": [
+      "I'm calling in the next patient for triage.",
+      "Triage is moving nicely right now."
+    ],
+    "doctor.rounds": [
+      "I'm on my ward round. Room by room.",
+      "Just between patients. Rounds are going well."
+    ],
+    "doctor.examining": [
+      "I'm with the patient in {room}. One moment.",
+      "Just finishing the visit in {room}."
+    ],
+    "doctor.er": [
+      "Seeing patients in the ER. Busy, but fine.",
+      "The next patient is in a bay. Good to see you."
+    ],
+    "doctor.resting": [
+      "A quick break between rounds.",
+      "Catching my breath before the next room."
+    ],
+    "pharmacist.verifying": [
+      "I'm checking an order before it goes to the pods.",
+      "Verifying a pack list. Nearly done."
+    ],
+    "pharmacist.idle": [
+      "The pods are ready and waiting for the next order.",
+      "All quiet at the dispensing wall."
+    ],
+    "coordinator.beds": [
+      "We have {ready} beds ready right now.",
+      "The bed board is steady. {ready} rooms ready to go."
+    ],
+    "coordinator.idle": [
+      "I'm keeping an eye on the wall.",
+      "Everything looks steady on the board."
+    ],
+    "receptionist.desk": [
+      "Welcome. Check-in is quick at the kiosks, too.",
+      "Reception is open. If anyone needs a hand, I'm here."
+    ],
+    "porter.idle": [
+      "Waiting for the next transport job.",
+      "All quiet. The wheelchairs are ready."
+    ],
+    "porter.wheelchair": [
+      "I'm taking someone in the wheelchair. Gently does it.",
+      "Wheelchair run. Mind your feet, Doctor!"
+    ],
+    "porter.stretcher": [
+      "Moving a patient on the trolley. Careful through the doors.",
+      "Trolley run. We'll take it nice and slow."
+    ],
+    "porter.linen": [
+      "Fresh linen for a ward room.",
+      "Pushing the linen cart. Almost there."
+    ],
+    "cleaner.room": [
+      "Making room {room} spotless for the next patient.",
+      "Cleaning {room}. Fresh linen is on its way."
+    ],
+    "cleaner.cart": [
+      "Doing my rounds with the cart.",
+      "Keeping the corridors fresh."
+    ],
+    "cleaner.mopping": [
+      "Just mopping here. Mind the damp patch.",
+      "Floors need to be just right."
+    ],
+    "radiographer.scanning": [
+      "We're running the {protocol} now. About {minutes} min left.",
+      "The {protocol} is under way. Nearly there."
+    ],
+    "radiographer.idle": [
+      "The scanner's free. Send someone over any time.",
+      "All quiet in imaging at the moment."
+    ],
+    "host.serving": [
+      "Today's {dish} is going out. The patients like it.",
+      "Serving the {dish} today."
+    ],
+    "host.idle": [
+      "Meals are almost ready.",
+      "Just tidying up the trays."
+    ],
+    "paramedic.handover": [
+      "Handing over to the ER team now.",
+      "Handover in progress. Smooth as ever."
+    ],
+    "paramedic.idle": [
+      "Resting between calls. All good.",
+      "Ready for the next call."
+    ],
+    "generic.patient": [
+      "Hello. Everything's fine, thank you.",
+      "Thank you for stopping to say hello."
+    ],
+    "generic.visitor": [
+      "Hello. We're just passing time.",
+      "Thank you for stopping."
+    ]
+  },
+  "events": {
+    "talkedTo": "You spoke with {name}."
+  }
+}
