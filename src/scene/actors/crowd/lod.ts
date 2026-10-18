@@ -24,6 +24,28 @@ export const LOD = {
   midBlend: 10,
 } as const
 
+/** The bands of one crowd's three bodies (LOD for the procedural bodies, AVATAR_LOD for the realistic people). */
+export interface LodBands {
+  readonly highEnd: number
+  readonly highBlend: number
+  readonly midEnd: number
+  readonly midBlend: number
+}
+
+/**
+ * W3 wave B: the realistic people (avatars.ts) switch to their 350-triangle far body from 60 m (cross-faded over 8 m), so the whole overview (the
+ * camera is 80 to 110 m from the floor) draws one cheap skinned body per person. Their 4,000-triangle near body is for the people the player walks
+ * among: out to 10 m, gone by 14 m (a person is about 150 px tall there at 1080p, and the 1,200-triangle mid body holds up from there on, faces
+ * included), which keeps a crowded hall at eye level (200 people in the main building) within the 450k-triangle budget. The far body of an avatar is skinned and animated like the others (the procedural far
+ * figure is a rigid statue, which is why the procedural bands keep their 120 m).
+ */
+export const AVATAR_LOD: LodBands = {
+  highEnd: 10,
+  highBlend: 4,
+  midEnd: 60,
+  midBlend: 8,
+}
+
 export interface LodWeights {
   high: number
   mid: number
@@ -33,9 +55,9 @@ export interface LodWeights {
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x)
 
 /** Weights of the three bodies at camera distance `d` metres. They are in [0, 1], sum to 1 and are continuous in `d`. */
-export function lodWeights(d: number, out: LodWeights = { high: 1, mid: 0, far: 0 }): LodWeights {
-  const far = clamp01((d - LOD.midEnd) / LOD.midBlend)
-  const high = 1 - clamp01((d - LOD.highEnd) / LOD.highBlend)
+export function lodWeights(d: number, out: LodWeights = { high: 1, mid: 0, far: 0 }, bands: LodBands = LOD): LodWeights {
+  const far = clamp01((d - bands.midEnd) / bands.midBlend)
+  const high = 1 - clamp01((d - bands.highEnd) / bands.highBlend)
   out.high = high
   out.far = far
   out.mid = Math.max(0, 1 - high - far)

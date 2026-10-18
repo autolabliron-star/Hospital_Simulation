@@ -2,6 +2,7 @@
 // vehicles, one draw call each), the blob-shadow material with a per-instance fade, no sun-shadow depth materials (people do not cast).
 // W1 "Close-up people": the vertex stage of the near bodies moves and tints the face features (iris, brows, mouth), hides the staff details a person
 // does not wear, and tells the fragment stage what a vertex is made of (skin, hair, shoes, eyes, cloth) for a gentle roughness difference.
+// W3 wave B: the realistic people's material (createAvatarMaterials): Waltz's skinned avatar body without its depth materials, plus the garment tint.
 /**
  * Materials of the instanced crowd, the one place in the hospital that is allowed its own materials: the shared palette (materials.ts)
  * colours things per mesh or per instance, but a person is twenty rigid parts posed from a data texture and dressed from a per-person
@@ -17,7 +18,7 @@
  * A pixel is drawn when its screen-space noise value lies in [lo, hi) of its body (lod.ts).
  *
  * Programs compiled: body near, body far, props, vehicles, blob shadow, ring: six, once (the close-up details add no program: they are branches
- * of the near body's vertex stage on the vertex's own colour slot).
+ * of the near body's vertex stage on the vertex's own colour slot). The realistic people add one: every avatar body of every LOD shares it.
  */
 import {
   CanvasTexture,
@@ -26,11 +27,15 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   SRGBColorSpace,
+  Vector2,
+  Vector4,
   type DataTexture,
   type IUniform,
+  type Texture,
   type WebGLProgramParametersWithUniforms,
 } from 'three'
-import { FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
+import { BADGE_FRAME, BADGE_KIND, FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
+import { TINT_MAX_GAIN, tintContrast, type AvatarEntry } from './avatars'
 import { LIGHT_VOLUME_KEY, applyLightVolume } from '@/scene/lighting/volumeChunk'
 import { FACE } from './face'
 import { BADGE_TOP, GEAR_BIT } from './staff'
@@ -239,7 +244,8 @@ vCrowdBase = gSlot < ${PALETTE_SLOTS} ? texelFetch(uPose, ivec2(${TEX.palette} +
 float gSn = sin(gRoot.w);
 float gCs = cos(gRoot.w);
 #ifdef GEAR_PROP
-  int gCol = ${TEX.parts} + ${P.prop} * 3;
+  // W3 wave B: the player's "You" badge rides its own frame (pinned on the realistic coat), every held item the prop frame
+  int gCol = ${TEX.parts} + (aKind > ${g(BADGE_KIND - 0.5)} ? ${BADGE_FRAME} : ${P.prop}) * 3;
   vec4 gM0 = texelFetch(uPose, ivec2(gCol, gRow), 0);
   vec4 gM1 = texelFetch(uPose, ivec2(gCol + 1, gRow), 0);
   vec4 gM2 = texelFetch(uPose, ivec2(gCol + 2, gRow), 0);
@@ -285,6 +291,167 @@ function patchGear(shader: WebGLProgramParametersWithUniforms, pose: DataTexture
     .replace('#include <common>', `#include <common>\n${PARS_FRAG}`)
     .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${DITHER_FRAG}`)
     .replace('#include <color_fragment>', 'diffuseColor.rgb *= vCrowdBase;')
+}
+
+// ---------------------------------------------------------------------------------------------
+// Realistic people (W3 wave B): linear-blend skinning from the same pose rows, a textured atlas, garment tints
+// ---------------------------------------------------------------------------------------------
+
+const AVATAR_PARS_VERT = /* glsl */ `
+uniform sampler2D uPose;
+uniform float uLod;
+attribute float aRow;
+attribute vec4 aJoints;
+attribute vec4 aWeights;
+flat varying vec4 vCrowdLod;
+flat varying vec3 vCrowdRim;
+flat varying vec2 vCrowdTint;
+flat varying vec3 vCrowdTop;
+flat varying vec3 vCrowdBottom;
+`
+
+/** One influence: add weight w of part j's row (already M_p * B_p^-1, see avatars.ts applyBinds) to the blend. */
+const influence = (c: string): string => /* glsl */ `
+  if (aWeights.${c} > 0.0) {
+    int cCol = ${TEX.parts} + int(aJoints.${c} + 0.5) * 3;
+    cR0 += aWeights.${c} * texelFetch(uPose, ivec2(cCol, cRow), 0);
+    cR1 += aWeights.${c} * texelFetch(uPose, ivec2(cCol + 1, cRow), 0);
+    cR2 += aWeights.${c} * texelFetch(uPose, ivec2(cCol + 2, cRow), 0);
+  }`
+
+/**
+ * Same contract as BODY_VERT (cWorldPos, cWorldNrm, the LOD band and the rim), with 4-weight skinning instead of one rigid part; plus the person's
+ * tint: which garments take a colour (the bits in TEX.size.z, avatars.ts TINT) and the colours (the palette's top and trousers slots).
+ */
+const AVATAR_VERT = /* glsl */ `
+int cRow = int(aRow + 0.5);
+vec4 cRoot = texelFetch(uPose, ivec2(${TEX.root}, cRow), 0);
+vec4 cLod = texelFetch(uPose, ivec2(${TEX.lod}, cRow), 0);
+float cLo = uLod < 0.5 ? 0.0 : (uLod < 1.5 ? cLod.x : cLod.y);
+float cHi = uLod < 0.5 ? cLod.x : (uLod < 1.5 ? cLod.y : cLod.z);
+vCrowdLod = vec4(cLo, cHi, cLod.w, 0.0);
+vCrowdRim = texelFetch(uPose, ivec2(${TEX.rim}, cRow), 0).rgb;
+float cTintBits = texelFetch(uPose, ivec2(${TEX.size}, cRow), 0).z;
+vCrowdTint = vec2(mod(cTintBits + 0.5, 2.0) > 1.0 ? 1.0 : 0.0, cTintBits > 1.5 ? 1.0 : 0.0);
+vCrowdTop = texelFetch(uPose, ivec2(${TEX.palette + SLOT.top}, cRow), 0).rgb;
+vCrowdBottom = texelFetch(uPose, ivec2(${TEX.palette + SLOT.pants}, cRow), 0).rgb;
+vec4 cR0 = vec4(0.0);
+vec4 cR1 = vec4(0.0);
+vec4 cR2 = vec4(0.0);
+${influence('x')}
+${influence('y')}
+${influence('z')}
+${influence('w')}
+vec3 cPos = vec3(dot(cR0.xyz, position) + cR0.w, dot(cR1.xyz, position) + cR1.w, dot(cR2.xyz, position) + cR2.w);
+vec3 cNrm = vec3(dot(cross(cR1.xyz, cR2.xyz), normal), dot(cross(cR2.xyz, cR0.xyz), normal), dot(cross(cR0.xyz, cR1.xyz), normal));
+cNrm = cNrm / (length(cNrm) + 1e-9);
+float cSn = sin(cRoot.w);
+float cCs = cos(cRoot.w);
+vec3 cWorldPos = vec3(cCs * cPos.x + cSn * cPos.z, cPos.y, -cSn * cPos.x + cCs * cPos.z) + cRoot.xyz;
+vec3 cWorldNrm = vec3(cCs * cNrm.x + cSn * cNrm.z, cNrm.y, -cSn * cNrm.x + cCs * cNrm.z);
+`
+
+const AVATAR_PARS_FRAG = /* glsl */ `
+uniform vec4 uHair;
+uniform vec2 uTintRef;
+uniform vec2 uTintExp;
+flat varying vec4 vCrowdLod;
+flat varying vec3 vCrowdRim;
+flat varying vec2 vCrowdTint;
+flat varying vec3 vCrowdTop;
+flat varying vec3 vCrowdBottom;
+`
+
+/**
+ * The atlas alpha (tools/people-lib.ts MASK): in the hair region (uHair: u0, v0, u1, v1) it is the opacity of the hair cards, cut at 0.5 (the only
+ * alpha test); everywhere else it is the garment mask, 255 untinted, 170 the top garment, 85 the bottom one. A tinted garment takes the person's
+ * colour at its own shading: colour x (luminance / the avatar's reference luminance) ^ contrast, at most ${TINT_MAX_GAIN}x the colour.
+ */
+const AVATAR_TINT_FRAG = /* glsl */ `
+{
+  float cMask = diffuseColor.a;
+  if (vMapUv.x >= uHair.x && vMapUv.x <= uHair.z && vMapUv.y >= uHair.y && vMapUv.y <= uHair.w) {
+    if (cMask < 0.5) discard;
+  } else {
+    float cLum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float cTop = vCrowdTint.x * clamp(1.0 - abs(cMask - 0.6667) * 6.0, 0.0, 1.0);
+    float cBottom = vCrowdTint.y * clamp(1.0 - abs(cMask - 0.3333) * 6.0, 0.0, 1.0);
+    if (cTop > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdTop * min(pow(cLum / uTintRef.x, uTintExp.x), ${g(TINT_MAX_GAIN)}), cTop);
+    if (cBottom > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdBottom * min(pow(cLum / uTintRef.y, uTintExp.y), ${g(TINT_MAX_GAIN)}), cBottom);
+  }
+  diffuseColor.a = 1.0;
+}
+`
+
+/** The rim of the emphasis states (selected, followed, hovered), as on the procedural bodies. */
+const AVATAR_RIM_FRAG = /* glsl */ `
+{
+  float cFres = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
+  totalEmissiveRadiance += vCrowdRim * vCrowdLod.z * (0.025 + 0.75 * cFres * cFres * cFres);
+}
+`
+
+/** The per-material uniforms of one avatar body: which LOD band it draws, where its hair is, its garments' tint references. */
+export interface AvatarUniforms {
+  uLod: IUniform<number>
+  uHair: IUniform<Vector4>
+  uTintRef: IUniform<Vector2>
+  uTintExp: IUniform<Vector2>
+}
+
+function patchAvatarBody(shader: WebGLProgramParametersWithUniforms, pose: DataTexture, u: AvatarUniforms): void {
+  shader.uniforms.uPose = { value: pose } as IUniform
+  shader.uniforms.uLod = u.uLod
+  shader.uniforms.uHair = u.uHair
+  shader.uniforms.uTintRef = u.uTintRef
+  shader.uniforms.uTintExp = u.uTintExp
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\n${AVATAR_PARS_VERT}`)
+    .replace('#include <beginnormal_vertex>', `${AVATAR_VERT}\nvec3 objectNormal = normalize(cWorldNrm + vec3(0.0, 1e-8, 0.0));`)
+    .replace('#include <begin_vertex>', 'vec3 transformed = cWorldPos;')
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', `#include <common>\n${AVATAR_PARS_FRAG}`)
+    .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${DITHER_FRAG}`)
+    .replace('#include <map_fragment>', `#include <map_fragment>\n${AVATAR_TINT_FRAG}`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${AVATAR_RIM_FRAG}`)
+}
+
+/** The one program every avatar body of every LOD shares (the light volume's key composed in). */
+export const AVATAR_PROGRAM_KEY = `hospital-crowd-avatar-v1+${LIGHT_VOLUME_KEY}`
+
+/** The uniform values of an avatar: its hair rectangle as (u0, v0, u1, v1) (nothing when it has no hair cards), its tint references. */
+export function avatarUniformValues(entry: Pick<AvatarEntry, 'atlas' | 'tintRef'>): { hair: [number, number, number, number]; ref: [number, number]; exp: [number, number] } {
+  const h = entry.atlas.hair
+  const hair: [number, number, number, number] = h ? [h[0], h[1], h[0] + h[2], h[1] + h[3]] : [2, 2, -2, -2]
+  const ref: [number, number] = [Math.max(entry.tintRef.top, 1e-3), Math.max(entry.tintRef.bottom, 1e-3)]
+  return { hair, ref, exp: [tintContrast(entry.tintRef.top), tintContrast(entry.tintRef.bottom)] }
+}
+
+/**
+ * The near, mid and far body materials of one avatar: its atlas on a standard material whose vertex stage skins the person from the pose texture.
+ * Every avatar shares one program (AVATAR_PROGRAM_KEY; the LOD band, the hair rectangle and the tint references are uniforms). No depth or shadow
+ * materials: people do not cast (their blob shadows stay). Not alpha tested as a material: the hair region's cut is in the shader.
+ */
+export function createAvatarMaterials(pose: DataTexture, atlas: Texture, entry: Pick<AvatarEntry, 'id' | 'atlas' | 'tintRef'>): [MeshStandardMaterial, MeshStandardMaterial, MeshStandardMaterial] {
+  const v = avatarUniformValues(entry)
+  return [0, 1, 2].map((lod) => {
+    const m = new MeshStandardMaterial({ map: atlas, side: DoubleSide, roughness: 0.72, metalness: 0 })
+    m.name = `crowd-avatar-${entry.id}-${lod}`
+    const u: AvatarUniforms = {
+      uLod: { value: lod },
+      uHair: { value: new Vector4(...v.hair) },
+      uTintRef: { value: new Vector2(...v.ref) },
+      uTintExp: { value: new Vector2(...v.exp) },
+    }
+    m.userData.avatarUniforms = u
+    // W3: the baked light volume, applied last
+    m.onBeforeCompile = (sh) => {
+      patchAvatarBody(sh, pose, u)
+      applyLightVolume(sh)
+    }
+    m.customProgramCacheKey = () => AVATAR_PROGRAM_KEY
+    return m
+  }) as [MeshStandardMaterial, MeshStandardMaterial, MeshStandardMaterial]
 }
 
 export interface CrowdMaterials {

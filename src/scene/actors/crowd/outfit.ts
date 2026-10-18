@@ -16,6 +16,7 @@
  * (materials.ts): teal and mint for the scrubs of the clinical staff, the wayfinding blue and green for nurses and pharmacists,
  * slate for the coordinator, the warm greys of the porter.
  */
+import type { Presentation } from '@/content/roster'
 import type { Outfit, Role } from '@/sim/types'
 import { clamp, hash32, rnd, rndSoft } from './math'
 import { STAND_CROWN } from './constants'
@@ -80,6 +81,12 @@ export interface LookKey {
   /** Clothing class: 'role' (default) dresses by role, 'gown' and 'everyday' override it. */
   outfit?: Outfit
   variant: number
+  /**
+   * W3 wave B: how the person's given name reads (content/roster.ts `presentationOf`). The procedural people (`?people=0`, and everybody while the
+   * realistic ones load) follow the same rule as the realistic bodies: a woman's hair and skirts for 'female', a man's cut and trousers for 'male'.
+   * 'either' or nothing keeps the seeded draw exactly as it was.
+   */
+  presentation?: Presentation
 }
 
 /** The named tones of the uniforms. Hex values; the comments say where they come from. */
@@ -163,6 +170,9 @@ const HAIR_WEIGHTS = [0.2, 0.17, 0.15, 0.13, 0.08, 0.06, 0.05, 0.04, 0.04, 0.05,
 const HAIR_WEIGHTS_OLD = [0.1, 0.08, 0.08, 0.08, 0.05, 0.04, 0.03, 0.03, 0.02, 0.26, 0.23] as const
 /** The six hair shapes, with the common ones listed twice. */
 const HAIR_STYLES: readonly HairStyle[] = ['crop', 'crop', 'swept', 'swept', 'bob', 'long', 'long', 'ponytail', 'curly']
+/** The shapes of a woman's and of a man's hair (a name that reads one way, see LookKey.presentation); curls belong to both. */
+const HAIR_STYLES_FEMALE: readonly HairStyle[] = ['bob', 'bob', 'long', 'long', 'ponytail', 'ponytail', 'curly']
+const HAIR_STYLES_MALE: readonly HairStyle[] = ['crop', 'crop', 'crop', 'swept', 'swept', 'swept', 'curly']
 /** Frames of glasses. */
 const FRAMES = ['#222326', '#222326', '#6b4a32', '#2b3a55', '#8a2f3a', '#a9b3b5'] as const
 
@@ -224,7 +234,9 @@ export function lookFor(key: LookKey): Look {
 
   const skin = pickWeighted(SKIN, SKIN_WEIGHTS, h, 21)
   const hair = pickWeighted(HAIR, old ? HAIR_WEIGHTS_OLD : HAIR_WEIGHTS, h, 22)
-  const hairStyle = pick(HAIR_STYLES, h, 23)
+  const hairStyle = pick(key.presentation === 'female' ? HAIR_STYLES_FEMALE : key.presentation === 'male' ? HAIR_STYLES_MALE : HAIR_STYLES, h, 23)
+  // a man's everyday and smart clothes have trousers or shorts, never a skirt (the draw `r` is the same: only what it picks changes)
+  const noSkirt = key.presentation === 'male'
 
   let top: string = pick(TOPS_SOFT, h, 31)
   let pants: string = pick(PANTS_LONG, h, 44)
@@ -254,7 +266,7 @@ export function lookFor(key: LookKey): Look {
     shoes = TONE.slipper
   } else if (clothes === 'everyday') {
     // shirt and trousers, shorts, or a skirt
-    const bottom = r < 0.52 ? 'long' : r < 0.7 ? 'shorts' : 'skirt'
+    const bottom = r < 0.52 ? 'long' : r < 0.7 ? 'shorts' : noSkirt ? 'long' : 'skirt'
     if (bottom === 'long') {
       legs = 'long'
       pants = pick(PANTS_LONG, h, 44)
@@ -335,7 +347,7 @@ export function lookFor(key: LookKey): Look {
         front = TONE.paper
         accent = TONE.scarf
         sleeves = 'long'
-        if (r < 0.5) {
+        if (r < 0.5 && !noSkirt) {
           legs = 'bare'
           overlay = 'skirt'
           pants = TONE.receptionNavy

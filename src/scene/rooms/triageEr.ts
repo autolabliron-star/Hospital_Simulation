@@ -9,6 +9,7 @@ import type { AreaId } from '@/sim/places'
 import { BUILDING } from '@/sim/places'
 import type { Frame, LayoutBuilder } from '@/scene/building/layout/builder'
 import { TILE } from '@/scene/building/layout/screenTiles'
+import { MADE_BLANKET, TROLLEY } from './bedParts'
 
 const HALL_X0 = -62 + 0.1
 const HALL_X1 = -44 - 0.1
@@ -17,14 +18,15 @@ const BAY_DEPTH = 2.3
 const RED = '#e05a4f'
 
 function trolley(f: Frame, id: string, cx: number, v: number): void {
-  const w = 0.82
-  const l = 1.95
+  const w = TROLLEY.w
+  const l = TROLLEY.l
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) f.cyl(cx + sx * 0.33, 0, v + sz * 0.8, 0.1, 0.1, 'rubber', { cast: false })
   f.rbox(cx, 0.1, v, w - 0.1, 0.1, l - 0.2, 'metalDark', { r: 0.02 })
   f.rbox(cx, 0.2, v, w, 0.1, l, 'whitePlastic', { r: 0.04 })
-  f.rbox(cx, 0.3, v, w - 0.06, 0.14, l - 0.06, 'linen', { r: 0.05 })
-  f.rbox(cx, 0.43, v + 0.3, w - 0.04, 0.08, 1.2, 'fabricTeal', { r: 0.04 }) // blanket
-  f.rbox(cx, 0.43, v - 0.7, 0.5, 0.1, 0.3, 'linen', { r: 0.045 }) // pillow
+  f.rbox(cx, TROLLEY.top - TROLLEY.linen, v, w - 0.06, TROLLEY.linen, l - 0.06, 'linen', { r: 0.05 })
+  // a made bed: the blanket lies flat on the mattress; a patient on the trolley is covered by the crowd's own blanket (actors/crowd/gear.ts) instead
+  f.rbox(cx, TROLLEY.top, v + 0.3, w - 0.04, MADE_BLANKET, 1.2, 'fabricTeal', { r: MADE_BLANKET / 2 })
+  f.rbox(cx, TROLLEY.top, v - 0.7, 0.5, 0.1, 0.3, 'linen', { r: 0.045 }) // pillow
   for (const sx of [-1, 1]) f.rbox(cx + sx * 0.42, 0.42, v + 0.1, 0.03, 0.16, 1.0, 'frame', { r: 0.012 })
   f.rect(`${id}:trolley`, cx, v, w + 0.04, l + 0.04)
 }
@@ -55,10 +57,10 @@ function curtains(f: Frame, id: string, x0: number, x1: number, first: boolean, 
 function bay(f: Frame, id: string, i: number, x0: number, x1: number, first: boolean, last: boolean, er: boolean): void {
   const cx = (x0 + x1) / 2
   trolley(f, id, cx, 1.32)
-  // ER: the patient lies on the trolley (mattress top 0.44 m), head to the wall, feet to the hall; the heading runs head
+  // ER: the patient lies on the trolley (mattress top TROLLEY.top = 0.44 m), head to the wall, feet to the hall; the heading runs head
   // to feet. Triage: the patient sits on the trolley's foot end. Both are approached from the hall.
-  if (er) f.seat(`erBay:bay:${i}`, 'erBay', cx, 1.32, 0.44, { pose: 'lie', far: 1.6 })
-  else f.seat(`triageBay:bay:${i}`, 'triageBay', cx, 2.0, 0.44)
+  if (er) f.seat(`erBay:bay:${i}`, 'erBay', cx, 1.32, TROLLEY.top, { pose: 'lie', far: 1.6 })
+  else f.seat(`triageBay:bay:${i}`, 'triageBay', cx, 2.0, TROLLEY.top)
   monitorStand(f, id, cx + Math.min(0.9, (x1 - x0) / 2 - 0.4), 0.55)
   curtains(f, id, x0, x1, first, last)
 }

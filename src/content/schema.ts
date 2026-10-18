@@ -72,6 +72,41 @@ export const MedicinesSchema = z
   })
 
 // ---------------------------------------------------------------------------------------------
+// How a given name reads (W3 wave B): which realistic body (render only) wears which name
+// ---------------------------------------------------------------------------------------------
+
+/** Lower-case, accent-free form of a name ("Tomás" and "Tomas" are the same name). */
+const plainName = (name: string): string => name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+const PresentationName = z
+  .string()
+  .regex(/^\p{Lu}[\p{L}'-]*$/u, 'a name is one word: a capital letter, then letters, apostrophes or hyphens')
+
+/**
+ * The given names the people of the world carry, by how the person is drawn: `female` and `male` pick a woman's or a man's avatar and hair,
+ * `either` (a unisex name, or a surname used as a given name) leaves the choice to the seeded draw. A name is in exactly one list. Purely a
+ * rendering hint: the simulation has no gender and never reads these lists.
+ */
+export const PresentationSchema = z
+  .strictObject({
+    female: z.array(PresentationName).min(1),
+    male: z.array(PresentationName).min(1),
+    either: z.array(PresentationName).min(1),
+  })
+  .superRefine((lists, ctx) => {
+    const seen = new Map<string, string>()
+    for (const key of ['female', 'male', 'either'] as const) {
+      lists[key].forEach((name, i) => {
+        const plain = plainName(name)
+        const before = seen.get(plain)
+        if (before !== undefined) ctx.addIssue({ code: 'custom', path: [key, i], message: `"${name}" is already in the ${before} list; a name is in exactly one list` })
+        else seen.set(plain, key)
+      })
+    }
+  })
+export type Presentation = 'female' | 'male' | 'either'
+
+// ---------------------------------------------------------------------------------------------
 // Inpatients and their day plan (L1)
 // ---------------------------------------------------------------------------------------------
 

@@ -1,0 +1,2305 @@
+{
+  "version": 1,
+  "generatedBy": "tools/fetch-assets.mjs and tools/convert-people.mjs",
+  "totalBytes": 3717539,
+  "assets": {
+    "rb-business-female-02-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Export/Business_Female_02.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Export/Business_Female_02.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/business_female_02.fbx"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Business_Female_02.",
+      "sha256": "0819b017327f4293d522fea3f2dba94d1d8b2d408ec9253fb89f530523e24671",
+      "gitBlobSha1": "b574cf754e39b1fe4bf43e02aef8e7dc6f5a82ca",
+      "bytes": 612848,
+      "files": [
+        {
+          "path": "people/business_female_02.fbx",
+          "sha256": "0819b017327f4293d522fea3f2dba94d1d8b2d408ec9253fb89f530523e24671",
+          "bytes": 612848,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/business_female_02.lod0.glb",
+          "sha256": "189d5fc3a4081fe16b04b04111ef175f6b870b4ef2b5885a5b4e7c45e48514e3",
+          "bytes": 69164,
+          "role": "derived",
+          "derivedFrom": [
+            "0819b017327f4293d522fea3f2dba94d1d8b2d408ec9253fb89f530523e24671",
+            "60b84f3ba5315a76d324569e4ebee6d6bd7a461344158e5b0ef782d667db8285",
+            "0df4e3f107cb1b06576894617121e53642e5b2d480b88c2a321ba2c4632a1014",
+            "15cff3cd49521da8679ee0087c8aa2b8414c2b3a0cc9ec775c5225ef1dec6b81"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/business_female_02.lod1.glb",
+          "sha256": "95d01f900db2b76273c8e5ae692299d12c7f1151c4a55653779e2af3a0702e7f",
+          "bytes": 29104,
+          "role": "derived",
+          "derivedFrom": [
+            "0819b017327f4293d522fea3f2dba94d1d8b2d408ec9253fb89f530523e24671",
+            "60b84f3ba5315a76d324569e4ebee6d6bd7a461344158e5b0ef782d667db8285",
+            "0df4e3f107cb1b06576894617121e53642e5b2d480b88c2a321ba2c4632a1014",
+            "15cff3cd49521da8679ee0087c8aa2b8414c2b3a0cc9ec775c5225ef1dec6b81"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/business_female_02.lod2.glb",
+          "sha256": "749506469f65ac6be1525b73924cadc72026dc2440c4d64f5855cb07c0bd998f",
+          "bytes": 14640,
+          "role": "derived",
+          "derivedFrom": [
+            "0819b017327f4293d522fea3f2dba94d1d8b2d408ec9253fb89f530523e24671",
+            "60b84f3ba5315a76d324569e4ebee6d6bd7a461344158e5b0ef782d667db8285",
+            "0df4e3f107cb1b06576894617121e53642e5b2d480b88c2a321ba2c4632a1014",
+            "15cff3cd49521da8679ee0087c8aa2b8414c2b3a0cc9ec775c5225ef1dec6b81"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/business_female_02.1k.webp",
+          "sha256": "fdab13a6cfc1dba90dc50027bc61cd40a2089be84c2a2c16c55582ae9579195d",
+          "bytes": 275452,
+          "role": "derived",
+          "derivedFrom": [
+            "0819b017327f4293d522fea3f2dba94d1d8b2d408ec9253fb89f530523e24671",
+            "60b84f3ba5315a76d324569e4ebee6d6bd7a461344158e5b0ef782d667db8285",
+            "0df4e3f107cb1b06576894617121e53642e5b2d480b88c2a321ba2c4632a1014",
+            "15cff3cd49521da8679ee0087c8aa2b8414c2b3a0cc9ec775c5225ef1dec6b81"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.375Z"
+    },
+    "rb-female-adult-15-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Export/Female_Adult_15.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Export/Female_Adult_15.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_15.fbx"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Female_Adult_15.",
+      "sha256": "49300e70f72ec0238a17ea583610d41fd34ae78135ee1c0fda5ed9493e49a56a",
+      "gitBlobSha1": "4ba89224f99fb8b9139f6c6ed31927238bd1f565",
+      "bytes": 651088,
+      "files": [
+        {
+          "path": "people/female_adult_15.fbx",
+          "sha256": "49300e70f72ec0238a17ea583610d41fd34ae78135ee1c0fda5ed9493e49a56a",
+          "bytes": 651088,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/female_adult_15.lod0.glb",
+          "sha256": "0f81bf7b52486b140738a4b61b387bce49926212b021eb9758af395b400f8c8a",
+          "bytes": 73292,
+          "role": "derived",
+          "derivedFrom": [
+            "49300e70f72ec0238a17ea583610d41fd34ae78135ee1c0fda5ed9493e49a56a",
+            "d3e41b8a2845b2dd546c2ffb166b18541bf2937b8a336d6cadf4d4c725047df5",
+            "48fef42795a7bc800c305de504126f079925f297ff19e0ed377eff2668eb81f8",
+            "879270fb466c3f2e264d45ac6c6c694b94bb58e94cfb035721567b04109546f2"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/female_adult_15.lod1.glb",
+          "sha256": "43f1c78141d72413de036513a03d4ebbc41ab3730d6337f057aac2dfbdc8c5f0",
+          "bytes": 31808,
+          "role": "derived",
+          "derivedFrom": [
+            "49300e70f72ec0238a17ea583610d41fd34ae78135ee1c0fda5ed9493e49a56a",
+            "d3e41b8a2845b2dd546c2ffb166b18541bf2937b8a336d6cadf4d4c725047df5",
+            "48fef42795a7bc800c305de504126f079925f297ff19e0ed377eff2668eb81f8",
+            "879270fb466c3f2e264d45ac6c6c694b94bb58e94cfb035721567b04109546f2"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/female_adult_15.lod2.glb",
+          "sha256": "e3d896a7ecb7449cf2a9bf1a5b3a783658239b919f1ec0de70ffd837037f402b",
+          "bytes": 15920,
+          "role": "derived",
+          "derivedFrom": [
+            "49300e70f72ec0238a17ea583610d41fd34ae78135ee1c0fda5ed9493e49a56a",
+            "d3e41b8a2845b2dd546c2ffb166b18541bf2937b8a336d6cadf4d4c725047df5",
+            "48fef42795a7bc800c305de504126f079925f297ff19e0ed377eff2668eb81f8",
+            "879270fb466c3f2e264d45ac6c6c694b94bb58e94cfb035721567b04109546f2"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/female_adult_15.1k.webp",
+          "sha256": "e177d85cdff872700180dfb6a29631c7756132028b029d37cc5265712b285d37",
+          "bytes": 156632,
+          "role": "derived",
+          "derivedFrom": [
+            "49300e70f72ec0238a17ea583610d41fd34ae78135ee1c0fda5ed9493e49a56a",
+            "d3e41b8a2845b2dd546c2ffb166b18541bf2937b8a336d6cadf4d4c725047df5",
+            "48fef42795a7bc800c305de504126f079925f297ff19e0ed377eff2668eb81f8",
+            "879270fb466c3f2e264d45ac6c6c694b94bb58e94cfb035721567b04109546f2"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.378Z"
+    },
+    "rb-male-adult-08-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Export/Male_Adult_08.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Export/Male_Adult_08.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_08.fbx"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Male_Adult_08.",
+      "sha256": "e0d979315a5f11050945522f9f084932807af2edeefbdb380a2c9aa36c9f9bb3",
+      "gitBlobSha1": "2e6936c594c9c65b44916839340be3b4eecd2202",
+      "bytes": 508784,
+      "files": [
+        {
+          "path": "people/male_adult_08.fbx",
+          "sha256": "e0d979315a5f11050945522f9f084932807af2edeefbdb380a2c9aa36c9f9bb3",
+          "bytes": 508784,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/male_adult_08.lod0.glb",
+          "sha256": "ceb1b28db28100c4a9cf8e40113f46e023cd0741bf18a4a3b2787102a863e414",
+          "bytes": 64128,
+          "role": "derived",
+          "derivedFrom": [
+            "e0d979315a5f11050945522f9f084932807af2edeefbdb380a2c9aa36c9f9bb3",
+            "9b6cef05b86497ffca6f131842950341302fa170e5ce3de1c2446501be774b91",
+            "5d3723b8d6f6175b26adb1f2d46ade55b19630c2cee1bd2e43dbd293c6fa7d38",
+            "282684b09dd7e3b7b521387240855773f419a90c67ba58ff9ad478a7ec01cc93"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_08.lod1.glb",
+          "sha256": "6ebce7386fb20f71c2fe58408874fbae12f1a62e6f4a13f39d14d515b481ef5b",
+          "bytes": 28476,
+          "role": "derived",
+          "derivedFrom": [
+            "e0d979315a5f11050945522f9f084932807af2edeefbdb380a2c9aa36c9f9bb3",
+            "9b6cef05b86497ffca6f131842950341302fa170e5ce3de1c2446501be774b91",
+            "5d3723b8d6f6175b26adb1f2d46ade55b19630c2cee1bd2e43dbd293c6fa7d38",
+            "282684b09dd7e3b7b521387240855773f419a90c67ba58ff9ad478a7ec01cc93"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_08.lod2.glb",
+          "sha256": "5139ccd932c33193eace757eb2c13c225bdba9752d2e330666ae87ab1be0cdbd",
+          "bytes": 14772,
+          "role": "derived",
+          "derivedFrom": [
+            "e0d979315a5f11050945522f9f084932807af2edeefbdb380a2c9aa36c9f9bb3",
+            "9b6cef05b86497ffca6f131842950341302fa170e5ce3de1c2446501be774b91",
+            "5d3723b8d6f6175b26adb1f2d46ade55b19630c2cee1bd2e43dbd293c6fa7d38",
+            "282684b09dd7e3b7b521387240855773f419a90c67ba58ff9ad478a7ec01cc93"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_08.1k.webp",
+          "sha256": "bf46ca7bfb27b914ee81168753d0e9e101b46133cccf942b4ca36f0ccaac929e",
+          "bytes": 165360,
+          "role": "derived",
+          "derivedFrom": [
+            "e0d979315a5f11050945522f9f084932807af2edeefbdb380a2c9aa36c9f9bb3",
+            "9b6cef05b86497ffca6f131842950341302fa170e5ce3de1c2446501be774b91",
+            "5d3723b8d6f6175b26adb1f2d46ade55b19630c2cee1bd2e43dbd293c6fa7d38",
+            "282684b09dd7e3b7b521387240855773f419a90c67ba58ff9ad478a7ec01cc93"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.380Z"
+    },
+    "rb-male-adult-13-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Export/Male_Adult_13.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Export/Male_Adult_13.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_13.fbx"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Male_Adult_13.",
+      "sha256": "2898a6ff32144aed2fa57f383dfb9401580ad8b6f2c2857d06a7efdfe94b3f9a",
+      "gitBlobSha1": "db17e5295a0726bc6a13c1a7d6eb3da4ebf610fc",
+      "bytes": 494816,
+      "files": [
+        {
+          "path": "people/male_adult_13.fbx",
+          "sha256": "2898a6ff32144aed2fa57f383dfb9401580ad8b6f2c2857d06a7efdfe94b3f9a",
+          "bytes": 494816,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/male_adult_13.lod0.glb",
+          "sha256": "33aa118e0c5dfc0fffbde927b1a57c030696ca350fa79e825158657292d4ec65",
+          "bytes": 61052,
+          "role": "derived",
+          "derivedFrom": [
+            "2898a6ff32144aed2fa57f383dfb9401580ad8b6f2c2857d06a7efdfe94b3f9a",
+            "af8d799127f243c9db2134de1fe1b93d99eacee4affadf27d5af77bb57b1db89",
+            "101064ec2886fc74a20e1c6e2b81b0c2596f25614fb5d9aa2d01cab7337e2b09"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_13.lod1.glb",
+          "sha256": "8834e6c79d611f49037754f82b4741780ac18d1a2af89ce0c7f4ad5bbcf8406e",
+          "bytes": 26812,
+          "role": "derived",
+          "derivedFrom": [
+            "2898a6ff32144aed2fa57f383dfb9401580ad8b6f2c2857d06a7efdfe94b3f9a",
+            "af8d799127f243c9db2134de1fe1b93d99eacee4affadf27d5af77bb57b1db89",
+            "101064ec2886fc74a20e1c6e2b81b0c2596f25614fb5d9aa2d01cab7337e2b09"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_13.lod2.glb",
+          "sha256": "6ee4f5d62aaa2eb2f2fce31035c2a4285c2a1995abe2d63772e32be122a404ac",
+          "bytes": 14176,
+          "role": "derived",
+          "derivedFrom": [
+            "2898a6ff32144aed2fa57f383dfb9401580ad8b6f2c2857d06a7efdfe94b3f9a",
+            "af8d799127f243c9db2134de1fe1b93d99eacee4affadf27d5af77bb57b1db89",
+            "101064ec2886fc74a20e1c6e2b81b0c2596f25614fb5d9aa2d01cab7337e2b09"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_13.1k.webp",
+          "sha256": "1cd414d2e716e4e2eef9b5b936c3a7eace1f3b994de795caf14b4c6abe39b9e5",
+          "bytes": 126606,
+          "role": "derived",
+          "derivedFrom": [
+            "2898a6ff32144aed2fa57f383dfb9401580ad8b6f2c2857d06a7efdfe94b3f9a",
+            "af8d799127f243c9db2134de1fe1b93d99eacee4affadf27d5af77bb57b1db89",
+            "101064ec2886fc74a20e1c6e2b81b0c2596f25614fb5d9aa2d01cab7337e2b09"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.383Z"
+    },
+    "rb-female-adult-17-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Export/Female_Adult_17.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Export/Female_Adult_17.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_17.fbx"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Female_Adult_17.",
+      "sha256": "777125303c2b4c493dce961b66cfc8c86ac69ee697c212ea9fe3107bfc45831f",
+      "gitBlobSha1": "a3c977942d7e321966d80d8e95697b752b701f47",
+      "bytes": 593440,
+      "files": [
+        {
+          "path": "people/female_adult_17.fbx",
+          "sha256": "777125303c2b4c493dce961b66cfc8c86ac69ee697c212ea9fe3107bfc45831f",
+          "bytes": 593440,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/female_adult_17.lod0.glb",
+          "sha256": "484d9c3e82432c815d12fb3b19d67bea4da053941932e026c29ef022c87c6ed5",
+          "bytes": 65520,
+          "role": "derived",
+          "derivedFrom": [
+            "777125303c2b4c493dce961b66cfc8c86ac69ee697c212ea9fe3107bfc45831f",
+            "d657c9113b23c72a58bca56bcfe7c0956caea976a6144c3f53c0181b9f2b746d",
+            "f23bfa861e036dc9a39ae8c6595bf0128f021eb762464e58f72907a9b49ecbfa",
+            "2ce67c662cf20256c8bf0713e4aeff5f7be0ae3cee981df119dbc7d32111e3d0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/female_adult_17.lod1.glb",
+          "sha256": "0be6285644262bb0fa9e87a77ed54d19f3da91ea6965e90de42ae1bfd82dcf94",
+          "bytes": 27776,
+          "role": "derived",
+          "derivedFrom": [
+            "777125303c2b4c493dce961b66cfc8c86ac69ee697c212ea9fe3107bfc45831f",
+            "d657c9113b23c72a58bca56bcfe7c0956caea976a6144c3f53c0181b9f2b746d",
+            "f23bfa861e036dc9a39ae8c6595bf0128f021eb762464e58f72907a9b49ecbfa",
+            "2ce67c662cf20256c8bf0713e4aeff5f7be0ae3cee981df119dbc7d32111e3d0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/female_adult_17.lod2.glb",
+          "sha256": "86c14d689127434b13208aba3565c1a2a8d4d8ce9607ae731423251b60c273b7",
+          "bytes": 14596,
+          "role": "derived",
+          "derivedFrom": [
+            "777125303c2b4c493dce961b66cfc8c86ac69ee697c212ea9fe3107bfc45831f",
+            "d657c9113b23c72a58bca56bcfe7c0956caea976a6144c3f53c0181b9f2b746d",
+            "f23bfa861e036dc9a39ae8c6595bf0128f021eb762464e58f72907a9b49ecbfa",
+            "2ce67c662cf20256c8bf0713e4aeff5f7be0ae3cee981df119dbc7d32111e3d0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/female_adult_17.1k.webp",
+          "sha256": "c024268f1ba3aedbe0f2ad6243912e148eaacf5b42c840081599c083f12c5e9e",
+          "bytes": 196710,
+          "role": "derived",
+          "derivedFrom": [
+            "777125303c2b4c493dce961b66cfc8c86ac69ee697c212ea9fe3107bfc45831f",
+            "d657c9113b23c72a58bca56bcfe7c0956caea976a6144c3f53c0181b9f2b746d",
+            "f23bfa861e036dc9a39ae8c6595bf0128f021eb762464e58f72907a9b49ecbfa",
+            "2ce67c662cf20256c8bf0713e4aeff5f7be0ae3cee981df119dbc7d32111e3d0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.387Z"
+    },
+    "rb-male-adult-12-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Export/Male_Adult_12.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Export/Male_Adult_12.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_12.fbx"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Male_Adult_12.",
+      "sha256": "b44fa6011b934abd69954fd6c5025c1e2011e05c7892acb6bbc2e9cf70a84014",
+      "gitBlobSha1": "15d4f8501d5703600cb3d8a94765a3de1029aaf6",
+      "bytes": 487776,
+      "files": [
+        {
+          "path": "people/male_adult_12.fbx",
+          "sha256": "b44fa6011b934abd69954fd6c5025c1e2011e05c7892acb6bbc2e9cf70a84014",
+          "bytes": 487776,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/male_adult_12.lod0.glb",
+          "sha256": "b311ba0c90ee6f3b022376add757f309f8912ed354735a5dfcacf4d5a7df14bd",
+          "bytes": 62572,
+          "role": "derived",
+          "derivedFrom": [
+            "b44fa6011b934abd69954fd6c5025c1e2011e05c7892acb6bbc2e9cf70a84014",
+            "9e5951e67e90ade61f33c51c9673aa1b974358dac12dc0a9abdd4b281cda6b61",
+            "164007a5ca94b3f84b04ab77a3a7bc49f65f12af4153781dcbf429589750f7c1"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_12.lod1.glb",
+          "sha256": "4c111974984c0e0651baa2d9b037c50a9e7330d801526b439ac51678fd78bb09",
+          "bytes": 27972,
+          "role": "derived",
+          "derivedFrom": [
+            "b44fa6011b934abd69954fd6c5025c1e2011e05c7892acb6bbc2e9cf70a84014",
+            "9e5951e67e90ade61f33c51c9673aa1b974358dac12dc0a9abdd4b281cda6b61",
+            "164007a5ca94b3f84b04ab77a3a7bc49f65f12af4153781dcbf429589750f7c1"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_12.lod2.glb",
+          "sha256": "d56ce61c5b92ee08b0a973e1ffe5f3f2769611b2f528edd60fc8c6724d78514c",
+          "bytes": 14368,
+          "role": "derived",
+          "derivedFrom": [
+            "b44fa6011b934abd69954fd6c5025c1e2011e05c7892acb6bbc2e9cf70a84014",
+            "9e5951e67e90ade61f33c51c9673aa1b974358dac12dc0a9abdd4b281cda6b61",
+            "164007a5ca94b3f84b04ab77a3a7bc49f65f12af4153781dcbf429589750f7c1"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/male_adult_12.1k.webp",
+          "sha256": "4a4e0b1612d4fd5e08d07872970af643b07de9148f17423c51de9a56098c8909",
+          "bytes": 165086,
+          "role": "derived",
+          "derivedFrom": [
+            "b44fa6011b934abd69954fd6c5025c1e2011e05c7892acb6bbc2e9cf70a84014",
+            "9e5951e67e90ade61f33c51c9673aa1b974358dac12dc0a9abdd4b281cda6b61",
+            "164007a5ca94b3f84b04ab77a3a7bc49f65f12af4153781dcbf429589750f7c1"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.388Z"
+    },
+    "rb-business-female-02-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/business_female_02_body_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: body color texture, 2K TGA of Business_Female_02.",
+      "sha256": "60b84f3ba5315a76d324569e4ebee6d6bd7a461344158e5b0ef782d667db8285",
+      "gitBlobSha1": "9a3d5fbd2b69e34628ec0220572b64cb314c51d7",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/business_female_02_body_color.tga",
+          "sha256": "60b84f3ba5315a76d324569e4ebee6d6bd7a461344158e5b0ef782d667db8285",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.406Z"
+    },
+    "rb-business-female-02-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/business_female_02_head_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: head color texture, 2K TGA of Business_Female_02.",
+      "sha256": "0df4e3f107cb1b06576894617121e53642e5b2d480b88c2a321ba2c4632a1014",
+      "gitBlobSha1": "41eac4aaed7ed8f36b32d53ae96599694a7fd687",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/business_female_02_head_color.tga",
+          "sha256": "0df4e3f107cb1b06576894617121e53642e5b2d480b88c2a321ba2c4632a1014",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.425Z"
+    },
+    "rb-business-female-02-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/business_female_02_opacity_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: opacity color texture, 2K TGA of Business_Female_02.",
+      "sha256": "15cff3cd49521da8679ee0087c8aa2b8414c2b3a0cc9ec775c5225ef1dec6b81",
+      "gitBlobSha1": "b96abab3f5c8fae7bd72fab26a17a31b91c70ac5",
+      "bytes": 16777260,
+      "files": [
+        {
+          "path": "people/business_female_02_opacity_color.tga",
+          "sha256": "15cff3cd49521da8679ee0087c8aa2b8414c2b3a0cc9ec775c5225ef1dec6b81",
+          "bytes": 16777260,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.455Z"
+    },
+    "rb-female-adult-15-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_15_body_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: body color texture, 2K TGA of Female_Adult_15.",
+      "sha256": "d3e41b8a2845b2dd546c2ffb166b18541bf2937b8a336d6cadf4d4c725047df5",
+      "gitBlobSha1": "4636f4dbe6da255187038d7765d8786abdcda393",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/female_adult_15_body_color.tga",
+          "sha256": "d3e41b8a2845b2dd546c2ffb166b18541bf2937b8a336d6cadf4d4c725047df5",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.478Z"
+    },
+    "rb-female-adult-15-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_15_head_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: head color texture, 2K TGA of Female_Adult_15.",
+      "sha256": "48fef42795a7bc800c305de504126f079925f297ff19e0ed377eff2668eb81f8",
+      "gitBlobSha1": "5e35ad71ccf6cac670a3c55a8aecfee4e4c7038c",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/female_adult_15_head_color.tga",
+          "sha256": "48fef42795a7bc800c305de504126f079925f297ff19e0ed377eff2668eb81f8",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.500Z"
+    },
+    "rb-female-adult-15-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_15_opacity_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: opacity color texture, 2K TGA of Female_Adult_15.",
+      "sha256": "879270fb466c3f2e264d45ac6c6c694b94bb58e94cfb035721567b04109546f2",
+      "gitBlobSha1": "8fcbb41c3d537049e0ed1b6e07d0c94bb6a8e3fb",
+      "bytes": 16777260,
+      "files": [
+        {
+          "path": "people/female_adult_15_opacity_color.tga",
+          "sha256": "879270fb466c3f2e264d45ac6c6c694b94bb58e94cfb035721567b04109546f2",
+          "bytes": 16777260,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.526Z"
+    },
+    "rb-male-adult-08-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_08_body_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: body color texture, 2K TGA of Male_Adult_08.",
+      "sha256": "9b6cef05b86497ffca6f131842950341302fa170e5ce3de1c2446501be774b91",
+      "gitBlobSha1": "c6162d348435623eb44fa0f2114dc9109a0e0a8d",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/male_adult_08_body_color.tga",
+          "sha256": "9b6cef05b86497ffca6f131842950341302fa170e5ce3de1c2446501be774b91",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.554Z"
+    },
+    "rb-male-adult-08-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_08_head_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: head color texture, 2K TGA of Male_Adult_08.",
+      "sha256": "5d3723b8d6f6175b26adb1f2d46ade55b19630c2cee1bd2e43dbd293c6fa7d38",
+      "gitBlobSha1": "66e3ac3c72cfdbd661e36dd9fd98ac611f21a6e4",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/male_adult_08_head_color.tga",
+          "sha256": "5d3723b8d6f6175b26adb1f2d46ade55b19630c2cee1bd2e43dbd293c6fa7d38",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.577Z"
+    },
+    "rb-male-adult-08-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_08_opacity_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: opacity color texture, 2K TGA of Male_Adult_08.",
+      "sha256": "282684b09dd7e3b7b521387240855773f419a90c67ba58ff9ad478a7ec01cc93",
+      "gitBlobSha1": "e008b9abf4901a2f23f32cb9d1e2bc7ef5a60587",
+      "bytes": 16777260,
+      "files": [
+        {
+          "path": "people/male_adult_08_opacity_color.tga",
+          "sha256": "282684b09dd7e3b7b521387240855773f419a90c67ba58ff9ad478a7ec01cc93",
+          "bytes": 16777260,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.606Z"
+    },
+    "rb-male-adult-13-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_13_body_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: body color texture, 2K TGA of Male_Adult_13.",
+      "sha256": "af8d799127f243c9db2134de1fe1b93d99eacee4affadf27d5af77bb57b1db89",
+      "gitBlobSha1": "9edfa935aa69262f295606088495df34d777b746",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/male_adult_13_body_color.tga",
+          "sha256": "af8d799127f243c9db2134de1fe1b93d99eacee4affadf27d5af77bb57b1db89",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.627Z"
+    },
+    "rb-male-adult-13-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_13_head_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: head color texture, 2K TGA of Male_Adult_13.",
+      "sha256": "101064ec2886fc74a20e1c6e2b81b0c2596f25614fb5d9aa2d01cab7337e2b09",
+      "gitBlobSha1": "6f53314c60a01d1ae8f425178c7ab4148603e9d3",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/male_adult_13_head_color.tga",
+          "sha256": "101064ec2886fc74a20e1c6e2b81b0c2596f25614fb5d9aa2d01cab7337e2b09",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.651Z"
+    },
+    "rb-female-adult-17-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_17_body_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: body color texture, 2K TGA of Female_Adult_17.",
+      "sha256": "d657c9113b23c72a58bca56bcfe7c0956caea976a6144c3f53c0181b9f2b746d",
+      "gitBlobSha1": "9902508406abee3a281fb8d277456976920d68d4",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/female_adult_17_body_color.tga",
+          "sha256": "d657c9113b23c72a58bca56bcfe7c0956caea976a6144c3f53c0181b9f2b746d",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.676Z"
+    },
+    "rb-female-adult-17-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_17_head_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: head color texture, 2K TGA of Female_Adult_17.",
+      "sha256": "f23bfa861e036dc9a39ae8c6595bf0128f021eb762464e58f72907a9b49ecbfa",
+      "gitBlobSha1": "9c037ab08fb2b95a6d97123e3c558ea1e4ed9280",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/female_adult_17_head_color.tga",
+          "sha256": "f23bfa861e036dc9a39ae8c6595bf0128f021eb762464e58f72907a9b49ecbfa",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.703Z"
+    },
+    "rb-female-adult-17-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/female_adult_17_opacity_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: opacity color texture, 2K TGA of Female_Adult_17.",
+      "sha256": "2ce67c662cf20256c8bf0713e4aeff5f7be0ae3cee981df119dbc7d32111e3d0",
+      "gitBlobSha1": "912274783a784715593d8ca4c2132b931f994bbd",
+      "bytes": 4194348,
+      "files": [
+        {
+          "path": "people/female_adult_17_opacity_color.tga",
+          "sha256": "2ce67c662cf20256c8bf0713e4aeff5f7be0ae3cee981df119dbc7d32111e3d0",
+          "bytes": 4194348,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.715Z"
+    },
+    "rb-male-adult-12-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_12_body_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: body color texture, 2K TGA of Male_Adult_12.",
+      "sha256": "9e5951e67e90ade61f33c51c9673aa1b974358dac12dc0a9abdd4b281cda6b61",
+      "gitBlobSha1": "1757150789a5fdcf733394ff21a60512530b4f1a",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/male_adult_12_body_color.tga",
+          "sha256": "9e5951e67e90ade61f33c51c9673aa1b974358dac12dc0a9abdd4b281cda6b61",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.733Z"
+    },
+    "rb-male-adult-12-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": "people/male_adult_12_head_color.tga"
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Imported (localFile) from the Waltz reference's verified copy, not downloaded again: same sha256 and git blob id as Waltz pinned for this commit. Conversion input for tools/convert-people.mjs, never served: head color texture, 2K TGA of Male_Adult_12.",
+      "sha256": "164007a5ca94b3f84b04ab77a3a7bc49f65f12af4153781dcbf429589750f7c1",
+      "gitBlobSha1": "e5b23c4f55e499893c2a92ec7e52d0252bee2ae3",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/male_adult_12_head_color.tga",
+          "sha256": "164007a5ca94b3f84b04ab77a3a7bc49f65f12af4153781dcbf429589750f7c1",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:07.752Z"
+    },
+    "rb-medical-female-01-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Export/Medical_Female_01.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Export/Medical_Female_01.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Female_01.",
+      "sha256": "e5aeed027bfc6da910fcc4fc5c3eaabc8881541c60673b9466e908f9513e9618",
+      "gitBlobSha1": "dad7fc77e6c1f33404f0ee0d1dbfb885de88cc35",
+      "bytes": 583200,
+      "files": [
+        {
+          "path": "people/medical_female_01.fbx",
+          "sha256": "e5aeed027bfc6da910fcc4fc5c3eaabc8881541c60673b9466e908f9513e9618",
+          "bytes": 583200,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_female_01.lod0.glb",
+          "sha256": "f8896e263f7627d9362141a06abe38263c86dca0e7fb3c5e5bb07f0ffaecf0a4",
+          "bytes": 66788,
+          "role": "derived",
+          "derivedFrom": [
+            "e5aeed027bfc6da910fcc4fc5c3eaabc8881541c60673b9466e908f9513e9618",
+            "4a77f4d66a566c535da9c6d10e79057e1a8dab30ff27c88f8613328ef6c323d8",
+            "8dd641084b5d856eb38d801c97ebd69d601efdc9a9720ba7f6bd556ddd03d0cc",
+            "07d5e246c49b95a15c336e4135d1d9a5cebfe2e3cb68b6041346ddf8c61b12f0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_01.lod1.glb",
+          "sha256": "31aa48ae6c184db3918ffcb894f66193e3e8715f6ac1f821f331657e7d27752d",
+          "bytes": 29068,
+          "role": "derived",
+          "derivedFrom": [
+            "e5aeed027bfc6da910fcc4fc5c3eaabc8881541c60673b9466e908f9513e9618",
+            "4a77f4d66a566c535da9c6d10e79057e1a8dab30ff27c88f8613328ef6c323d8",
+            "8dd641084b5d856eb38d801c97ebd69d601efdc9a9720ba7f6bd556ddd03d0cc",
+            "07d5e246c49b95a15c336e4135d1d9a5cebfe2e3cb68b6041346ddf8c61b12f0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_01.lod2.glb",
+          "sha256": "5fa2932bc22178d958179d4ebd4d8828f5440e3bd46890be9e36468ca36c10f6",
+          "bytes": 14432,
+          "role": "derived",
+          "derivedFrom": [
+            "e5aeed027bfc6da910fcc4fc5c3eaabc8881541c60673b9466e908f9513e9618",
+            "4a77f4d66a566c535da9c6d10e79057e1a8dab30ff27c88f8613328ef6c323d8",
+            "8dd641084b5d856eb38d801c97ebd69d601efdc9a9720ba7f6bd556ddd03d0cc",
+            "07d5e246c49b95a15c336e4135d1d9a5cebfe2e3cb68b6041346ddf8c61b12f0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_01.1k.webp",
+          "sha256": "128e284fc02af60ba69a0029f1243b5e63b7f8f9da6ff04c20d1ec8dd84ee1b7",
+          "bytes": 132574,
+          "role": "derived",
+          "derivedFrom": [
+            "e5aeed027bfc6da910fcc4fc5c3eaabc8881541c60673b9466e908f9513e9618",
+            "4a77f4d66a566c535da9c6d10e79057e1a8dab30ff27c88f8613328ef6c323d8",
+            "8dd641084b5d856eb38d801c97ebd69d601efdc9a9720ba7f6bd556ddd03d0cc",
+            "07d5e246c49b95a15c336e4135d1d9a5cebfe2e3cb68b6041346ddf8c61b12f0"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:08.349Z"
+    },
+    "rb-medical-female-01-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Textures/f152_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Textures/f152_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Female_01.",
+      "sha256": "4a77f4d66a566c535da9c6d10e79057e1a8dab30ff27c88f8613328ef6c323d8",
+      "gitBlobSha1": "6eda5f78c726625bad60516b742e524637ee3459",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_female_01_body_color.tga",
+          "sha256": "4a77f4d66a566c535da9c6d10e79057e1a8dab30ff27c88f8613328ef6c323d8",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:10.091Z"
+    },
+    "rb-medical-female-01-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Textures/f152_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Textures/f152_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Female_01.",
+      "sha256": "8dd641084b5d856eb38d801c97ebd69d601efdc9a9720ba7f6bd556ddd03d0cc",
+      "gitBlobSha1": "13a42d44b341c9f122230bfd16868d7e3dc619d9",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_female_01_head_color.tga",
+          "sha256": "8dd641084b5d856eb38d801c97ebd69d601efdc9a9720ba7f6bd556ddd03d0cc",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:12.013Z"
+    },
+    "rb-medical-female-01-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Textures/f152_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_01/Textures/f152_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: opacity (hair cards) colour texture TGA of Medical_Female_01.",
+      "sha256": "07d5e246c49b95a15c336e4135d1d9a5cebfe2e3cb68b6041346ddf8c61b12f0",
+      "gitBlobSha1": "c2ad85f17b180e2a1da5a08c0b49130222b7af7a",
+      "bytes": 16777260,
+      "files": [
+        {
+          "path": "people/medical_female_01_opacity_color.tga",
+          "sha256": "07d5e246c49b95a15c336e4135d1d9a5cebfe2e3cb68b6041346ddf8c61b12f0",
+          "bytes": 16777260,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:14.525Z"
+    },
+    "rb-medical-female-02-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Export/Medical_Female_02.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Export/Medical_Female_02.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Female_02.",
+      "sha256": "ae96dd938340349bc643023b5838767f95f7cf63b026ecc3e5348fef00859115",
+      "gitBlobSha1": "1a7f1f167dd31ce8e9f8f9af7fe94036ee817d63",
+      "bytes": 629008,
+      "files": [
+        {
+          "path": "people/medical_female_02.fbx",
+          "sha256": "ae96dd938340349bc643023b5838767f95f7cf63b026ecc3e5348fef00859115",
+          "bytes": 629008,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_female_02.lod0.glb",
+          "sha256": "98e8542848d1f138194b24f540beefa2395fd7d25212eca9ef30af2c18615b1f",
+          "bytes": 69088,
+          "role": "derived",
+          "derivedFrom": [
+            "ae96dd938340349bc643023b5838767f95f7cf63b026ecc3e5348fef00859115",
+            "9731d55e2bcf431edfa48d655b8d77a85fec4660ef227caaeb5115a8c73574aa",
+            "b4bd5494901c7a8cbc1c4df2083fed3091e8d00b57641ebfdd84a7951f623bc8",
+            "d6bb4ddde05c1dcddd829db99e0f0ef4416d05cdb94e1e6770779724aa3f696f",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_02.lod1.glb",
+          "sha256": "0b33c09bb83d382215313a0abf3f3c5f2552ee99bc85fde8fd28707aecdea290",
+          "bytes": 30936,
+          "role": "derived",
+          "derivedFrom": [
+            "ae96dd938340349bc643023b5838767f95f7cf63b026ecc3e5348fef00859115",
+            "9731d55e2bcf431edfa48d655b8d77a85fec4660ef227caaeb5115a8c73574aa",
+            "b4bd5494901c7a8cbc1c4df2083fed3091e8d00b57641ebfdd84a7951f623bc8",
+            "d6bb4ddde05c1dcddd829db99e0f0ef4416d05cdb94e1e6770779724aa3f696f",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_02.lod2.glb",
+          "sha256": "dfe7578f6b21d6fcd863aaa77fb7844d0bd6be6087ea1782e52390750a9a5ea7",
+          "bytes": 15296,
+          "role": "derived",
+          "derivedFrom": [
+            "ae96dd938340349bc643023b5838767f95f7cf63b026ecc3e5348fef00859115",
+            "9731d55e2bcf431edfa48d655b8d77a85fec4660ef227caaeb5115a8c73574aa",
+            "b4bd5494901c7a8cbc1c4df2083fed3091e8d00b57641ebfdd84a7951f623bc8",
+            "d6bb4ddde05c1dcddd829db99e0f0ef4416d05cdb94e1e6770779724aa3f696f",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_02.1k.webp",
+          "sha256": "5016215b7e57e50f55637f331bd0a8765c0625d2c982a617b475eba4140bc90d",
+          "bytes": 104568,
+          "role": "derived",
+          "derivedFrom": [
+            "ae96dd938340349bc643023b5838767f95f7cf63b026ecc3e5348fef00859115",
+            "9731d55e2bcf431edfa48d655b8d77a85fec4660ef227caaeb5115a8c73574aa",
+            "b4bd5494901c7a8cbc1c4df2083fed3091e8d00b57641ebfdd84a7951f623bc8",
+            "d6bb4ddde05c1dcddd829db99e0f0ef4416d05cdb94e1e6770779724aa3f696f",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:15.069Z"
+    },
+    "rb-medical-female-02-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Female_02.",
+      "sha256": "9731d55e2bcf431edfa48d655b8d77a85fec4660ef227caaeb5115a8c73574aa",
+      "gitBlobSha1": "c2440cb565374f0e9780a9f36b14e286d8b77f58",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_female_02_body_color.tga",
+          "sha256": "9731d55e2bcf431edfa48d655b8d77a85fec4660ef227caaeb5115a8c73574aa",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:16.873Z"
+    },
+    "rb-medical-female-02-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Female_02.",
+      "sha256": "b4bd5494901c7a8cbc1c4df2083fed3091e8d00b57641ebfdd84a7951f623bc8",
+      "gitBlobSha1": "6a51a9a4970b1c8fbc5829ed8e88ad9c394aa3cb",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_female_02_head_color.tga",
+          "sha256": "b4bd5494901c7a8cbc1c4df2083fed3091e8d00b57641ebfdd84a7951f623bc8",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:18.591Z"
+    },
+    "rb-medical-female-02-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: opacity (hair cards) colour texture TGA of Medical_Female_02.",
+      "sha256": "d6bb4ddde05c1dcddd829db99e0f0ef4416d05cdb94e1e6770779724aa3f696f",
+      "gitBlobSha1": "e3d2d54055c606fac90d5c176a71377bd8d8bf60",
+      "bytes": 2097196,
+      "files": [
+        {
+          "path": "people/medical_female_02_opacity_color.tga",
+          "sha256": "d6bb4ddde05c1dcddd829db99e0f0ef4416d05cdb94e1e6770779724aa3f696f",
+          "bytes": 2097196,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:19.357Z"
+    },
+    "rb-medical-female-02-stethoscope-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_stetoskop_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_02/Textures/f153_stetoskop_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: stethoscope colour texture TGA of Medical_Female_02 (upstream name f153_stetoskop_color.tga).",
+      "sha256": "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7",
+      "gitBlobSha1": "9e5a7f7d898bdf8a1ec046dce5591664966ee0d9",
+      "bytes": 786476,
+      "files": [
+        {
+          "path": "people/medical_female_02_stethoscope_color.tga",
+          "sha256": "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7",
+          "bytes": 786476,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:19.882Z"
+    },
+    "rb-medical-female-03-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Export/Medical_Female_03.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Export/Medical_Female_03.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Female_03.",
+      "sha256": "a22a5e5bd126c95a2dcf2803c3a0972950e78dfead319ef1ec358a058de68da5",
+      "gitBlobSha1": "9ef3c861d3d04f5871521462729f9e6208d23b2c",
+      "bytes": 551376,
+      "files": [
+        {
+          "path": "people/medical_female_03.fbx",
+          "sha256": "a22a5e5bd126c95a2dcf2803c3a0972950e78dfead319ef1ec358a058de68da5",
+          "bytes": 551376,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_female_03.lod0.glb",
+          "sha256": "39fd4426c99d87b8bb89e38c0952cc915c686d7758dcb3546fe782eb4681044c",
+          "bytes": 65040,
+          "role": "derived",
+          "derivedFrom": [
+            "a22a5e5bd126c95a2dcf2803c3a0972950e78dfead319ef1ec358a058de68da5",
+            "782d59ce0dd0b12a1fbf45da68f85da1ab1d0578ba95110e2e2de80ba8ca1fa5",
+            "10a2a0f83b86578ebeb18de4916dea2db6bcba8fc05867149e37fc7f91bd9f38",
+            "868688524e4427758e716da5cc9bc3a6c6b35cf640e4fbe81c99618a750babf4"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_03.lod1.glb",
+          "sha256": "390cc9351cfe8c2b00a002b9443595d1335920a09f1ce9c8cd6ff6965eacdaf2",
+          "bytes": 28220,
+          "role": "derived",
+          "derivedFrom": [
+            "a22a5e5bd126c95a2dcf2803c3a0972950e78dfead319ef1ec358a058de68da5",
+            "782d59ce0dd0b12a1fbf45da68f85da1ab1d0578ba95110e2e2de80ba8ca1fa5",
+            "10a2a0f83b86578ebeb18de4916dea2db6bcba8fc05867149e37fc7f91bd9f38",
+            "868688524e4427758e716da5cc9bc3a6c6b35cf640e4fbe81c99618a750babf4"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_03.lod2.glb",
+          "sha256": "ea053d7796a567eca5b974085abe2ab1eb90eac93e8f127b9158b2e65fedc263",
+          "bytes": 14792,
+          "role": "derived",
+          "derivedFrom": [
+            "a22a5e5bd126c95a2dcf2803c3a0972950e78dfead319ef1ec358a058de68da5",
+            "782d59ce0dd0b12a1fbf45da68f85da1ab1d0578ba95110e2e2de80ba8ca1fa5",
+            "10a2a0f83b86578ebeb18de4916dea2db6bcba8fc05867149e37fc7f91bd9f38",
+            "868688524e4427758e716da5cc9bc3a6c6b35cf640e4fbe81c99618a750babf4"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_female_03.1k.webp",
+          "sha256": "982f1e680c7bcf50b6589be5a1beea2a6bf6671ceb29dec6d50937dc60b3ed29",
+          "bytes": 191370,
+          "role": "derived",
+          "derivedFrom": [
+            "a22a5e5bd126c95a2dcf2803c3a0972950e78dfead319ef1ec358a058de68da5",
+            "782d59ce0dd0b12a1fbf45da68f85da1ab1d0578ba95110e2e2de80ba8ca1fa5",
+            "10a2a0f83b86578ebeb18de4916dea2db6bcba8fc05867149e37fc7f91bd9f38",
+            "868688524e4427758e716da5cc9bc3a6c6b35cf640e4fbe81c99618a750babf4"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:20.392Z"
+    },
+    "rb-medical-female-03-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Textures/f154_body_color_blue.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Textures/f154_body_color_blue.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Female_03 (the only body colour texture of this avatar; upstream name f154_body_color_blue.tga).",
+      "sha256": "782d59ce0dd0b12a1fbf45da68f85da1ab1d0578ba95110e2e2de80ba8ca1fa5",
+      "gitBlobSha1": "f63937f66d033f1a4d854b280bc77847687edc75",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_female_03_body_color.tga",
+          "sha256": "782d59ce0dd0b12a1fbf45da68f85da1ab1d0578ba95110e2e2de80ba8ca1fa5",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:22.180Z"
+    },
+    "rb-medical-female-03-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Textures/f154_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Textures/f154_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Female_03.",
+      "sha256": "10a2a0f83b86578ebeb18de4916dea2db6bcba8fc05867149e37fc7f91bd9f38",
+      "gitBlobSha1": "68111c2a73a3c7a5f0d4915f86461faf0e03dcd6",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_female_03_head_color.tga",
+          "sha256": "10a2a0f83b86578ebeb18de4916dea2db6bcba8fc05867149e37fc7f91bd9f38",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:23.997Z"
+    },
+    "rb-medical-female-03-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Textures/f154_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Female_03/Textures/f154_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: opacity (hair cards) colour texture TGA of Medical_Female_03.",
+      "sha256": "868688524e4427758e716da5cc9bc3a6c6b35cf640e4fbe81c99618a750babf4",
+      "gitBlobSha1": "fef407c359ae03e257944ec1b530cdd1b1f921ea",
+      "bytes": 16777260,
+      "files": [
+        {
+          "path": "people/medical_female_03_opacity_color.tga",
+          "sha256": "868688524e4427758e716da5cc9bc3a6c6b35cf640e4fbe81c99618a750babf4",
+          "bytes": 16777260,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:26.439Z"
+    },
+    "rb-medical-male-01-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Export/Medical_Male_01.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Export/Medical_Male_01.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Male_01.",
+      "sha256": "11df553be0a51691034be585ac402a933a530bb8e5529d6dba7a7462b87e5a3b",
+      "gitBlobSha1": "612eb4d79de6588c2e2fdf91fc06e20093d08170",
+      "bytes": 552016,
+      "files": [
+        {
+          "path": "people/medical_male_01.fbx",
+          "sha256": "11df553be0a51691034be585ac402a933a530bb8e5529d6dba7a7462b87e5a3b",
+          "bytes": 552016,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_male_01.lod0.glb",
+          "sha256": "0a9d9ce1105ba60002e8a2665961f40fe86f96aea2e392927ef4bf6fbd9391fe",
+          "bytes": 66512,
+          "role": "derived",
+          "derivedFrom": [
+            "11df553be0a51691034be585ac402a933a530bb8e5529d6dba7a7462b87e5a3b",
+            "717b4569cac7b96fc8eadc4de001156af9f86138f4cc80764d1642024e91c145",
+            "2422f9dacdbbe78a3c5ac2f593a541ab324ec41c8c65993f120a6864ab50c8f8",
+            "7793ea45a31c2153cf1ef7319ce67c60fd6c84d59767ceb3e9f7f88160a720d9"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_01.lod1.glb",
+          "sha256": "6ffd52a9fd076ab59f45fd5203e8c858fe7f76f6274b7681a3b4c1e7fcb8c81a",
+          "bytes": 30016,
+          "role": "derived",
+          "derivedFrom": [
+            "11df553be0a51691034be585ac402a933a530bb8e5529d6dba7a7462b87e5a3b",
+            "717b4569cac7b96fc8eadc4de001156af9f86138f4cc80764d1642024e91c145",
+            "2422f9dacdbbe78a3c5ac2f593a541ab324ec41c8c65993f120a6864ab50c8f8",
+            "7793ea45a31c2153cf1ef7319ce67c60fd6c84d59767ceb3e9f7f88160a720d9"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_01.lod2.glb",
+          "sha256": "8b06c534ccb92bb44006b6989676fbba3d2de90dc047447530abc00af0051e51",
+          "bytes": 15060,
+          "role": "derived",
+          "derivedFrom": [
+            "11df553be0a51691034be585ac402a933a530bb8e5529d6dba7a7462b87e5a3b",
+            "717b4569cac7b96fc8eadc4de001156af9f86138f4cc80764d1642024e91c145",
+            "2422f9dacdbbe78a3c5ac2f593a541ab324ec41c8c65993f120a6864ab50c8f8",
+            "7793ea45a31c2153cf1ef7319ce67c60fd6c84d59767ceb3e9f7f88160a720d9"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_01.1k.webp",
+          "sha256": "aa17bc73d468b3f62fcbea1634e13885008501186c89b76b31e7d1ac2432dcf1",
+          "bytes": 158902,
+          "role": "derived",
+          "derivedFrom": [
+            "11df553be0a51691034be585ac402a933a530bb8e5529d6dba7a7462b87e5a3b",
+            "717b4569cac7b96fc8eadc4de001156af9f86138f4cc80764d1642024e91c145",
+            "2422f9dacdbbe78a3c5ac2f593a541ab324ec41c8c65993f120a6864ab50c8f8",
+            "7793ea45a31c2153cf1ef7319ce67c60fd6c84d59767ceb3e9f7f88160a720d9"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:26.934Z"
+    },
+    "rb-medical-male-01-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Textures/m152_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Textures/m152_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Male_01.",
+      "sha256": "717b4569cac7b96fc8eadc4de001156af9f86138f4cc80764d1642024e91c145",
+      "gitBlobSha1": "aee1de062c7a59c96fa8528ef97b51ba574a742e",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_01_body_color.tga",
+          "sha256": "717b4569cac7b96fc8eadc4de001156af9f86138f4cc80764d1642024e91c145",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:28.877Z"
+    },
+    "rb-medical-male-01-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Textures/m152_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Textures/m152_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Male_01.",
+      "sha256": "2422f9dacdbbe78a3c5ac2f593a541ab324ec41c8c65993f120a6864ab50c8f8",
+      "gitBlobSha1": "7d53da68e92a39a224b5df11ab429f9cd1f32e72",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_01_head_color.tga",
+          "sha256": "2422f9dacdbbe78a3c5ac2f593a541ab324ec41c8c65993f120a6864ab50c8f8",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:30.581Z"
+    },
+    "rb-medical-male-01-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Textures/m152_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_01/Textures/m152_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: opacity (hair cards) colour texture TGA of Medical_Male_01.",
+      "sha256": "7793ea45a31c2153cf1ef7319ce67c60fd6c84d59767ceb3e9f7f88160a720d9",
+      "gitBlobSha1": "85521bcee9b307ca431fdad86926e997ce7d3e0a",
+      "bytes": 4194348,
+      "files": [
+        {
+          "path": "people/medical_male_01_opacity_color.tga",
+          "sha256": "7793ea45a31c2153cf1ef7319ce67c60fd6c84d59767ceb3e9f7f88160a720d9",
+          "bytes": 4194348,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:31.520Z"
+    },
+    "rb-medical-male-02-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Export/Medical_Male_02.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Export/Medical_Male_02.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Male_02.",
+      "sha256": "2cc76daa16b37898dcd2f9533026313eb8dcd98322a350ebd4108d9a17d516d8",
+      "gitBlobSha1": "d3106c31cc3972dbbdb832a1cb36009df7485fca",
+      "bytes": 542416,
+      "files": [
+        {
+          "path": "people/medical_male_02.fbx",
+          "sha256": "2cc76daa16b37898dcd2f9533026313eb8dcd98322a350ebd4108d9a17d516d8",
+          "bytes": 542416,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_male_02.lod0.glb",
+          "sha256": "74fba541ea43ead68f4891aa26c663a716b3677631dc764218d1f0f680ab1f58",
+          "bytes": 65504,
+          "role": "derived",
+          "derivedFrom": [
+            "2cc76daa16b37898dcd2f9533026313eb8dcd98322a350ebd4108d9a17d516d8",
+            "6fe8e5b0a9a6ce151ee79752f99b1b43936037892f32bea27bfb4b8821c1c195",
+            "f7ac8fc87c1d8fb37840f6729b903f2ef76cbcfde5e02a784167b8eb3006a75a",
+            "7cb2146e511c1bd207f5e7f061c8b66915db1bbc15c3748c6d98469630fd346d"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_02.lod1.glb",
+          "sha256": "b131e47cc0e3f317d7e9753bc2b18753de44b64ae93338a4a3b29729dbf37305",
+          "bytes": 28648,
+          "role": "derived",
+          "derivedFrom": [
+            "2cc76daa16b37898dcd2f9533026313eb8dcd98322a350ebd4108d9a17d516d8",
+            "6fe8e5b0a9a6ce151ee79752f99b1b43936037892f32bea27bfb4b8821c1c195",
+            "f7ac8fc87c1d8fb37840f6729b903f2ef76cbcfde5e02a784167b8eb3006a75a",
+            "7cb2146e511c1bd207f5e7f061c8b66915db1bbc15c3748c6d98469630fd346d"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_02.lod2.glb",
+          "sha256": "69cbf68a66e369a8cac1540d95e3e3374685acbf7f3111e1581e613c7329252d",
+          "bytes": 14060,
+          "role": "derived",
+          "derivedFrom": [
+            "2cc76daa16b37898dcd2f9533026313eb8dcd98322a350ebd4108d9a17d516d8",
+            "6fe8e5b0a9a6ce151ee79752f99b1b43936037892f32bea27bfb4b8821c1c195",
+            "f7ac8fc87c1d8fb37840f6729b903f2ef76cbcfde5e02a784167b8eb3006a75a",
+            "7cb2146e511c1bd207f5e7f061c8b66915db1bbc15c3748c6d98469630fd346d"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_02.1k.webp",
+          "sha256": "ee1bc1cbba6f1a0808c59cc119722ee815c91185c552115fd32b108556957319",
+          "bytes": 229614,
+          "role": "derived",
+          "derivedFrom": [
+            "2cc76daa16b37898dcd2f9533026313eb8dcd98322a350ebd4108d9a17d516d8",
+            "6fe8e5b0a9a6ce151ee79752f99b1b43936037892f32bea27bfb4b8821c1c195",
+            "f7ac8fc87c1d8fb37840f6729b903f2ef76cbcfde5e02a784167b8eb3006a75a",
+            "7cb2146e511c1bd207f5e7f061c8b66915db1bbc15c3748c6d98469630fd346d"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:32.023Z"
+    },
+    "rb-medical-male-02-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Textures/m154_body_color_blue.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Textures/m154_body_color_blue.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Male_02 (the only body colour texture of this avatar; upstream name m154_body_color_blue.tga).",
+      "sha256": "6fe8e5b0a9a6ce151ee79752f99b1b43936037892f32bea27bfb4b8821c1c195",
+      "gitBlobSha1": "19be527a4ef0b40fa6fa7cec3613d05b349247bc",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_02_body_color.tga",
+          "sha256": "6fe8e5b0a9a6ce151ee79752f99b1b43936037892f32bea27bfb4b8821c1c195",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:33.739Z"
+    },
+    "rb-medical-male-02-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Textures/m154_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Textures/m154_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Male_02.",
+      "sha256": "f7ac8fc87c1d8fb37840f6729b903f2ef76cbcfde5e02a784167b8eb3006a75a",
+      "gitBlobSha1": "5529918adebc20d594946fb078be05324e8a4468",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_02_head_color.tga",
+          "sha256": "f7ac8fc87c1d8fb37840f6729b903f2ef76cbcfde5e02a784167b8eb3006a75a",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:35.555Z"
+    },
+    "rb-medical-male-02-opacity-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Textures/m154_opacity_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_02/Textures/m154_opacity_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: opacity (hair cards) colour texture TGA of Medical_Male_02.",
+      "sha256": "7cb2146e511c1bd207f5e7f061c8b66915db1bbc15c3748c6d98469630fd346d",
+      "gitBlobSha1": "5b304a95d22629e6d9abf3e6515a7e6b236708f6",
+      "bytes": 16777260,
+      "files": [
+        {
+          "path": "people/medical_male_02_opacity_color.tga",
+          "sha256": "7cb2146e511c1bd207f5e7f061c8b66915db1bbc15c3748c6d98469630fd346d",
+          "bytes": 16777260,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:37.812Z"
+    },
+    "rb-medical-male-03-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Export/Medical_Male_03.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Export/Medical_Male_03.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Male_03.",
+      "sha256": "097cc7866954595ad3243d7ff060e7a4b68ac0f91232a4f19ad3b9e0041f2d17",
+      "gitBlobSha1": "c2033a653554dcf2b35c5d2bdcd14fa61f005968",
+      "bytes": 573120,
+      "files": [
+        {
+          "path": "people/medical_male_03.fbx",
+          "sha256": "097cc7866954595ad3243d7ff060e7a4b68ac0f91232a4f19ad3b9e0041f2d17",
+          "bytes": 573120,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_male_03.lod0.glb",
+          "sha256": "b95c61327d4bf9ecc5f8e6489ab6a91d104f7d6bae7b5ea066b9b7be7cc2da70",
+          "bytes": 68868,
+          "role": "derived",
+          "derivedFrom": [
+            "097cc7866954595ad3243d7ff060e7a4b68ac0f91232a4f19ad3b9e0041f2d17",
+            "0684fadbe2eae7f98a2dae333b495cc3321174c0c1e618523eef071b24efeb44",
+            "5fef414d2953b8b696fe065364089c695d8a3ef3ae2b55edd29afbc7992b4ce3",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_03.lod1.glb",
+          "sha256": "ad3225a53710000ff95ef4f7430d2131d8e84b0e3b0b66f9b9384edf2aaa1710",
+          "bytes": 31708,
+          "role": "derived",
+          "derivedFrom": [
+            "097cc7866954595ad3243d7ff060e7a4b68ac0f91232a4f19ad3b9e0041f2d17",
+            "0684fadbe2eae7f98a2dae333b495cc3321174c0c1e618523eef071b24efeb44",
+            "5fef414d2953b8b696fe065364089c695d8a3ef3ae2b55edd29afbc7992b4ce3",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_03.lod2.glb",
+          "sha256": "f6655fac8c78c8ed5411d277eaed761376ff1eecdba57d0d576859c3f54d5e22",
+          "bytes": 15648,
+          "role": "derived",
+          "derivedFrom": [
+            "097cc7866954595ad3243d7ff060e7a4b68ac0f91232a4f19ad3b9e0041f2d17",
+            "0684fadbe2eae7f98a2dae333b495cc3321174c0c1e618523eef071b24efeb44",
+            "5fef414d2953b8b696fe065364089c695d8a3ef3ae2b55edd29afbc7992b4ce3",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_03.1k.webp",
+          "sha256": "aea0212184c0e5f0ed385c4de235fa67a029b7e2d7d847b8f32290058807e3bb",
+          "bytes": 79674,
+          "role": "derived",
+          "derivedFrom": [
+            "097cc7866954595ad3243d7ff060e7a4b68ac0f91232a4f19ad3b9e0041f2d17",
+            "0684fadbe2eae7f98a2dae333b495cc3321174c0c1e618523eef071b24efeb44",
+            "5fef414d2953b8b696fe065364089c695d8a3ef3ae2b55edd29afbc7992b4ce3",
+            "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:38.321Z"
+    },
+    "rb-medical-male-03-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Textures/m153_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Textures/m153_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Male_03.",
+      "sha256": "0684fadbe2eae7f98a2dae333b495cc3321174c0c1e618523eef071b24efeb44",
+      "gitBlobSha1": "2159913d68a2feadef620ab9bfab838cc7b909b2",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_03_body_color.tga",
+          "sha256": "0684fadbe2eae7f98a2dae333b495cc3321174c0c1e618523eef071b24efeb44",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:40.052Z"
+    },
+    "rb-medical-male-03-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Textures/m153_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Textures/m153_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Male_03.",
+      "sha256": "5fef414d2953b8b696fe065364089c695d8a3ef3ae2b55edd29afbc7992b4ce3",
+      "gitBlobSha1": "1e5156289e3e51e9d38bbb3fbd55f2b631ce2f26",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_03_head_color.tga",
+          "sha256": "5fef414d2953b8b696fe065364089c695d8a3ef3ae2b55edd29afbc7992b4ce3",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:41.862Z"
+    },
+    "rb-medical-male-03-stethoscope-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Textures/m153_stetoskop_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_03/Textures/m153_stetoskop_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: stethoscope colour texture TGA of Medical_Male_03 (upstream name m153_stetoskop_color.tga).",
+      "sha256": "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7",
+      "gitBlobSha1": "9e5a7f7d898bdf8a1ec046dce5591664966ee0d9",
+      "bytes": 786476,
+      "files": [
+        {
+          "path": "people/medical_male_03_stethoscope_color.tga",
+          "sha256": "d480d0e5da84ee1a2f5824d74078011eac9feaf37621cacf8e77f9631e1c63e7",
+          "bytes": 786476,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:42.396Z"
+    },
+    "rb-medical-male-04-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Export/Medical_Male_04.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Export/Medical_Male_04.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Male_04.",
+      "sha256": "5f7cd19833e24039bdf313d3534579b366b5ad5e7288627ebf579edf953a0a85",
+      "gitBlobSha1": "3917f4052beeb59df0de3a40b90af92e9d2670b1",
+      "bytes": 580928,
+      "files": [
+        {
+          "path": "people/medical_male_04.fbx",
+          "sha256": "5f7cd19833e24039bdf313d3534579b366b5ad5e7288627ebf579edf953a0a85",
+          "bytes": 580928,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_male_04.lod0.glb",
+          "sha256": "ed13c5b3651fe380cddfb6c4cfc82a1202535f6854c1c9f3613c913998d25a72",
+          "bytes": 61056,
+          "role": "derived",
+          "derivedFrom": [
+            "5f7cd19833e24039bdf313d3534579b366b5ad5e7288627ebf579edf953a0a85",
+            "e4c94f19f7f9ca05485f1786c92871e4eddb30633ab01c38b282194dd435572c",
+            "35f616c20e0b809605c9d63457e60af25e60e901bc19f2326d21cbc74d04904a",
+            "32590d1f0de6155e936b189fd3ade5daa8cb1cdec8f9e5bb0f2be10222d1e1ba"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_04.lod1.glb",
+          "sha256": "0965e6fc2f50b12afd1e3a7fefcec5a35690eb391d01db9204d9afcf91a06b66",
+          "bytes": 27272,
+          "role": "derived",
+          "derivedFrom": [
+            "5f7cd19833e24039bdf313d3534579b366b5ad5e7288627ebf579edf953a0a85",
+            "e4c94f19f7f9ca05485f1786c92871e4eddb30633ab01c38b282194dd435572c",
+            "35f616c20e0b809605c9d63457e60af25e60e901bc19f2326d21cbc74d04904a",
+            "32590d1f0de6155e936b189fd3ade5daa8cb1cdec8f9e5bb0f2be10222d1e1ba"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_04.lod2.glb",
+          "sha256": "579fe09372b91ea141b57c1334b157f67e8a02c747ac3519747083de5f1abe60",
+          "bytes": 14472,
+          "role": "derived",
+          "derivedFrom": [
+            "5f7cd19833e24039bdf313d3534579b366b5ad5e7288627ebf579edf953a0a85",
+            "e4c94f19f7f9ca05485f1786c92871e4eddb30633ab01c38b282194dd435572c",
+            "35f616c20e0b809605c9d63457e60af25e60e901bc19f2326d21cbc74d04904a",
+            "32590d1f0de6155e936b189fd3ade5daa8cb1cdec8f9e5bb0f2be10222d1e1ba"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_04.1k.webp",
+          "sha256": "7b35f785195c2e3711ca90c3f3058d79df642a651e8b64971b3bb7d423650ef2",
+          "bytes": 61896,
+          "role": "derived",
+          "derivedFrom": [
+            "5f7cd19833e24039bdf313d3534579b366b5ad5e7288627ebf579edf953a0a85",
+            "e4c94f19f7f9ca05485f1786c92871e4eddb30633ab01c38b282194dd435572c",
+            "35f616c20e0b809605c9d63457e60af25e60e901bc19f2326d21cbc74d04904a",
+            "32590d1f0de6155e936b189fd3ade5daa8cb1cdec8f9e5bb0f2be10222d1e1ba"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:42.876Z"
+    },
+    "rb-medical-male-04-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Textures/m162_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Textures/m162_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Male_04.",
+      "sha256": "e4c94f19f7f9ca05485f1786c92871e4eddb30633ab01c38b282194dd435572c",
+      "gitBlobSha1": "18f7b6bde75d89befb56160b676552e30afb4f31",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_04_body_color.tga",
+          "sha256": "e4c94f19f7f9ca05485f1786c92871e4eddb30633ab01c38b282194dd435572c",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:44.662Z"
+    },
+    "rb-medical-male-04-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Textures/m162_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Textures/m162_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Male_04.",
+      "sha256": "35f616c20e0b809605c9d63457e60af25e60e901bc19f2326d21cbc74d04904a",
+      "gitBlobSha1": "02f877e92d9f698a7bc63e0faae263edffe24142",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_04_head_color.tga",
+          "sha256": "35f616c20e0b809605c9d63457e60af25e60e901bc19f2326d21cbc74d04904a",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:46.401Z"
+    },
+    "rb-medical-male-04-protection-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Textures/m162_protection_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_04/Textures/m162_protection_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: protection (cap and mask) colour texture TGA of Medical_Male_04.",
+      "sha256": "32590d1f0de6155e936b189fd3ade5daa8cb1cdec8f9e5bb0f2be10222d1e1ba",
+      "gitBlobSha1": "e2ee1f8759cdccf551827f7e971e7ef7f6e8adb7",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_04_protection_color.tga",
+          "sha256": "32590d1f0de6155e936b189fd3ade5daa8cb1cdec8f9e5bb0f2be10222d1e1ba",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:48.269Z"
+    },
+    "rb-medical-male-05-fbx": {
+      "kind": "people",
+      "type": "fbx",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Export/Medical_Male_05.fbx",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Export/Medical_Male_05.fbx",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: rigged mesh with the hipoly/midpoly/lowpoly/ultralowpoly LODs of Medical_Male_05.",
+      "sha256": "d4d01405cd528b635067b7d6ac21cbe15d026f5c9ac8af48ec6f5800a4c15a03",
+      "gitBlobSha1": "00f8642c34ec5351dcc6866ca5badc260a12e934",
+      "bytes": 613456,
+      "files": [
+        {
+          "path": "people/medical_male_05.fbx",
+          "sha256": "d4d01405cd528b635067b7d6ac21cbe15d026f5c9ac8af48ec6f5800a4c15a03",
+          "bytes": 613456,
+          "role": "original",
+          "root": "source"
+        },
+        {
+          "path": "people/medical_male_05.lod0.glb",
+          "sha256": "d412185d817628d13a2744a6223009e968f62523e966ac912db1fbd45f854f0b",
+          "bytes": 64268,
+          "role": "derived",
+          "derivedFrom": [
+            "d4d01405cd528b635067b7d6ac21cbe15d026f5c9ac8af48ec6f5800a4c15a03",
+            "972d6bb16a114e8ecea273092287c8d5bc48b9680072416622a1da04058d4d50",
+            "1abe3f5a6b8ffca4de39dbe75f1cf511dcce152f97b9264517a531a3327db7e9",
+            "8d6f350030e7932785e44177df60e27279e82d3efaa88e3f1681f7812cb53e46"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_05.lod1.glb",
+          "sha256": "7f8b6202f4b2d8b653e3d8a2559e30b04f7fdb7c7983b932338802b0329657b6",
+          "bytes": 28764,
+          "role": "derived",
+          "derivedFrom": [
+            "d4d01405cd528b635067b7d6ac21cbe15d026f5c9ac8af48ec6f5800a4c15a03",
+            "972d6bb16a114e8ecea273092287c8d5bc48b9680072416622a1da04058d4d50",
+            "1abe3f5a6b8ffca4de39dbe75f1cf511dcce152f97b9264517a531a3327db7e9",
+            "8d6f350030e7932785e44177df60e27279e82d3efaa88e3f1681f7812cb53e46"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_05.lod2.glb",
+          "sha256": "97e091f9313e5a0f1a7531a1d66117fef5acb02eacbf7fe602b64e78125646d4",
+          "bytes": 15036,
+          "role": "derived",
+          "derivedFrom": [
+            "d4d01405cd528b635067b7d6ac21cbe15d026f5c9ac8af48ec6f5800a4c15a03",
+            "972d6bb16a114e8ecea273092287c8d5bc48b9680072416622a1da04058d4d50",
+            "1abe3f5a6b8ffca4de39dbe75f1cf511dcce152f97b9264517a531a3327db7e9",
+            "8d6f350030e7932785e44177df60e27279e82d3efaa88e3f1681f7812cb53e46"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/medical_male_05.1k.webp",
+          "sha256": "1fa3b1c63b1063f71445e0840eaf0543cb2dae8fd54defd77eeb42786beb149b",
+          "bytes": 75086,
+          "role": "derived",
+          "derivedFrom": [
+            "d4d01405cd528b635067b7d6ac21cbe15d026f5c9ac8af48ec6f5800a4c15a03",
+            "972d6bb16a114e8ecea273092287c8d5bc48b9680072416622a1da04058d4d50",
+            "1abe3f5a6b8ffca4de39dbe75f1cf511dcce152f97b9264517a531a3327db7e9",
+            "8d6f350030e7932785e44177df60e27279e82d3efaa88e3f1681f7812cb53e46"
+          ],
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:48.765Z"
+    },
+    "rb-medical-male-05-body-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Textures/m163_body_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Textures/m163_body_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: body colour texture TGA of Medical_Male_05.",
+      "sha256": "972d6bb16a114e8ecea273092287c8d5bc48b9680072416622a1da04058d4d50",
+      "gitBlobSha1": "f5ade20fb2c43970ee86fa7e0501d466fbcf59f9",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_05_body_color.tga",
+          "sha256": "972d6bb16a114e8ecea273092287c8d5bc48b9680072416622a1da04058d4d50",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:50.525Z"
+    },
+    "rb-medical-male-05-head-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Textures/m163_head_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Textures/m163_head_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: head colour texture TGA of Medical_Male_05.",
+      "sha256": "1abe3f5a6b8ffca4de39dbe75f1cf511dcce152f97b9264517a531a3327db7e9",
+      "gitBlobSha1": "4fa7d323d4aeeb7dc978b5b0d4b71afd68229d06",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_05_head_color.tga",
+          "sha256": "1abe3f5a6b8ffca4de39dbe75f1cf511dcce152f97b9264517a531a3327db7e9",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:52.302Z"
+    },
+    "rb-medical-male-05-protection-color": {
+      "kind": "people",
+      "type": "tga",
+      "source": {
+        "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Textures/m163_protection_color.tga",
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Medical_Male_05/Textures/m163_protection_color.tga",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft; original avatars by Rocketbox Studios)",
+      "notes": "Conversion input for tools/convert-people.mjs, never served: protection (cap and mask) colour texture TGA of Medical_Male_05.",
+      "sha256": "8d6f350030e7932785e44177df60e27279e82d3efaa88e3f1681f7812cb53e46",
+      "gitBlobSha1": "9240da6ae6d7cc40ebb5bb9773b8253f669eb19c",
+      "bytes": 12582956,
+      "files": [
+        {
+          "path": "people/medical_male_05_protection_color.tga",
+          "sha256": "8d6f350030e7932785e44177df60e27279e82d3efaa88e3f1681f7812cb53e46",
+          "bytes": 12582956,
+          "role": "original",
+          "root": "source"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T11:33:54.165Z"
+    },
+    "rb-people-index": {
+      "kind": "people",
+      "type": "json",
+      "source": {
+        "url": null,
+        "page": "https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars",
+        "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+        "local": null
+      },
+      "licence": "MIT",
+      "licenceUrl": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/LICENSE.md",
+      "author": "Microsoft Rocketbox Avatar Library (Copyright (c) 2020 Microsoft); index written by tools/convert-people.mjs",
+      "notes": "Index of the converted Rocketbox avatars (skeleton proportions, bind frames, tint references, atlas layouts, files), read by src/scene/actors/crowd/avatars.ts; LICENSE.txt is the MIT notice that ships with them.",
+      "sha256": "3d021cb0b389e28cb21d88d39fd7411905c6a2b77de7f7fdbcfecdcba8c9c0af",
+      "bytes": 60014,
+      "files": [
+        {
+          "path": "people/index.json",
+          "sha256": "3d021cb0b389e28cb21d88d39fd7411905c6a2b77de7f7fdbcfecdcba8c9c0af",
+          "bytes": 60014,
+          "role": "derived",
+          "tool": "tools/convert-people.mjs v1"
+        },
+        {
+          "path": "people/LICENSE.txt",
+          "sha256": "a0c61b1cd882e77b110d2edcd62edf4af708c2ad6fd166494a2fbed148ab607c",
+          "bytes": 1295,
+          "role": "derived",
+          "tool": "tools/convert-people.mjs v1"
+        }
+      ],
+      "validator": null,
+      "fetchedAt": "2026-10-18T12:03:23.550Z"
+    }
+  }
+}

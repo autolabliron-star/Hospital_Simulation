@@ -15,7 +15,7 @@
 import { BANDS, type RoomSpec } from '@/sim/places'
 import { roomNodeId } from '@/sim/nav/ids'
 import { wardFrame, type Frame, type LayoutBuilder } from '@/scene/building/layout/builder'
-import { BACKREST, BED, BEDSIDE_SCREEN, FOOT_SECTION, MATTRESS, OVERBED } from './bedParts'
+import { BACKREST, BED, BEDSIDE_SCREEN, FOOT_SECTION, MADE_BLANKET, MATTRESS, OVERBED } from './bedParts'
 
 function bed(f: Frame, id: string, bu: number, bv: number): void {
   // legs and base
@@ -24,8 +24,10 @@ function bed(f: Frame, id: string, bu: number, bv: number): void {
   // mattress foot section and linen. The head section (the backrest, with the pillow on it) is NOT here: it is its own instanced part
   // (src/scene/meals/ward) so it can tilt with the sim's recline; this builder only draws the part that stays flat.
   f.rbox(bu, MATTRESS.y0, bv + FOOT_SECTION.dv, MATTRESS.w, MATTRESS.top - MATTRESS.y0, FOOT_SECTION.length, 'linen', { r: MATTRESS.r })
-  f.rbox(bu, 0.46, bv + 0.44, 0.9, 0.09, 1.08, 'linen', { r: 0.045 }) // blanket over the lower body, from the hinge to the foot
-  f.rbox(bu, 0.505, bv + BACKREST.hingeDv + 0.09, 0.91, 0.045, 0.18, 'fabricTeal', { r: 0.02 }) // teal fold at the blanket's top edge
+  // a made bed: the blanket lies flat on the mattress from the hinge to the foot, with a teal fold at its top edge. A patient in the bed is covered
+  // by the crowd's own blanket (actors/crowd/gear.ts), which stands well above this one and takes the place of it
+  f.rbox(bu, MATTRESS.top, bv + 0.44, 0.9, MADE_BLANKET, 1.08, 'linen', { r: MADE_BLANKET / 2 })
+  f.rbox(bu, MATTRESS.top, bv + BACKREST.hingeDv + 0.09, 0.91, MADE_BLANKET + 0.012, 0.18, 'fabricTeal', { r: 0.012 })
   // head and foot boards
   f.rbox(bu, 0.22, bv - BED.l / 2 - 0.02, BED.w + 0.02, 0.78, 0.06, 'woodOak', { r: 0.02 })
   f.rbox(bu, 0.22, bv + BED.l / 2 + 0.02, BED.w + 0.02, 0.42, 0.05, 'whitePlastic', { r: 0.02 })
@@ -51,10 +53,10 @@ export function overBedTable(f: Frame, id: string, bu: number, bv: number): void
   f.rect(`${id}:overbed`, cu, cv, foot.w + 0.06, foot.d, { overhead: true })
 }
 
-/** The ward bed: the patient lies on the mattress (top 0.49 m), head to the corridor wall, feet toward the window. */
+/** The ward bed: the patient lies in the mattress (top MATTRESS.top = 0.49 m), head to the corridor wall, feet toward the window. */
 function bedSeat(f: Frame, room: RoomSpec, bu: number, bv: number): void {
   // local +z is the way to the window in both wards, so heading(0) is the contract's bedHeading
-  f.seat(`bed:${room.id}`, 'bed', bu, bv, 0.49, { pose: 'lie', approach: room.bedside })
+  f.seat(`bed:${room.id}`, 'bed', bu, bv, MATTRESS.top, { pose: 'lie', approach: room.bedside })
 }
 
 function bedsideScreen(f: Frame, id: string, bu: number): void {

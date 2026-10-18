@@ -14,9 +14,10 @@ import { reclineAngle, reclineOfEntity } from '@/scene/rooms/bedPose'
 
 export type HeadPose = 'stand' | 'sit' | 'lie'
 
-export const HEAD_Y: Record<HeadPose, number> = { stand: 2.05, sit: 1.45, lie: 1.2 }
-/** A stretcher's mattress is 0.23 m higher than a bed's (0.85 m against 0.62 m). */
-export const STRETCHER_LIFT = 0.23
+/** W3: lying heights follow the real mattress tops (a ward bed's is 0.49 m, crowd constants LIE.bed), 13 cm lower than before. */
+export const HEAD_Y: Record<HeadPose, number> = { stand: 2.05, sit: 1.45, lie: 1.07 }
+/** A stretcher's mattress is 0.30 m higher than a ward bed's (0.79 m against 0.49 m). */
+export const STRETCHER_LIFT = 0.3
 /**
  * How far the head is from the body's centre when lying. The contract's heading runs head to feet (`RoomSpec.bedHeading`),
  * so the head end is behind the centre; 0.75 m is where `RoomSpec.pillow` sits relative to `RoomSpec.bed`.

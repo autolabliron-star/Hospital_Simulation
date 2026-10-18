@@ -3,6 +3,8 @@
 // for anybody going fast, whatever the sim called the animation), the arms follow a smooth stride phase, the pelvis crouches and bounces with the stride, and the coat follows the legs.
 // W3 (the player's slot only, `RigInput.driven`): the feet are planned from the body's true velocity and intent (gait.ts), the run and brisk blends follow at once, the
 // trunk leans into acceleration and rolls into curves, and the head leads turns. Every NPC takes the old paths, number for number.
+// W3 wave B (realistic people): every length comes from the person's own skeleton (`Dims.b`: NOMINAL_BODY, which is BODY to the last bit, or a
+// Rocketbox avatar's measured BodyDims), with its waist, neck and shoulder offsets front to back and its own seated and lying pelvis heights.
 /**
  * The rig solver: one person's state and, each frame, the part matrices that pose the instanced body.
  *
@@ -22,7 +24,7 @@
  *   8. lying: the whole upright body is tipped flat about the pelvis onto the mattress
  */
 import type { Look } from './outfit'
-import { BODY, LEG_LENGTH, LEG_MAX, LEG_RELAXED, LIE, P, PART_COUNT, PROP, STAND_PELVIS } from './constants'
+import { LEG_LENGTH, LEG_MAX, LEG_RELAXED, LIE_LEG, LIE_RECLINE_LIFT_MAX, NOMINAL_BODY, P, PART_COUNT, PROP, standPelvis, type BodyDims } from './constants'
 import { MAT, clamp, damp, isFiniteMat, noise1, rnd, setRotXZY, setRotYXZ, setZero, mul, setTranslation, smoothstep, transformPoint, translateLocal, wrapPi } from './math'
 import { advanceBlend, blendTo, createBlender, MODE_INDEX, type Blender, type Mode, type Posture } from './blend'
 import { briskBlend, createPlanter, resetPlanter, runBlend, updatePlanter, type Planter } from './gait'
@@ -31,6 +33,8 @@ import { createHeadLook, lookPitch, lookYaw, updateHeadLook, type HeadLook } fro
 import { HAIR_BACK, HAIR_CAP, HAIR_FRONT, type HairPiece } from './hair'
 import { blinkAt, expressionOf, mouthOpenAt } from './face'
 import { ARM_L, ARM_R, MOP, REACH_L, REACH_R, U, UP_COUNT, blendUpper, createPoseCtx, mopPoints, type PoseCtx } from './pose'
+import { BACKREST, MATTRESS } from '@/scene/rooms/bedParts'
+import { reclineAngle } from '@/scene/rooms/bedPose'
 
 export interface Dims {
   /** Overall size relative to the nominal body. */
@@ -39,6 +43,8 @@ export interface Dims {
   w: number
   /** Thickness factor of the limbs (they follow the build, less than the torso does). */
   tl: number
+  /** W3 wave B: the skeleton's proportions (NOMINAL_BODY, or the realistic avatar's own, see BodyDims in constants.ts). */
+  b: Readonly<BodyDims>
 }
 
 export interface PersonRig {
@@ -75,6 +81,8 @@ export interface PersonRig {
   seatBack: 0 | 1 | -1
   /** Last solve: how flat the body lies (0 upright, 1 flat). */
   lastLie: number
+  /** Last solve: how far the pelvis and all above it ride up because the bed head is raised (m; 0 flat, up to LIE_RECLINE_LIFT_MAX); the feet stay planted. */
+  lastLift: number
   /** What the last solve put into the prop frame (a PROP value, PROP.none when nothing is drawn) and its scale. */
   propDraw: number
   propScale: number
@@ -116,6 +124,11 @@ export interface RigInput {
   footRest: number
   /** The item in the right hand (a PROP value). */
   prop: number
+  /**
+   * A lying person is in a bed that has a blanket for them (a ward bed, an ER trolley or a stretcher: head.ts `inBlanketBed`). The rig then puts the blanket
+   * (PROP.blanket) in the prop frame, on the mattress under the hips, for as long as they lie. Anybody else lying (a scanner table) lies bare.
+   */
+  covered: boolean
   /** World point to look at, or null. */
   hasLook: boolean
   lookX: number
@@ -141,12 +154,12 @@ export interface RigInput {
   restZ: number
 }
 
-export function createRig(look: Look): PersonRig {
+export function createRig(look: Look, body: Readonly<BodyDims> = NOMINAL_BODY): PersonRig {
   const h = look.seed
   const ctx = createPoseCtx(h, look.hand, (k) => rnd(h, k))
   return {
     look,
-    dims: { s: look.scale, w: look.build, tl: 1 + (look.build - 1) * 0.6 },
+    dims: { s: look.scale, w: look.build, tl: 1 + (look.build - 1) * 0.6, b: body },
     ctx,
     blender: createBlender('relaxed'),
     planter: createPlanter(),
@@ -167,6 +180,7 @@ export function createRig(look: Look): PersonRig {
     seatForward: rnd(h, 72),
     seatBack: rnd(h, 73) < 0.3 ? (rnd(h, 74) < 0.5 ? 1 : -1) : 0,
     lastLie: 0,
+    lastLift: 0,
     propDraw: PROP.none,
     propScale: 0,
     face: { eyeYaw: 0, eyePitch: 0, expression: 0, blink: 0, mouthOpen: 0 },
@@ -190,6 +204,7 @@ export function makeInput(): RigInput {
     seatHeight: 0.45,
     footRest: 0,
     prop: PROP.none,
+    covered: false,
     hasLook: false,
     lookX: 0,
     lookY: 0,
@@ -319,12 +334,12 @@ const HOLD: readonly (HoldSpec | null)[] = [
  * mixed with the angles already there by `w`. The target is the middle of the hand (the wrist plus 0.085 along the forearm).
  * `side` is +1 for the left arm. A target out of reach is pulled in to the arm's full length.
  */
-function solveArmReach(up: Float32Array, base: number, side: 1 | -1, w: number, tx: number, ty: number, tz: number, shX: number, shY: number, s: number): void {
-  const L1 = BODY.upperArm * s
-  const L2 = (BODY.forearm + BODY.hand) * s
+function solveArmReach(up: Float32Array, base: number, side: 1 | -1, w: number, tx: number, ty: number, tz: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>): void {
+  const L1 = B.upperArm * s
+  const L2 = (B.forearm + B.hand) * s
   const dx = tx - side * shX
   const dy = ty - shY
-  const dz = tz
+  const dz = tz - shZ
   const dRaw = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6
   const d = clamp(dRaw, Math.abs(L1 - L2) + 0.02 * s, (L1 + L2) * 0.998)
   const hx = dx / dRaw
@@ -399,6 +414,9 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   const dt = clamp(inp.dt, 0, 0.1)
   const d = r.dims
   const s = d.s
+  // the skeleton's proportions: NOMINAL_BODY for the procedural crowd (every number as before), an avatar's own for a realistic person
+  const B = d.b
+  const standP = standPelvis(B)
   const look = r.look
   const posture = inp.posture
   const t = inp.time
@@ -481,12 +499,23 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   r.lean = damp(r.lean, leanT, LEAN.follow, dt)
   r.roll = damp(r.roll, rollT, LEAN.follow, dt)
   const hop = up[U.hop]
-  const ankleY = BODY.ankle * s
-  const legLen = LEG_LENGTH * s
-  const hipHalf = BODY.hipHalf * s * (0.5 + 0.5 * d.w)
+  const ankleY = B.ankle * s
+  const legLen = (B.thigh + B.shin) * s
+  const hipHalf = B.hipHalf * s * (0.5 + 0.5 * d.w)
   const idleN = noise1(t * 0.35, seed + 30)
-  const legFactor = LEG_RELAXED + (0.955 - LEG_RELAXED) * lb
+  const legFactor = LEG_RELAXED + (LIE_LEG - LEG_RELAXED) * lb
   const surface = Math.max(inp.seatHeight, 0)
+  // a patient in a ward bed with the head raised: the torso turns about the waist joint (the skinning seams need it so), but the backrest turns about its
+  // hinge, a little below the back, so at an angle phi the torso's back would sink into the slab by (liePelvis + hinge depth) * (1 - cos phi) more than it
+  // does lying flat. The pelvis and everything above it ride up by that much along the torso's normal, i.e. by (that) / cos phi vertically, at most
+  // LIE_RECLINE_LIFT_MAX: the pelvis moves forward in the upright body (the lying body's `up`), the feet stay planted and the legs slope up to the hips
+  // under the blanket. The back stays in the slab, the legs on the mattress, and nothing tears (the whole upper body moves as one)
+  let rideUp = 0
+  if (lb > 0) {
+    const phi = reclineAngle(r.ctx.recline) * wts[MODE_INDEX.lie]
+    if (phi > 1e-4) rideUp = lb * Math.min(LIE_RECLINE_LIFT_MAX, ((B.liePelvis + (MATTRESS.top - BACKREST.hingeY)) * (1 - Math.cos(phi))) / Math.cos(phi))
+  }
+  r.lastLift = rideUp
   const ST = STANDING
   const SE = SEATED
   if (sb < 1) {
@@ -501,6 +530,11 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     dz = f1.z - inp.z
     ST[AX1] = dx * ch - dz * sh
     ST[AZ1] = dx * sh + dz * ch
+    // a realistic body lying down: the feet go back by its own `lieFeet`, so its heels rest on the mattress (the procedural body has none)
+    if (lb > 0 && B.lieFeet !== 0) {
+      ST[AZ0] -= B.lieFeet * s * lb
+      ST[AZ1] -= B.lieFeet * s * lb
+    }
     ST[AY0] = ankleY + f0.lift + hop
     ST[AY1] = ankleY + f1.lift + hop
     ST[YAW0] = wrapPi(f0.yaw - inp.heading)
@@ -513,7 +547,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     const sway = 1 - 0.6 * r.run
     ST[PX] = 0.03 * s * m * load * sway + (1 - m) * 0.014 * s * idleN
     // a runner's hips sit a little behind the point the sim calls the body: the trailing leg is what reaches furthest (the foot is left 0.5 m behind at toe-off), the leading one lands near
-    ST[PZ] = 0.01 * s * m - 0.04 * s * r.run
+    ST[PZ] = 0.01 * s * m - 0.04 * s * r.run + rideUp
     ST[PYAW] = -0.075 * m * gait + (1 - m) * 0.03 * noise1(t * 0.3, seed + 31)
     ST[PROLL] = 0.05 * m * load * sway + (1 - m) * 0.02 * noise1(t * 0.27, seed + 32) + r.roll
     ST[PPITCH] = 0.02 + 0.03 * m + 0.04 * r.run + r.lean * LEAN.pelvisShare
@@ -536,7 +570,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     const crouch = (0.045 * r.brisk * (1 - r.run) + 0.004 * r.run) * s - pl.bounce * s
     const relaxed = ankleY + legFactor * legLen + hop + bounce - crouch
     const hip = Math.min(smin(hy0, hy1, 0.03 * s), relaxed)
-    ST[PY] = hip + BODY.hipDrop * s
+    ST[PY] = hip + B.hipDrop * s
   }
   if (sb > 0) {
     const lat = (0.115 + 0.035 * r.seatSpread) * s
@@ -559,7 +593,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     SE[PYAW] = 0.02 * noise1(t * 0.3, seed + 31)
     SE[PROLL] = 0.015 * noise1(t * 0.27, seed + 32)
     SE[PPITCH] = -0.02
-    SE[PY] = surface + BODY.seatedPelvis * s
+    SE[PY] = surface + B.seatedPelvis * s
   }
   const A = sb >= 1 ? SE : ST
   const mixk = sb <= 0 || sb >= 1 ? 0 : sb
@@ -580,18 +614,18 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   const yaw1 = mixAt(A, YAW1, mixk)
   const pitch1 = mixAt(A, PITCH1, mixk)
   // the pelvis height a relaxed upright body would have, for the reach targets (they follow the pelvis, not its bob)
-  const pelvisRef = STAND_PELVIS * s + (surface + BODY.seatedPelvis * s - STAND_PELVIS * s) * sb
+  const pelvisRef = standP * s + (surface + B.seatedPelvis * s - standP * s) * sb
 
   const P_ = iP
   setRotYXZ(S, P_, pYaw, pPitch, pRoll)
   setTranslation(S, P_, pX, pY, pZ)
 
   // hips and the two legs
-  const hipDrop = BODY.hipDrop * s
+  const hipDrop = B.hipDrop * s
   transformPoint(S, P_, hipHalf, -hipDrop, 0, S, iHL)
   transformPoint(S, P_, -hipHalf, -hipDrop, 0, S, iHR)
-  const thighL = BODY.thigh * s
-  const shinL = BODY.shin * s
+  const thighL = B.thigh * s
+  const shinL = B.shin * s
   solveLeg(LEG, 0, S[iHL], S[iHL + 1], S[iHL + 2], ax0, ay0, az0, Math.sin(yaw0 * 0.7), Math.cos(yaw0 * 0.7), thighL, shinL, legL)
   solveLeg(LEG, MAT * 2, S[iHR], S[iHR + 1], S[iHR + 2], ax1, ay1, az1, Math.sin(yaw1 * 0.7), Math.cos(yaw1 * 0.7), thighL, shinL, legR)
 
@@ -604,7 +638,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   setRotYXZ(S, iT1, cYaw, cPitch, cRoll)
   // C = P * T(0, waist) * R
   copy12(S, iC, S, P_)
-  translateLocal(S, iC, 0, BODY.waist * s, 0)
+  translateLocal(S, iC, 0, B.waist * s, B.waistZ * s)
   mul(S, iT2, S, iC, S, iT1)
   copy12(S, iC, S, iT2)
 
@@ -612,24 +646,25 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   const hPitch = up[U.headPitch] + lpit - 0.5 * (cPitch + pPitch)
   const hRoll = up[U.headRoll] - 0.5 * (cRoll + pRoll)
   copy12(S, iH, S, iC)
-  translateLocal(S, iH, 0, BODY.neck * s, 0)
+  translateLocal(S, iH, 0, B.neck * s, B.neckZ * s)
   setRotYXZ(S, iT1, hYaw, hPitch, hRoll)
   mul(S, iT2, S, iH, S, iT1)
   copy12(S, iH, S, iT2)
 
   // 6. arms: hand targets from the poses and from the held item, then the two-bone solve
-  const shX = BODY.shoulderHalf * s * (0.5 + 0.5 * d.w)
-  const shY = BODY.shoulderUp * s
+  const shX = B.shoulderHalf * s * (0.5 + 0.5 * d.w)
+  const shY = B.shoulderUp * s
+  const shZ = B.shoulderZ * s
   const spec = HOLD[r.holdKind]
   if (spec && r.hold > 0.01 && holdOk > 0.01) {
     const k = smoothstep(0, 1, r.hold) * holdOk
     addReach(up, REACH_R, k, spec.r[0], spec.r[1], spec.r[2])
     if (spec.l) addReach(up, REACH_L, k, spec.l[0], spec.l[1], spec.l[2])
   }
-  armReach(up, REACH_L, ARM_L, 1, shX, shY, s, pelvisRef)
-  armReach(up, REACH_R, ARM_R, -1, shX, shY, s, pelvisRef)
-  arm(+1, up, ARM_L, iSL, iEL, iWL, shX, shY, s)
-  arm(-1, up, ARM_R, iSR, iER, iWR, shX, shY, s)
+  armReach(up, REACH_L, ARM_L, 1, shX, shY, shZ, s, pelvisRef, standP, B)
+  armReach(up, REACH_R, ARM_R, -1, shX, shY, shZ, s, pelvisRef, standP, B)
+  arm(+1, up, ARM_L, iSL, iEL, iWL, shX, shY, shZ, s, B)
+  arm(-1, up, ARM_R, iSR, iER, iWR, shX, shY, shZ, s, B)
 
   // 7. the held item's frame, from the right hand (before any lying transform)
   const propKind = r.holdKind
@@ -644,7 +679,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     const hx = MOPPTS[6] * s
     const hz = MOPPTS[8] * s
     const bx = MOPPTS[9] * s
-    const by = pelvisRef + (MOPPTS[10] - STAND_PELVIS) * s
+    const by = pelvisRef + (MOPPTS[10] - standP) * s
     const bz = MOPPTS[11] * s
     let ux = bx - hx
     let uy = by
@@ -778,7 +813,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     const theta = -(Math.PI / 2) * lb
     const cT = Math.cos(theta)
     const sT = Math.sin(theta)
-    const lieY = pY + (surface + LIE.pelvisAbove - pY) * lb
+    const lieY = pY + (surface + B.liePelvis - pY) * lb
     // T = [R | t], R = Rx(theta), t = pivotLie - R * pivotUp
     S[iLT] = 1
     S[iLT + 1] = 0
@@ -801,6 +836,28 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   }
   r.lastLie = lb
 
+  // the blanket of a patient in a bed: carried in the prop frame, set down in the lying body's own frame (x across the bed, y up, z head to feet) with its
+  // origin on the mattress under the hips, after the body was laid flat (a lying patient holds nothing, so the frame is free). It rises with the lying
+  // blend: flat on the mattress while the patient is still getting in, a covered body once lying
+  if (inp.covered && lb > 0.02) {
+    const rise = smoothstep(0, 1, lb)
+    S[iPR] = 1
+    S[iPR + 1] = 0
+    S[iPR + 2] = 0
+    S[iPR + 3] = 0
+    S[iPR + 4] = 0
+    S[iPR + 5] = 1
+    S[iPR + 6] = 0
+    S[iPR + 7] = surface
+    S[iPR + 8] = 0
+    S[iPR + 9] = 0
+    S[iPR + 10] = 1
+    S[iPR + 11] = 0
+    putPart(out, o, P.prop, S, iPR, s, s * rise, s)
+    r.propDraw = PROP.blanket
+    r.propScale = s * rise
+  }
+
   // guard against any NaN so one bad frame can never poison the planter
   if (!isFiniteMat(S, P_) || !isFiniteMat(S, iWL)) {
     resetPlanter(pl, inp.x, inp.z, inp.heading, s)
@@ -818,13 +875,13 @@ function copy12(dst: Float64Array, d: number, src: Float64Array, s: number): voi
 
 /** Turn one hand's blended reach block into arm angles (in `up`, at the FK block `base`). */
 const TGT = new Float64Array(3)
-function armReach(up: Float32Array, reachBase: number, base: number, side: 1 | -1, shX: number, shY: number, s: number, pelvisRef: number): void {
+function armReach(up: Float32Array, reachBase: number, base: number, side: 1 | -1, shX: number, shY: number, shZ: number, s: number, pelvisRef: number, standP: number, B: Readonly<BodyDims>): void {
   const w = up[reachBase]
   if (!(w > 0.002)) return
   const k = w > 1 ? 1 : w
   // the blended, weight-premultiplied target -> a point in the root frame at this person's size
   const tx = (up[reachBase + 1] / w) * s
-  const ty = pelvisRef + (up[reachBase + 2] / w - STAND_PELVIS) * s
+  const ty = pelvisRef + (up[reachBase + 2] / w - standP) * s
   const tz = (up[reachBase + 3] / w) * s
   // root frame -> chest frame: the chest matrix is at S[iC]
   const dx = tx - S[iC + 3]
@@ -833,11 +890,11 @@ function armReach(up: Float32Array, reachBase: number, base: number, side: 1 | -
   TGT[0] = S[iC] * dx + S[iC + 4] * dy + S[iC + 8] * dz
   TGT[1] = S[iC + 1] * dx + S[iC + 5] * dy + S[iC + 9] * dz
   TGT[2] = S[iC + 2] * dx + S[iC + 6] * dy + S[iC + 10] * dz
-  solveArmReach(up, base, side, k, TGT[0], TGT[1], TGT[2], shX, shY, s)
+  solveArmReach(up, base, side, k, TGT[0], TGT[1], TGT[2], shX, shY, shZ, s, B)
 }
 
 /** One arm by forward kinematics from the chest matrix (in S at iC). `side` +1 = left. */
-function arm(side: 1 | -1, up: Float32Array, a: number, iS: number, iE: number, iW: number, shX: number, shY: number, s: number): void {
+function arm(side: 1 | -1, up: Float32Array, a: number, iS: number, iE: number, iW: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>): void {
   const pitch = up[a]
   const roll = up[a + 1]
   const twist = up[a + 2]
@@ -845,17 +902,17 @@ function arm(side: 1 | -1, up: Float32Array, a: number, iS: number, iE: number, 
   const wrist = up[a + 4]
   const pron = up[a + 5]
   copy12(S, iS, S, iC)
-  translateLocal(S, iS, side * shX, shY, 0)
+  translateLocal(S, iS, side * shX, shY, shZ)
   setRotXZY(S, iT1, -pitch, side * roll, side * twist)
   mul(S, iT2, S, iS, S, iT1)
   copy12(S, iS, S, iT2)
   copy12(S, iE, S, iS)
-  translateLocal(S, iE, 0, -BODY.upperArm * s, 0)
+  translateLocal(S, iE, 0, -B.upperArm * s, 0)
   setRotYXZ(S, iT1, 0, -elbow, 0)
   mul(S, iT2, S, iE, S, iT1)
   copy12(S, iE, S, iT2)
   copy12(S, iW, S, iE)
-  translateLocal(S, iW, 0, -BODY.forearm * s, 0)
+  translateLocal(S, iW, 0, -B.forearm * s, 0)
   setRotXZY(S, iT1, -wrist, 0, side * pron)
   mul(S, iT2, S, iW, S, iT1)
   copy12(S, iW, S, iT2)

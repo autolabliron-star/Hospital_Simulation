@@ -41,11 +41,11 @@ describe('head anchor', () => {
     expect(at(person({ anim: 'push', vehicle: 'cleaningCart' })).pose).toBe('stand')
   })
 
-  it('puts a lying person about 1.2 m up, at the pillow end', () => {
+  it('puts a lying person about 1.07 m up (W3: on the real 0.49 m mattress), at the pillow end', () => {
     // heading 0 faces +z, and the heading runs head to feet, so the head is 0.75 m toward -z
     const a = at(person({ anim: 'lie', position: { x: 10, y: 0, z: 5 }, heading: 0 }))
     expect(a.pose).toBe('lie')
-    expect(a.y).toBeCloseTo(1.2)
+    expect(a.y).toBeCloseTo(HEAD_Y.lie)
     expect(a.x).toBeCloseTo(10)
     expect(a.z).toBeCloseTo(5 - LIE_HEAD_OFFSET)
     // heading east (pi/2): the head is to the west
@@ -65,7 +65,7 @@ describe('head anchor', () => {
   it('treats a seat with pose lie as lying, and a rider on a stretcher as lying a little higher (taller mattress)', () => {
     expect(at(person({ anim: 'idle', seated: { seatId: 'erBay:0', pose: 'lie' } })).pose).toBe('lie')
     const onStretcher = at(person({ anim: 'lie', vehicle: 'stretcher', riding: true }))
-    expect(onStretcher.y).toBeCloseTo(1.2 + STRETCHER_LIFT)
+    expect(onStretcher.y).toBeCloseTo(HEAD_Y.lie + STRETCHER_LIFT)
     expect(at(person({ anim: 'push', vehicle: 'stretcher', riding: false })).pose).toBe('stand')
   })
 

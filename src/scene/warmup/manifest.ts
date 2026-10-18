@@ -27,7 +27,12 @@ export interface MaterialSite {
 /** Keys are paths from the repository root. */
 export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/materials.ts': { count: 1, via: 'palette', where: 'MAT: building meshes, pods, props; every key also registered through ALL_MATERIALS' },
-  'src/scene/actors/crowd/shaders.ts': { count: 5, via: 'mounted', where: 'crowdRig objects: three bodies, props, vehicles, blob shadows, selection ring (hidden until used)' },
+  'src/scene/actors/crowd/shaders.ts': {
+    count: 6,
+    via: 'mounted',
+    where:
+      'crowdRig objects: three bodies, props, vehicles, blob shadows, selection ring (hidden until used); W3 wave B: the realistic people\'s avatar bodies (one program), added to the crowd-people group by attachPeople while the warm gate "people" holds the warm-up (hidden until used)',
+  },
   'src/scene/building/render/commandWall.ts': { count: 1, via: 'mounted', where: 'BuildingMeshes: the command-wall mesh' },
   'src/scene/building/render/labels.ts': { count: 1, via: 'mounted', where: 'BuildingMeshes: floor labels, in the overview-only group (hidden while walking)' },
   'src/scene/building/render/screens.ts': { count: 1, via: 'mounted', where: 'BuildingMeshes: the screen-atlas mesh' },

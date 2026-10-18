@@ -2,6 +2,11 @@
 // items, wheeled vehicles and their riders, blob shadows, capsule picking, and nothing that allocates in a frame.
 // W3: the slot of the entity `player` is driven by the player's true body (`FrameInput.driven`, the contract `walkBody`) instead of a measured velocity, and its heel strikes
 // are published in `walkStride` (footsteps, camera bob). Everybody else is measured exactly as before.
+// W3 wave B (realistic people, ported from Waltz's wave 10b model): once `setAvatars` hands in the loaded Rocketbox avatars, every person wears one
+// (avatars.ts avatarFor: the player medical_male_01, everybody else by role, clothing class, height and seed). Their rig then uses the avatar's own
+// skeleton, their skinned part matrices become M_p * B_p^-1 (applyBinds), their garment tint bits go into TEX.size.z, they are always solved (the
+// far body of an avatar is skinned too) and they go into per-avatar instance lists instead of the procedural ones. The player's "You" badge rides
+// the BADGE_FRAME slot. Until then, or if the assets never load, everybody keeps the procedural body exactly as before.
 /**
  * The crowd model: every person that is drawn, their state and the pose texture data, with no GL in it.
  *
@@ -16,14 +21,16 @@
  * the rider is drawn ON the vehicle, snapped to the vehicle's place in front of the pusher, so the two can never drift apart. A
  * rider with no pusher nearby (a parked wheelchair) draws its own vehicle under itself.
  */
+import { presentationOf, type Presentation } from '@/content/roster'
 import type { Entity, Outfit, PropKind, Role, VehicleKind } from '@/sim/types'
-import { MAX_PEOPLE, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
-import { levelsOf, type Levels } from './head'
-import { lodBounds, lodWeights, type LodWeights } from './lod'
+import { BADGE_FRAME, MAX_PEOPLE, NOMINAL_BODY, P, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
+import { inBlanketBed, levelsOf, type Levels } from './head'
+import { AVATAR_LOD, LOD, lodBounds, lodWeights, type LodWeights } from './lod'
 import { clamp, damp } from './math'
 import { modeFor, type Mode, type Posture } from './blend'
-import { lookFor, type Look } from './outfit'
-import { GEAR_BIT } from './staff'
+import { clothesOf, lookFor, type Look } from './outfit'
+import { BADGE, GEAR_BIT } from './staff'
+import { applyBinds, avatarBuild, avatarFor, type AvatarChoice, type AvatarEntry } from './avatars'
 import { aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
 import { pickRadius, rayVsSegment } from './picking'
 import { VEHICLE_FOOTPRINT } from './gear'
@@ -35,6 +42,10 @@ const RIM_SECONDS = 0.15
 /** Instances the gear draws can hold. */
 export const MAX_VEHICLES = 96
 export const MAX_PROPS = MAX_PEOPLE
+/** "You" badges the badge mesh can hold (there is one player). */
+export const MAX_BADGES = 4
+/** Blankets the blanket mesh can hold: one per patient lying in a ward bed, an ER trolley or on a stretcher. */
+export const MAX_BLANKETS = 64
 /** One blob for each person and each vehicle. */
 export const MAX_BLOBS = MAX_PEOPLE + MAX_VEHICLES
 /** A rider within this distance of the place a vehicle would be is the one on it. */
@@ -59,6 +70,11 @@ export interface PersonSlot {
   lookRole: Role
   lookOutfit: Outfit | undefined
   rig: PersonRig
+  /** W3 wave B: the avatar the person wears (index into the model's avatars, -1: the procedural body) and its tint bits (avatars.ts TINT). */
+  avatar: number
+  tint: number
+  /** How the person's given name reads (content/roster.ts presentationOf): a woman's body, a man's, or the seeded draw. Fixed for the person's life. */
+  presentation: Presentation
   entity: Entity | null
   seen: number
   /** Fade-in ramp 0..1 (and the fade-out of a person the sim removed). */
@@ -160,6 +176,21 @@ export interface CrowdStats {
   riders: number
   /** Entities that did not fit in the pose texture (should be 0). */
   overflow: number
+  /** W3 wave B: people drawn as realistic avatars, and their entries in the per-avatar near, mid and far lists. */
+  avatars: number
+  avatarHigh: number
+  avatarMid: number
+  avatarFar: number
+  /** "You" badges drawn on realistic coats (the player's: 0 or 1). */
+  badges: number
+  /** Blankets drawn over patients lying in a bed or on a stretcher. */
+  blankets: number
+}
+
+/** W3 wave B: per-avatar instance lists (rows of the pose texture): rows[lod][avatar] holds counts[lod][avatar] rows (lod 0 near, 1 mid, 2 far). */
+export interface AvatarLists {
+  rows: [Float32Array[], Float32Array[], Float32Array[]]
+  counts: [Int32Array, Int32Array, Int32Array]
 }
 
 const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
@@ -196,8 +227,19 @@ export class CrowdModel {
   /** Blob shadows: a 4x4 matrix and a fade per instance (written straight into the InstancedMesh's attributes). */
   readonly blobMatrix = new Float32Array(MAX_BLOBS * 16)
   readonly blobFade = new Float32Array(MAX_BLOBS)
-  readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0 }
+  readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0, avatars: 0, avatarHigh: 0, avatarMid: 0, avatarFar: 0, badges: 0, blankets: 0 }
+  /** Blankets draw: the row of each covered lying patient (the blanket is in its prop frame), and the kind (always PROP.blanket). */
+  readonly blanketRows = new Float32Array(MAX_BLANKETS)
+  readonly blanketKinds = new Float32Array(MAX_BLANKETS).fill(PROP.blanket)
+  /** W3 wave B: the rows of the people whose "You" badge the badge mesh draws (BADGE_FRAME of their row). */
+  readonly badgeRows = new Float32Array(MAX_BADGES)
+  /** One set of lists per loaded avatar (empty until setAvatars). */
+  readonly avatarLists: AvatarLists = { rows: [[], [], []], counts: [new Int32Array(0), new Int32Array(0), new Int32Array(0)] }
   frame = 0
+
+  private avatarList: AvatarEntry[] = []
+  private binds: Float64Array[] = []
+  private readonly choice: AvatarChoice = { index: -1, tint: 0 }
 
   private readonly free: number[] = []
   private nextRow = 0
@@ -249,12 +291,56 @@ export class CrowdModel {
     this.data[g + 1] = (look.stethoscope ? GEAR_BIT.stethoscope : 0) | (look.dosimeter ? GEAR_BIT.dosimeter : 0) | (look.apron ? GEAR_BIT.bib : 0) | (look.glassesOn ? GEAR_BIT.glasses : 0)
   }
 
+  /**
+   * W3 wave B: hands in the loaded avatars (in the order the renderer's per-avatar meshes use), or an empty list to go back to the procedural
+   * bodies. Everybody already drawn is re-dressed at once.
+   */
+  setAvatars(avatars: readonly AvatarEntry[]): void {
+    this.avatarList = [...avatars]
+    this.binds = this.avatarList.map((a) => Float64Array.from(a.bindInverse))
+    const L = this.avatarLists
+    L.rows = [0, 1, 2].map(() => this.avatarList.map(() => new Float32Array(MAX_PEOPLE))) as AvatarLists['rows']
+    L.counts = [0, 1, 2].map(() => new Int32Array(this.avatarList.length)) as AvatarLists['counts']
+    for (const p of this.people.values()) this.dress(p)
+  }
+
+  /** The loaded avatars, in list order (empty: everybody is procedural). */
+  get avatars(): readonly AvatarEntry[] {
+    return this.avatarList
+  }
+
+  /** Chooses the person's avatar (or none) and writes what goes with it: the skeleton, the build, the tint bits and the bottom garment's colour. */
+  private dress(p: PersonSlot): void {
+    const look = p.look
+    const c = this.avatarList.length ? avatarFor({ id: p.key, role: p.lookRole, outfit: p.lookOutfit, seed: look.seed, height: look.height, presentation: p.presentation }, this.avatarList, this.choice) : null
+    p.avatar = c ? c.index : -1
+    p.tint = c && c.index >= 0 ? c.tint : 0
+    const d = p.rig.dims
+    if (p.avatar >= 0) {
+      d.b = this.avatarList[p.avatar].body
+      d.w = avatarBuild(look.seed)
+    } else {
+      d.b = NOMINAL_BODY
+      d.w = look.build
+    }
+    d.tl = 1 + (d.w - 1) * 0.6
+    const o = p.row * ROW_FLOATS
+    this.data[o + TEX.size * 4 + 2] = p.tint
+    // the bottom garment's colour: a patient's gown is gown all over (the procedural body shows it on the coat piece; its trousers slot is unused)
+    const pants = hexToLinear(p.avatar >= 0 && clothesOf(p.lookRole, p.lookOutfit) === 'gown' ? look.coat : look.pants)
+    const b = o + (TEX.palette + 3) * 4
+    this.data[b] = pants[0]
+    this.data[b + 1] = pants[1]
+    this.data[b + 2] = pants[2]
+  }
+
   private create(e: Entity, warm: boolean): PersonSlot | null {
     const row = this.allocRow()
     if (row < 0) return null
     const o = row * ROW_FLOATS
     this.data.fill(0, o, o + ROW_FLOATS)
-    const look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant })
+    const presentation = presentationOf(e.name)
+    const look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant, presentation })
     this.writeLook(row, look)
     const slot: PersonSlot = {
       key: e.id,
@@ -263,6 +349,9 @@ export class CrowdModel {
       lookRole: e.role,
       lookOutfit: e.outfit,
       rig: createRig(look),
+      avatar: -1,
+      tint: 0,
+      presentation,
       entity: null,
       seen: 0,
       ramp: warm ? 1 : 0,
@@ -300,6 +389,7 @@ export class CrowdModel {
       bz: 0,
     }
     this.people.set(e.id, slot)
+    if (this.avatarList.length) this.dress(slot)
     return slot
   }
 
@@ -332,9 +422,10 @@ export class CrowdModel {
     if (e.role !== p.lookRole || e.outfit !== p.lookOutfit) {
       p.lookRole = e.role
       p.lookOutfit = e.outfit
-      p.look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant })
+      p.look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant, presentation: p.presentation })
       p.rig.look = p.look
       this.writeLook(p.row, p.look)
+      if (this.avatarList.length) this.dress(p)
     }
     const lv = levelsOf(e, this.lv)
     p.posture = lv.posture
@@ -407,6 +498,14 @@ export class CrowdModel {
     st.blobs = 0
     st.riders = 0
     st.overflow = 0
+    st.avatars = 0
+    st.avatarHigh = 0
+    st.avatarMid = 0
+    st.avatarFar = 0
+    st.badges = 0
+    st.blankets = 0
+    const counts = this.avatarLists.counts
+    for (let l = 0; l < 3; l++) counts[l].fill(0)
     this.nPushers = 0
     this.nRiders = 0
     f.entities.forEach(this.visitFn)
@@ -462,10 +561,12 @@ export class CrowdModel {
       const cdy = p.y + 1 - f.camY
       const cdz = p.z - f.camZ
       p.dist = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz)
-      lodWeights(p.dist, this.w)
-      if (this.w.far < 1) {
+      lodWeights(p.dist, this.w, p.avatar >= 0 ? AVATAR_LOD : LOD)
+      // a realistic person's far body is skinned and animated too: they are always solved
+      if (this.w.far < 1 || p.avatar >= 0) {
         aimHead(p.rig, dt, inp, this.headYOf(p, posture, k))
         solveRig(p.rig, inp, d, o + TEX.parts * 4)
+        if (p.avatar >= 0) this.bindAvatar(p, o)
         if (p.key === PLAYER_ID) this.publishStride(p, dt)
         const face = p.rig.face
         const fo = o + TEX.face * 4
@@ -486,7 +587,7 @@ export class CrowdModel {
       const cdy = p.y + 1 - f.camY
       const cdz = p.z - f.camZ
       p.dist = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz)
-      lodWeights(p.dist, this.w)
+      lodWeights(p.dist, this.w, p.avatar >= 0 ? AVATAR_LOD : LOD)
     }
 
     const w = this.w
@@ -523,10 +624,33 @@ export class CrowdModel {
     d[ro + 1] = rc[1]
     d[ro + 2] = rc[2]
 
-    if (w.high > 0) this.rowsHigh[st.high++] = p.row
-    if (w.mid > 0) this.rowsMid[st.mid++] = p.row
-    if (w.far > 0) this.rowsFar[st.far++] = p.row
-    if (p.rig.propDraw !== PROP.none && p.rig.propScale > 0.01 && st.props < MAX_PROPS) {
+    const a = p.avatar
+    if (a >= 0) {
+      const L = this.avatarLists
+      st.avatars++
+      if (w.high > 0) {
+        L.rows[0][a][L.counts[0][a]++] = p.row
+        st.avatarHigh++
+      }
+      if (w.mid > 0) {
+        L.rows[1][a][L.counts[1][a]++] = p.row
+        st.avatarMid++
+      }
+      if (w.far > 0) {
+        L.rows[2][a][L.counts[2][a]++] = p.row
+        st.avatarFar++
+      }
+      // the player's gold "You" badge on the coat
+      if (p.look.badgeKind === BADGE.you && st.badges < MAX_BADGES) this.badgeRows[st.badges++] = p.row
+    } else {
+      if (w.high > 0) this.rowsHigh[st.high++] = p.row
+      if (w.mid > 0) this.rowsMid[st.mid++] = p.row
+      if (w.far > 0) this.rowsFar[st.far++] = p.row
+    }
+    if (p.rig.propDraw === PROP.blanket) {
+      // the cover of a patient in a bed: its own draw (it is not held)
+      if (p.rig.propScale > 0.01 && st.blankets < MAX_BLANKETS) this.blanketRows[st.blankets++] = p.row
+    } else if (p.rig.propDraw !== PROP.none && p.rig.propScale > 0.01 && st.props < MAX_PROPS) {
       this.propRows[st.props] = p.row
       this.propKinds[st.props++] = p.rig.propDraw
     }
@@ -579,6 +703,8 @@ export class CrowdModel {
     p.rig.ctx.recline = p.recline
     inp.footRest = e.riding && e.vehicle === 'wheelchair' ? FOOT_REST : 0
     inp.prop = prop
+    // a patient in a ward bed, an ER trolley or on a stretcher is under a blanket (the rig carries it as the prop of the lying body)
+    inp.covered = posture === 'lie' && inBlanketBed(e)
     const target = e.lookAt
     inp.hasLook = !!target
     if (target) {
@@ -596,6 +722,27 @@ export class CrowdModel {
       inp.stopping = dv.stopping
       inp.restX = dv.restX
       inp.restZ = dv.restZ
+    }
+  }
+
+  /**
+   * A realistic person's skinned parts become M_p * B_p^-1, and the player's badge frame is the chest's (binds applied) moved to the avatar's badge
+   * anchor: a point of its bind pose, so the badge stays on the cloth however the chest turns. Allocates nothing.
+   */
+  private bindAvatar(p: PersonSlot, o: number): void {
+    const d = this.data
+    const parts = o + TEX.parts * 4
+    applyBinds(d, parts, this.binds[p.avatar])
+    if (p.look.badgeKind !== BADGE.you) return
+    const anchor = this.avatarList[p.avatar].badge
+    const c = parts + P.chest * 12
+    const b = parts + BADGE_FRAME * 12
+    for (let r = 0; r < 3; r++) {
+      const i = r * 4
+      d[b + i] = d[c + i]
+      d[b + i + 1] = d[c + i + 1]
+      d[b + i + 2] = d[c + i + 2]
+      d[b + i + 3] = d[c + i] * anchor[0] + d[c + i + 1] * anchor[1] + d[c + i + 2] * anchor[2] + d[c + i + 3]
     }
   }
 

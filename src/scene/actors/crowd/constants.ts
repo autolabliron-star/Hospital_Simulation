@@ -10,6 +10,7 @@
  *   standing   head centre 1.63    crown (top of the head) 1.745
  *   seated     head centre 0.82    crown 0.94      (above the seat surface)
  */
+import { MATTRESS, TROLLEY } from '@/scene/rooms/bedParts'
 import { VEHICLE_AHEAD as VEHICLE_AHEAD_BY_KIND } from '@/sim/places'
 
 /** Nominal body, metres. A relaxed standing adult is 1.745 m to the crown. */
@@ -57,11 +58,75 @@ export const SEATED_CROWN = BODY.seatedPelvis + BODY.waist + BODY.neck + BODY.cr
 export const DEFAULT_SEAT_HEIGHT = 0.45
 export const MIN_SEAT_HEIGHT = 0.45
 /**
- * Lying: the "surface height" a sim gives for a bed or stretcher is the mattress height. The pelvis centre rides
- * `LIE.pelvisAbove` above it (the back sinks about 7 cm into the linen: pelvis half thickness 0.095 minus the sink).
- * Defaults when the sim only gives the floor.
+ * Lying: the "surface height" of a bed, trolley or stretcher is the top of its mattress. The sim does not say it (an entity's `position.y` is the floor), so
+ * the crowd looks it up from where the person lies (head.ts `levelsOf`): a ward bed (`bed:*`, bedParts.ts MATTRESS.top 0.49), an ER bay trolley (`erBay:*`,
+ * TROLLEY.top 0.44) and a stretcher with a rider (`stretcher`, gear.ts builds its mattress to this top). A lying person rests IN the mattress: the procedural
+ * body's pelvis centre rides `LIE.pelvisAbove` above it (its back sinks about 7 cm into the linen: pelvis half thickness 0.095 minus the sink), a realistic
+ * avatar's rides its own `BodyDims.liePelvis` (back sunk 2 to 3 cm). The imaging tables are looked up at their own heights (places.ts IMAGING; their patients
+ * are not covered by a blanket). `bed` is also the default for a lying entity that says nothing about where, `wheelchairSeat` the seat of a wheelchair rider.
  */
-export const LIE = { pelvisAbove: 0.025, bed: 0.62, stretcher: 0.85, wheelchairSeat: 0.5 } as const
+export const LIE = { pelvisAbove: 0.025, bed: MATTRESS.top, trolley: TROLLEY.top, stretcher: 0.79, wheelchairSeat: 0.5 } as const
+
+/**
+ * Lying: how straight the legs are (the chord between hip and ankle over the leg length). A standing person's are LEG_RELAXED; lying they bend a little
+ * more, but not so much that the knees stand a hand's breadth above the thighs (the blanket over the bed would have to be a tent).
+ */
+export const LIE_LEG = 0.995
+
+/**
+ * A patient in a ward bed with the head raised: the pelvis and everything above it ride up by at most this much (rig.ts). The torso turns about the waist
+ * joint, the backrest about its hinge under the back, so a body that lies high (an avatar with a big `liePelvis`) would sink into the slab; the lift keeps
+ * its back in it, up to this limit (beyond it the back sinks a little deeper rather than the hips floating further above the mattress). The feet stay
+ * planted, so the legs slope up to the hips and the blanket (gear.ts) covers them at their highest.
+ */
+export const LIE_RECLINE_LIFT_MAX = 0.045
+
+/**
+ * W3 wave B: a skeleton's proportions, metres at nominal size: BODY plus the small front/back offsets a real body has (the neck and shoulders
+ * of a person sit a few centimetres behind the waist) and the lying pelvis height. The procedural crowd uses NOMINAL_BODY (exactly BODY, so
+ * every procedural person is posed number for number as before); every realistic avatar (avatars.ts) carries its own, measured from its mesh
+ * by tools/convert-people.mjs, so the rig puts each joint where that mesh has it and nothing is stretched. The standing crown of every avatar
+ * body is STAND_CROWN, so head.ts stays exact for everyone standing.
+ */
+export interface BodyDims {
+  ankle: number
+  shin: number
+  thigh: number
+  hipHalf: number
+  hipDrop: number
+  waist: number
+  /** Forward offset of the waist joint from the pelvis centre (+Z forward). */
+  waistZ: number
+  neck: number
+  /** Forward offset of the neck base from the waist joint. */
+  neckZ: number
+  shoulderHalf: number
+  shoulderUp: number
+  /** Forward offset of the shoulder joints from the waist joint. */
+  shoulderZ: number
+  upperArm: number
+  forearm: number
+  hand: number
+  headCentre: number
+  crown: number
+  /** Seated: pelvis centre above the seat surface. */
+  seatedPelvis: number
+  /** Lying: pelvis centre above the mattress (LIE.pelvisAbove for the procedural body; an avatar's own, so its back sinks 2 to 3 cm into the linen). */
+  liePelvis: number
+  /**
+   * Lying: how far back (towards the head) the feet are planted in the upright solve before the body is laid flat, so the heels of a body thicker
+   * than the procedural one rest on the mattress instead of hovering. 0 for the procedural body.
+   */
+  lieFeet: number
+}
+
+/** The procedural crowd's skeleton. */
+export const NOMINAL_BODY: Readonly<BodyDims> = Object.freeze({ ...BODY, waistZ: 0, neckZ: 0, shoulderZ: 0, liePelvis: LIE.pelvisAbove, lieFeet: 0 })
+
+/** Pelvis centre height of a relaxed standing person with the proportions `b` (STAND_PELVIS for NOMINAL_BODY, to the last bit). */
+export function standPelvis(b: Readonly<BodyDims>): number {
+  return b.ankle + (b.thigh + b.shin) * LEG_RELAXED + b.hipDrop
+}
 
 /** The skeleton: one rigid, instanced piece per entry. The index is the part's column group in the pose texture. */
 export const P = {
@@ -218,9 +283,22 @@ export const fixedSlot = (i: number): number => PALETTE_SLOTS + i
 /** The first fixed slot the vertex stage treats as a feature (the sclera) and the iris, which sits earlier in the table. */
 export const FEATURE_FIRST = fixedSlot(FX.sclera)
 
-/** What can be held in the right hand. The mop is the cleaner's tool: the renderer adds it whenever `anim` is 'clean'. */
-export const PROP = { none: 0, tablet: 1, folder: 2, tray: 3, cup: 4, bag: 5, flowers: 6, mop: 7 } as const
-export const PROP_COUNT = 8
+/**
+ * What can be held in the right hand. The mop is the cleaner's tool: the renderer adds it whenever `anim` is 'clean'. The blanket is not held: it is the
+ * cover of a patient lying in a bed or on a stretcher, carried in the prop frame of the lying person (nobody lying holds anything), see gear.ts BLANKET.
+ */
+export const PROP = { none: 0, tablet: 1, folder: 2, tray: 3, cup: 4, bag: 5, flowers: 6, mop: 7, blanket: 8 } as const
+export const PROP_COUNT = 9
+/**
+ * W3 wave B: the props shader's kind for the player's gold "You" badge pinned on the realistic avatar's coat. It is not held: its frame is
+ * BADGE_FRAME (model.ts), and it is drawn by a mesh of its own (gear.ts buildBadgeGeometry) with the props material, only while the player wears one.
+ */
+export const BADGE_KIND = PROP_COUNT
+/**
+ * W3 wave B: the part slot that carries the frame of the "You" badge for a person drawn as a realistic avatar. The avatar mesh is skinned to the
+ * body parts only (avatars.ts SKINNED_PARTS), so the close-up head's third hair piece, which only the procedural body draws, is free for it.
+ */
+export const BADGE_FRAME: number = P.hairFront
 
 /** Wheeled things. A pusher pushes one, a rider sits or lies on it. */
 export const VEHICLE = { none: 0, wheelchair: 1, stretcher: 2, cleaningCart: 3, linenCart: 4 } as const

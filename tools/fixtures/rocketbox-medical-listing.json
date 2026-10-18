@@ -1,0 +1,518 @@
+{
+  "source": "GitHub contents API listings (GET /repos/microsoft/Microsoft-Rocketbox/contents/Assets/Avatars/Professions/<avatar>/<Export|Textures>?ref=0943055db6ec570bcef9f2c8b41c9e5467c808f9), read 2026-10-18 and trimmed to name, path, size and sha (the git blob id). The manifest test checks tools/assets.manifest.json against it.",
+  "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+  "listings": {
+    "Medical_Female_01/Export": [
+      {
+        "name": "Medical_Female_01.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Export/Medical_Female_01.fbx",
+        "size": 583200,
+        "sha": "dad7fc77e6c1f33404f0ee0d1dbfb885de88cc35"
+      },
+      {
+        "name": "Medical_Female_01_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Export/Medical_Female_01_facial.fbx",
+        "size": 2135088,
+        "sha": "f0944b421311ec0205c169928ea7a7ea2771ffcd"
+      }
+    ],
+    "Medical_Female_01/Textures": [
+      {
+        "name": "f152_body_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Textures/f152_body_color.tga",
+        "size": 12582956,
+        "sha": "6eda5f78c726625bad60516b742e524637ee3459"
+      },
+      {
+        "name": "f152_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Textures/f152_body_normal.tga",
+        "size": 12582956,
+        "sha": "0b2fbae207bf23bea64132abdeef321f18b8ac13"
+      },
+      {
+        "name": "f152_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Textures/f152_body_specular.tga",
+        "size": 12582956,
+        "sha": "cbda47bc495b55044ce18f3faf2ad5d1afeecfd1"
+      },
+      {
+        "name": "f152_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Textures/f152_head_color.tga",
+        "size": 12582956,
+        "sha": "13a42d44b341c9f122230bfd16868d7e3dc619d9"
+      },
+      {
+        "name": "f152_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Textures/f152_head_normal.tga",
+        "size": 12582956,
+        "sha": "781f6c1bb8bd3e5c4422a323ea0acb2c8afbef44"
+      },
+      {
+        "name": "f152_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Textures/f152_head_specular.tga",
+        "size": 12582956,
+        "sha": "7fba3340dab1b0cb0962e480cc18a091ae61f5a2"
+      },
+      {
+        "name": "f152_opacity_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_01/Textures/f152_opacity_color.tga",
+        "size": 16777260,
+        "sha": "c2ad85f17b180e2a1da5a08c0b49130222b7af7a"
+      }
+    ],
+    "Medical_Female_02/Export": [
+      {
+        "name": "Medical_Female_02.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Export/Medical_Female_02.fbx",
+        "size": 629008,
+        "sha": "1a7f1f167dd31ce8e9f8f9af7fe94036ee817d63"
+      },
+      {
+        "name": "Medical_Female_02_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Export/Medical_Female_02_facial.fbx",
+        "size": 2185632,
+        "sha": "47996afb6947f0b01ef0b6f5e5a802a0d26391be"
+      }
+    ],
+    "Medical_Female_02/Textures": [
+      {
+        "name": "f153_body_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_body_color.tga",
+        "size": 12582956,
+        "sha": "c2440cb565374f0e9780a9f36b14e286d8b77f58"
+      },
+      {
+        "name": "f153_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_body_normal.tga",
+        "size": 12582956,
+        "sha": "d5d213541c7e7405b08caf2a1c4de0bb7f3f2c00"
+      },
+      {
+        "name": "f153_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_body_specular.tga",
+        "size": 12582956,
+        "sha": "0d70ef00771fb8389f15ada5034d919f31a101dd"
+      },
+      {
+        "name": "f153_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_head_color.tga",
+        "size": 12582956,
+        "sha": "6a51a9a4970b1c8fbc5829ed8e88ad9c394aa3cb"
+      },
+      {
+        "name": "f153_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_head_normal.tga",
+        "size": 12582956,
+        "sha": "c1cfd135a3866a36ecced60923435a61a450fbe9"
+      },
+      {
+        "name": "f153_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_head_specular.tga",
+        "size": 12582956,
+        "sha": "3eb3f1315b40da53a08fbd0dd7dc0be412e97c9f"
+      },
+      {
+        "name": "f153_opacity_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_opacity_color.tga",
+        "size": 2097196,
+        "sha": "e3d2d54055c606fac90d5c176a71377bd8d8bf60"
+      },
+      {
+        "name": "f153_stetoskop_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_stetoskop_color.tga",
+        "size": 786476,
+        "sha": "9e5a7f7d898bdf8a1ec046dce5591664966ee0d9"
+      },
+      {
+        "name": "f153_stetoskop_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_stetoskop_normal.tga",
+        "size": 786476,
+        "sha": "9aa25950dab804901f2440ef453b9fe52470169d"
+      },
+      {
+        "name": "f153_stetoskop_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_02/Textures/f153_stetoskop_specular.tga",
+        "size": 786476,
+        "sha": "821baba1446a5700ecaba3ec57775247bdcc7d2c"
+      }
+    ],
+    "Medical_Female_03/Export": [
+      {
+        "name": "Medical_Female_03.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Export/Medical_Female_03.fbx",
+        "size": 551376,
+        "sha": "9ef3c861d3d04f5871521462729f9e6208d23b2c"
+      },
+      {
+        "name": "Medical_Female_03_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Export/Medical_Female_03_facial.fbx",
+        "size": 2034544,
+        "sha": "26364707a4c59b3f8e6f55963b387cdba0ebeeca"
+      }
+    ],
+    "Medical_Female_03/Textures": [
+      {
+        "name": "f154_body_color_blue.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Textures/f154_body_color_blue.tga",
+        "size": 12582956,
+        "sha": "f63937f66d033f1a4d854b280bc77847687edc75"
+      },
+      {
+        "name": "f154_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Textures/f154_body_normal.tga",
+        "size": 12582956,
+        "sha": "4c9f7eb2ee10cbacac019118f120dc194089576e"
+      },
+      {
+        "name": "f154_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Textures/f154_body_specular.tga",
+        "size": 12582956,
+        "sha": "4024a35b4cfa7e045255b10c3ff49100ee8c2e8b"
+      },
+      {
+        "name": "f154_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Textures/f154_head_color.tga",
+        "size": 12582956,
+        "sha": "68111c2a73a3c7a5f0d4915f86461faf0e03dcd6"
+      },
+      {
+        "name": "f154_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Textures/f154_head_normal.tga",
+        "size": 12582956,
+        "sha": "88ef9920a551dacb8a59d460dc5b005ad89cda25"
+      },
+      {
+        "name": "f154_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Textures/f154_head_specular.tga",
+        "size": 12582956,
+        "sha": "1d25cd13605fbfae8a56713f97648c4b062d8378"
+      },
+      {
+        "name": "f154_opacity_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Female_03/Textures/f154_opacity_color.tga",
+        "size": 16777260,
+        "sha": "fef407c359ae03e257944ec1b530cdd1b1f921ea"
+      }
+    ],
+    "Medical_Male_01/Export": [
+      {
+        "name": "Medical_Male_01.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Export/Medical_Male_01.fbx",
+        "size": 552016,
+        "sha": "612eb4d79de6588c2e2fdf91fc06e20093d08170"
+      },
+      {
+        "name": "Medical_Male_01_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Export/Medical_Male_01_facial.fbx",
+        "size": 1955968,
+        "sha": "f5e09551e48991460bb288c56728cae40333a0f6"
+      }
+    ],
+    "Medical_Male_01/Textures": [
+      {
+        "name": "m152_body_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Textures/m152_body_color.tga",
+        "size": 12582956,
+        "sha": "aee1de062c7a59c96fa8528ef97b51ba574a742e"
+      },
+      {
+        "name": "m152_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Textures/m152_body_normal.tga",
+        "size": 12582956,
+        "sha": "18458694edd9ae657b76450b1f66ba185c8e86bc"
+      },
+      {
+        "name": "m152_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Textures/m152_body_specular.tga",
+        "size": 12582956,
+        "sha": "433955de06d36a05aaa2c2f707d5bed48c9ebc77"
+      },
+      {
+        "name": "m152_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Textures/m152_head_color.tga",
+        "size": 12582956,
+        "sha": "7d53da68e92a39a224b5df11ab429f9cd1f32e72"
+      },
+      {
+        "name": "m152_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Textures/m152_head_normal.tga",
+        "size": 12582956,
+        "sha": "fe749c47ce07ea1ada84519110e0f232ff30dd41"
+      },
+      {
+        "name": "m152_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Textures/m152_head_specular.tga",
+        "size": 12582956,
+        "sha": "876fb04b709c95bfc1d4b501c316cb0569073b55"
+      },
+      {
+        "name": "m152_opacity_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_01/Textures/m152_opacity_color.tga",
+        "size": 4194348,
+        "sha": "85521bcee9b307ca431fdad86926e997ce7d3e0a"
+      }
+    ],
+    "Medical_Male_02/Export": [
+      {
+        "name": "Medical_Male_02.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Export/Medical_Male_02.fbx",
+        "size": 542416,
+        "sha": "d3106c31cc3972dbbdb832a1cb36009df7485fca"
+      },
+      {
+        "name": "Medical_Male_02_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Export/Medical_Male_02_facial.fbx",
+        "size": 2074880,
+        "sha": "3f3167c00594ad5024c7088e9488f01a395f4ae5"
+      }
+    ],
+    "Medical_Male_02/Textures": [
+      {
+        "name": "m154_body_color_blue.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Textures/m154_body_color_blue.tga",
+        "size": 12582956,
+        "sha": "19be527a4ef0b40fa6fa7cec3613d05b349247bc"
+      },
+      {
+        "name": "m154_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Textures/m154_body_normal.tga",
+        "size": 12582956,
+        "sha": "e9b3f94cdbaf5a280cfbd62939c668ecd92d8a6f"
+      },
+      {
+        "name": "m154_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Textures/m154_body_specular.tga",
+        "size": 12582956,
+        "sha": "c7bc28f7a58f815c83754019fa3b9dd833f2bd29"
+      },
+      {
+        "name": "m154_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Textures/m154_head_color.tga",
+        "size": 12582956,
+        "sha": "5529918adebc20d594946fb078be05324e8a4468"
+      },
+      {
+        "name": "m154_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Textures/m154_head_normal.tga",
+        "size": 12582956,
+        "sha": "9b5ebc412332a2b26cb7ea53fc0904701154a110"
+      },
+      {
+        "name": "m154_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Textures/m154_head_specular.tga",
+        "size": 12582956,
+        "sha": "387d82f1436c57cdbaad0d085115ff51f75853cb"
+      },
+      {
+        "name": "m154_opacity_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_02/Textures/m154_opacity_color.tga",
+        "size": 16777260,
+        "sha": "5b304a95d22629e6d9abf3e6515a7e6b236708f6"
+      }
+    ],
+    "Medical_Male_03/Export": [
+      {
+        "name": "Medical_Male_03.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Export/Medical_Male_03.fbx",
+        "size": 573120,
+        "sha": "c2033a653554dcf2b35c5d2bdcd14fa61f005968"
+      },
+      {
+        "name": "Medical_Male_03_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Export/Medical_Male_03_facial.fbx",
+        "size": 1934016,
+        "sha": "251135a5690e084b698dc5efa7b51eeb7db13e8d"
+      }
+    ],
+    "Medical_Male_03/Textures": [
+      {
+        "name": "m153_body_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_body_color.tga",
+        "size": 12582956,
+        "sha": "2159913d68a2feadef620ab9bfab838cc7b909b2"
+      },
+      {
+        "name": "m153_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_body_normal.tga",
+        "size": 12582956,
+        "sha": "002a3b3dbcc3fdd0372f705a066963069c4ed4f6"
+      },
+      {
+        "name": "m153_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_body_specular.tga",
+        "size": 12582956,
+        "sha": "24fabf437552e8f3d6782303a615716bcf8dfacc"
+      },
+      {
+        "name": "m153_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_head_color.tga",
+        "size": 12582956,
+        "sha": "1e5156289e3e51e9d38bbb3fbd55f2b631ce2f26"
+      },
+      {
+        "name": "m153_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_head_normal.tga",
+        "size": 12582956,
+        "sha": "5944774e0e744c13e78be60e75c5d1951c016d1d"
+      },
+      {
+        "name": "m153_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_head_specular.tga",
+        "size": 12582956,
+        "sha": "3e701238d9b4830c139e75ddb5f1d40c5239d49c"
+      },
+      {
+        "name": "m153_stetoskop_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_stetoskop_color.tga",
+        "size": 786476,
+        "sha": "9e5a7f7d898bdf8a1ec046dce5591664966ee0d9"
+      },
+      {
+        "name": "m153_stetoskop_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_03/Textures/m153_stetoskop_normal.tga",
+        "size": 786476,
+        "sha": "9aa25950dab804901f2440ef453b9fe52470169d"
+      }
+    ],
+    "Medical_Male_04/Export": [
+      {
+        "name": "Medical_Male_04.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Export/Medical_Male_04.fbx",
+        "size": 580928,
+        "sha": "3917f4052beeb59df0de3a40b90af92e9d2670b1"
+      },
+      {
+        "name": "Medical_Male_04_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Export/Medical_Male_04_facial.fbx",
+        "size": 2136048,
+        "sha": "39fbe8e7240a7f5d750cca6be731d2c42781e586"
+      }
+    ],
+    "Medical_Male_04/Textures": [
+      {
+        "name": "m162_body_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_body_color.tga",
+        "size": 12582956,
+        "sha": "18f7b6bde75d89befb56160b676552e30afb4f31"
+      },
+      {
+        "name": "m162_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_body_normal.tga",
+        "size": 12582956,
+        "sha": "73d511454ba0d7e67c076b78976348608c745fbc"
+      },
+      {
+        "name": "m162_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_body_specular.tga",
+        "size": 12582956,
+        "sha": "26b509429d89547c05d00fe2d80e213c7b4a5bd5"
+      },
+      {
+        "name": "m162_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_head_color.tga",
+        "size": 12582956,
+        "sha": "02f877e92d9f698a7bc63e0faae263edffe24142"
+      },
+      {
+        "name": "m162_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_head_normal.tga",
+        "size": 12582956,
+        "sha": "e55f53d155adc6170c7d209ca4e1fdd3960ad386"
+      },
+      {
+        "name": "m162_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_head_specular.tga",
+        "size": 12582956,
+        "sha": "8c1334d7217dd71d53d4fbde9e8ef2abbe203e85"
+      },
+      {
+        "name": "m162_protection_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_protection_color.tga",
+        "size": 12582956,
+        "sha": "e2ee1f8759cdccf551827f7e971e7ef7f6e8adb7"
+      },
+      {
+        "name": "m162_protection_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_protection_normal.tga",
+        "size": 12582956,
+        "sha": "93e48ab1e03764d7943640a72241c9f5df27d5ae"
+      },
+      {
+        "name": "m162_protection_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_04/Textures/m162_protection_specular.tga",
+        "size": 12582956,
+        "sha": "6ae2bf31c33d91b0a100ec09b8807fd7a4b816ea"
+      }
+    ],
+    "Medical_Male_05/Export": [
+      {
+        "name": "Medical_Male_05.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Export/Medical_Male_05.fbx",
+        "size": 613456,
+        "sha": "00f8642c34ec5351dcc6866ca5badc260a12e934"
+      },
+      {
+        "name": "Medical_Male_05_facial.fbx",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Export/Medical_Male_05_facial.fbx",
+        "size": 2212448,
+        "sha": "a82819dbf882705099d2a00d81572113459d0880"
+      }
+    ],
+    "Medical_Male_05/Textures": [
+      {
+        "name": "m163_body_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_body_color.tga",
+        "size": 12582956,
+        "sha": "f5ade20fb2c43970ee86fa7e0501d466fbcf59f9"
+      },
+      {
+        "name": "m163_body_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_body_normal.tga",
+        "size": 12582956,
+        "sha": "6dc7ad6bf2ccb853c5751ccb47315ffc37722b51"
+      },
+      {
+        "name": "m163_body_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_body_specular.tga",
+        "size": 12582956,
+        "sha": "a6fa6873617a5515d1ea34aae30ff5a84f49ed4f"
+      },
+      {
+        "name": "m163_head_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_head_color.tga",
+        "size": 12582956,
+        "sha": "4fa7d323d4aeeb7dc978b5b0d4b71afd68229d06"
+      },
+      {
+        "name": "m163_head_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_head_normal.tga",
+        "size": 12582956,
+        "sha": "018fffaccda04df692f9867f8932640600160961"
+      },
+      {
+        "name": "m163_head_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_head_specular.tga",
+        "size": 12582956,
+        "sha": "07f889ed388f1c0aca02376689af26097c347554"
+      },
+      {
+        "name": "m163_protection_color.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_protection_color.tga",
+        "size": 12582956,
+        "sha": "9240da6ae6d7cc40ebb5bb9773b8253f669eb19c"
+      },
+      {
+        "name": "m163_protection_normal.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_protection_normal.tga",
+        "size": 12582956,
+        "sha": "99800ca766b1fe08b9856ab02b862f3c9eaea3aa"
+      },
+      {
+        "name": "m163_protection_specular.tga",
+        "path": "Assets/Avatars/Professions/Medical_Male_05/Textures/m163_protection_specular.tga",
+        "size": 12582956,
+        "sha": "e2ffcf042ef35ed731a059fda0016ab19e367d8c"
+      }
+    ]
+  }
+}

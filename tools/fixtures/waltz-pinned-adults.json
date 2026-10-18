@@ -1,0 +1,247 @@
+{
+  "source": "The 22 everyday-adult entries as the Waltz Game reference pinned them in its tools/assets.manifest.json (already fetched, hashed and converted there). The manifest test checks that the localFile imports carry exactly these pins.",
+  "entries": [
+    {
+      "id": "rb-business-female-02-fbx",
+      "file": "business_female_02.fbx",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Export/Business_Female_02.fbx",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Export/Business_Female_02.fbx",
+      "sha256": "0819b017327f4293d522fea3f2dba94d1d8b2d408ec9253fb89f530523e24671",
+      "gitBlobSha1": "b574cf754e39b1fe4bf43e02aef8e7dc6f5a82ca",
+      "bytes": 612848,
+      "maxBytes": 626688,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-15-fbx",
+      "file": "female_adult_15.fbx",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Export/Female_Adult_15.fbx",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Export/Female_Adult_15.fbx",
+      "sha256": "49300e70f72ec0238a17ea583610d41fd34ae78135ee1c0fda5ed9493e49a56a",
+      "gitBlobSha1": "4ba89224f99fb8b9139f6c6ed31927238bd1f565",
+      "bytes": 651088,
+      "maxBytes": 665600,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-08-fbx",
+      "file": "male_adult_08.fbx",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Export/Male_Adult_08.fbx",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Export/Male_Adult_08.fbx",
+      "sha256": "e0d979315a5f11050945522f9f084932807af2edeefbdb380a2c9aa36c9f9bb3",
+      "gitBlobSha1": "2e6936c594c9c65b44916839340be3b4eecd2202",
+      "bytes": 508784,
+      "maxBytes": 520192,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-13-fbx",
+      "file": "male_adult_13.fbx",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Export/Male_Adult_13.fbx",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Export/Male_Adult_13.fbx",
+      "sha256": "2898a6ff32144aed2fa57f383dfb9401580ad8b6f2c2857d06a7efdfe94b3f9a",
+      "gitBlobSha1": "db17e5295a0726bc6a13c1a7d6eb3da4ebf610fc",
+      "bytes": 494816,
+      "maxBytes": 505856,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-17-fbx",
+      "file": "female_adult_17.fbx",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Export/Female_Adult_17.fbx",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Export/Female_Adult_17.fbx",
+      "sha256": "777125303c2b4c493dce961b66cfc8c86ac69ee697c212ea9fe3107bfc45831f",
+      "gitBlobSha1": "a3c977942d7e321966d80d8e95697b752b701f47",
+      "bytes": 593440,
+      "maxBytes": 607232,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-12-fbx",
+      "file": "male_adult_12.fbx",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Export/Male_Adult_12.fbx",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Export/Male_Adult_12.fbx",
+      "sha256": "b44fa6011b934abd69954fd6c5025c1e2011e05c7892acb6bbc2e9cf70a84014",
+      "gitBlobSha1": "15d4f8501d5703600cb3d8a94765a3de1029aaf6",
+      "bytes": 487776,
+      "maxBytes": 498688,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-business-female-02-body-color",
+      "file": "business_female_02_body_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_body_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_body_color.tga",
+      "sha256": "60b84f3ba5315a76d324569e4ebee6d6bd7a461344158e5b0ef782d667db8285",
+      "gitBlobSha1": "9a3d5fbd2b69e34628ec0220572b64cb314c51d7",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-business-female-02-head-color",
+      "file": "business_female_02_head_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_head_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_head_color.tga",
+      "sha256": "0df4e3f107cb1b06576894617121e53642e5b2d480b88c2a321ba2c4632a1014",
+      "gitBlobSha1": "41eac4aaed7ed8f36b32d53ae96599694a7fd687",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-business-female-02-opacity-color",
+      "file": "business_female_02_opacity_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_opacity_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_02/Textures/f015_opacity_color.tga",
+      "sha256": "15cff3cd49521da8679ee0087c8aa2b8414c2b3a0cc9ec775c5225ef1dec6b81",
+      "gitBlobSha1": "b96abab3f5c8fae7bd72fab26a17a31b91c70ac5",
+      "bytes": 16777260,
+      "maxBytes": 17114112,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-15-body-color",
+      "file": "female_adult_15_body_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_body_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_body_color.tga",
+      "sha256": "d3e41b8a2845b2dd546c2ffb166b18541bf2937b8a336d6cadf4d4c725047df5",
+      "gitBlobSha1": "4636f4dbe6da255187038d7765d8786abdcda393",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-15-head-color",
+      "file": "female_adult_15_head_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_head_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_head_color.tga",
+      "sha256": "48fef42795a7bc800c305de504126f079925f297ff19e0ed377eff2668eb81f8",
+      "gitBlobSha1": "5e35ad71ccf6cac670a3c55a8aecfee4e4c7038c",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-15-opacity-color",
+      "file": "female_adult_15_opacity_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_opacity_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_15/Textures/f018_opacity_color.tga",
+      "sha256": "879270fb466c3f2e264d45ac6c6c694b94bb58e94cfb035721567b04109546f2",
+      "gitBlobSha1": "8fcbb41c3d537049e0ed1b6e07d0c94bb6a8e3fb",
+      "bytes": 16777260,
+      "maxBytes": 17114112,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-08-body-color",
+      "file": "male_adult_08_body_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_body_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_body_color.tga",
+      "sha256": "9b6cef05b86497ffca6f131842950341302fa170e5ce3de1c2446501be774b91",
+      "gitBlobSha1": "c6162d348435623eb44fa0f2114dc9109a0e0a8d",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-08-head-color",
+      "file": "male_adult_08_head_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_head_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_head_color.tga",
+      "sha256": "5d3723b8d6f6175b26adb1f2d46ade55b19630c2cee1bd2e43dbd293c6fa7d38",
+      "gitBlobSha1": "66e3ac3c72cfdbd661e36dd9fd98ac611f21a6e4",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-08-opacity-color",
+      "file": "male_adult_08_opacity_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_opacity_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_08/Textures/m014_opacity_color.tga",
+      "sha256": "282684b09dd7e3b7b521387240855773f419a90c67ba58ff9ad478a7ec01cc93",
+      "gitBlobSha1": "e008b9abf4901a2f23f32cb9d1e2bc7ef5a60587",
+      "bytes": 16777260,
+      "maxBytes": 17114112,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-13-body-color",
+      "file": "male_adult_13_body_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_body_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_body_color.tga",
+      "sha256": "af8d799127f243c9db2134de1fe1b93d99eacee4affadf27d5af77bb57b1db89",
+      "gitBlobSha1": "9edfa935aa69262f295606088495df34d777b746",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-13-head-color",
+      "file": "male_adult_13_head_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_head_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_13/Textures/m010_head_color.tga",
+      "sha256": "101064ec2886fc74a20e1c6e2b81b0c2596f25614fb5d9aa2d01cab7337e2b09",
+      "gitBlobSha1": "6f53314c60a01d1ae8f425178c7ab4148603e9d3",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-17-body-color",
+      "file": "female_adult_17_body_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_body_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_body_color.tga",
+      "sha256": "d657c9113b23c72a58bca56bcfe7c0956caea976a6144c3f53c0181b9f2b746d",
+      "gitBlobSha1": "9902508406abee3a281fb8d277456976920d68d4",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-17-head-color",
+      "file": "female_adult_17_head_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_head_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_head_color.tga",
+      "sha256": "f23bfa861e036dc9a39ae8c6595bf0128f021eb762464e58f72907a9b49ecbfa",
+      "gitBlobSha1": "9c037ab08fb2b95a6d97123e3c558ea1e4ed9280",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-female-adult-17-opacity-color",
+      "file": "female_adult_17_opacity_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_opacity_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_17/Textures/f006_opacity_color.tga",
+      "sha256": "2ce67c662cf20256c8bf0713e4aeff5f7be0ae3cee981df119dbc7d32111e3d0",
+      "gitBlobSha1": "912274783a784715593d8ca4c2132b931f994bbd",
+      "bytes": 4194348,
+      "maxBytes": 4279296,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-12-body-color",
+      "file": "male_adult_12_body_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_body_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_body_color.tga",
+      "sha256": "9e5951e67e90ade61f33c51c9673aa1b974358dac12dc0a9abdd4b281cda6b61",
+      "gitBlobSha1": "1757150789a5fdcf733394ff21a60512530b4f1a",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    },
+    {
+      "id": "rb-male-adult-12-head-color",
+      "file": "male_adult_12_head_color.tga",
+      "url": "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_head_color.tga",
+      "sourcePage": "https://github.com/microsoft/Microsoft-Rocketbox/blob/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_12/Textures/m007_head_color.tga",
+      "sha256": "164007a5ca94b3f84b04ab77a3a7bc49f65f12af4153781dcbf429589750f7c1",
+      "gitBlobSha1": "e5b23c4f55e499893c2a92ec7e52d0252bee2ae3",
+      "bytes": 12582956,
+      "maxBytes": 12835840,
+      "licence": "MIT"
+    }
+  ]
+}

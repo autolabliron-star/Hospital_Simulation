@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest'
 import type { Mesh } from 'three'
 import type { AnimState, Entity, PropKind, Role, VehicleKind } from '@/sim/types'
 import { BUILDING, VIEW } from '@/sim/places'
-import { createCrowdRig, driveCrowd, type CrowdRig } from './crowdRig'
+import { attachPeople, createCrowdRig, driveCrowd, type CrowdRig } from './crowdRig'
+import { loadPeopleFromDisk } from './avatars.testkit'
+import { LOD_TRIANGLES } from './avatars'
 import { buildBodyGeometries } from './geometry'
 import { highlight } from './runtime'
 
@@ -184,4 +186,107 @@ describe('crowd budget', () => {
     expect(close).toBeLessThan(12)
     rig.dispose()
   })
+})
+
+// ---------------------------------------------------------------------------------------------
+// W3 wave B: the realistic people
+// ---------------------------------------------------------------------------------------------
+
+/** Draw calls and triangles of every visible crowd mesh, the realistic people's included. */
+function submittedAll(rig: CrowdRig): { calls: number; triangles: number; perMesh: Record<string, number> } {
+  let calls = 0
+  let triangles = 0
+  const perMesh: Record<string, number> = {}
+  const meshes = [...rig.objects, ...(rig.people.visible ? rig.people.children : [])]
+  for (const o of meshes) {
+    if (!o.visible) continue
+    const mesh = o as Mesh
+    const geo = mesh.geometry
+    const tri = (geo.index ? geo.index.count : geo.getAttribute('position').count) / 3
+    const instances = 'isInstancedMesh' in o ? (o as unknown as { count: number }).count : 'instanceCount' in geo ? (geo as unknown as { instanceCount: number }).instanceCount : 1
+    if (!(instances > 0)) continue
+    calls++
+    triangles += tri * instances
+    perMesh[o.name] = tri * instances
+  }
+  return { calls, triangles, perMesh }
+}
+
+/** Triangles of the realistic people's bodies alone. */
+const peopleTriangles = (perMesh: Record<string, number>): number => Object.entries(perMesh).reduce((s, [name, t]) => s + (/-(high|mid|far)$/.test(name) ? t : 0), 0)
+
+describe('crowd budget with the realistic people', () => {
+  it('200 people: at most 24 draw calls and 120k triangles at the overview, 46 and 450k at eye level; the selection ring adds one', async () => {
+    const loaded = await loadPeopleFromDisk()
+    const rig = createCrowdRig()
+    attachPeople(rig, loaded)
+    const es = crowd(200)
+    frames(rig, es, OVERVIEW, 10)
+    const over = submittedAll(rig)
+    const st = rig.model.stats
+    console.log(`people at the overview: ${st.avatars} avatars (near ${st.avatarHigh}, mid ${st.avatarMid}, far ${st.avatarFar}), draw calls ${over.calls}, triangles ${Math.round(over.triangles)}`, `(bodies ${peopleTriangles(over.perMesh)})`)
+    expect(st.avatars).toBe(200)
+    expect(st.high + st.mid + st.far).toBe(0)
+    expect(over.calls).toBeLessThanOrEqual(24)
+    // the people themselves (the props and vehicles meshes submit their merged kinds per instance, as they did before the people came)
+    expect(peopleTriangles(over.perMesh)).toBeLessThanOrEqual(120_000)
+    expect(over.triangles).toBeLessThan(200_000)
+    // nearly everybody is on the 350 triangle body there
+    expect(st.avatarFar).toBeGreaterThan(st.avatarHigh + st.avatarMid)
+    frames(rig, es, EYE_LEVEL, 20)
+    const eye = submittedAll(rig)
+    console.log(`people at eye level: near ${rig.model.stats.avatarHigh}, mid ${rig.model.stats.avatarMid}, far ${rig.model.stats.avatarFar}, draw calls ${eye.calls}, triangles ${Math.round(eye.triangles)} (bodies ${peopleTriangles(eye.perMesh)})`)
+    expect(eye.calls).toBeLessThanOrEqual(46)
+    expect(peopleTriangles(eye.perMesh)).toBeLessThanOrEqual(450_000)
+    expect(eye.triangles).toBeLessThanOrEqual(450_000)
+    frames(rig, es, CLOSE, 20)
+    const close = submittedAll(rig)
+    console.log(`people from the close camera: draw calls ${close.calls}, triangles ${Math.round(close.triangles)}`)
+    expect(close.calls).toBeLessThanOrEqual(46)
+    expect(close.triangles).toBeLessThanOrEqual(450_000)
+    // the absolute ceiling: one avatar body per draw, the meshes the people bring (3 per avatar and the badge)
+    expect(rig.people.children.length).toBe(loaded.avatars.length * 3 + 1)
+    expect(LOD_TRIANGLES[2] * 200).toBeLessThanOrEqual(120_000)
+    highlight.selectedId = 'pusher-0'
+    frames(rig, es, OVERVIEW, 2)
+    const sel = submittedAll(rig)
+    highlight.selectedId = null
+    expect(sel.calls).toBeLessThanOrEqual(25)
+    rig.dispose()
+  }, 60_000)
+
+  it('costs about as much CPU per frame as the procedural crowd (every avatar is solved, its far body included)', async () => {
+    const loaded = await loadPeopleFromDisk()
+    /** One run of 120 frames, ms per frame. */
+    const run = (rig: CrowdRig, es: Map<string, Entity>, cam: [number, number, number], t0: number): number => {
+      const start = process.hrtime.bigint()
+      frames(rig, es, cam, 120, t0)
+      return Number(process.hrtime.bigint() - start) / 1e6 / 120
+    }
+    const plain = createCrowdRig()
+    const real = createCrowdRig()
+    attachPeople(real, loaded)
+    const esA = crowd(200)
+    const esB = crowd(200)
+    const out: string[] = []
+    for (const [cam, label] of [
+      [OVERVIEW, 'overview'],
+      [EYE_LEVEL, 'eye level'],
+    ] as const) {
+      frames(plain, esA, cam, 60)
+      frames(real, esB, cam, 60)
+      // interleaved, the best of five runs each: the least disturbed by the other test worker
+      let a = Infinity
+      let b = Infinity
+      for (let k = 0; k < 5; k++) {
+        a = Math.min(a, run(plain, esA, cam, 10 + k))
+        b = Math.min(b, run(real, esB, cam, 10 + k))
+      }
+      out.push(`${label}: procedural ${a.toFixed(3)} ms, realistic ${b.toFixed(3)} ms (+${(b - a).toFixed(3)} ms; solved ${real.model.stats.solved} of ${real.model.stats.people})`)
+      expect(b - a).toBeLessThan(0.3)
+    }
+    console.log(`CPU per frame at 200 people, ${out.join('; ')}`)
+    plain.dispose()
+    real.dispose()
+  }, 60_000)
 })

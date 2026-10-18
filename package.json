@@ -9,6 +9,8 @@
     "preview": "vite preview --host 127.0.0.1 --port 5174",
     "show": "npm run build && vite preview --host 127.0.0.1 --port 5174",
     "typecheck": "tsc --noEmit",
+    "fetch-assets": "node tools/fetch-assets.mjs",
+    "convert-people": "node --import tsx tools/convert-people.mjs",
     "test": "vitest run --maxWorkers=2"
   },
   "dependencies": {
@@ -27,11 +29,17 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/three": "0.186.0",
     "@vitejs/plugin-react": "6.1.2",
+    "gltf-validator": "2.0.0-dev.3.10",
+    "meshoptimizer": "1.3.0",
+    "sharp": "0.35.5",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vite": "8.3.3",

@@ -7,3 +7,7 @@ coverage
 
 # personal Claude Code settings (permissions), not project files
 .claude/settings.local.json
+
+# W3 wave B: the Rocketbox source originals (FBX, TGA) are conversion inputs, never served or committed; the gate's quarantine
+assets-src/
+public/assets/_downloads/

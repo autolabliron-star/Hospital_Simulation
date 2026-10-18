@@ -15,6 +15,15 @@ export const BED = { w: 0.95, l: 2.0 } as const
 /** The mattress: its underside, its top (the seat height of a patient in bed), its size and its corner radius. */
 export const MATTRESS = { y0: 0.32, top: 0.49, w: 0.88, l: 1.92, r: 0.06 } as const
 
+/** The trolley bed of a triage or ER bay (rooms/triageEr.ts): its mattress top is the seat height of the patient lying on it (`erBay:*`), `linen` thick. */
+export const TROLLEY = { top: 0.44, w: 0.82, l: 1.95, linen: 0.14 } as const
+
+/**
+ * A made bed, ward bed or trolley: the blanket lies flat on the mattress, this thick. A patient lying in the bed is covered by the crowd's own
+ * blanket instead (src/scene/actors/crowd/gear.ts, a prop of the lying person), which stands well clear of this one.
+ */
+export const MADE_BLANKET = 0.03
+
 /**
  * The head section of the mattress, raised by the sim's recline (0 = flat, 1 = RECLINE_MAX). It hinges at the waist of a lying
  * body (the pelvis is at the bed centre, the waist joint 0.1 m toward the head), just under the mattress top, so the
@@ -43,15 +52,18 @@ export const FOOT_SECTION = {
  * The over-bed table: a C-frame on casters on the window side of the bed, its plate across the patient's lap. Offsets from the
  * bed centre (`du` east, `dv` toward the feet). The upright stands hard against the bed rail, so the strip beside the bed that the
  * nurse walks to the MedDrawer stays clear: the table is listed as an overhead footprint, never a nav obstacle.
+ *
+ * The plate stands clear above the blanket over the patient's knees (the crowd's blanket, actors/crowd/gear.ts, is 0.445 m above the mattress at the highest,
+ * the mattress top is 0.49 m): its underside at 0.96 m, so a meal tray on it (`top`) is never inside the blanket, flat or with the bed head raised.
  */
 export const OVERBED = {
   /** The plate: centre, size, underside height and thickness. */
-  plate: { du: 0.1, dv: 0.35, w: 0.76, d: 0.42, y: 0.765, h: 0.035 },
+  plate: { du: 0.1, dv: 0.35, w: 0.76, d: 0.42, y: 0.96, h: 0.035 },
   /** The upright and the foot plate on the floor. */
-  column: { du: 0.54, dv: 0.35, w: 0.05, y0: 0.05, h: 0.72 },
+  column: { du: 0.54, dv: 0.35, w: 0.05, y0: 0.05, h: 0.915 },
   foot: { w: 0.07, d: 0.56, h: 0.03 },
   /** The top of the plate: where a tray stands. */
-  top: 0.8,
+  top: 0.995,
 } as const
 
 /** The bedside screen on its arm (a display hanging over the bed head), in room coordinates. */

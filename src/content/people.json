@@ -19,6 +19,33 @@
     "Sandoval", "Sato", "Schmidt", "Shah", "Silva", "Sorensen", "Suarez", "Svensson", "Tran", "Turner",
     "Ueda", "Vasquez", "Vidal", "Vogel", "Walsh", "Wójcik", "Yamamoto", "Yildiz", "Zhang", "Zielinski"
   ],
+  "presentation": {
+    "female": [
+      "Abena", "Aiko", "Alice", "Amelia", "Amina", "Anika", "Ann", "Astrid", "Ayesha", "Beatriz",
+      "Bianca", "Brigid", "Camille", "Cecily", "Chiara", "Clara", "Dorothy", "Edith", "Elena", "Elin",
+      "Esme", "Eszter", "Farah", "Fatima", "Fiona", "Florence", "Grace", "Greer", "Greta", "Haeun",
+      "Halima", "Hana", "Hattie", "Hazel", "Ilona", "Ilse", "Imani", "Ines", "Ingrid", "Isla",
+      "Juno", "Keiko", "Kirsty", "Laila", "Leah", "Lina", "Lorna", "Lucia", "Mabel", "Maya",
+      "Mei", "Miriam", "Nadia", "Nell", "Niamh", "Nkechi", "Olga", "Ottilie", "Peggy", "Petra",
+      "Priscilla", "Priya", "Rania", "Rosa", "Ruth", "Sadia", "Sana", "Sofia", "Sylvia", "Thandiwe",
+      "Thea", "Una", "Valentina", "Vera", "Xiomara", "Yara", "Zainab"
+    ],
+    "male": [
+      "Aaron", "Adam", "Alejandro", "Amir", "Andreas", "Anton", "Arjun", "Basil", "Ben", "Bernard",
+      "Bilal", "Bob", "Bruno", "Callum", "Carlos", "Caspian", "Connor", "Daniel", "Dariusz", "Declan",
+      "Diego", "Dudley", "Eli", "Emeka", "Ethan", "Felix", "Gareth", "Gideon", "Gilbert", "Gregor",
+      "Gustavo", "Hamid", "Henrik", "Hiroshi", "Hugo", "Ian", "Ibrahim", "Jamal", "Jonas", "Joon",
+      "Joseph", "Karim", "Kenji", "Kwame", "Lars", "Leonard", "Levi", "Lewis", "Marcus", "Martin",
+      "Mateo", "Matthew", "Mohammed", "Naveen", "Nikolai", "Noel", "Oleksandr", "Omar", "Oscar", "Owen",
+      "Paolo", "Pedro", "Rafael", "Rahul", "Ravi", "Reginald", "Rhys", "Rohan", "Samuel", "Simon",
+      "Sven", "Tariq", "Teodor", "Tomás", "Trevor", "Tuan", "Walter", "Warren", "Yannick", "Yusuf",
+      "Zoltan"
+    ],
+    "either": [
+      "Akira", "Bela", "Chidi", "Dana", "Femi", "Frankie", "Jin", "Kit", "Noa", "Okafor",
+      "Oriel", "Quinn", "Seun", "Wei", "Wren"
+    ]
+  },
   "erReasons": [
     { "text": "Severe difficulty breathing", "acuity": 1 },
     { "text": "Collapsed, not fully conscious", "acuity": 1 },

@@ -13,10 +13,11 @@
  *              0.1 + 0.6 sin(phi) m above the hips' plane and 0.1 + 0.6 cos(phi) m behind the hips
  */
 import type { Entity, Vec3 } from '@/sim/types'
-import { groundHeightAt } from '@/sim/places'
-import { DEFAULT_SEAT_HEIGHT, LIE, MIN_SEAT_HEIGHT, SEATED_CROWN, SEATED_HEAD_CENTRE, STAND_CROWN, STAND_HEAD_CENTRE, STAND_PELVIS, BODY } from './constants'
+import { IMAGING, groundHeightAt } from '@/sim/places'
+import { DEFAULT_SEAT_HEIGHT, LIE, LIE_RECLINE_LIFT_MAX, MIN_SEAT_HEIGHT, SEATED_CROWN, SEATED_HEAD_CENTRE, STAND_CROWN, STAND_HEAD_CENTRE, STAND_PELVIS, BODY } from './constants'
 import { postureOf, type Posture } from './blend'
 import { scaleFor } from './outfit'
+import { BACKREST, MATTRESS } from '@/scene/rooms/bedParts'
 import { reclineAngle, reclineOfEntity } from '@/scene/rooms/bedPose'
 
 export { SEATED_CROWN, SEATED_HEAD_CENTRE, STAND_CROWN, STAND_HEAD_CENTRE }
@@ -33,8 +34,9 @@ export interface Levels {
 
 /**
  * Read the posture and heights of an entity. The sim puts a seated or lying person at the seat or bed; `position.y` may be the floor
- * (then the seat height defaults: 0.45 chair, 0.5 wheelchair, 0.62 bed, 0.85 stretcher) or already the surface (then the floor is
- * `groundHeightAt`, and the surface is the difference). A seat is never drawn lower than 0.45 m.
+ * (then the seat height defaults: 0.45 chair, 0.5 wheelchair; lying 0.49 ward bed, 0.44 ER trolley, 0.79 stretcher, the imaging tables at their own
+ * heights: the real mattress and table tops, see LIE and `lieSurfaceOf`)
+ * or already the surface (then the floor is `groundHeightAt`, and the surface is the difference). A seat is never drawn lower than 0.45 m.
  */
 export function levelsOf(e: Entity, out: Levels): Levels {
   const posture = postureOf(e.anim, e.seated?.pose, e.riding === true, e.vehicle)
@@ -56,7 +58,7 @@ export function levelsOf(e: Entity, out: Levels): Levels {
       out.surface = Math.max(MIN_SEAT_HEIGHT, fallback)
     }
   } else {
-    const fallback = e.riding && e.vehicle === 'stretcher' ? LIE.stretcher : LIE.bed
+    const fallback = e.riding && e.vehicle === 'stretcher' ? LIE.stretcher : lieSurfaceOf(e.seated?.seatId)
     if (rel > 0.3) {
       out.floorY = ground
       out.surface = rel
@@ -69,6 +71,38 @@ export function levelsOf(e: Entity, out: Levels): Levels {
 }
 
 const _lv: Levels = { posture: 'stand', floorY: 0, surface: 0 }
+
+/** Seat ids of the trolley beds of the ER bays (`erBay:bay:3`) and of the ward beds (`bed:A3`). */
+const ER_BED_SEAT = 'erBay:'
+const WARD_BED_SEAT = 'bed:'
+
+/** The top of each imaging table or couch a patient lies on, by seat id (rooms/imaging.ts: the seat's height is the table's `IMAGING[...].table.height`). */
+const IMAGING_SEAT_SURFACE: ReadonlyMap<string, number> = new Map([
+  ['scanTable:mri', IMAGING.mri.table.height],
+  ['scanTable:ct', IMAGING.ct.table.height],
+  ['xrayTable:xray', IMAGING.xray.table.height],
+  ['usCouch:us', IMAGING.us.table.height],
+])
+
+/**
+ * The top of the mattress, pad or table a lying person at seat `seatId` rests on, when the sim gives only the floor: an ER trolley, a scanner table, an
+ * X-ray table or an ultrasound couch by their own heights, any other bed (the wards) 0.49 m, the mattress top.
+ */
+export function lieSurfaceOf(seatId: string | undefined): number {
+  if (seatId === undefined) return LIE.bed
+  if (seatId.startsWith(ER_BED_SEAT)) return LIE.trolley
+  return IMAGING_SEAT_SURFACE.get(seatId) ?? LIE.bed
+}
+
+/**
+ * Whether a lying person is in a bed that has a blanket for them: a ward bed, an ER bay trolley or a stretcher (a porter pushes it or it stands where it
+ * was left). Somebody on a scanner table, an X-ray table or an ultrasound couch lies bare.
+ */
+export function inBlanketBed(e: Pick<Entity, 'seated' | 'riding' | 'vehicle'>): boolean {
+  if (e.riding === true && e.vehicle === 'stretcher') return true
+  const id = e.seated?.seatId
+  return id !== undefined && (id.startsWith(WARD_BED_SEAT) || id.startsWith(ER_BED_SEAT))
+}
 
 /** Size factor of a person relative to the nominal body. */
 export function sizeOf(e: Entity): number {
@@ -88,10 +122,14 @@ export function headPosition<T extends Vec3>(e: Entity, out: T): T {
     // raised the part above the waist turns up about the waist joint
     const phi = reclineAngle(reclineOfEntity(e))
     const torso = (BODY.neck + BODY.headCentre) * k
+    // the backrest turns about a hinge a little below the back, so the rig rides the pelvis and all above it up by (a pelvis's height above the
+    // mattress + the hinge's depth) * (1 - cos phi) / cos phi, at most LIE_RECLINE_LIFT_MAX: here for the procedural body (an avatar lies a little higher,
+    // so its lift is a few cm more, up to the limit)
+    const lift = Math.min(LIE_RECLINE_LIFT_MAX, ((LIE.pelvisAbove + (MATTRESS.top - BACKREST.hingeY)) * (1 - Math.cos(phi))) / Math.cos(phi))
     const back = BODY.waist * k + torso * Math.cos(phi)
     out.x -= Math.sin(e.heading) * back
     out.z -= Math.cos(e.heading) * back
-    out.y = lv.floorY + lv.surface + LIE.pelvisAbove + 0.1 * k + torso * Math.sin(phi)
+    out.y = lv.floorY + lv.surface + LIE.pelvisAbove + 0.1 * k + torso * Math.sin(phi) + lift
   }
   return out
 }

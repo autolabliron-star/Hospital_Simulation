@@ -6,7 +6,11 @@
  * the vertex stage collapses the vertices of every other kind (gear shader in shaders.ts), so one draw call serves them all.
  *
  *   props     tablet, folder, tray, coffee cup, bag, flowers, and the cleaner's mop. Frame: the part matrix `P.prop` of the carrier's
- *             pose row (the rig puts it at the right hand), geometry authored upright around the grip.
+ *             pose row (the rig puts it at the right hand), geometry authored upright around the grip. W3 wave B: the player's "You" badge
+ *             (BADGE_KIND) is built on its own (buildBadgeGeometry); its frame is BADGE_FRAME (on the realistic coat's chest, model.ts).
+ *   blankets  The cover of a patient in a bed (PROP.blanket, buildBlanketGeometry). A lying patient holds nothing, so the rig puts the blanket in
+ *             their prop frame, on the mattress under the hips (rig.ts). It has a mesh of its own, like the badge: with the other props in one
+ *             geometry every held item in the crowd (a hundred or more) would also pay for its 270 triangles.
  *   vehicles  wheelchair, stretcher, cleaning cart, linen cart. Frame: the pusher's root (feet on the floor, facing +Z) moved
  *             `VEHICLE_AHEAD[kind]` forward. The origin is where a rider's hips are.
  *
@@ -14,7 +18,8 @@
  * pusher's frame, so the pusher's hands meet it.
  */
 import { BufferGeometry, InstancedBufferGeometry } from 'three'
-import { FX, PROP, VEHICLE, VEHICLE_AHEAD, fixedSlot, SLOT } from './constants'
+import { BADGE_KIND, FX, LIE, PROP, PROP_COUNT, VEHICLE, VEHICLE_AHEAD, fixedSlot, SLOT } from './constants'
+import { MADE_BLANKET } from '@/scene/rooms/bedParts'
 import { Builder } from './geometry'
 import { HANDLE } from './pose'
 
@@ -129,6 +134,150 @@ function mop(b: Builder): void {
   b.box(k, F(FX.mopHead), [0, 0.02, 0], [0.17, 0.02, 0.05])
 }
 
+/**
+ * W3 wave B: the player's gold "You" badge, pinned on the realistic avatar's coat (the frame BADGE_FRAME: origin on the cloth at the wearer's left
+ * chest, +Z out of the chest, +Y up). A gold card (the person's badge colour), a dark band across its top and a dark "Y", in metres.
+ */
+function badge(b: Builder): void {
+  const k = BADGE_KIND
+  const ink = F(FX.youInk)
+  const out: [number, number, number] = [0, 0, -1]
+  b.box(k, SLOT.badge, [0, -0.012, 0.0016], [0.031, 0.044, 0.0016])
+  const z = 0.0034
+  b.quad(k, ink, [[-0.031, 0.02, z], [0.031, 0.02, z], [0.031, 0.032, z], [-0.031, 0.032, z]], out)
+  // the "Y": two arms meeting above a stem
+  const t = 0.0045
+  b.quad(k, ink, [[-0.017, 0.012, z], [-0.017 + t * 1.6, 0.012, z], [t * 0.5, -0.01, z], [-t * 0.5, -0.01, z]], out)
+  b.quad(k, ink, [[0.017 - t * 1.6, 0.012, z], [0.017, 0.012, z], [t * 0.5, -0.01, z], [-t * 0.5, -0.01, z]], out)
+  b.quad(k, ink, [[-t * 0.5, -0.01, z], [t * 0.5, -0.01, z], [t * 0.5, -0.04, z], [-t * 0.5, -0.04, z]], out)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The blanket of a patient in a bed (PROP.blanket)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The blanket over a patient lying in a ward bed, an ER trolley or on a stretcher: from the feet to about the chest, thick enough to hide the shoes and the
+ * trousers of the thickest avatar, with a soft top a little above its legs and hips, whatever the mattress under it (the body rests in the mattress, so the
+ * blanket is cut to the body, not to the bed). Its frame is the lying body's own: origin on the mattress top under the hips, x across the bed, y up,
+ * z from the head towards the feet, scaled with the person (rig.ts puts it in the prop frame of a covered lying patient).
+ *
+ * `top` is the height of its skin above the mattress along the body, in metres at nominal size: over the hips and thighs, the knees (the highest point), the
+ * dip of the shins and the feet. Every value is 2 to 4 cm above the highest leg, foot or hip vertex of any avatar there, flat and with the bed head
+ * raised (tools/people-bed.test.ts checks it on the real meshes, at the smallest and the largest size). The cross-section is a superellipse (`halfWidth`,
+ * exponent `n`: flatter than an ellipse, so the top is broad over both legs and the sides fall to the mattress). The over-bed table stands above it
+ * (bedParts.ts OVERBED).
+ */
+export const BLANKET = {
+  halfWidth: 0.4,
+  n: 3,
+  /** The base plane lies this far below the mattress top, so the blanket meets the mattress at a clean line rather than a coplanar one. */
+  sink: 0.012,
+  /** The head end (the chest) and the foot end. The head end is rounded to nothing, the foot end is a flat wall (the toes reach 0.98 m). */
+  zHead: -0.3,
+  zFoot: 1.0,
+  /** Where the white turn-down fold at the top ends and the teal blanket begins. */
+  zFold: -0.13,
+  /** [z, height] stations from the end of the rounded head end to the feet. */
+  top: [
+    [-0.06, 0.38],
+    [0.02, 0.41],
+    [0.1, 0.43],
+    [0.22, 0.42],
+    [0.3, 0.43],
+    [0.42, 0.435],
+    [0.5, 0.445],
+    [0.54, 0.44],
+    [0.58, 0.4],
+    [0.62, 0.315],
+    [0.7, 0.285],
+    [0.78, 0.27],
+    [0.82, 0.31],
+    [0.86, 0.335],
+    [0.9, 0.34],
+    [1.0, 0.325],
+  ],
+} as const
+
+/** Sides of a half cross-section of the blanket (from one side up over the top to the other). */
+const BLANKET_SEG = 8
+/** Rings of the rounded head end, as the fraction `u` of its length from the first station (1 is the tip). */
+const BLANKET_CAP = [1, 0.86, 0.62, 0.32, 0] as const
+
+/** Half width and top height of the blanket's cross-section at z (the rounded head end shrinks to a point), or null outside it. */
+export function blanketSection(z: number): { w: number; h: number } | null {
+  const t = BLANKET.top
+  if (z < BLANKET.zHead || z > BLANKET.zFoot) return null
+  if (z < t[0][0]) {
+    const u = (t[0][0] - z) / (t[0][0] - BLANKET.zHead)
+    const k = Math.sqrt(Math.max(0, 1 - u * u))
+    return { w: BLANKET.halfWidth * Math.pow(k, 0.6), h: t[0][1] * k }
+  }
+  let i = 0
+  while (i < t.length - 2 && t[i + 1][0] < z) i++
+  const a = t[i]
+  const c = t[Math.min(i + 1, t.length - 1)]
+  const f = z >= c[0] ? 1 : (z - a[0]) / (c[0] - a[0])
+  return { w: BLANKET.halfWidth, h: a[1] + (c[1] - a[1]) * f }
+}
+
+/** A point of the half cross-section: x across, y above the base plane, at angle `th` from one side (0) over the top (PI / 2) to the other (PI). */
+function sectionPoint(w: number, h: number, th: number): [number, number] {
+  const c = Math.cos(th)
+  const sn = Math.sin(th)
+  const e = 2 / BLANKET.n
+  return [w * Math.sign(c) * Math.pow(Math.abs(c), e), h * Math.pow(Math.max(0, sn), e)]
+}
+
+function blanket(b: Builder): void {
+  const k = PROP.blanket
+  const teal = F(FX.fabricTeal)
+  const fold = F(FX.linen)
+  // the rings: the head end's, then one at each station; the fold ends in a duplicate ring so the colour changes at a crisp line
+  const rings: { z: number; w: number; h: number; slot: number; dup?: boolean }[] = []
+  const first = BLANKET.top[0][0]
+  for (const u of BLANKET_CAP) {
+    const z = first - u * (first - BLANKET.zHead)
+    const sec = blanketSection(Math.min(Math.max(z, BLANKET.zHead), first))!
+    rings.push({ z, w: u === 1 ? 0 : sec.w, h: u === 1 ? 0 : sec.h, slot: z < BLANKET.zFold ? fold : teal })
+  }
+  for (const [z, h] of BLANKET.top.slice(1)) rings.push({ z, w: BLANKET.halfWidth, h, slot: teal })
+  // the fold's colour edge: a duplicate of the ring at zFold in teal, between the two cap rings around it
+  const foldEdge = blanketSection(BLANKET.zFold)!
+  const at = rings.findIndex((r) => r.z > BLANKET.zFold)
+  rings.splice(at, 0, { z: BLANKET.zFold, w: foldEdge.w, h: foldEdge.h, slot: fold }, { z: BLANKET.zFold, w: foldEdge.w, h: foldEdge.h, slot: teal, dup: true })
+  const rows: number[][] = []
+  for (const r of rings) {
+    const row: number[] = []
+    if (r.w === 0 && r.h === 0) row.push(b.vertex(0, -BLANKET.sink, r.z, k, r.slot))
+    else {
+      for (let j = 0; j <= BLANKET_SEG; j++) {
+        const [x, y] = sectionPoint(r.w, r.h, (j / BLANKET_SEG) * Math.PI)
+        row.push(b.vertex(x, y - BLANKET.sink, r.z, k, r.slot))
+      }
+    }
+    rows.push(row)
+  }
+  for (let i = 0; i + 1 < rows.length; i++) {
+    if (rings[i + 1].dup) continue
+    const A = rows[i]
+    const B = rows[i + 1]
+    const oz = (rings[i].z + rings[i + 1].z) / 2
+    for (let j = 0; j < BLANKET_SEG; j++) {
+      if (A.length === 1) b.tri(A[0], B[j + 1], B[j], 0, -0.3, oz)
+      else if (B.length === 1) b.tri(A[j], A[j + 1], B[0], 0, -0.3, oz)
+      else {
+        b.tri(A[j], A[j + 1], B[j], 0, -0.3, oz)
+        b.tri(A[j + 1], B[j + 1], B[j], 0, -0.3, oz)
+      }
+    }
+  }
+  // the foot end: a flat wall, a fan from the middle of the base
+  const end = rows[rows.length - 1]
+  const centre = b.vertex(0, -BLANKET.sink, BLANKET.zFoot, k, teal)
+  for (let j = 0; j < BLANKET_SEG; j++) b.tri(centre, end[j], end[j + 1], 0, 0, BLANKET.zFoot - 1)
+}
+
 export interface GearGeometry {
   geometry: InstancedBufferGeometry
   /** Triangles of each kind, indexed by kind (0 unused). */
@@ -164,7 +313,21 @@ const PROP_BUILDERS = [tablet, folder, tray, cup, bag, flowers, mop]
 export function buildPropGeometry(): GearGeometry {
   const b = new Builder()
   for (const fn of PROP_BUILDERS) fn(b)
-  return { geometry: toInstanced(b.build()), triangles: perKind(PROP_BUILDERS, 8), total: b.triangles }
+  return { geometry: toInstanced(b.build()), triangles: perKind(PROP_BUILDERS, PROP_COUNT), total: b.triangles }
+}
+
+/** W3 wave B: the blanket of a patient in a bed, on its own (kind PROP.blanket), for the blanket mesh of the crowd (crowdRig.ts), drawn once per covered patient. */
+export function buildBlanketGeometry(): GearGeometry {
+  const b = new Builder()
+  blanket(b)
+  return { geometry: toInstanced(b.build()), triangles: perKind([blanket], PROP_COUNT), total: b.triangles }
+}
+
+/** W3 wave B: the player's "You" badge on its own (kind BADGE_KIND), for the badge mesh of the realistic people (crowdRig.ts attachPeople). */
+export function buildBadgeGeometry(): GearGeometry {
+  const b = new Builder()
+  badge(b)
+  return { geometry: toInstanced(b.build()), triangles: perKind([badge], BADGE_KIND + 1), total: b.triangles }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -209,11 +372,13 @@ function stretcher(b: Builder): void {
   const frame = F(FX.metalLight)
   const dark = F(FX.metalDark)
   const zH = handleZ(k)
-  // platform, mattress (top at 0.79: the back of a patient lying at the default 0.85 rests on it), pillow, blanket over the legs
-  b.box(k, frame, [0, 0.66, 0], [0.34, 0.02, 0.93])
-  b.box(k, F(FX.linen), [0, 0.745, 0], [0.34, 0.045, 0.92])
-  b.box(k, F(FX.linen), [0, 0.815, -0.68], [0.22, 0.045, 0.15])
-  b.box(k, F(FX.fabricTeal), [0, 0.885, 0.55], [0.33, 0.065, 0.4])
+  // platform, mattress (top at LIE.stretcher = 0.79: a rider lies in it, the back sunk a few cm), pillow, and a made bed's blanket lying flat on the
+  // mattress (a patient on the stretcher is covered by the crowd's own blanket, PROP.blanket, which stands well above this one)
+  const top = LIE.stretcher
+  b.box(k, frame, [0, top - 0.13, 0], [0.34, 0.02, 0.93])
+  b.box(k, F(FX.linen), [0, top - 0.045, 0], [0.34, 0.045, 0.92])
+  b.box(k, F(FX.linen), [0, top + 0.025, -0.68], [0.22, 0.045, 0.15])
+  b.box(k, F(FX.fabricTeal), [0, top + MADE_BLANKET / 2, 0.55], [0.33, MADE_BLANKET / 2, 0.4])
   // column, base, side rails
   b.box(k, dark, [0, 0.35, 0], [0.12, 0.28, 0.45])
   b.box(k, dark, [0, 0.12, 0], [0.3, 0.03, 0.66])
