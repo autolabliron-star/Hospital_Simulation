@@ -1,6 +1,8 @@
 // Ported from Waltz City (src/scene/actors/crowd/rig.ts). Kept: the layered solve, planted feet, pelvis, leg IK. New: lying, the seat/stand
 // blend, hand-reach arm IK, held items and the prop frame. W1 (the player walks briskly and runs): `run` and `brisk` blends from the measured speed (a run pose
 // for anybody going fast, whatever the sim called the animation), the arms follow a smooth stride phase, the pelvis crouches and bounces with the stride, and the coat follows the legs.
+// W3 (the player's slot only, `RigInput.driven`): the feet are planned from the body's true velocity and intent (gait.ts), the run and brisk blends follow at once, the
+// trunk leans into acceleration and rolls into curves, and the head leads turns. Every NPC takes the old paths, number for number.
 /**
  * The rig solver: one person's state and, each frame, the part matrices that pose the instanced body.
  *
@@ -53,6 +55,12 @@ export interface PersonRig {
   run: number
   /** 0 at the NPCs' walk (up to 1.4 m/s) .. 1 at a brisk walk (2 m/s) and above: the arm swing, elbows and crouch of somebody going faster than a stroll. */
   brisk: number
+  /**
+   * The driven body's lean (W3): the trunk's forward lean from the acceleration (radians, + forward) and the sideways roll into a curve (+ rolls to
+   * the right, so a left turn leans negative), both eased so a spring's acceleration never shows as a twitch. 0 for everybody that is not driven.
+   */
+  lean: number
+  roll: number
   /** 0..1: how firmly the right hand holds `holdKind`. */
   hold: number
   /** The item the hand is moving to or holding (a PROP value). Changes only when the hand has let go. */
@@ -113,6 +121,24 @@ export interface RigInput {
   lookX: number
   lookY: number
   lookZ: number
+  // --- W3: the driven body (the player; every NPC leaves these at their defaults and is planned exactly as before) ---
+  /**
+   * `vx`, `vz` and `speed` above are the body's TRUE velocity, and the fields below say what its keys ask for (the contract `walkBody`, state.ts):
+   * the feet plan from them (gait.ts, `PlanterIntent`), the trunk leans into the acceleration and rolls into curves, the head leads turns.
+   */
+  driven: boolean
+  /** The speed spring's acceleration (world, m/s^2). */
+  ax: number
+  az: number
+  /** Heading rate, rad/s, positive = `atan2(dx, dz)` growing (a turn to the left). */
+  turnRate: number
+  /** The velocity the keys ask for (m/s), 0 with no key held. */
+  wishX: number
+  wishZ: number
+  /** No key held, still coasting to a stop, and where the body will come to rest. */
+  stopping: boolean
+  restX: number
+  restZ: number
 }
 
 export function createRig(look: Look): PersonRig {
@@ -130,6 +156,8 @@ export function createRig(look: Look): PersonRig {
     speaking: 0.5,
     run: 0,
     brisk: 0,
+    lean: 0,
+    roll: 0,
     hold: 0,
     holdKind: PROP.none,
     sit: 0,
@@ -166,6 +194,15 @@ export function makeInput(): RigInput {
     lookX: 0,
     lookY: 0,
     lookZ: 0,
+    driven: false,
+    ax: 0,
+    az: 0,
+    turnRate: 0,
+    wishX: 0,
+    wishZ: 0,
+    stopping: false,
+    restX: 0,
+    restZ: 0,
   }
 }
 
@@ -218,6 +255,13 @@ const YAW1 = 14
 const PITCH1 = 15
 const STANDING = new Float64Array(16)
 const SEATED = new Float64Array(16)
+
+/**
+ * The driven body's lean and roll (W3). The trunk's forward lean in radians per m/s^2 of acceleration along the facing (braking leans it back), with
+ * its limits; the roll into a curve per (m/s of speed x rad/s of turn); how fast both follow. The pelvis takes two thirds of the lean and the chest the
+ * rest, so the chest ends up leaning by the whole of it (+3 m/s^2: 4 degrees, -6: 4.6 degrees back, the most a hard start gives: 7 degrees).
+ */
+export const LEAN = { perAccel: 0.024, forward: 0.12, back: 0.08, pelvisShare: 2 / 3, rollPerSpeedTurn: 0.03, rollMax: 0.09, follow: 14, headLead: 0.3, headLeadMax: 0.5, headLeadFrom: 0.12 } as const
 
 /** One value of the stand/seat mix: `a` when the weight is 0 or 1 (already the right array), otherwise the blend of the two solves. */
 function mixAt(a: Float64Array, i: number, k: number): number {
@@ -369,9 +413,11 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   r.happy = damp(r.happy, happyT, 4, dt)
   r.slump = damp(r.slump, slumpT, 4, dt)
   r.speaking = damp(r.speaking, speakT, 6, dt)
-  r.run = damp(r.run, posture === 'stand' ? runBlend(inp.speed) : 0, 5, dt)
+  // the driven body is given its true speed, which already moves smoothly: its pose follows it closely (the blends of an NPC lag it by 0.2 s)
+  const follow = inp.driven ? 20 : 5
+  r.run = damp(r.run, posture === 'stand' ? runBlend(inp.speed) : 0, follow, dt)
   if (r.run < 0.003) r.run = 0
-  r.brisk = damp(r.brisk, posture === 'stand' ? briskBlend(inp.speed) : 0, 5, dt)
+  r.brisk = damp(r.brisk, posture === 'stand' ? briskBlend(inp.speed) : 0, follow, dt)
   if (r.brisk < 0.003) r.brisk = 0
   r.sit = damp(r.sit, seatedNow ? 1 : 0, 7, dt)
   r.lie = damp(r.lie, posture === 'lie' ? 1 : 0, 5, dt)
@@ -400,7 +446,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
 
   // 3. feet
   const pl = r.planter
-  if (posture === 'stand') updatePlanter(pl, dt, inp.x, inp.z, inp.heading, inp.vx, inp.vz, inp.speed, s)
+  if (posture === 'stand') updatePlanter(pl, dt, inp.x, inp.z, inp.heading, inp.vx, inp.vz, inp.speed, s, inp.driven ? inp : null)
   else resetPlanter(pl, inp.x, inp.z, inp.heading, s)
   const standing = posture === 'stand'
   const motion = standing ? clamp(inp.speed / 1.2, 0, 1) : 0
@@ -424,6 +470,16 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   // 4. pelvis and legs. The standing solve and the seated solve are both computed while the sit weight is between 0 and 1.
   const ch = Math.cos(inp.heading)
   const sh = Math.sin(inp.heading)
+  // the driven body leans into its acceleration (along the facing) and rolls into a curve: forward for +a, back for braking, INTO the turn (a left
+  // turn, +turnRate, rolls the trunk to the left: negative roll). Eased, so the spring's acceleration never shows as a twitch.
+  let leanT = 0
+  let rollT = 0
+  if (inp.driven && standing) {
+    leanT = clamp(LEAN.perAccel * (inp.ax * sh + inp.az * ch), -LEAN.back, LEAN.forward)
+    rollT = clamp(-LEAN.rollPerSpeedTurn * inp.speed * inp.turnRate, -LEAN.rollMax, LEAN.rollMax)
+  }
+  r.lean = damp(r.lean, leanT, LEAN.follow, dt)
+  r.roll = damp(r.roll, rollT, LEAN.follow, dt)
   const hop = up[U.hop]
   const ankleY = BODY.ankle * s
   const legLen = LEG_LENGTH * s
@@ -459,8 +515,8 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     // a runner's hips sit a little behind the point the sim calls the body: the trailing leg is what reaches furthest (the foot is left 0.5 m behind at toe-off), the leading one lands near
     ST[PZ] = 0.01 * s * m - 0.04 * s * r.run
     ST[PYAW] = -0.075 * m * gait + (1 - m) * 0.03 * noise1(t * 0.3, seed + 31)
-    ST[PROLL] = 0.05 * m * load * sway + (1 - m) * 0.02 * noise1(t * 0.27, seed + 32)
-    ST[PPITCH] = 0.02 + 0.03 * m + 0.04 * r.run
+    ST[PROLL] = 0.05 * m * load * sway + (1 - m) * 0.02 * noise1(t * 0.27, seed + 32) + r.roll
+    ST[PPITCH] = 0.02 + 0.03 * m + 0.04 * r.run + r.lean * LEAN.pelvisShare
     // the pelvis is as high as the legs allow: the most stretched planted leg decides
     const lmax = LEG_MAX * legLen
     const cyw = Math.cos(ST[PYAW])
@@ -543,7 +599,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   const lyaw = lookYaw(r.headLook)
   const lpit = lookPitch(r.headLook)
   const cYaw = up[U.chestYaw] + 0.1 * motion * gait + 0.2 * lyaw
-  const cPitch = up[U.chestPitch] + 0.025 * motion
+  const cPitch = up[U.chestPitch] + 0.025 * motion + r.lean * (1 - LEAN.pelvisShare)
   const cRoll = up[U.chestRoll] - 0.5 * pRoll
   setRotYXZ(S, iT1, cYaw, cPitch, cRoll)
   // C = P * T(0, waist) * R
@@ -834,6 +890,13 @@ function faceOf(r: PersonRig, t: number, seed: number, talk: number): void {
  */
 export function aimHead(r: PersonRig, dt: number, inp: RigInput, headY: number): void {
   if (!inp.hasLook) {
+    // the driven body's head leads a turn: it looks at a point 3 m ahead along heading + 0.3 x the turn rate (at most 0.5 rad), the eyes first (look.ts),
+    // and the chest follows a fifth of the way (solveRig). With nobody to look at and no turn, the head relaxes as it always did.
+    if (inp.driven && inp.posture === 'stand' && Math.abs(inp.turnRate) > LEAN.headLeadFrom) {
+      const lead = clamp(LEAN.headLead * inp.turnRate, -LEAN.headLeadMax, LEAN.headLeadMax)
+      updateHeadLook(r.headLook, dt, lead - r.up[U.chestYaw], 0, true)
+      return
+    }
     updateHeadLook(r.headLook, dt, 0, 0, false)
     return
   }

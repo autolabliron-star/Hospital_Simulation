@@ -8,17 +8,26 @@
  *   - It owns the pixel ratio: the rung's value, capped by the display, set with R3F's `setDpr` (no remount). <Canvas> calls `configure`
  *     on every resize, and configure puts the pixel ratio back to its own `dpr` prop, so the wanted value is re-asserted whenever the
  *     R3F store changes (the guard makes that a no-op once they agree).
- *   - The AO rung is applied by Effects.tsx, which watches the same store.
+ *   - (W3) A pixel-ratio change is DEFERRED while you walk and move: it resizes the canvas and the composer (a hitch) and changes the
+ *     sharpness in one frame (a pop). It is applied when you stop, when you leave walk mode, or after 6 s (./dprDefer.ts). While one
+ *     waits, a 100 ms poll asks again; nothing runs per frame.
+ *   - The AO rung is applied by Effects.tsx, which watches the same store; the fx rung ('lite' drops the floor reflection) by the daylight
+ *     driver, which reads it every frame. Both are uniforms or flags: they apply at once, never deferred.
  *
  * `?probe=1` also publishes `window.__hospitalQuality = { store, ladder }` for scripted checks in a visible browser.
  */
 import { useEffect, useMemo } from 'react'
 import { useStore } from '@react-three/fiber'
 import { probeEnabled } from '@/app/DevProbe'
-import { simGeneration } from '@/sim'
+import { walkBody } from '@/scene/player/state'
+import { sim, simGeneration } from '@/sim'
+import { DprDeferral } from './dprDefer'
 import { setFrameSink } from './frameTiming'
 import { QualityLadder, appliedDpr } from './ladder'
 import { useRenderStore } from './render.store'
+
+/** How often a waiting pixel-ratio change asks again whether the player has stopped (ms). */
+const POLL_MS = 100
 
 export interface QualityProps {
   /** The loading screen is done and the viewer is in. Defaults to true, so the ladder works even without a loading screen. */
@@ -60,11 +69,23 @@ export function Quality({ ready = true }: QualityProps) {
 
   // the pixel ratio
   useEffect(() => {
+    const deferral = new DprDeferral()
+    let poll = 0
     const apply = () => {
       const want = appliedDpr(useRenderStore.getState().step, window.devicePixelRatio || 1)
       const state = store.getState()
-      if (state.viewport.dpr !== want) state.setDpr(want)
-      if (useRenderStore.getState().dpr !== want) useRenderStore.getState().setApplied(want)
+      const decision = deferral.decide(state.viewport.dpr, want, { mode: sim.player?.mode, live: walkBody.live, stillFor: walkBody.stillFor }, performance.now())
+      if (decision === 'apply') state.setDpr(want)
+      // a change that waits for the player to stop asks again until it can go; one that is done (or never was) stops asking
+      if (decision === 'wait') {
+        if (poll === 0) poll = window.setInterval(apply, POLL_MS)
+      } else if (poll !== 0) {
+        window.clearInterval(poll)
+        poll = 0
+      }
+      // the store shows the ratio the renderer really has (a waiting change has not happened yet)
+      const have = store.getState().viewport.dpr
+      if (useRenderStore.getState().dpr !== have) useRenderStore.getState().setApplied(have)
     }
     apply()
     const unsubStore = store.subscribe(apply)
@@ -73,6 +94,7 @@ export function Quality({ ready = true }: QualityProps) {
     })
     window.addEventListener('resize', apply)
     return () => {
+      if (poll !== 0) window.clearInterval(poll)
       unsubStore()
       unsubLevel()
       window.removeEventListener('resize', apply)

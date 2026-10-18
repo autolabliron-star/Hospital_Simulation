@@ -12,7 +12,7 @@ import { useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import { createWarmProbe, installWarmProbe } from './probe'
 import { WarmupPublisher } from './publisher'
-import { warmExtras } from './registry'
+import { warmExtras, warmGatesPending } from './registry'
 import { asWarmupGl, WarmupRun, type WarmupPass } from './run'
 import { registerDefaultWarmSources } from './sources'
 import { useWarmup } from './warmup.store'
@@ -43,6 +43,7 @@ export function Warmup({ canvasPass = true }: WarmupProps) {
     const run = new WarmupRun(warmGl, scene, camera, {
       passes,
       extras: warmExtras,
+      gatesPending: warmGatesPending,
       onUpdate: (s) => {
         if (!cancelled) publisher.push(s)
       },

@@ -15,6 +15,7 @@ import { SHELF, SHELF_COUNT, shelfY } from './botParts'
 import { hideAll } from './instancing'
 import { MAX_BOTS } from './life'
 import { trayBaseGeometry, trayClocheGeometry } from './trayParts'
+import { patchMaterialLook } from '@/scene/lighting/palettePatch'
 
 export const TABLES = ROOMS.length
 export const SHELF_CAP = MAX_BOTS * SHELF_COUNT
@@ -50,6 +51,8 @@ export function createTraysRig(): TraysRig {
   const baseGeo = trayBaseGeometry()
   const clocheGeo = trayClocheGeometry()
   const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.05 })
+  // W3: the baked light volume, like the palette around it
+  patchMaterialLook(mat, 'plain')
   const base = new InstancedMesh(baseGeo, mat, CAP)
   const cloche = new InstancedMesh(clocheGeo, mat, TABLES)
   const group = new Group()

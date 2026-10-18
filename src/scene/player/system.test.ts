@@ -10,7 +10,7 @@ import { useFocus } from '@/scene/camera/focus.store'
 import { PLAYER_SPAWN } from '@/sim/places'
 import { Simulation } from '@/sim/Simulation'
 import type { Entity } from '@/sim/types'
-import { walkCam, useWalk } from './state'
+import { walkBody, walkCam, useWalk } from './state'
 import { buildWallBoxes, insideWallBox } from './boomProbe'
 import { walkableAt } from './collision'
 import { angleDelta, rightOf, shoulderPose } from './chaseMath'
@@ -108,7 +108,7 @@ describe('arriving', () => {
 })
 
 describe('walking', () => {
-  it('W walks the way you face at the walking speed, Shift hurries, and letting go stops you dead', () => {
+  it('W walks the way you face at the walking speed, Shift hurries, and letting go brings you to rest (W3: a critically damped stop, not a dead one)', () => {
     const r = make()
     run(r, 0.1)
     r.sys.input.keyDown('KeyW')
@@ -121,7 +121,9 @@ describe('walking', () => {
     run(r, 1)
     expect(r.sim.player!.speed).toBeCloseTo(CONFIG.player.hurrySpeed, 1)
     r.sys.input.keyUp('KeyW')
-    run(r, 0.3)
+    run(r, 0.3) // W3: the stop is a spring (95 % of the way in `stopSeconds`), so it is nearly, not exactly, at rest after 0.3 s from a run
+    expect(r.sim.player!.speed).toBeLessThan(0.25)
+    run(r, 0.4)
     expect(r.sim.player!.speed).toBe(0)
     expect(r.sim.playerAvatar!.anim).toBe('idle')
   })
@@ -356,7 +358,8 @@ describe('easy: A and D turn you, and the camera follows behind by itself', () =
     r.sys.update(DT)
     const first = angleDelta(h0, heading(r))
     expect(first).toBeLessThan(0) // right is clockwise from above: the heading gets smaller
-    expect(Math.abs(first)).toBeGreaterThanOrEqual(EASY.turnKick * 140 * DEG * DT - 1e-9) // no dead frame
+    expect(Math.abs(first)).toBeGreaterThan(0.1 * DEG) // no dead frame (W3: no kick either: the rate rises as a first-order lag, so a fraction of a degree)
+    expect(Math.abs(first)).toBeLessThan(0.45 * 140 * DEG * DT)
     run(r, 1 - DT)
     const turned = -angleDelta(h0, heading(r)) / DEG
     expect(turned).toBeGreaterThan(125)
@@ -493,12 +496,12 @@ describe('easy: A and D turn you, and the camera follows behind by itself', () =
     run(r, 0.6)
     expect(r.sim.player!.speed).toBeCloseTo(CONFIG.player.walkSpeed * EASY.backSpeedFactor, 1)
     r.sys.input.keyUp('KeyS')
-    run(r, 0.3)
+    run(r, 0.6)
     expect(r.sim.player!.speed).toBe(0)
   })
 
   it('Shift runs forward, at the hurry speed', () => {
-    const r = onPlaza(0, -68, -8)
+    const r = onPlaza(0, -66, -8) // (W3: the canopy columns are solid now; x = -68 would meet the one at (-68.25, -4.15))
     r.sys.input.keyDown('KeyW')
     r.sys.input.keyDown('ShiftLeft')
     run(r, 1)
@@ -686,7 +689,7 @@ describe('easy: A and D turn you, and the camera follows behind by itself', () =
   it('steering with A and D walks you in through the entrance, and the camera is outside the walls on every frame of it', () => {
     const r = make()
     run(r, 0.1)
-    r.sys.placeAt(-70, 4, Math.PI / 2 - 0.4)
+    r.sys.placeAt(-70, 2.5, Math.PI / 2 - 0.4) // (W3: the planter at (-70.2, 4.2) is solid now)
     run(r, 1)
     r.sys.input.keyDown('KeyW')
     r.sys.input.keyDown('ShiftLeft')
@@ -1035,10 +1038,87 @@ describe('the write-back', () => {
   it('placeAt puts you on the nearest standing place, whatever it was asked for', () => {
     const r = make()
     run(r, 0.1)
-    r.sys.placeAt(-62, 5, 2) // inside the façade
+    r.sys.placeAt(-62, 3, 2) // inside the façade (W3: not at z = 5, where a plant stands: placeAt keeps to the walls and the region)
     run(r, 0.1)
     expect(walkableAt(r.sim.player!.x, r.sim.player!.z)).toBe(true)
     expect(r.sim.player!.heading).toBeCloseTo(2, 6)
+  })
+})
+
+describe('walkBody: the body\'s numbers for the legs, the doors, the camera and the quality ladder', () => {
+  it('is published every frame: live, where you are, the velocity achieved, the velocity the keys ask for, the acceleration, the stop point', () => {
+    const r = make()
+    run(r, 0.1)
+    expect(walkBody.live).toBe(true)
+    expect(walkBody.x).toBe(r.sim.player!.x)
+    expect(walkBody.z).toBe(r.sim.player!.z)
+    expect(walkBody.stopping).toBe(false)
+    expect(walkBody.wishX).toBe(0)
+    r.sys.input.keyDown('KeyW')
+    r.sys.update(DT)
+    expect(walkBody.wishX).toBeCloseTo(CONFIG.player.walkSpeed, 9) // facing east
+    expect(walkBody.vx).toBeGreaterThan(0)
+    expect(walkBody.vx).toBeLessThan(0.1) // the first frame of a start: a gentle one
+    expect(walkBody.ax).toBeGreaterThan(0)
+    run(r, 1)
+    expect(walkBody.vx).toBeCloseTo(CONFIG.player.walkSpeed, 6)
+    expect(walkBody.x).toBe(r.sim.player!.x)
+    expect(walkBody.restX).toBeGreaterThan(walkBody.x + 0.2) // 0.24 m of coast
+    expect(walkBody.restX).toBeLessThan(walkBody.x + 0.3)
+    expect(walkBody.stillFor).toBe(0)
+    // let go: stopping, then at rest where it said
+    const said = walkBody.restX
+    r.sys.input.keyUp('KeyW')
+    r.sys.update(DT)
+    expect(walkBody.stopping).toBe(true)
+    expect(walkBody.wishX).toBe(0)
+    expect(walkBody.ax).toBeLessThan(0)
+    run(r, 1)
+    expect(walkBody.stopping).toBe(false)
+    expect(Math.abs(walkBody.x - said)).toBeLessThan(0.01)
+    expect(walkBody.stillFor).toBeGreaterThan(0.5)
+    expect(walkBody.vx).toBe(0)
+  })
+
+  it('the turn rate is the heading\'s change per second, whatever turned it: A and D here', () => {
+    const r = make()
+    run(r, 0.1)
+    r.sys.input.keyDown('KeyD')
+    run(r, 0.5)
+    expect(walkBody.turnRate).toBeLessThan(-2) // right: the heading gets smaller, about 140 degrees a second
+    expect(walkBody.turnRate).toBeGreaterThan(-2.5)
+    r.sys.input.keyUp('KeyD')
+    run(r, 0.6)
+    expect(walkBody.turnRate).toBe(0)
+  })
+
+  it('stands still (at rest, stillFor counting) in the overview, in a flight and while an overlay owns the keys', () => {
+    const r = make()
+    run(r, 0.1)
+    r.sys.input.keyDown('KeyW')
+    run(r, 1)
+    r.sys.input.keyDown('Tab')
+    run(r, FLIGHT.seconds + 0.2)
+    expect(r.sim.player!.mode).toBe('overview')
+    expect(walkBody.vx).toBe(0)
+    expect(walkBody.vz).toBe(0)
+    expect(walkBody.stopping).toBe(false)
+    const was = walkBody.stillFor
+    run(r, 1)
+    expect(walkBody.stillFor).toBeCloseTo(was + 1, 6)
+    expect(walkBody.live).toBe(true)
+  })
+
+  it('a pinned run (head on into a wall) publishes no velocity and keeps the intent: the legs see a body that is pushing, not moving', () => {
+    const r = make()
+    r.sys.placeAt(-66, 6, Math.PI / 2)
+    run(r, 0.1)
+    r.sys.input.keyDown('KeyW')
+    r.sys.input.keyDown('ShiftLeft')
+    run(r, 3)
+    expect(walkBody.vx).toBe(0)
+    expect(walkBody.wishX).toBeCloseTo(CONFIG.player.hurrySpeed, 9)
+    expect(walkBody.stillFor).toBeGreaterThan(1)
   })
 })
 

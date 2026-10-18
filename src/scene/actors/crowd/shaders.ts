@@ -31,6 +31,7 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three'
 import { FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
+import { LIGHT_VOLUME_KEY, applyLightVolume } from '@/scene/lighting/volumeChunk'
 import { FACE } from './face'
 import { BADGE_TOP, GEAR_BIT } from './staff'
 
@@ -325,19 +326,29 @@ export function createCrowdMaterials(pose: DataTexture): CrowdMaterials {
   const body = [0, 1, 2].map((i) => {
     const m = new MeshStandardMaterial({ roughness: 0.78, metalness: 0 })
     if (i === 2) m.defines = { CROWD_FAR: '' }
-    m.onBeforeCompile = (s) => patchBody(s, i as BodyLod, pose, fixed)
-    m.customProgramCacheKey = () => `hospital-crowd-body-${i === 2 ? 'far' : 'near'}-v2`
+    // W3: the baked light volume (src/scene/lighting), applied last
+    m.onBeforeCompile = (s) => {
+      patchBody(s, i as BodyLod, pose, fixed)
+      applyLightVolume(s)
+    }
+    m.customProgramCacheKey = () => `hospital-crowd-body-${i === 2 ? 'far' : 'near'}-v2+${LIGHT_VOLUME_KEY}`
     return m
   }) as CrowdMaterials['body']
 
   const props = new MeshStandardMaterial({ roughness: 0.62, metalness: 0 })
   props.defines = { GEAR_PROP: '' }
-  props.onBeforeCompile = (s) => patchGear(s, pose, fixed)
-  props.customProgramCacheKey = () => 'hospital-crowd-props-v1'
+  props.onBeforeCompile = (s) => {
+    patchGear(s, pose, fixed)
+    applyLightVolume(s)
+  }
+  props.customProgramCacheKey = () => `hospital-crowd-props-v1+${LIGHT_VOLUME_KEY}`
 
   const vehicles = new MeshStandardMaterial({ roughness: 0.55, metalness: 0.05 })
-  vehicles.onBeforeCompile = (s) => patchGear(s, pose, fixed)
-  vehicles.customProgramCacheKey = () => 'hospital-crowd-vehicles-v1'
+  vehicles.onBeforeCompile = (s) => {
+    patchGear(s, pose, fixed)
+    applyLightVolume(s)
+  }
+  vehicles.customProgramCacheKey = () => `hospital-crowd-vehicles-v1+${LIGHT_VOLUME_KEY}`
 
   const map = createBlobTexture()
   const blob = new MeshBasicMaterial({

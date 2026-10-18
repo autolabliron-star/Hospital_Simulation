@@ -3,11 +3,14 @@ import { AO_OVERVIEW, AO_WALK, DENOISE_FULL, DENOISE_LIGHT, aoSettings } from '.
 import { QUALITY_STEPS } from './ladder'
 
 describe('the AO table', () => {
-  it('keeps the designed look at full: the overview and walk numbers Effects.tsx always used', () => {
+  it('keeps the overview exactly as it was and (W3) turns the walk AO down: the light volume carries the broad occlusion now', () => {
     expect(AO_OVERVIEW).toEqual({ aoRadius: 1.4, intensity: 2.2 })
-    expect(AO_WALK).toEqual({ aoRadius: 0.8, intensity: 1.6 })
+    expect(AO_WALK).toEqual({ aoRadius: 0.55, intensity: 1.1 })
+    // the old walk numbers were 0.8 m and 1.6: smaller on both counts, so a corner is not darkened twice
+    expect(AO_WALK.aoRadius).toBeLessThan(0.8)
+    expect(AO_WALK.intensity).toBeLessThan(1.6)
     expect(aoSettings('overview', 'full')).toEqual({ enabled: true, aoRadius: 1.4, intensity: 2.2, denoiseIterations: DENOISE_FULL })
-    expect(aoSettings('walk', 'full')).toEqual({ enabled: true, aoRadius: 0.8, intensity: 1.6, denoiseIterations: DENOISE_FULL })
+    expect(aoSettings('walk', 'full')).toEqual({ enabled: true, aoRadius: 0.55, intensity: 1.1, denoiseIterations: DENOISE_FULL })
   })
 
   it('treats any mode but the overview as walking, as before', () => {

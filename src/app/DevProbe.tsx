@@ -147,6 +147,7 @@ interface OverlayView {
   level: number
   ladderDpr: number
   ao: string
+  fx: string
   forced: boolean
   workP95: number
   lateShare: number
@@ -175,6 +176,7 @@ export function ProbeOverlay() {
         level: rq.level,
         ladderDpr: rq.dpr,
         ao: rq.step.ao,
+        fx: rq.step.fx,
         forced: !rq.auto,
         workP95: rq.workP95,
         lateShare: rq.lateShare,
@@ -197,7 +199,7 @@ export function ProbeOverlay() {
       <div>avg fps     {view.fps.toFixed(1)}</div>
       <div>p95 frame   {view.p95Ms.toFixed(1)} ms</div>
       <div>dpr         {view.dpr.toFixed(2)} (render {view.renderDpr === null ? '-' : view.renderDpr.toFixed(2)})</div>
-      <div>quality     L{view.level}/{MAX_LEVEL} dpr {view.ladderDpr.toFixed(2)} ao {view.ao}{view.forced ? ' (forced)' : ''}</div>
+      <div>quality     L{view.level}/{MAX_LEVEL} dpr {view.ladderDpr.toFixed(2)} ao {view.ao} fx {view.fx}{view.forced ? ' (forced)' : ''}</div>
       <div>last window work p95 {view.workP95.toFixed(1)} ms, late {(view.lateShare * 100).toFixed(1)} %</div>
       <div>power       cap {view.cap} fps{view.present ? ', present' : ''}{view.paused ? ', PAUSED' : ''}</div>
     </div>

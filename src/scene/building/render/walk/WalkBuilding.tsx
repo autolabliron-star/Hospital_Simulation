@@ -10,19 +10,28 @@
  * receives it either (the map holds only the cut-height building). The overview-only meshes of BuildingMeshes (the parked sliding
  * leaves) swap with this group through `modeSwitch`.
  *
- * Frame callback: allocation-free, reads `sim` where it uses it (a Jump swaps the running hospital).
+ * Two frame callbacks, both allocation-free, both reading `sim` where they use it (a Jump swaps the running hospital):
+ *   FRAME_PRIORITY.doors (-11, walk mode only)  the doors sense (people, and YOU along the way you are going: W3), step their openings
+ *                         and publish their leaves as solid boxes (src/scene/blockers.ts), before the player moves against them. The
+ *                         swing doors are double-acting: a shut one swings away from whoever sets it off (`DoorBank.swing`), and
+ *                         the drawn leaf and the solid box are both written from that one direction;
+ *   -0.1                  the visibility, the one-off warm-up, and the leaf matrices (only when an opening changed).
  */
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BoxGeometry, Color, DynamicDrawUsage, Group, InstancedMesh, Mesh, PlaneGeometry, type BufferGeometry, type Material, type Texture } from 'three'
+import { registerBlockers, type BlockerSource } from '@/scene/blockers'
+import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { MAT } from '@/scene/materials'
 import { registerDimmable } from '@/scene/daylight/dim'
+import { walkBody } from '@/scene/player/state'
 import { loop, sim } from '@/sim'
+import { CONFIG } from '@/sim/config'
 import { getLayout } from '../../layout'
 import { buildWalkLayout } from '../../layout/walk'
 import { BARS_PER_AUTO_LEAF, compileWalk, disposeWalk } from './walkGeometry'
-import { DoorBank } from './doorBank'
-import { writeAutoDoor, writeSwingDoor } from './doorMatrices'
+import { DoorBank, newLead, setLead } from './doorBank'
+import { leafBlockerCount, writeAutoDoor, writeLeafBlockers, writeSwingDoor } from './doorMatrices'
 import { isWalkMode, modeSwitch } from './modeSwitch'
 import { packAtlas } from './signAtlas'
 import { warmWalk, WARM_AFTER_FRAMES } from './warm'
@@ -101,7 +110,7 @@ function buildWalkScene() {
   /** Write every leaf for the bank's current openings. */
   const writeDoors = (): void => {
     for (let slot = 0; slot < autoDoors.length; slot++) writeAutoDoor(glassArr, barArr, slot, doors[autoDoors[slot]], bank.shown[autoDoors[slot]])
-    for (let slot = 0; slot < swingDoors.length; slot++) writeSwingDoor(leafArr, slot, doors[swingDoors[slot]], bank.shown[swingDoors[slot]])
+    for (let slot = 0; slot < swingDoors.length; slot++) writeSwingDoor(leafArr, slot, doors[swingDoors[slot]], bank.shown[swingDoors[slot]], bank.swing[swingDoors[slot]])
     glassLeaves.instanceMatrix.needsUpdate = true
     bars.instanceMatrix.needsUpdate = true
     leaves.instanceMatrix.needsUpdate = true
@@ -116,7 +125,9 @@ function buildWalkScene() {
     bars.dispose()
     leaves.dispose()
   }
-  return { group, bank, writeDoors, textures, mats, dispose, warm: { frames: 0, done: false } }
+  // the leaves as solid boxes for your body (rewritten every frame in walk mode, count 0 in the overview)
+  const blockers: BlockerSource = { name: 'walk doors', count: 0, data: new Float64Array(leafBlockerCount(doors) * 6) }
+  return { group, bank, doors, blockers, lead: newLead(), writeDoors, textures, mats, dispose, warm: { frames: 0, done: false }, pendingWrite: false, wasWalking: false }
 }
 
 export function WalkBuilding() {
@@ -136,15 +147,40 @@ export function WalkBuilding() {
       1,
     )
     const offSigns = registerDimmable(built.mats.signs.color, 1, 0.7)
+    const offBlockers = registerBlockers(built.blockers)
     return () => {
       if (modeSwitch.walk === built.group) modeSwitch.walk = null
       offCeiling()
       offSigns()
+      offBlockers()
+      built.blockers.count = 0
       built.dispose()
     }
   }, [built])
 
-  useFrame((state, dt) => {
+  // Before you move (after the sim, which moves the people the doors sense): the doors open for whoever is coming, step, and publish
+  // their leaves. Walk mode only: the overview publishes no blockers.
+  useFrame((_, dt) => {
+    if (!isWalkMode(sim.player?.mode)) {
+      built.blockers.count = 0
+      built.wasWalking = false
+      return
+    }
+    // sim time, so the doors keep up with the crowd at 2x and 4x; real time while paused, so the doors still open for YOU
+    // (you are the `player` entity of the sim, or its view: the entrance slides open as you come up from the plaza)
+    const step = Math.min(dt, 0.1) * (loop.paused ? 1 : Math.max(1, loop.speed))
+    const you = sim.entities.get('player')?.position ?? sim.player ?? null
+    // you sense the doors along the way your body is going (CONFIG.player.doorLeadSeconds ahead): an auto door opens about 5 m out at a
+    // run, so its leaves, which are solid, are open when you get there. Until the player has written `walkBody` there is no lead.
+    const lead = walkBody.live ? setLead(built.lead, walkBody.vx, walkBody.vz, walkBody.wishX, walkBody.wishZ, CONFIG.player.doorLeadSeconds) : null
+    // Tab into a doorway: the doors around you open at once, so you are never inside a leaf that was shut while the overview ran
+    if (!built.wasWalking && you && built.bank.snapOpenNear(you, lead)) built.pendingWrite = true
+    built.wasWalking = true
+    if (built.bank.update(step, sim.people, you, lead)) built.pendingWrite = true
+    built.blockers.count = writeLeafBlockers(built.doors, built.bank.shown, built.blockers.data, built.bank.swing)
+  }, FRAME_PRIORITY.doors)
+
+  useFrame((state) => {
     const walking = isWalkMode(sim.player?.mode)
     built.group.visible = walking
     if (modeSwitch.overview) modeSwitch.overview.visible = !walking
@@ -153,11 +189,11 @@ export function WalkBuilding() {
       built.warm.done = true
       warmWalk(state.gl, state.scene, state.camera, built.textures)
     }
-    if (!walking) return
-    // sim time, so the doors keep up with the crowd at 2x and 4x; real time while paused, so the doors still open for YOU
-    // (you are the `player` entity of the sim, or its view: the entrance slides open as you come up from the plaza)
-    const step = Math.min(dt, 0.1) * (loop.paused ? 1 : Math.max(1, loop.speed))
-    if (built.bank.update(step, sim.people, sim.entities.get('player')?.position ?? sim.player ?? null)) built.writeDoors()
+    // the leaves move only when an opening did (the doors stepped at FRAME_PRIORITY.doors, a few callbacks earlier)
+    if (walking && built.pendingWrite) {
+      built.pendingWrite = false
+      built.writeDoors()
+    }
   }, WALK_PRIORITY)
 
   return <primitive object={built.group} />

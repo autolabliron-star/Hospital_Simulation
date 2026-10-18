@@ -16,7 +16,7 @@
  * lengthens slowly. Every smoother here comes to an EXACT rest (see `REST`).
  */
 import type { Vec3 } from '@/sim/types'
-import { CHASE } from './tuning'
+import { CHASE, MOVE } from './tuning'
 
 export interface CameraPose {
   position: Vec3
@@ -250,6 +250,92 @@ export function smoothDamp(current: number, target: number, vel: { v: number }, 
   return out
 }
 
+/**
+ * `smoothDamp` with a speed limit (Unity's `maxSpeed`): the spring never sees a target further than `maxSpeed * smoothTime` away, and
+ * the speed it ends a step with is clamped to `maxSpeed` as well, so a carried velocity (from a spring that was going the other way)
+ * cannot exceed it either. Same exact rest as `smoothDamp`. Used by the boom and the shoulder: a wall that appears suddenly is a
+ * jump of the target, and the camera must glide at a bounded speed instead of following that jump.
+ */
+export function smoothDampMax(current: number, target: number, vel: { v: number }, smoothTime: number, dt: number, maxSpeed: number): number {
+  if (dt <= 0) return current
+  const omega = 2 / Math.max(1e-4, smoothTime)
+  const x = omega * dt
+  const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+  const maxChange = maxSpeed * smoothTime
+  const change = clamp(current - target, -maxChange, maxChange)
+  const aim = current - change
+  const temp = (vel.v + omega * change) * dt
+  vel.v = (vel.v - omega * temp) * exp
+  let out = aim + (change + temp) * exp
+  // never overshoot the real target
+  if (target - current > 0 === out > target) {
+    out = target
+    vel.v = 0
+  }
+  // never faster than the limit, whatever velocity the spring was carrying
+  const speed = (out - current) / dt
+  if (speed > maxSpeed) {
+    out = current + maxSpeed * dt
+    vel.v = maxSpeed
+  } else if (speed < -maxSpeed) {
+    out = current - maxSpeed * dt
+    vel.v = -maxSpeed
+  }
+  // ...and arrive
+  if (Math.abs(out - target) < REST.position && Math.abs(vel.v) < REST.velocity) {
+    out = target
+    vel.v = 0
+  }
+  return out
+}
+
+/**
+ * One length of the camera that must never snap: the boom, and the shoulder room. It shortens as a critically damped spring
+ * (`inSeconds`, at most `inMax` per second) and lengthens as a slower one (`outSeconds`, at most `outMax`); the velocity is carried
+ * from one to the other, so a wall that goes away in the middle of a pull-in turns the motion round without a jump. A spring's tail
+ * never quite arrives, so lengthening has the floor `smoothBoom` has: it never goes slower than `finish * sqrt(share still to grow)` per
+ * second (the share is of `scale`, the size of the thing), which brings it in finite time with its speed running down to nothing.
+ * Comes to an exact rest.
+ */
+export function smoothLength(
+  current: number,
+  target: number,
+  vel: { v: number },
+  dt: number,
+  inSeconds: number,
+  inMax: number,
+  outSeconds: number,
+  outMax: number,
+  finish = 0,
+  scale = 1,
+): number {
+  if (target < current) return smoothDampMax(current, target, vel, inSeconds, dt, inMax)
+  let out = smoothDampMax(current, target, vel, outSeconds, dt, outMax)
+  if (finish > 0 && dt > 0 && out < target) {
+    const left = (target - current) / Math.max(Math.abs(scale), 1e-6)
+    const floor = Math.min(finish * Math.sqrt(Math.max(left, 0)), outMax)
+    if ((out - current) / dt < floor) {
+      out = Math.min(target, current + floor * dt)
+      vel.v = out >= target ? 0 : (out - current) / dt
+    }
+  }
+  return out
+}
+
+/**
+ * A soft ceiling for a non-negative `x`: it is `x` itself up to `knee`, then bends over (a tanh, so the slope is 1 where it starts and
+ * falls to 0) and never reaches `limit`. No corner anywhere, so a lag that is squeezed by it has no kink in its speed.
+ */
+export function softLimit(x: number, knee: number, limit: number): number {
+  if (x <= knee) return x
+  const room = limit - knee
+  if (room <= 0) return Math.min(x, limit)
+  return knee + room * Math.tanh((x - knee) / room)
+}
+
+/** Where the soft limit on a follow lag begins, as a share of its cap. */
+export const LAG_KNEE = 0.6
+
 /** SmoothDamp for an angle: takes the short way round and returns a value near `current`, not wrapped. */
 export function dampAngle(current: number, target: number, vel: { v: number }, smoothTime: number, dt: number): number {
   const unwrapped = current + angleDelta(current, target)
@@ -270,17 +356,27 @@ export function dampAngleRest(current: number, target: number, vel: { v: number 
 /**
  * A camera that follows a heading lazily (the easy scheme): critically damped towards `target` over `smoothTime`, and never more than
  * `maxLag` radians behind it, so a fast turn cannot leave the view looking somewhere else. Returns the new yaw (near `current`), and
- * exactly `target` once it has arrived. A lag that is already bigger than `maxLag` (the view was turned by hand, or you were placed
- * somewhere facing another way) is left to shrink at the smoothing's own pace instead of being snapped to the cap.
+ * exactly `target` once it has arrived.
+ *
+ * The limit is SOFT: a lag beyond `LAG_KNEE * maxLag` is squeezed through `softLimit`, which never reaches `maxLag`, and the spring's
+ * velocity is set to the rate the yaw really moved at, so a running turn that would trail further than the cap (200 degrees a second
+ * times 0.22 s is 44 degrees) tightens up smoothly instead of hitting a wall: no kink in the rate. A lag that is already bigger than
+ * `maxLag` (the view was turned by hand, or you were placed somewhere facing another way) is left to shrink at the smoothing's own
+ * pace, and is only kept from growing.
  */
 export function followYawStep(current: number, target: number, vel: { v: number }, smoothTime: number, maxLag: number, dt: number): number {
   if (dt <= 0) return current
   const before = Math.abs(angleDelta(current, target))
   const next = dampAngleRest(current, target, vel, smoothTime, dt)
   const lag = angleDelta(next, target)
-  const cap = Math.max(maxLag, before)
-  if (Math.abs(lag) > cap) return target - Math.sign(lag) * cap
-  return next
+  const size = Math.abs(lag)
+  let applied = size
+  if (before <= maxLag) applied = softLimit(size, LAG_KNEE * maxLag, maxLag)
+  else if (size > before) applied = before
+  if (applied === size) return next
+  const out = target - Math.sign(lag) * applied
+  vel.v = angleDelta(current, out) / dt
+  return out
 }
 
 export interface DampedVec3 {
@@ -300,17 +396,29 @@ const _vx = { v: 0 }
 const _vy = { v: 0 }
 const _vz = { v: 0 }
 
-/** Keep a damped follow point within `maxLag` metres of the point it follows (straight-line), so a hitch or a teleport cannot leave it behind. */
-export function limitFollowLag(follow: DampedVec3, pivot: Vec3, maxLag: number): DampedVec3 {
+/**
+ * Keep a damped follow point within `maxLag` metres of the point it follows (straight-line), so a hitch or a teleport cannot leave it
+ * behind. Soft, like the yaw's: beyond `LAG_KNEE * maxLag` the distance is squeezed through `softLimit` (never reaching `maxLag`), and
+ * with `dt` given the follow point's velocity gets the rate it was really moved at, so the squeeze leaves no kink in its speed.
+ */
+export function limitFollowLag(follow: DampedVec3, pivot: Vec3, maxLag: number, dt = 0): DampedVec3 {
   const dx = follow.x - pivot.x
   const dy = follow.y - pivot.y
   const dz = follow.z - pivot.z
   const d = Math.hypot(dx, dy, dz)
-  if (d > maxLag) {
-    const k = maxLag / d
-    follow.x = pivot.x + dx * k
-    follow.y = pivot.y + dy * k
-    follow.z = pivot.z + dz * k
+  if (d <= LAG_KNEE * maxLag) return follow
+  const to = softLimit(d, LAG_KNEE * maxLag, maxLag)
+  if (to >= d) return follow
+  const k = to / d
+  follow.x = pivot.x + dx * k
+  follow.y = pivot.y + dy * k
+  follow.z = pivot.z + dz * k
+  if (dt > 0) {
+    // the follow point was moved toward the pivot by (d - to) in this step: that is extra speed along the way to the pivot
+    const extra = (d - to) / dt / d
+    follow.vx -= dx * extra
+    follow.vy -= dy * extra
+    follow.vz -= dz * extra
   }
   return follow
 }
@@ -344,6 +452,23 @@ export function approach(value: number, target: number, step: number): number {
 /** The camera's vertical field of view, degrees: the chase view, blended toward first person (0 to 1, as the camera blends it). */
 export function chaseFov(firstPerson: number): number {
   return lerp(CHASE.fov, CHASE.firstPersonFov, smooth01(firstPerson))
+}
+
+/**
+ * How much of a run the camera shows, 0..1: your ground speed from a walk (0) to a hurry (1), or the run blend of your legs
+ * (`walkStride.run`), whichever is more. The lens widens with it and the bob grows with it.
+ */
+export function runShare(speed: number, legsRun: number): number {
+  const fromSpeed = smooth01((speed - MOVE.walkSpeed) / Math.max(MOVE.hurrySpeed - MOVE.walkSpeed, 1e-3))
+  return Math.max(fromSpeed, clamp(legsRun, 0, 1))
+}
+
+/**
+ * The footfall bob as a number in -1..1 for a gait phase (0..1, 0 at a left heel strike and 0.5 at a right one): two bounces a cycle,
+ * lowest (-1) at each heel strike, highest (+1) between them. Continuous across the 1 -> 0 wrap.
+ */
+export function gaitBob(phase: number): number {
+  return -Math.cos(4 * Math.PI * phase)
 }
 
 /** How visible your avatar is for a boom length (1 = fully, 0 = gone): it fades out below `hideAvatarBelow` and in first person. */

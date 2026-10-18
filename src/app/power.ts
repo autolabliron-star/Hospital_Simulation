@@ -9,7 +9,9 @@ import { create } from 'zustand'
  *   - Paused while the tab is hidden, always. Paused while the window is in the background too, except in presentation mode
  *     (`?present=1`): screen sharing moves the focus to the meeting window, and the shared picture must not freeze.
  *   - At most 60 frames a second, so a 120 Hz display does not double the work.
- *   - 30 frames a second on the loading screen, and on battery in normal mode. Presentation mode holds 60 on battery.
+ *   - 30 frames a second on the loading screen, and on battery in normal mode when you are not walking. Presentation mode holds 60 on
+ *     battery, and so does walk mode (W3: a walk at 30 fps is the judder the game was built to avoid; the overview, which is a view
+ *     of a slow world, still saves the battery).
  *   - The time handed to R3F is the game's own clock, clamped per frame, so resuming never fast-forwards the simulation.
  */
 export type PauseReason = 'hidden' | 'background' | null
@@ -32,6 +34,8 @@ export interface PowerInputs {
   onBattery: boolean
   /** The loading screen is up: warm-up is running, or the Enter button has not been pressed. */
   loading: boolean
+  /** W3: you are in walk mode (walking, or flying between the overview and the walk): the camera moves every frame, 60 fps even on battery. */
+  walking?: boolean
 }
 
 export interface PowerDecision {
@@ -42,24 +46,37 @@ export interface PowerDecision {
   onBattery: boolean
 }
 
-/** Why the demo should be paused right now, or null. Hidden always pauses; losing focus pauses only outside presentation mode. */
-export function pauseReason(hidden: boolean, focused: boolean, present: boolean): PauseReason {
+/**
+ * Why the demo should be paused right now, or null. Hidden always pauses; losing focus pauses only outside presentation mode, and never
+ * on the loading screen (W3): the loading screen must draw behind itself, so the first full frame (the post-processing passes and the
+ * baked sun shadow compile on it) happens before Enter, not on the first frame of the demo. A page opened in a window without focus
+ * (another window in front, the browser pane of the app) would otherwise compile all of them on Enter.
+ */
+export function pauseReason(hidden: boolean, focused: boolean, present: boolean, loading = false): PauseReason {
   if (hidden) return 'hidden'
-  if (!focused && !present) return 'background'
+  if (!focused && !present && !loading) return 'background'
   return null
 }
 
-/** The frame cap. The loading screen is 30 in every mode; battery halves it in normal mode only. */
-export function frameCap(onBattery: boolean, present: boolean, loading: boolean): number {
+/**
+ * The frame cap. The loading screen is 30 in every mode; battery halves it in normal mode only, and never while you walk (W3: the
+ * chase camera and the legs at 30 fps are the "his walk is not smooth" complaint; only the overview saves the battery).
+ */
+export function frameCap(onBattery: boolean, present: boolean, loading: boolean, walking = false): number {
   if (loading) return 30
-  if (onBattery && !present) return 30
+  if (onBattery && !present && !walking) return 30
   return 60
+}
+
+/** Is `mode` (a `PlayerMode`) walk mode, the flights to and from it included? Everything but the overview: the camera moves every frame there. */
+export function isWalkingMode(mode: string): boolean {
+  return mode !== 'overview'
 }
 
 /** Every input at once in, the decision out. */
 export function resolvePower(i: PowerInputs): PowerDecision {
-  const reason = pauseReason(i.hidden, i.focused, i.present)
-  return { paused: reason !== null, reason, fps: frameCap(i.onBattery, i.present, i.loading), onBattery: i.onBattery }
+  const reason = pauseReason(i.hidden, i.focused, i.present, i.loading)
+  return { paused: reason !== null, reason, fps: frameCap(i.onBattery, i.present, i.loading, i.walking === true), onBattery: i.onBattery }
 }
 
 /**
@@ -74,7 +91,7 @@ export class PowerMachine {
     initial: Partial<PowerInputs> = {},
     private readonly onChange: (next: PowerDecision, prev: PowerDecision) => void = () => undefined,
   ) {
-    this.i = { hidden: false, focused: true, present: false, onBattery: false, loading: false, ...initial }
+    this.i = { hidden: false, focused: true, present: false, onBattery: false, loading: false, walking: false, ...initial }
     this.d = resolvePower(this.i)
   }
 

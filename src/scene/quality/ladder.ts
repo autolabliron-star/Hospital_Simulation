@@ -2,9 +2,10 @@
  * The adaptive quality ladder, as a pure state machine (no React, no three.js, no clock of its own: every method is handed `now`),
  * so every rule is proven under vitest in node. <Quality /> feeds it the real frame times; render.store.ts holds the level.
  *
- * The rungs, best first: pixel ratio 1.5 -> 1.25 -> 1.0, then the ambient occlusion lighter, then off. (The sun's shadow is baked
- * once, so there is no shadow rung.) A rung the display cannot show is skipped: on a 1080p screen (devicePixelRatio 1) the three
- * pixel-ratio rungs are the same picture, so the first step down goes straight to the lighter AO.
+ * The rungs, best first: pixel ratio 1.5 -> 1.25 -> 1.0, then the effects lite (W3: the ceiling-panel reflection on the floors goes), then
+ * the ambient occlusion lighter, then off. (The sun's shadow is baked once, so there is no shadow rung.) A rung the display cannot show is
+ * skipped: on a 1080p screen (devicePixelRatio 1) the three pixel-ratio rungs are the same picture, so the first step down goes straight
+ * to the effects-lite rung.
  *
  * It measures in WINDOWS of `windowFrames` drawn frames (about 2 s at 60 fps), two numbers per frame:
  *   interval  the gap to the previous drawn frame. More than `lateFactor` cap intervals is a missed frame.
@@ -38,6 +39,8 @@
  */
 
 export type AoLevel = 'full' | 'light' | 'off'
+/** W3: the realistic light's extras. 'lite' drops the floors' ceiling-panel reflection (a uniform: nothing recompiles). */
+export type FxLevel = 'full' | 'lite'
 
 export interface QualityStep {
   id: string
@@ -45,15 +48,17 @@ export interface QualityStep {
   /** The pixel ratio asked for. The applied value is also capped by the display's devicePixelRatio (see `appliedDpr`). */
   dpr: number
   ao: AoLevel
+  fx: FxLevel
 }
 
-/** Index 0 is the best. */
+/** Index 0 is the best. The AO rungs carry fx 'lite' (a machine that cannot afford the AO cannot afford the reflection). */
 export const QUALITY_STEPS: readonly QualityStep[] = [
-  { id: 'dpr-1.5', label: 'DPR 1.5, AO full', dpr: 1.5, ao: 'full' },
-  { id: 'dpr-1.25', label: 'DPR 1.25, AO full', dpr: 1.25, ao: 'full' },
-  { id: 'dpr-1.0', label: 'DPR 1.0, AO full', dpr: 1.0, ao: 'full' },
-  { id: 'ao-light', label: 'DPR 1.0, AO light', dpr: 1.0, ao: 'light' },
-  { id: 'ao-off', label: 'DPR 1.0, AO off', dpr: 1.0, ao: 'off' },
+  { id: 'dpr-1.5', label: 'DPR 1.5, AO full', dpr: 1.5, ao: 'full', fx: 'full' },
+  { id: 'dpr-1.25', label: 'DPR 1.25, AO full', dpr: 1.25, ao: 'full', fx: 'full' },
+  { id: 'dpr-1.0', label: 'DPR 1.0, AO full', dpr: 1.0, ao: 'full', fx: 'full' },
+  { id: 'fx-lite', label: 'DPR 1.0, AO full, FX lite', dpr: 1.0, ao: 'full', fx: 'lite' },
+  { id: 'ao-light', label: 'DPR 1.0, AO light, FX lite', dpr: 1.0, ao: 'light', fx: 'lite' },
+  { id: 'ao-off', label: 'DPR 1.0, AO off, FX lite', dpr: 1.0, ao: 'off', fx: 'lite' },
 ]
 
 export const MAX_LEVEL = QUALITY_STEPS.length - 1
@@ -377,5 +382,5 @@ export class QualityLadder {
 }
 
 function sameLook(a: QualityStep, b: QualityStep, deviceDpr: number): boolean {
-  return a.ao === b.ao && appliedDpr(a, deviceDpr) === appliedDpr(b, deviceDpr)
+  return a.ao === b.ao && a.fx === b.fx && appliedDpr(a, deviceDpr) === appliedDpr(b, deviceDpr)
 }

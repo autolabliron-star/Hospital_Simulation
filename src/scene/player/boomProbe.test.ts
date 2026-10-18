@@ -103,6 +103,39 @@ describe('the sweep', () => {
   })
 })
 
+describe('W3: hanging signs are swept at the sign radius only', () => {
+  const sign = { x0: -1, x1: 1, y0: 2.18, y1: 2.84, z0: 4, z1: 4.05, sign: true as const }
+  const wallBox = { x0: -1, x1: 1, y0: 2.18, y1: 2.84, z0: 4, z1: 4.05 }
+
+  it('a ball passes under a sign that a ball of the same size would hit if it were a wall: the sign\'s grown box is the sign radius, not the ball\'s', () => {
+    // a camera at 2.06 m (a little over its resting 2.04 m: a bob, or a wall beside it) looking along +z at a box whose lower edge is 2.18 m
+    const from = { x: 0, y: 2.06, z: 0 }
+    const ahead = { x: 0, y: 0, z: 1 }
+    expect(new WallBoxProbe([wallBox]).cast(from, ahead, 6, CHASE.probeRadius)).not.toBeNull() // a wall in the way: 2.06 + 0.2 reaches 2.26
+    expect(new WallBoxProbe([wallBox]).cast(from, ahead, 6, CHASE.nearRadius)).not.toBeNull() // 2.06 + 0.13 = 2.19, too
+    expect(new WallBoxProbe([sign]).cast(from, ahead, 6, CHASE.probeRadius)).toBeNull() // the sign, with the soft ball: 2.06 + 0.09 = 2.15: under it
+    expect(new WallBoxProbe([sign]).cast(from, ahead, 6, CHASE.nearRadius)).toBeNull()
+    // a smaller ball than the sign radius is not made bigger
+    expect(CHASE.signRadius).toBeLessThanOrEqual(CHASE.nearRadius)
+    const lower = { x: 0, y: 2.18 - 0.05, z: 0 } // 5 cm under the sign: a 0.04 ball clears it, the sign radius (0.09) does not
+    expect(new WallBoxProbe([sign]).cast(lower, ahead, 6, 0.04)).toBeNull()
+    expect(new WallBoxProbe([sign]).cast(lower, ahead, 6, 0.2)).not.toBeNull()
+  })
+
+  it('the real signs carry the flag, and no floor-standing box does (the body\'s solids are built from y0 === 0 boxes)', () => {
+    const signs = boxes.filter((b) => b.sign)
+    expect(signs.length).toBe(7)
+    for (const b of signs) expect(b.y0).toBeGreaterThan(2.1)
+    for (const b of boxes.filter((q) => q.y0 === 0)) expect(b.sign).toBeUndefined()
+  })
+
+  it('insideWallBox grows a sign by the sign radius at most, as the sweep does', () => {
+    expect(insideWallBox([sign], 0, 2.06, 4.02, 0.2)).toBeNull() // 2.06 + 0.09 < 2.18
+    expect(insideWallBox([sign], 0, 2.12, 4.02, 0.2)).not.toBeNull() // 2.12 + 0.09 > 2.18
+    expect(insideWallBox([wallBox], 0, 2.06, 4.02, 0.2)).not.toBeNull()
+  })
+})
+
 describe('the ceilings', () => {
   it('are the contract: 3 m in every area, open sky in the atrium and outdoors', () => {
     expect(probe.ceilingAt(-30, 0)).toBe(WALL.height)
@@ -118,17 +151,20 @@ describe('the camera over the whole floor plan', () => {
    * inside a wall, never above the ceiling of the area it is in and never under the floor; and when the boom has not been squeezed to
    * its minimum the whole camera ball (radius `probeRadius`) is clear of every wall.
    */
-  function checkFrame(cam: PerspectiveCamera, boom: number, label: string): void {
+  function checkFrame(cam: PerspectiveCamera, boom: number, label: string, settled = false): void {
     const p = cam.position
     expect(insideWallBox(boxes, p.x, p.y, p.z, 0), `${label}: camera centre in a wall`).toBeNull()
-    if (boom > CHASE.minBoom + 0.02) expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.probeRadius - 1e-6), `${label}: camera ball in a wall`).toBeNull()
+    // W3: from the very first frame the HARD ball (`nearRadius`) is clear of every wall (a spring brings the boom in, the clamp is the
+    // guarantee); the SOFT ball (`probeRadius`) is clear once the spring has had half a second
+    expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.nearRadius - 1e-6), `${label}: camera hard ball in a wall`).toBeNull()
+    if (settled && boom > CHASE.minBoom + 0.02) expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.probeRadius - 1e-6), `${label}: camera ball in a wall`).toBeNull()
     const area = areaAt(p.x, p.z)
     const ceiling = area ? ceilingHeight(area.id) : null
     if (ceiling !== null) expect(p.y, `${label}: camera above the ceiling (${area?.id})`).toBeLessThanOrEqual(ceiling - CHASE.ceilingClearance + 1e-9)
     expect(p.y, `${label}: camera under the floor`).toBeGreaterThanOrEqual(CHASE.floorClearance - 1e-9)
   }
 
-  function run(x: number, z: number, yaw: number, pitch: number, dist: number, frames: number, label: string): void {
+  function run(x: number, z: number, yaw: number, pitch: number, dist: number, frames: number, label: string, settledFrom = 30): void {
     const cam = new PerspectiveCamera(60, 16 / 9, 0.1, 500)
     const chase = new ChaseCamera('classic') // the camera steered by the mouse (the guarantee holds for the easy scheme's yaws too: see chaseEasy.test.ts)
     const feet = { x, y: 0, z }
@@ -137,7 +173,7 @@ describe('the camera over the whole floor plan', () => {
     chase.dist = dist
     for (let i = 0; i < frames; i++) {
       const r = chase.update({ feet, vx: 0, vz: 0, heading: yaw, turning: false }, { dt: 1 / 60, dx: 0, dy: 0, wheel: 0, dragging: false, firstPerson: false, floorY: 0 }, probe, cam)
-      checkFrame(cam, r.boom, `${label} frame ${i}`)
+      checkFrame(cam, r.boom, `${label} frame ${i}`, i >= settledFrom)
     }
   }
 
@@ -166,7 +202,8 @@ describe('the camera over the whole floor plan', () => {
       const z = BUILDING.z0 + rnd() * (BUILDING.z1 - BUILDING.z0)
       if (!walkableAt(x, z)) continue
       n++
-      run(x, z, rnd() * 2 * Math.PI, (rnd() * 70 - 15) * DEG, CHASE.maxDistance, 40, `random ${n}`)
+      // the wheel's 4.5 m wants a much longer boom than the walls allow: the spring brings it in at no more than boomInMax, about a second
+      run(x, z, rnd() * 2 * Math.PI, (rnd() * 70 - 15) * DEG, CHASE.maxDistance, 120, `random ${n}`, 90)
     }
   })
 

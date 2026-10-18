@@ -8,7 +8,11 @@
  *   -100  SimLoop             entities (people, cars) interpolated to this frame                  src/sim/SimLoop.ts
  *    -99  L1 ward layers      MealBots, trays, backrests, bedside screens, door tiles (sim + 1)   src/scene/meals
  *    -98  daylight driver     sun colour/intensity, sky, glass, night lights at 1 Hz (sim + 2)    src/scene/daylight
- *    -10  Player              you move, the avatar is placed, then THE CHASE CAMERA (W1 walk-in)   src/scene/player/index.tsx
+ *    -97  environment swap    the walk look's hospital environment or the overview's room (W3)    src/scene/Lighting.tsx
+ *    -96  grade               the LUT and vignette strengths, written only on change (W3)       src/scene/Effects.tsx
+ *    -11  doors               walk and pharmacist doors sense people and you, step their openings, src/scene/building/render/walk,
+ *                             publish their leaves as blockers (W3: before you move)            src/scene/pharmacy/PharmacistDoors.tsx
+ *    -10  Player             you move, the avatar is placed, then THE CHASE CAMERA (W1 walk-in)   src/scene/player/index.tsx
  *     -9  tour director       scripted camera shots; the room-focus flights (tickFlight)         src/scene/tour/index.tsx
  *     -8  interaction         pick what you face, the E prompt, the objective, the seated pose    src/scene/interact/index.tsx
  *     -5  celebration         closing-day effects                                                src/scene/celebration/index.tsx
@@ -33,6 +37,8 @@ export const FRAME_PRIORITY = {
   /** DevProbe (?probe=1): reads the previous whole frame's renderer totals before anything renders. */
   probe: -1000,
   sim: -100,
+  /** W3: doors open and publish their leaves (src/scene/blockers.ts) before the player moves against them. */
+  doors: -11,
   player: -10,
   tour: -9,
   interact: -8,

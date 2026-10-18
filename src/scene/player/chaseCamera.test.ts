@@ -309,7 +309,10 @@ describe('the wall pull-in', () => {
     for (let i = 0; i < 360; i++) {
       w.step({ speed: -1.5 }) // walking backwards towards the wall
       expect(w.camera.position.z).toBeGreaterThanOrEqual(-6 + 0.1)
-      if (w.boom() > CHASE.minBoom + 0.05) expect(w.camera.position.z).toBeGreaterThanOrEqual(-6 + CHASE.probeRadius - 1e-6)
+      // W3: the boom is a spring toward the soft ball's length (it may trail a few centimetres behind a wall you back into), and the
+      // HARD ball is the guarantee: never inside it, and never far inside the soft one
+      if (w.boom() > CHASE.minBoom + 0.05) expect(w.camera.position.z).toBeGreaterThanOrEqual(-6 + CHASE.nearRadius - 1e-6)
+      if (w.boom() > CHASE.minBoom + 0.05) expect(w.camera.position.z).toBeGreaterThanOrEqual(-6 + CHASE.probeRadius - 0.1)
       worstDrop = Math.max(worstDrop, last - w.boom())
       last = w.boom()
     }

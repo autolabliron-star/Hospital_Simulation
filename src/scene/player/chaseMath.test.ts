@@ -11,6 +11,10 @@ import {
   defaultBoom,
   dragOrbit,
   forwardOf,
+  gaitBob,
+  LAG_KNEE,
+  limitFollowLag,
+  followYawStep,
   lookAheadFor,
   lookTargetFor,
   minPitchAboveGround,
@@ -18,10 +22,14 @@ import {
   orbitOffset,
   REST,
   rightOf,
+  runShare,
   shoulderPose,
   smooth01,
   smoothBoom,
   smoothDamp,
+  smoothDampMax,
+  smoothLength,
+  softLimit,
   wrapAngle,
   zoomBoom,
 } from './chaseMath'
@@ -362,5 +370,193 @@ describe('the field of view and your avatar', () => {
       expect(a).toBeGreaterThanOrEqual(prev)
       prev = a
     }
+  })
+})
+
+describe('W3: the springs that never snap', () => {
+  it('smoothDampMax: a jump of the target is followed at no more than the speed limit, the speed never exceeds it, and it comes to an exact rest', () => {
+    const vel = { v: 0 }
+    let x = 0
+    let worst = 0
+    for (let i = 0; i < 600; i++) {
+      const next = smoothDampMax(x, 5, vel, 0.08, DT, 2.7)
+      worst = Math.max(worst, Math.abs(next - x) / DT)
+      x = next
+    }
+    expect(worst).toBeLessThanOrEqual(2.7 + 1e-9)
+    expect(worst).toBeGreaterThan(2.0) // it does use the speed it is given
+    expect(x).toBe(5)
+    expect(vel.v).toBe(0)
+  })
+
+  it('smoothDampMax carries a velocity that is too fast down to the limit at once, and never overshoots the target', () => {
+    const vel = { v: -10 }
+    const next = smoothDampMax(1, 2, vel, 0.5, DT, 3)
+    expect(Math.abs(next - 1) / DT).toBeLessThanOrEqual(3 + 1e-9)
+    // approaching a target from far with a fast velocity: lands on it, never past
+    const v2 = { v: 8 }
+    let x = 0
+    for (let i = 0; i < 300; i++) {
+      x = smoothDampMax(x, 1, v2, 0.1, DT, 9)
+      expect(x).toBeLessThanOrEqual(1)
+    }
+    expect(x).toBe(1)
+  })
+
+  it('smoothDampMax with a small step is the plain smoothDamp', () => {
+    const a = { v: 0 }
+    const b = { v: 0 }
+    let x = 0
+    let y = 0
+    for (let i = 0; i < 40; i++) {
+      x = smoothDamp(x, 0.05, a, 0.1, DT)
+      y = smoothDampMax(y, 0.05, b, 0.1, DT, 100)
+      expect(y).toBeCloseTo(x, 12)
+    }
+  })
+
+  it('smoothLength shortens quickly and lengthens slowly, turns round without a jump in its position, and arrives in finite time', () => {
+    const vel = { v: 0 }
+    let x = 3
+    // a wall appears: in (0.08 s, at most 2.7 m/s)
+    for (let i = 0; i < 20; i++) x = smoothLength(x, 1.5, vel, DT, 0.08, 2.7, 0.5, 2.4, 1.6, 3)
+    expect(x).toBeGreaterThan(3 - 2.7 * (20 / 60) - 1e-9) // never faster than 2.7 m/s: a third of a second cannot take it further than that
+    for (let i = 0; i < 40; i++) x = smoothLength(x, 1.5, vel, DT, 0.08, 2.7, 0.5, 2.4, 1.6, 3)
+    expect(x).toBeLessThan(1.51)
+    expect(x).toBeGreaterThanOrEqual(1.5)
+    // it goes away: out, never faster than 2.4 m/s, and it arrives exactly
+    let worst = 0
+    let frames = 0
+    while (x !== 3 && frames < 600) {
+      const next = smoothLength(x, 3, vel, DT, 0.08, 2.7, 0.5, 2.4, 1.6, 3)
+      worst = Math.max(worst, (next - x) / DT)
+      x = next
+      frames++
+    }
+    expect(x).toBe(3)
+    expect(frames).toBeLessThan(180)
+    expect(worst).toBeLessThanOrEqual(2.4 + 1e-9)
+    expect(vel.v).toBe(0)
+  })
+
+  it('softLimit is the identity up to the knee, bends over after it with no corner, stays under the limit and never goes down', () => {
+    const knee = 0.6
+    const limit = 1
+    for (const x of [0, 0.2, 0.59, 0.6]) expect(softLimit(x, knee, limit)).toBe(x)
+    let last = softLimit(0.6, knee, limit)
+    for (let x = 0.6; x < 5; x += 0.01) {
+      const y = softLimit(x, knee, limit)
+      expect(y).toBeLessThan(limit)
+      expect(y).toBeGreaterThanOrEqual(last - 1e-12)
+      expect(y).toBeLessThanOrEqual(x + 1e-12)
+      last = y
+    }
+    // C1 at the knee: the slope just after it is 1
+    const h = 1e-4
+    expect((softLimit(knee + h, knee, limit) - softLimit(knee, knee, limit)) / h).toBeGreaterThan(0.999)
+  })
+})
+
+describe('W3: the follow lag is squeezed softly', () => {
+  const MAX = (40 * Math.PI) / 180
+
+  /** The camera's yaw behind a heading that turns at `rate` rad/s for `seconds`: returns the lag and the yaw rate per frame. */
+  function follow(rate: number, seconds: number, dt = DT): { lag: number[]; rates: number[]; yaw: number } {
+    const vel = { v: 0 }
+    let heading = 0
+    let yaw = 0
+    const lag: number[] = []
+    const rates: number[] = []
+    for (let i = 0; i < Math.round(seconds / dt); i++) {
+      heading += rate * dt
+      const next = followYawStep(yaw, heading, vel, 0.22, MAX, dt)
+      rates.push(angleDelta(yaw, next) / dt)
+      yaw = next
+      lag.push(Math.abs(angleDelta(yaw, heading)))
+    }
+    return { lag, rates, yaw }
+  }
+
+  it('a 200 degrees a second turn (a natural lag of 44 degrees) never lags past the limit and its rate never jumps by more than 2 rad/s', () => {
+    const { lag, rates } = follow(200 * DEG, 5)
+    expect(Math.max(...lag)).toBeLessThanOrEqual(MAX + 1 * DEG)
+    expect(Math.max(...lag)).toBeLessThan(MAX)
+    let worst = 0
+    for (let i = 1; i < rates.length; i++) worst = Math.max(worst, Math.abs(rates[i] - rates[i - 1]))
+    expect(worst).toBeLessThan(2)
+    // and it is the same smooth thing at other frame rates
+    for (const fps of [30, 144]) {
+      const r = follow(200 * DEG, 5, 1 / fps)
+      expect(Math.max(...r.lag)).toBeLessThan(MAX)
+    }
+  })
+
+  it('a lag under the knee is exactly the plain critically damped follow', () => {
+    const vel = { v: 0 }
+    const plain = { v: 0 }
+    let a = 0
+    let b = 0
+    let heading = 0
+    for (let i = 0; i < 120; i++) {
+      heading += 90 * DEG * DT // a natural lag of 20 degrees: under the knee (24)
+      a = followYawStep(a, heading, vel, 0.22, MAX, DT)
+      b = dampAngle(b, heading, plain, 0.22, DT)
+      expect(a).toBe(b)
+    }
+    expect(20 * DEG).toBeLessThan(LAG_KNEE * MAX)
+  })
+
+  it('a lag that is already bigger than the limit (a hand turn) shrinks at the spring\'s own pace, and is only kept from growing', () => {
+    const vel = { v: 0 }
+    let yaw = 0
+    const heading = 120 * DEG
+    let last = Math.abs(angleDelta(yaw, heading))
+    for (let i = 0; i < 40; i++) {
+      yaw = followYawStep(yaw, heading, vel, 0.22, MAX, DT)
+      const lag = Math.abs(angleDelta(yaw, heading))
+      expect(lag).toBeLessThanOrEqual(last + 1e-12)
+      last = lag
+    }
+    expect(last).toBeLessThan(120 * DEG * 0.5)
+  })
+
+  it('limitFollowLag: a hitch is squeezed under the limit with no jump in the follow point\'s speed; at running speed it does not touch it', () => {
+    const f = newDamped({ x: 0, y: 0, z: 0 })
+    const pivot = { x: 0, y: 0, z: 0 }
+    // 0.34 m of lag (a run, 0.08 s behind 4.2 m/s) is a hair over the knee at 0.3 m
+    f.x = -0.34
+    limitFollowLag(f, pivot, 0.5, DT)
+    expect(f.x).toBeCloseTo(-0.3395, 3)
+    // a teleport: far away is brought in under the limit, and the velocity gets the rate it was moved at
+    f.x = -3
+    f.vx = 0
+    limitFollowLag(f, pivot, 0.5, DT)
+    expect(Math.abs(f.x)).toBeLessThan(0.5)
+    expect(f.vx).toBeGreaterThan(0)
+    // within the knee nothing happens at all
+    const g = newDamped({ x: -0.2, y: 0, z: 0.1 })
+    limitFollowLag(g, pivot, 0.5, DT)
+    expect(g.x).toBe(-0.2)
+    expect(g.z).toBe(0.1)
+  })
+})
+
+describe('W3: running shows in the lens and the bob', () => {
+  it('runShare is 0 at a walk and below, 1 at a hurry, or the legs\' own run blend when that is more', () => {
+    expect(runShare(0, 0)).toBe(0)
+    expect(runShare(CONFIG.player.walkSpeed, 0)).toBe(0)
+    expect(runShare(CONFIG.player.hurrySpeed, 0)).toBe(1)
+    expect(runShare(0.5, 0.4)).toBe(0.4)
+    expect(runShare(CONFIG.player.hurrySpeed, 0.4)).toBe(1)
+    expect(runShare(3, 0)).toBeGreaterThan(0)
+    expect(runShare(3, 0)).toBeLessThan(1)
+  })
+
+  it('gaitBob is lowest at a heel strike, highest between the steps, twice a cycle, and continuous across the wrap', () => {
+    expect(gaitBob(0)).toBe(-1) // a left heel strike
+    expect(gaitBob(0.5)).toBeCloseTo(-1, 12) // a right one
+    expect(gaitBob(0.25)).toBeCloseTo(1, 12)
+    expect(gaitBob(0.75)).toBeCloseTo(1, 12)
+    expect(Math.abs(gaitBob(0.9999) - gaitBob(0))).toBeLessThan(1e-6)
   })
 })

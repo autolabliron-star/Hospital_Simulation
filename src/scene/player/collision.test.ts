@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { planRoute } from '@/sim/nav/graph'
 import { isWalkable } from '@/sim/nav/layout'
+import { CONFIG } from '@/sim/config'
 import { BUILDING, DOORS, IMAGING, PLAYER_PLAZA, PLAYER_SPAWN, ROOMS, STAFF_ROOM } from '@/sim/places'
-import { inPlaza, moveBody, newBodyMove, settle, walkableAt } from './collision'
+import { collisionStats, inPlaza, moveBody, newBodyMove, settle, walkableAt } from './collision'
 import { BODY, MOVE } from './tuning'
 
 /** A small deterministic generator (this is test code, not the seeded sim). */
@@ -88,13 +89,18 @@ describe('a step never ends on ground you cannot stand on, and never hops a wall
       }
     }
     expect(blockedSteps).toBeGreaterThan(100) // the walks did run into things
+    expect(collisionStats.backstopFallbacks).toBe(0) // and the solids and the region agreed about every step
   })
 
   it('a 50 ms hitch at full speed across a wall does not put you through it', () => {
-    // from the lobby straight at the wall between the lobby and triage (z = -4 ... wall line), at 3.2 m/s with a 0.05 s frame
+    // from the lobby straight at the wall between the lobby and triage (z = -4 ... wall line), at the run speed with a 0.05 s frame
+    // (W3: the reception desk and the café are solid now, so only the starts that are clear count)
+    let walked = 0
     for (let x = -57; x <= -52; x += 0.5) {
       let cx = x
       let cz = -2.5
+      if (!walkableAt(cx, cz)) continue
+      walked++
       for (let i = 0; i < 40; i++) {
         moveBody(cx, cz, 0, -MOVE.hurrySpeed * 0.05, out)
         cx = out.x
@@ -102,6 +108,7 @@ describe('a step never ends on ground you cannot stand on, and never hops a wall
         expect(walkableAt(cx, cz)).toBe(true)
       }
     }
+    expect(walked).toBeGreaterThanOrEqual(4)
   })
 
   it('walks into a wall and stops a body radius from its face; along the wall it slides', () => {
@@ -113,7 +120,7 @@ describe('a step never ends on ground you cannot stand on, and never hops a wall
       cx = out.x
       cz = out.z
     }
-    expect(cx).toBeCloseTo(-62.1 - BODY.radius, 2) // the wall face is at -62.1
+    expect(cx).toBeCloseTo(-62.1 - BODY.radius - CONFIG.player.bodySkin, 6) // the wall face is at -62.1; the skin keeps the body 1 cm further off
     expect(out.blocked).toBe(true)
     // now walk diagonally into the wall: the east part is lost, the south part is kept
     const z0 = cz
@@ -123,7 +130,7 @@ describe('a step never ends on ground you cannot stand on, and never hops a wall
       cz = out.z
     }
     expect(cz).toBeGreaterThan(z0 + 0.9) // kept sliding south (20 steps of 0.05 m)
-    expect(cx).toBeCloseTo(-62.1 - BODY.radius, 2) // never into the wall
+    expect(cx).toBeCloseTo(-62.1 - BODY.radius - CONFIG.player.bodySkin, 6) // never into the wall, and no creeping towards it while sliding
     expect(walkableAt(cx, cz)).toBe(true)
   })
 
@@ -152,7 +159,7 @@ describe('a step never ends on ground you cannot stand on, and never hops a wall
 
   it('a step of nothing stays put, and a body that was somewhere odd is not made worse', () => {
     moveBody(-55, 0, 0, 0, out)
-    expect(out).toEqual({ x: -55, z: 0, blocked: false })
+    expect(out).toEqual({ x: -55, z: 0, blocked: false, progress: 1 })
   })
 })
 

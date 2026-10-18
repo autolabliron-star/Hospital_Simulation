@@ -7,6 +7,7 @@
  * Emissive caps (skill pitfall "too-bright screens"): status lights ≤ 2.5, screens ≤ 1.2, lane lines ≤ 0.6.
  */
 import { Color, DoubleSide, MeshStandardMaterial, type Material } from 'three'
+import { applyPaletteLook } from '@/scene/lighting/palettePatch'
 
 export type MatKey =
   // floors
@@ -115,6 +116,13 @@ export const MAT: Record<MatKey, MeshStandardMaterial> = {
   }
   m.customProgramCacheKey = () => 'tintedGlow:emissive-tint'
 })(MAT.tintedGlow)
+
+/**
+ * W3: the realistic indoor light. Every palette material picks up the baked light volume, the floors reflect the ceiling panels and the glass
+ * gets its Fresnel (src/scene/lighting/palettePatch.ts). Runs after the patch above so its chain composes with it (the program keys are
+ * `<previous>+lv0...`), and is invisible until walk mode turns the volume on: with the volume off the shaders compute what they always did.
+ */
+applyPaletteLook(MAT)
 
 /** Every palette material, for the shader warm-up. */
 export const ALL_MATERIALS: Material[] = Object.values(MAT)

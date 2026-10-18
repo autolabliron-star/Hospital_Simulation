@@ -6,12 +6,15 @@
  *   mounted   the module puts a mesh with this material into the scene when it mounts (hidden or not: the warm-up walks the whole tree,
  *             hidden walk-only and overview-only groups included), so the traversal finds it. This is the rule for everything new.
  *
+ *   offline   (W3) the material is only ever drawn once, at mount, into an offscreen target (a procedural environment rendered into a PMREM):
+ *             it never appears in a frame, so it needs no warming. What it produces (the texture) is registered with `registerWarmSource`.
+ *
  * A material that is created LATER (on an event, a Jump, the first emote) is not reachable at warm-up time. Create it at mount and keep it on a
  * hidden mesh, or register it with `registerWarmSource` (registry.ts).
  *
  * Counts are the occurrences of `new XxxMaterial(`, a lowercase R3F `<meshXxxMaterial`, and `.clone()` of a material, comments excluded.
  */
-export type WarmPath = 'palette' | 'mounted'
+export type WarmPath = 'palette' | 'mounted' | 'offline'
 
 export interface MaterialSite {
   /** How many construction sites the file has. */
@@ -33,6 +36,7 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/daylight/index.tsx': { count: 1, via: 'mounted', where: 'the corridor night-light strips (always drawn, writing no pixels by day)' },
   'src/scene/fx/EmoteLayer.tsx': { count: 1, via: 'mounted', where: 'the emote icon mesh, hidden while nobody emotes (re-created on a Jump; the program is shared by its cache key)' },
   'src/scene/imaging/machines/machineMaterials.ts': { count: 3, via: 'mounted', where: 'imaging rig: MACHINE_BODY, MACHINE_GLOW and the four monitors (made at mount by createRig)' },
+  'src/scene/lighting/env/hospitalEnvironment.ts': { count: 1, via: 'offline', where: 'the hospital environment: unlit room faces, light panels and a daylight strip, rendered once into a PMREM at mount (never in a frame)' },
   'src/scene/meals/blob.ts': { count: 1, via: 'mounted', where: 'MealBot shadow mesh' },
   'src/scene/meals/botsRig.ts': { count: 2, via: 'mounted', where: 'MealBot body and light ring (kept on hidden zero-size instances while no bot is out)' },
   'src/scene/meals/traysRig.ts': { count: 1, via: 'mounted', where: 'tray and cloche meshes (hidden instances)' },

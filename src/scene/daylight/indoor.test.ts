@@ -4,6 +4,7 @@ import { setScreenLevel } from './dim'
 import { DaylightDriver, FOLLOW_SECONDS, type DayTargets } from './driver'
 import { INDOOR, INDOOR_SECONDS, indoorFactor, indoorTarget } from './indoor'
 import { lightAt } from './lightAt'
+import { HOSPITAL_ENV_MATCH } from '@/scene/lighting/look'
 
 function rig() {
   const sun = new DirectionalLight('#fff6ea', 1.75)
@@ -27,11 +28,14 @@ function run(d: DaylightDriver, r: ReturnType<typeof rig>, hour: number, seconds
 describe('the indoor light preset (walk mode)', () => {
   beforeEach(() => setScreenLevel(1))
 
-  it('the factors: the sun to about a third, the fill and the environment up', () => {
-    expect(INDOOR.sun).toBeGreaterThan(0.3)
+  it('the factors (W3 retune): the sun to about a third, the fill and the environment turned down from the W1 boosts', () => {
+    expect(INDOOR.sun).toBeGreaterThan(0.2)
     expect(INDOOR.sun).toBeLessThan(0.4)
-    expect(INDOOR.hemi).toBeGreaterThan(1)
-    expect(INDOOR.env).toBeGreaterThan(1)
+    // the light volume brings the rooms' own bounce now: the W1 boosts (hemisphere x1.5, environment x2.2) come down
+    expect(INDOOR.hemi).toBeGreaterThan(0.7)
+    expect(INDOOR.hemi).toBeLessThan(1.5)
+    expect(INDOOR.env).toBeLessThan(2.2)
+    expect(INDOOR.env).toBeGreaterThan(0.5)
     expect(indoorFactor(INDOOR.sun, 0)).toBe(1)
     expect(indoorFactor(INDOOR.sun, 1)).toBeCloseTo(INDOOR.sun, 12)
     expect(indoorFactor(INDOOR.hemi, 0.5)).toBeCloseTo((1 + INDOOR.hemi) / 2, 12)
@@ -43,16 +47,17 @@ describe('the indoor light preset (walk mode)', () => {
     for (const m of ['walk', 'toWalk', 'toOverview']) expect(indoorTarget(m)).toBe(1)
   })
 
-  it('walking at noon: the sun at about 35 %, the hemisphere and the environment raised, nothing else moved', () => {
+  it('walking at noon: the sun at about 30 %, the hemisphere and the environment at the walk look, the sky and the glass untouched', () => {
     const r = rig()
     const d = new DaylightDriver()
     run(d, r, 12, 3, 1)
     const day = lightAt(12)
     expect(r.sun.intensity).toBeCloseTo(day.sunIntensity * INDOOR.sun, 6)
-    expect(r.sun.intensity / day.sunIntensity).toBeGreaterThan(0.3)
+    expect(r.sun.intensity / day.sunIntensity).toBeGreaterThan(0.2)
     expect(r.sun.intensity / day.sunIntensity).toBeLessThan(0.4)
     expect(r.hemi.intensity).toBeCloseTo(day.hemiIntensity * INDOOR.hemi, 6)
-    expect(r.scene.environmentIntensity).toBeCloseTo(day.envIntensity * INDOOR.env, 6)
+    // the hospital environment is bound by now: its intensity carries the match that keeps the ambient continuous at the swap
+    expect(r.scene.environmentIntensity).toBeCloseTo(day.envIntensity * INDOOR.env * HOSPITAL_ENV_MATCH, 6)
     // the windows stay bright: the glass and the sky are the day's, untouched by the preset
     expect(r.glass.opacity).toBeCloseTo(day.glassOpacity, 9)
     expect(r.glass.color.r).toBeCloseTo(new Color().setRGB(day.glass[0], day.glass[1], day.glass[2], 'srgb').r, 6)

@@ -15,13 +15,32 @@
  * big step in the hour the driver snaps instead of easing, behind the fade.
  *
  * Walk mode (W1): the caller passes `indoor` (0 in the overview, 1 while walking); the driver eases a blend toward it and, on top of
- * the light of the hour, scales the sun down and the fill and environment up (./indoor.ts). Same properties, same uniforms.
+ * the light of the hour, applies the LOOK of that blend (src/scene/lighting/look.ts: row 0 is exactly the overview's light, row 1 the
+ * realistic walk look): the sun, fill and environment factors, the tone-mapping exposure, the light volume's uniforms (the panels' and the
+ * sky's colour at the hour, the AO strength), the floors' roughness, the floor reflection and glass Fresnel strengths, and the colour grade's
+ * and vignette's strengths (published in `liveLook` for Effects.tsx). Same properties, same uniforms, never a define or a needsUpdate.
  *
  * Pure of React and of the sim (the hour and the generation are passed in), so it runs in node tests with real three objects.
  */
 import { Color, type DirectionalLight, type HemisphereLight, type MeshBasicMaterial, type MeshStandardMaterial, type Scene } from 'three'
+import { LIGHTING_FLAGS, type LightingFlags } from '@/scene/lighting/flags'
+import { liveLook } from '@/scene/lighting/liveLook'
+import {
+  ENV_SWAP_AT,
+  ENV_SWAP_BAND,
+  HOSPITAL_ENV_MATCH,
+  PANEL_COLOR,
+  PANEL_NIGHT_COLOR,
+  PANEL_WARMTH,
+  SKY_MIN,
+  VIGNETTE_DARKNESS,
+  createLook,
+  lookAt,
+  type Look,
+} from '@/scene/lighting/look'
+import { lvUniforms } from '@/scene/lighting/volume/uniforms'
 import { setScreenLevel } from './dim'
-import { INDOOR, INDOOR_SECONDS, indoorFactor } from './indoor'
+import { INDOOR_SECONDS } from './indoor'
 import { copyDayLight, createDayLight, lerpDayLight, lightAt, maxDifference, type DayLight } from './lightAt'
 
 /** What the driver writes into. Anything may be null (a layer not mounted yet): it is skipped. */
@@ -36,6 +55,14 @@ export interface DayTargets {
   lamps: MeshStandardMaterial
   /** The corridor night lights: a basic material whose colour is the level, and whether they are lit at all (see `setLit`). */
   nightLights: { material: MeshBasicMaterial; setLit(lit: boolean): void } | null
+  /** W3: the renderer (only its `toneMappingExposure` is written: the post-processing tone mapper reads it). */
+  renderer?: { toneMappingExposure: number } | null
+  /** W3: the interior floors and the roughness each has while walking (the base values are remembered at the first write). */
+  floors?: readonly { material: MeshStandardMaterial; walk: number }[] | null
+  /** W3: the walk ceiling's panels: their emissive intensity at full brightness, for the radiance the floors reflect. */
+  ceilingEmissive?: number
+  /** W3: the quality ladder is on its effects-lite rung (no floor reflection). */
+  fxLite?: boolean
 }
 
 /** Seconds the lights take to catch up with a new target (an exponential follow). */
@@ -49,6 +76,9 @@ export const NIGHT_LIGHT_VISIBLE = 0.02
 
 const WARM_PANEL = new Color('#ffd7a3')
 const NIGHT_LIGHT_COLOR = new Color('#ffc886')
+/** The ceiling panels' light (W3) and the warm white it drifts toward at night, parsed once. */
+const PANEL_WHITE = new Color(PANEL_COLOR)
+const PANEL_NIGHT = new Color(PANEL_NIGHT_COLOR)
 
 export class DaylightDriver {
   private readonly target = createDayLight()
@@ -67,8 +97,16 @@ export class DaylightDriver {
   private baseTealIntensity = 0
   private baseLampIntensity = 0
   private readonly tmp = new Color()
+  private readonly look = createLook()
+  private readonly panelColor = new Color()
+  private floorBase: number[] | null = null
+  /** The environment bound now (decided with hysteresis around the swap point), and the effects rung last written. */
+  private hospitalEnv = false
+  private appliedFxLite = false
   /** Frames on which something was written (for tests). */
   writes = 0
+
+  constructor(private readonly flags: Readonly<LightingFlags> = LIGHTING_FLAGS) {}
 
   /**
    * One frame. `hour` is read (at 1 Hz) from `readHour`; `generation` changes when the hospital is rebuilt (a Jump).
@@ -93,8 +131,21 @@ export class DaylightDriver {
       this.indoor += (indoorTarget - this.indoor) * (1 - Math.exp(-Math.min(dt, 0.25) / INDOOR_SECONDS))
       if (Math.abs(indoorTarget - this.indoor) < 1e-3) this.indoor = indoorTarget
     }
+    // which environment is bound: the hospital's once the blend has crossed half way (a band of hysteresis, so a reversed flight never flickers)
+    const wantHospital = this.wantsHospitalEnv()
+    const fxLite = !!t.fxLite
     // once the lights have caught up there is nothing left to write
-    if (!snap && !this.pending && this.indoor === this.appliedIndoor && maxDifference(this.current, this.applied) < 1e-5) return
+    if (
+      !snap &&
+      !this.pending &&
+      this.indoor === this.appliedIndoor &&
+      wantHospital === this.hospitalEnv &&
+      fxLite === this.appliedFxLite &&
+      maxDifference(this.current, this.applied) < 1e-5
+    )
+      return
+    this.hospitalEnv = wantHospital
+    this.appliedFxLite = fxLite
     this.apply(this.current, t)
     this.first = false
     this.pending = !t.sun || !t.hemi || !t.scene || !t.nightLights
@@ -103,20 +154,30 @@ export class DaylightDriver {
     this.writes++
   }
 
+  /** Hospital environment: on when the blend is past the swap point (plus the band going in, minus it coming out), never with ?look=model or ?env=room. */
+  private wantsHospitalEnv(): boolean {
+    if (this.flags.model || this.flags.roomEnv) return false
+    const k = this.indoor
+    return this.hospitalEnv ? k > ENV_SWAP_AT - ENV_SWAP_BAND : k > ENV_SWAP_AT + ENV_SWAP_BAND
+  }
+
   /** Write `l` into the targets: colours, intensities, opacities, visibility. Nothing here needs a recompile. */
   apply(l: DayLight, t: DayTargets): void {
     const tmp = this.tmp
     const k = this.indoor
+    const look = lookAt(k, this.flags.model, this.look)
     if (t.sun) {
       t.sun.color.setRGB(l.sun[0], l.sun[1], l.sun[2], 'srgb')
-      t.sun.intensity = l.sunIntensity * indoorFactor(INDOOR.sun, k)
+      t.sun.intensity = l.sunIntensity * look.sun
     }
-    if (t.hemi) t.hemi.intensity = l.hemiIntensity * indoorFactor(INDOOR.hemi, k)
+    if (t.hemi) t.hemi.intensity = l.hemiIntensity * look.hemi
     if (t.scene) {
-      t.scene.environmentIntensity = l.envIntensity * indoorFactor(INDOOR.env, k)
+      // the hospital's environment is a little dimmer overhead than RoomEnvironment: HOSPITAL_ENV_MATCH keeps the ambient continuous at the swap
+      t.scene.environmentIntensity = l.envIntensity * look.env * (this.hospitalEnv ? HOSPITAL_ENV_MATCH : 1)
       const bg = t.scene.background as Color | null
       if (bg && (bg as Color).isColor) bg.setRGB(l.sky[0], l.sky[1], l.sky[2], 'srgb')
     }
+    this.applyLook(l, look, t)
     t.glass.color.setRGB(l.glass[0], l.glass[1], l.glass[2], 'srgb')
     t.glass.opacity = l.glassOpacity
     // the panels keep their own teal at day and move toward warm white as the rooms settle for the evening and the night
@@ -136,6 +197,41 @@ export class DaylightDriver {
       nl.setLit(lit)
       if (lit) nl.material.color.copy(NIGHT_LIGHT_COLOR).multiplyScalar(l.nightLights)
     }
+  }
+
+  /**
+   * The W3 part of the look: exposure, the light volume's uniforms, the floors, the effects' strengths. Numbers into uniforms and properties
+   * that never need a recompile; nothing is allocated.
+   */
+  private applyLook(l: DayLight, look: Look, t: DayTargets): void {
+    const k = this.indoor
+    if (t.renderer) t.renderer.toneMappingExposure = look.exposure
+    if (t.floors) {
+      const floors = t.floors
+      const base = (this.floorBase ??= floors.map((f) => f.material.roughness))
+      for (let i = 0; i < floors.length; i++) floors[i].material.roughness = base[i] + (floors[i].walk - base[i]) * look.floorRough
+    }
+    // the light volume: on while there is anything to add (the overview skips the fetch altogether)
+    const u = lvUniforms
+    u.uLvOn.value = this.flags.volume && !this.flags.model && (k > 0 || look.ao > 0) ? 1 : 0
+    u.uLvIndoor.value = k
+    u.uLvAo.value = this.flags.volume ? look.ao : 0
+    // the panels' light: their colour drifting warm in the evening, as bright as the visible panels are (the screens level dims both)
+    this.panelColor.copy(PANEL_WHITE).lerp(PANEL_NIGHT, l.panelWarmth * PANEL_WARMTH)
+    u.uLvPanel.value.copy(this.panelColor).multiplyScalar(look.panelGain * l.screens)
+    // the sky through the windows, and the open air: its colour at the hour, as strong as the day is
+    this.tmp.setRGB(l.sky[0], l.sky[1], l.sky[2], 'srgb')
+    u.uLvSky.value.copy(this.tmp).multiplyScalar(look.skyGain * Math.max(SKY_MIN, 1 - l.night))
+    // the floors: the panels' reflection (off in the overview, with ?refl=0 and on the effects-lite rung) and the glass's Fresnel
+    u.uLvReflect.value = this.flags.reflect && !t.fxLite ? look.reflect : 0
+    u.uLvPanelRad.value.copy(this.panelColor).multiplyScalar((t.ceilingEmissive ?? 0) * l.screens)
+    u.uLvGlass.value = look.glass
+    // the effects read these once a frame and act when `version` moves (Effects.tsx)
+    liveLook.blend = k
+    liveLook.hospitalEnv = this.hospitalEnv
+    liveLook.grade = look.grade
+    liveLook.vignette = look.vignette * VIGNETTE_DARKNESS
+    liveLook.version++
   }
 }
 

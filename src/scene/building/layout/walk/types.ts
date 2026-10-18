@@ -124,7 +124,7 @@ export interface Plate {
   line: number
 }
 
-/** A door that moves: sliding leaves (`auto`) or one leaf that swings into the room beyond (`swing`). */
+/** A door that moves: sliding leaves (`auto`) or one double-acting leaf (`swing`, W3: it swings away from whoever opens it). */
 export interface WalkDoor {
   id: string
   kind: 'auto' | 'swing'
@@ -138,7 +138,11 @@ export interface WalkDoor {
   along: { x: number; z: number }
   /** auto: the leaves sit this far off the wall line (signed, across the wall) so they clear a thin glass sheet, and slide into the wall. */
   offset: number
-  /** swing: +1 hinge at the +along jamb, -1 at the other; `into` is the unit vector the leaf swings toward (the room beyond). */
+  /**
+   * swing: +1 hinge at the +along jamb, -1 at the other; `into` is the unit vector of the DEFAULT swing side (the room beyond). The doors are
+   * double-acting (W3): the door bank picks +1 (toward `into`) or -1 (the other side) each time a shut door starts to open, away from the
+   * body that opened it (render/walk/doorBank.ts `swing`).
+   */
   hinge: 1 | -1
   into: { x: number; z: number }
   /** swing: the widest the leaf opens (radians), chosen so its sweep clears every footprint. */

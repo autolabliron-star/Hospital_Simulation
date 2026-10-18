@@ -50,7 +50,16 @@ function canopy(f: Frame, id: string, xMin: number, xMax: number, zc: number, de
   f.rbox(cx, y + 0.22, zc, w + 0.1, 0.04, depthZ + 0.1, 'wallCap', { r: 0.02, cast: false })
   f.box(cx, y - 0.04, zc - depthZ / 2 + 0.03, w - 0.1, 0.04, 0.06, 'wallMint', { cast: false })
   f.box(cx, y - 0.04, zc + depthZ / 2 - 0.03, w - 0.1, 0.04, 0.06, 'wallMint', { cast: false })
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) f.cyl(cx + sx * (w / 2 - 0.35), 0, zc + sz * (depthZ / 2 - 0.35), 0.18, y, 'frame')
+  let column = 0
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const px = cx + sx * (w / 2 - 0.35)
+      const pz = zc + sz * (depthZ / 2 - 0.35)
+      f.cyl(px, 0, pz, 0.18, y, 'frame')
+      // W3: a column is solid for your body (the building's people never go there; the footprint is outdoors, so the nav skips it)
+      f.circle(`${id}:column${column++}`, px, pz, 0.09)
+    }
+  }
   f.box(cx, y - 0.02, zc, w - 0.6, 0.02, 0.1, 'glowWarm', { cast: false })
   f.rect(`${id}:canopy`, cx, zc, w, depthZ, { overhead: true })
 }
@@ -121,8 +130,10 @@ export function buildExterior(b: LayoutBuilder): void {
   ambulanceBay(f)
   treeSpots(b)
   // forecourt planters flanking the entrance walk
-  for (const z of [-7, 4.2]) {
+  for (const [i, z] of [-7, 4.2].entries()) {
     f.cyl(-70.2, 0, z, 1.0, 0.5, 'concrete')
     f.sphere(-70.2, 0.5, z, 0.9, 0.9, 0.9, 'leaf')
+    // W3: planters are solid for your body (outdoor footprints are not in the people's nav)
+    f.circle(`forecourt:planter${i}`, -70.2, z, 0.5)
   }
 }

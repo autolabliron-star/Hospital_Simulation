@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { angleDelta, wrapAngle } from './chaseMath'
-import { DEFAULT_SCHEME, maxTurnRate, newSteering, newTurn, routeInput, schemeFromSearch, stepTurn, turnedHeading } from './scheme'
+import { DEFAULT_SCHEME, TURN_RELEASE_SECONDS, TURN_RISE_SECONDS, maxTurnRate, newSteering, newTurn, routeInput, schemeFromSearch, stepTurn, turnedHeading } from './scheme'
 import { EASY } from './tuning'
 
 const DEG = Math.PI / 180
@@ -170,12 +170,15 @@ describe('turning with A and D', () => {
     expect(Math.cos(heading)).toBeGreaterThan(0)
   })
 
-  it('there is no dead frame: the very first frame of a press already turns, at the kick share of the full rate or more', () => {
+  it('there is no dead frame and no kick: the very first frame of a press already turns a little, and the rate rises as a first-order lag', () => {
     for (const turn of [1, -1]) {
       const t = newTurn()
       const delta = Math.abs(stepTurn(t, turn, false, DT))
-      expect(delta).toBeGreaterThanOrEqual(maxTurnRate(false) * EASY.turnKick * DT - 1e-12)
-      expect(delta).toBeLessThan(maxTurnRate(false) * DT)
+      // the angle of the first frame is the integral of the rising rate: well under the old 45 % kick (1 degree), well over nothing
+      expect(delta).toBeGreaterThan(0.1 * DEG)
+      expect(delta).toBeLessThan(0.45 * maxTurnRate(false) * DT)
+      // and the rate after it is the first-order step: max (1 - e^(-dt / tau))
+      expect(Math.abs(t.rate)).toBeCloseTo(maxTurnRate(false) * (1 - Math.exp(-DT / TURN_RISE_SECONDS)), 9)
     }
   })
 
@@ -218,13 +221,45 @@ describe('turning with A and D', () => {
     expect(Math.abs(after) / DEG).toBeLessThan(10)
   })
 
-  it('reversing (D then A) starts the new turn at the kick at once, never slower and never through the old rate', () => {
+  it('reversing (D then A) turns the new way at once (the rate passes through zero as a lag, with no jump and no kick)', () => {
     const t = newTurn()
     for (let i = 0; i < 30; i++) stepTurn(t, 1, false, DT)
     expect(t.rate).toBeLessThan(0)
+    const before = t.rate
     const delta = stepTurn(t, -1, false, DT)
-    expect(delta).toBeGreaterThan(0)
-    expect(t.rate).toBeGreaterThanOrEqual(maxTurnRate(false) * EASY.turnKick)
+    // the rate moves towards the new target by the lag's share of the whole gap: never past it, never a jump to it
+    const gap = maxTurnRate(false) - before // A asks for the opposite rate
+    expect(t.rate - before).toBeCloseTo(gap * (1 - Math.exp(-DT / TURN_RISE_SECONDS)), 9)
+    expect(Math.abs(t.rate - before)).toBeLessThanOrEqual(2 * maxTurnRate(false) * (1 - Math.exp(-DT / TURN_RISE_SECONDS)) + 1e-12)
+    expect(delta).toBeLessThan(0.0) // the first frame is still mostly the old turn
+    // a few frames later it is turning the new way
+    for (let i = 0; i < 10; i++) stepTurn(t, -1, false, DT)
+    expect(t.rate).toBeGreaterThan(0)
+  })
+
+  it('the rate never changes by more than the lag allows in a frame (at any frame rate), and the angle is the exact integral of the rate', () => {
+    for (const dt of [1 / 20, 1 / 30, 1 / 60, 1 / 144]) {
+      const t = newTurn()
+      let last = 0
+      let angle = 0
+      for (let i = 0; i < Math.round(0.5 / dt); i++) {
+        angle += stepTurn(t, 1, false, dt)
+        expect(Math.abs(t.rate - last)).toBeLessThanOrEqual(maxTurnRate(false) * (1 - Math.exp(-dt / TURN_RISE_SECONDS)) + 1e-12)
+        last = t.rate
+      }
+      for (let i = 0; i < Math.round(0.5 / dt); i++) {
+        angle += stepTurn(t, 0, false, dt)
+        expect(Math.abs(t.rate - last)).toBeLessThanOrEqual(maxTurnRate(false) * (1 - Math.exp(-dt / TURN_RELEASE_SECONDS)) + 1e-12)
+        last = t.rate
+      }
+      // the same turn whatever the frame rate: the closed form of half a second of D, then half a second of letting go
+      const tau = TURN_RISE_SECONDS
+      const m = maxTurnRate(false)
+      const held = m * (0.5 - tau * (1 - Math.exp(-0.5 / tau)))
+      const rateAtRelease = m * (1 - Math.exp(-0.5 / tau))
+      const coast = rateAtRelease * TURN_RELEASE_SECONDS * (1 - Math.exp(-0.5 / TURN_RELEASE_SECONDS))
+      expect(-angle).toBeCloseTo(held + coast, 4) // (the last 1e-3 rad/s of the release is snapped to 0)
+    }
   })
 
   it('both keys cancel (the turn input is 0), the input is clamped, and a zero-length frame turns nothing', () => {

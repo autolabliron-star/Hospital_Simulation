@@ -1,85 +1,137 @@
 /**
- * How your body moves, as plain functions on plain numbers (adapted from Waltz City's `motion.ts`): input becomes a velocity
- * with a short acceleration and a shorter braking time, the body turns smoothly to face where it goes, and other people are
- * circles you cannot walk through. Collision against walls and furniture is `collision.ts`; this file knows nothing of the building.
+ * How your speed changes, as plain functions on plain numbers: a critically damped SPRING on the speed magnitude (never on the velocity
+ * vector: a vector spring lags a 140 degree-a-second turn by about 40 degrees and the doctor walks crabwise), plus the body's turn
+ * to face where it goes. Collision against the building is `collision.ts`; this file knows nothing of it.
+ *
+ * The spring is the exact closed form of x'' = -2 w x' - w^2 (x - target) with w = 2 / T (T is Unity's "smooth time"), so a frame is
+ * integrated exactly: the distance covered in a second does not depend on the frame rate, and there is no overshoot. T is derived from the
+ * configured "seconds to 95 % of the change" (`CONFIG.player.startSeconds / stopSeconds / shiftSeconds`): a critically damped step is at
+ * 95 % when w t = 4.744, that is t = 2.372 T.
+ *
+ *   start   from rest (or nearly) up to a walk or a run
+ *   stop    to rest, from anywhere
+ *   shift   walk <-> run, forward <-> backing up, and the slow-down of a reversal
+ *
+ * The time constant is chosen when the TARGET changes and held until it changes again, so the acceleration never jumps in mid-flight.
  */
+import { CONFIG } from '@/sim/config'
 import { angleDelta, clamp, wrapAngle } from './chaseMath'
-import { CROWD, MOVE } from './tuning'
+import { MOVE } from './tuning'
 
 export interface Planar {
   x: number
   z: number
 }
 
-/** The horizontal motion state. */
-export interface Velocity extends Planar {
-  /** Rate (m/s^2) at which the current braking started, 0 when not braking. */
-  brake: number
-}
-
-export function newVelocity(): Velocity {
-  return { x: 0, z: 0, brake: 0 }
-}
-
 export function speedOf(v: Planar): number {
   return Math.hypot(v.x, v.z)
 }
 
+/** Seconds-to-95-percent over this is the spring's smooth time. */
+export const SMOOTH_DIVISOR = 2.37
+
+/** The smooth time T of each kind of speed change, seconds. */
+export const SMOOTH_TIME = {
+  start: CONFIG.player.startSeconds / SMOOTH_DIVISOR,
+  stop: CONFIG.player.stopSeconds / SMOOTH_DIVISOR,
+  shift: CONFIG.player.shiftSeconds / SMOOTH_DIVISOR,
+} as const
+
+export type SpeedChange = 'start' | 'stop' | 'shift'
+
+/** A slower speed than this counts as "from rest" when a start is chosen (m/s). */
+export const FROM_REST = 0.5
+/** The spring snaps onto rest below this speed (m/s) when it is heading for zero, and onto its target when it is this close. */
+const SNAP_REST = 0.03
+const SNAP_TARGET = 1e-4
+
+/** The state of the speed spring: the value, its rate of change (m/s^2), the target and the smooth time in use. */
+export interface SpeedSpring {
+  v: number
+  a: number
+  target: number
+  T: number
+}
+
+export function newSpring(): SpeedSpring {
+  return { v: 0, a: 0, target: 0, T: SMOOTH_TIME.stop }
+}
+
 /**
- * Move `v` toward the wanted velocity (a unit direction times `wishSpeed`). Speeding up or turning takes `accelSeconds` to reach
- * full wishSpeed; releasing all input brakes to a stop in `decelSeconds`, measured from the speed at the moment of release.
- * Slowing from a hurry to a walk uses the braking time. It always ends at exactly the wanted velocity, or at exactly zero.
+ * Aim the spring at `target`. A new target picks its smooth time: `stop` for zero, `start` from (nearly) rest, `shift` otherwise; `kind`
+ * overrides it (a reversal's slow-down is a stop-like change). The same target again changes nothing.
  */
-export function stepVelocity(
-  v: Velocity,
-  dirX: number,
-  dirZ: number,
-  wishSpeed: number,
-  dt: number,
-  accelSeconds: number = MOVE.accelSeconds,
-  decelSeconds: number = MOVE.decelSeconds,
-): Velocity {
-  const wanting = wishSpeed > 1e-4 && (Math.abs(dirX) > 1e-6 || Math.abs(dirZ) > 1e-6)
-  const speed = speedOf(v)
-  if (!wanting) {
-    if (speed < 1e-4) {
-      v.x = 0
-      v.z = 0
-      v.brake = 0
-      return v
-    }
-    if (v.brake === 0) v.brake = Math.max(speed, 0.3) / decelSeconds
-    const drop = v.brake * dt
-    if (drop >= speed) {
-      v.x = 0
-      v.z = 0
-      v.brake = 0
-    } else {
-      const k = (speed - drop) / speed
-      v.x *= k
-      v.z *= k
-    }
-    return v
+export function retarget(s: SpeedSpring, target: number, kind?: SpeedChange): void {
+  if (target === s.target && kind === undefined) return
+  if (target === s.target) {
+    s.T = SMOOTH_TIME[kind!]
+    return
   }
-  v.brake = 0
-  const len = Math.hypot(dirX, dirZ)
-  const tx = (dirX / len) * wishSpeed
-  const tz = (dirZ / len) * wishSpeed
-  const dx = tx - v.x
-  const dz = tz - v.z
-  const dl = Math.hypot(dx, dz)
-  if (dl < 1e-6) return v
-  const slowing = wishSpeed < speed && dx * v.x + dz * v.z < 0
-  const rate = slowing ? Math.max(speed, wishSpeed) / decelSeconds : wishSpeed / accelSeconds
-  const step = Math.min(dl, rate * dt)
-  v.x += (dx / dl) * step
-  v.z += (dz / dl) * step
-  return v
+  s.target = target
+  if (kind !== undefined) s.T = SMOOTH_TIME[kind]
+  else if (target === 0) s.T = SMOOTH_TIME.stop
+  else if (Math.abs(s.v) < FROM_REST) s.T = SMOOTH_TIME.start
+  else s.T = SMOOTH_TIME.shift
+}
+
+/**
+ * Advance the spring by `dt` seconds towards its target, exactly. Returns the DISTANCE covered in the frame (the integral of the speed over
+ * it, metres, signed like the speed). Comes to an exact rest.
+ */
+export function stepSpring(s: SpeedSpring, dt: number): number {
+  if (dt <= 0) return 0
+  const w = 2 / Math.max(s.T, 1e-4)
+  const target = s.target
+  const e0 = s.v - target
+  const q = s.a + w * e0
+  const E = Math.exp(-w * dt)
+  const dist = target * dt + (e0 * (1 - E)) / w + (q * (1 - (1 + w * dt) * E)) / (w * w)
+  s.v = target + (e0 + q * dt) * E
+  s.a = (s.a - w * q * dt) * E
+  if (target === 0) {
+    if (Math.abs(s.v) < SNAP_REST) {
+      s.v = 0
+      s.a = 0
+    }
+  } else if (Math.abs(s.v - target) < SNAP_TARGET && Math.abs(s.a) < 1e-3) {
+    s.v = target
+    s.a = 0
+  }
+  return dist
+}
+
+/**
+ * How far the spring would still travel if its target became zero right now: the closed form of the rest of a critically damped stop,
+ * `v T + a T^2 / 4` (T the stop smooth time), signed like the speed. Never past rest (a hard deceleration cannot reverse it).
+ */
+export function restDistance(s: SpeedSpring): number {
+  const T = SMOOTH_TIME.stop
+  const d = s.v * T + (s.a * T * T) / 4
+  return s.v >= 0 ? (d > 0 ? d : 0) : d < 0 ? d : 0
+}
+
+/** The angle between two unit directions (0..pi). */
+export function angleBetween(ax: number, az: number, bx: number, bz: number): number {
+  return Math.abs(angleDelta(Math.atan2(ax, az), Math.atan2(bx, bz)))
+}
+
+/**
+ * Turn the unit direction (dx, dz) towards (wx, wz) by at most `maxStep` radians. Writes the new unit direction into `out` and returns the
+ * angle that is still left (radians).
+ */
+export function turnDirection(dx: number, dz: number, wx: number, wz: number, maxStep: number, out: Planar): number {
+  const from = Math.atan2(dx, dz)
+  const diff = angleDelta(from, Math.atan2(wx, wz))
+  const step = clamp(diff, -maxStep, maxStep)
+  const to = from + step
+  out.x = Math.sin(to)
+  out.z = Math.cos(to)
+  return Math.abs(diff) - Math.abs(step)
 }
 
 /**
  * Turn the body towards `target` (radians) with an exponential approach and a speed limit, so a quarter turn takes about a tenth
- * of a second and a U-turn a little over a fifth. Returns the new heading.
+ * of a second and a U-turn a little over a fifth. Returns the new heading. (Classic scheme: the body faces where it goes.)
  */
 export function turnTowards(heading: number, target: number, dt: number, seconds: number = MOVE.turnSeconds, maxRate: number = MOVE.maxTurnRate): number {
   const diff = angleDelta(heading, target)
@@ -91,32 +143,4 @@ export function turnTowards(heading: number, target: number, dt: number, seconds
 /** The heading a body wants given its velocity, or null when it is too slow to say. */
 export function facingFromVelocity(v: Planar, threshold: number = MOVE.facingSpeed): number | null {
   return speedOf(v) > threshold ? Math.atan2(v.x, v.z) : null
-}
-
-/**
- * Other people as circles: the displacement (written to `out`) that pushes a body of radius `bodyRadius` at (px, pz) out of a
- * person standing at (cx, cz). Zero when clear. It is a push along the line between the two centres, capped at `maxStep`, so a
- * crowd never throws you about and never traps you: you slide round people the way you slide along a wall.
- */
-export function pushOutOfPerson(px: number, pz: number, cx: number, cz: number, bodyRadius: number, maxStep: number, out: Planar): Planar {
-  const dx = px - cx
-  const dz = pz - cz
-  const reach = bodyRadius + CROWD.npcRadius
-  const d2 = dx * dx + dz * dz
-  if (d2 >= reach * reach) {
-    out.x = 0
-    out.z = 0
-    return out
-  }
-  const d = Math.sqrt(d2)
-  const push = Math.min(reach - d, maxStep)
-  if (d < 1e-4) {
-    // dead on top of each other: step aside to the east, always the same way
-    out.x = push
-    out.z = 0
-    return out
-  }
-  out.x = (dx / d) * push
-  out.z = (dz / d) * push
-  return out
 }

@@ -3,16 +3,18 @@
  * entries this wants are listed in the change requests): the ceiling (tiles plus glowing panels) and the sign atlas. Both are
  * singletons for the whole walk-mode building. Browser only (it paints canvases); the node tests use the pure parts.
  *
- * Emissive stays under the caps of the skill's "too-bright screens" pitfall: the panels at 0.8 (bloom starts at 1.0 and only
- * catches them where the tile lit by the fill adds to the glow).
+ * Emissive stays under the caps of the skill's "too-bright screens" pitfall: the panels at 1.3 (W3: the bloom starts at 1.0 with a 0.2 soft
+ * knee, so a white-warm panel of 1.3 just catches it and glows softly, while the lit ceiling tiles around it never do; the panels are
+ * walk-only and dim with the room lights at night, below the threshold, as a lamp at night should).
  */
 import { CanvasTexture, Color, FrontSide, LinearMipmapLinearFilter, MeshBasicMaterial, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace } from 'three'
 import type { Tile } from '../../layout/walk/types'
+import { patchMaterialLook } from '@/scene/lighting/palettePatch'
 import { CEILING_PX, paintCeilingCell } from './ceilingTexture'
 import { paintAtlas, type PackedAtlas, type Paint2D } from './signAtlas'
 
 /** Emissive intensity of the ceiling light panels at full brightness (the daylight driver dims them with the room lights). */
-export const CEILING_EMISSIVE = 0.8
+export const CEILING_EMISSIVE = 1.3
 
 export interface WalkMaterials {
   ceiling: MeshStandardMaterial
@@ -62,6 +64,8 @@ export function createWalkMaterials(atlas: PackedAtlas, tiles: readonly Tile[]):
     side: FrontSide,
   })
   ceiling.name = 'walk-ceiling'
+  // W3: the ceiling is not a palette material, so it picks up the baked light volume here (its tiles are lit by the panels around them)
+  patchMaterialLook(ceiling, 'plain')
 
   const sign = canvas(atlas.width, atlas.height)
   paintAtlas(sign.ctx as unknown as Paint2D, atlas, tiles)

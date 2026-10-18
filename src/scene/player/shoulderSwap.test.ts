@@ -14,7 +14,7 @@ import type { Vec3 } from '@/sim/types'
 import { OPEN_PROBE, WallBoxProbe, buildWallBoxes, insideWallBox, type BoomProbe } from './boomProbe'
 import { ChaseCamera } from './chaseCamera'
 import { boomAfterHit, rightOf, shoulderPose } from './chaseMath'
-import { settle, walkableAt } from './collision'
+import { walkableAt } from './collision'
 import { CHASE } from './tuning'
 
 const DT = 1 / 60
@@ -357,11 +357,15 @@ describe('the shoulder swap on flat walls', () => {
           w.step({ vz: 1.5, vx: sideways * (i < 30 ? 1 : 0) })
           const c = w.camera.position
           const face = -d // the wall's face: solid for x < face
-          expect(c.x, `d ${d} frame ${i}`).toBeGreaterThanOrEqual(face + CHASE.probeRadius - 1e-6)
+          // W3: the HARD ball (`nearRadius`) is clear on every frame (the boom and the shoulder room are springs, the clamp is the
+          // guarantee), the SOFT one (`probeRadius`) once the springs have caught up with the wall
+          expect(c.x, `d ${d} frame ${i}`).toBeGreaterThanOrEqual(face + CHASE.nearRadius - 1e-6)
+          if (i >= 45) expect(c.x, `d ${d} frame ${i}: soft`).toBeGreaterThanOrEqual(face + CHASE.probeRadius - 1e-6)
           // the pivot ball is clear of the wall too
           const r = rightOf(w.chase.facing)
           const px = w.feet.x + r.x * w.chase.shoulderOffset
-          expect(px, `d ${d} frame ${i}: pivot`).toBeGreaterThanOrEqual(face + CHASE.shoulderProbeRadius - 1e-6)
+          expect(px, `d ${d} frame ${i}: pivot`).toBeGreaterThanOrEqual(face + CHASE.nearRadius - 1e-6)
+          if (i >= 45) expect(px, `d ${d} frame ${i}: pivot soft`).toBeGreaterThanOrEqual(face + CHASE.shoulderProbeRadius - 1e-6)
         }
       }
     }
@@ -484,10 +488,12 @@ describe('in the building: the ward corridors', () => {
   const probe = new WallBoxProbe(boxes)
 
   /** Where the camera must be: outside the walls, under the ceiling, over the floor. */
-  function checkCamera(cam: PerspectiveCamera, boom: number, label: string): void {
+  function checkCamera(cam: PerspectiveCamera, boom: number, label: string, settled = false): void {
     const p = cam.position
     expect(insideWallBox(boxes, p.x, p.y, p.z, 0), `${label}: camera centre in a wall`).toBeNull()
-    if (boom > CHASE.minBoom + 0.02) expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.probeRadius - 1e-6), `${label}: camera ball in a wall`).toBeNull()
+    // W3: the HARD ball on every frame, the SOFT ball once the camera has been still for a while (see chaseEasy.test.ts)
+    expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.nearRadius - 1e-6), `${label}: camera hard ball in a wall`).toBeNull()
+    if (settled && boom > CHASE.minBoom + 0.02) expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.probeRadius - 1e-6), `${label}: camera ball in a wall`).toBeNull()
     const area = areaAt(p.x, p.z)
     const ceiling = area ? ceilingHeight(area.id) : null
     if (ceiling !== null) expect(p.y, `${label}: camera above the ceiling (${area?.id})`).toBeLessThanOrEqual(ceiling - CHASE.ceilingClearance + 1e-9)
@@ -496,9 +502,16 @@ describe('in the building: the ward corridors', () => {
 
   /** The closest you can walk to the wall at `z` (the nav grid's own answer), on the corridor side `inside`. */
   function hugZ(x: number, z: number): number {
-    const out = { x: 0, z: 0 }
-    settle(x, z, out)
-    return out.z
+    // from the middle of the corridor toward the wall until the body can go no further: a spot IN the corridor (the nav grid's nearest
+    // answer to the wall line itself can be a spot in the room beyond it, which is no place to hug a corridor wall from)
+    const dir = Math.sign(z)
+    let best = z - dir * 2
+    for (let d = 2; d >= 0; d -= 0.01) {
+      const zz = z - dir * d
+      if (!walkableAt(x, zz)) break
+      best = zz
+    }
+    return best
   }
 
   // Ward B: the corridor runs z 12..16. Facing east (yaw pi / 2) your right hand is south (+z): the ROOM wall (z = 16, with the doors
@@ -589,10 +602,12 @@ describe('in the building: the camera over the whole floor plan, through a swap'
   const boxes = buildWallBoxes()
   const probe = new WallBoxProbe(boxes)
 
-  function checkFrame(cam: PerspectiveCamera, boom: number, label: string): void {
+  // W3: these run through swaps with the camera in motion every frame: the HARD ball is the guarantee here (the soft one is promised to a
+  // camera that has been still for a while, and is checked where it is: chaseEasy.test.ts, the corridor runs above)
+  function checkFrame(cam: PerspectiveCamera, _boom: number, label: string): void {
     const p = cam.position
     expect(insideWallBox(boxes, p.x, p.y, p.z, 0), `${label}: camera centre in a wall`).toBeNull()
-    if (boom > CHASE.minBoom + 0.02) expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.probeRadius - 1e-6), `${label}: camera ball in a wall`).toBeNull()
+    expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.nearRadius - 1e-6), `${label}: camera hard ball in a wall`).toBeNull()
     const area = areaAt(p.x, p.z)
     const ceiling = area ? ceilingHeight(area.id) : null
     if (ceiling !== null) expect(p.y, `${label}: camera above the ceiling (${area?.id})`).toBeLessThanOrEqual(ceiling - CHASE.ceilingClearance + 1e-9)

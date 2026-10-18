@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DprDeferral, MAX_DEFER_MS, STILL_SECONDS, type DprContext } from './dprDefer'
 import {
   DEFAULT_LADDER_CONFIG,
   MAX_LEVEL,
@@ -83,10 +84,20 @@ class Rig {
 const lateEvery = (every: number) => (i: number): Frame => (i % every === 0 ? LATE : CALM)
 
 describe('the rungs', () => {
-  it('go from DPR 1.5 down to 1.0, then AO lighter, then off', () => {
-    expect(QUALITY_STEPS.map((s) => s.dpr)).toEqual([1.5, 1.25, 1.0, 1.0, 1.0])
-    expect(QUALITY_STEPS.map((s) => s.ao)).toEqual(['full', 'full', 'full', 'light', 'off'])
-    expect(MAX_LEVEL).toBe(4)
+  it('go from DPR 1.5 down to 1.0, then the effects lite, then AO lighter, then off', () => {
+    expect(QUALITY_STEPS.map((s) => s.dpr)).toEqual([1.5, 1.25, 1.0, 1.0, 1.0, 1.0])
+    expect(QUALITY_STEPS.map((s) => s.ao)).toEqual(['full', 'full', 'full', 'full', 'light', 'off'])
+    expect(QUALITY_STEPS.map((s) => s.fx)).toEqual(['full', 'full', 'full', 'lite', 'lite', 'lite'])
+    expect(QUALITY_STEPS.map((s) => s.id)).toEqual(['dpr-1.5', 'dpr-1.25', 'dpr-1.0', 'fx-lite', 'ao-light', 'ao-off'])
+    expect(MAX_LEVEL).toBe(5)
+  })
+
+  it('the effects-lite rung comes after DPR 1.0 and before any AO cut, and the AO rungs keep it lite', () => {
+    const lite = QUALITY_STEPS.findIndex((s) => s.fx === 'lite')
+    expect(QUALITY_STEPS[lite]).toMatchObject({ id: 'fx-lite', dpr: 1.0, ao: 'full', fx: 'lite' })
+    expect(QUALITY_STEPS.slice(0, lite).every((s) => s.ao === 'full' && s.fx === 'full')).toBe(true)
+    expect(QUALITY_STEPS.slice(lite).every((s) => s.fx === 'lite')).toBe(true)
+    expect(QUALITY_STEPS[lite - 1].dpr).toBe(1.0)
   })
 
   it('apply a pixel ratio capped by the display, never below 1', () => {
@@ -236,11 +247,11 @@ describe('stepping down', () => {
   it('walks down one rung at a time to the bottom and stays there', () => {
     const r = new Rig().start()
     const moves: number[] = []
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const { action } = r.until(() => LATE, 1500)
       if (action === 'down') moves.push(r.level)
     }
-    expect(moves).toEqual([1, 2, 3, 4])
+    expect(moves).toEqual([1, 2, 3, 4, 5])
     expect(r.level).toBe(MAX_LEVEL)
     expect(r.run(2000, () => LATE)).toEqual([])
   })
@@ -255,13 +266,16 @@ describe('stepping down', () => {
     expect(r.level).toBe(2)
   })
 
-  it('on a 1080p display (pixel ratio 1) skips the pixel-ratio rungs, which look identical, and goes straight to lighter AO', () => {
+  it('on a 1080p display (pixel ratio 1) skips the pixel-ratio rungs, which look identical, and goes straight to the effects lite', () => {
     const r = new Rig({}, 0, 1).start()
     r.until(() => LATE)
     expect(r.level).toBe(3)
-    expect(QUALITY_STEPS[r.level].ao).toBe('light')
+    expect(QUALITY_STEPS[r.level]).toMatchObject({ ao: 'full', fx: 'lite' })
     r.until(() => LATE)
     expect(r.level).toBe(4)
+    expect(QUALITY_STEPS[r.level].ao).toBe('light')
+    r.until(() => LATE)
+    expect(r.level).toBe(5)
     expect(QUALITY_STEPS[r.level].ao).toBe('off')
   })
 
@@ -271,7 +285,8 @@ describe('stepping down', () => {
     expect(l.nextDown(1, 2)).toBe(2)
     expect(l.nextDown(2, 2)).toBe(3)
     expect(l.nextDown(3, 2)).toBe(4)
-    expect(l.nextDown(4, 2)).toBe(-1)
+    expect(l.nextDown(4, 2)).toBe(5)
+    expect(l.nextDown(5, 2)).toBe(-1)
     expect(l.nextDown(0, 1)).toBe(3)
     expect(l.nextDown(0, 1.25)).toBe(2) // 1.5 and 1.25 look the same on a 1.25 display
   })
@@ -303,10 +318,13 @@ describe('stepping up', () => {
     expect(r.level).toBe(0)
   })
 
-  it('on a 1080p display climbs from lighter AO straight back to the top rung', () => {
+  it('on a 1080p display climbs from the effects lite straight back to the top rung, and from lighter AO back to the effects lite', () => {
     const r = new Rig({}, 3, 1).start()
     r.until(() => CALM, 4000)
     expect(r.level).toBe(0) // 2, 1 and 0 are one picture here; the best of them is rung 0
+    const lighter = new Rig({}, 4, 1).start()
+    lighter.until(() => CALM, 4000)
+    expect(lighter.level).toBe(3)
   })
 
   it('one window that is merely so-so starts the count again', () => {
@@ -573,5 +591,81 @@ describe('the defaults', () => {
     expect(CFG.readyGraceMs).toBeGreaterThanOrEqual(3000)
     expect(CFG.jumpGraceMs).toBeGreaterThanOrEqual(3000)
     expect(CFG.windowFrames * CFG.upWindows * FRAME).toBeGreaterThan(10_000) // a long run before it climbs
+  })
+})
+
+describe('the pixel-ratio deferral (W3): no resize while you walk', () => {
+  const WALKING: DprContext = { mode: 'walk', live: true, stillFor: 0 }
+  const STILL: DprContext = { mode: 'walk', live: true, stillFor: STILL_SECONDS }
+
+  it('does nothing when the renderer already has the ratio the rung asks for', () => {
+    const d = new DprDeferral()
+    expect(d.decide(1.5, 1.5, WALKING, 0)).toBe('none')
+    expect(d.waiting).toBe(false)
+  })
+
+  it('defers while you walk and move', () => {
+    const d = new DprDeferral()
+    expect(d.decide(1.5, 1.25, WALKING, 1000)).toBe('wait')
+    expect(d.waiting).toBe(true)
+    for (let t = 1100; t < 6900; t += 100) expect(d.decide(1.5, 1.25, { ...WALKING, stillFor: 0.2 }, t)).toBe('wait')
+  })
+
+  it('applies the moment you stop (still for 0.4 s), and forgets the wait', () => {
+    const d = new DprDeferral()
+    expect(d.decide(1.5, 1.0, WALKING, 0)).toBe('wait')
+    expect(d.decide(1.5, 1.0, { ...WALKING, stillFor: STILL_SECONDS - 0.01 }, 300)).toBe('wait')
+    expect(d.decide(1.5, 1.0, STILL, 400)).toBe('apply')
+    expect(d.waiting).toBe(false)
+  })
+
+  it('applies at once outside walk mode: the overview, and the Tab flights', () => {
+    for (const mode of ['overview', 'toWalk', 'toOverview', undefined]) {
+      const d = new DprDeferral()
+      expect(d.decide(1.5, 1.25, { mode, live: true, stillFor: 0 }, 0), String(mode)).toBe('apply')
+    }
+    // and leaving walk mode releases a change that was waiting
+    const d = new DprDeferral()
+    expect(d.decide(1.5, 1.25, WALKING, 0)).toBe('wait')
+    expect(d.decide(1.5, 1.25, { mode: 'toOverview', live: true, stillFor: 0 }, 200)).toBe('apply')
+    expect(d.waiting).toBe(false)
+  })
+
+  it('applies after 6 s even if you never stop (a run through the hospital)', () => {
+    const d = new DprDeferral()
+    expect(MAX_DEFER_MS).toBe(6000)
+    expect(d.decide(1.5, 1.25, WALKING, 10_000)).toBe('wait')
+    expect(d.decide(1.5, 1.25, WALKING, 10_000 + MAX_DEFER_MS - 1)).toBe('wait')
+    expect(d.decide(1.5, 1.25, WALKING, 10_000 + MAX_DEFER_MS)).toBe('apply')
+    expect(d.waiting).toBe(false)
+  })
+
+  it('keeps the original 6 s when the rung moves again while waiting', () => {
+    const d = new DprDeferral()
+    expect(d.decide(1.5, 1.25, WALKING, 0)).toBe('wait')
+    expect(d.decide(1.5, 1.0, WALKING, 4000)).toBe('wait') // a second step down: same wait
+    expect(d.decide(1.5, 1.0, WALKING, 6000)).toBe('apply')
+  })
+
+  it('counts a player who is not there yet (walkBody not live) as still', () => {
+    const d = new DprDeferral()
+    expect(d.decide(1.5, 1.25, { mode: 'walk', live: false, stillFor: 0 }, 0)).toBe('apply')
+  })
+
+  it('a change that is undone while waiting drops the wait', () => {
+    const d = new DprDeferral()
+    expect(d.decide(1.5, 1.25, WALKING, 0)).toBe('wait')
+    expect(d.decide(1.5, 1.5, WALKING, 500)).toBe('none')
+    expect(d.waiting).toBe(false)
+    // a new change starts a fresh 6 s
+    expect(d.decide(1.5, 1.25, WALKING, 5000)).toBe('wait')
+    expect(d.decide(1.5, 1.25, WALKING, 10_999)).toBe('wait')
+  })
+
+  it('reports who is moving: walking and not yet still', () => {
+    const d = new DprDeferral()
+    expect(d.moving(WALKING)).toBe(true)
+    expect(d.moving(STILL)).toBe(false)
+    expect(d.moving({ mode: 'overview', live: true, stillFor: 0 })).toBe(false)
   })
 })

@@ -2,7 +2,12 @@
  * Ambience while you walk the hospital (W1): footsteps, the room tone of each area, door whooshes, the pod chime and
  * the lift ding. Web Audio, synthesized, no files. Ambience.tsx starts and stops the engine and supplies its inputs.
  *
- * The first half is pure (step timing, the tone of each area, one-shot triggers with their cooldowns): no audio, no
+ * W3: a footstep is a HEEL STRIKE of your own legs, not a rate timed from your speed. The crowd's footfall planner counts every landing of
+ * your feet in `walkStride` (src/scene/player/state.ts), and the engine plays one step for each increment of `walkStride.steps`: so a
+ * stop's last shuffle, a step backwards and a turn on the spot make a sound, a sound never lags behind a foot by more than a tick, and a
+ * stride that stops stepping goes silent.
+ *
+ * The first half is pure (the steps you hear, the tone of each area, one-shot triggers with their cooldowns): no audio, no
  * React, no sim singleton, so it runs under vitest in node.
  *
  * The engine is one AudioContext, created only once audio is unlocked and you are walking. Everything is built once:
@@ -16,6 +21,7 @@
  */
 import type { Area, AreaKind } from '@/sim/places'
 import type { Vec2 } from '@/sim/types'
+import { walkStride } from '@/scene/player/state'
 import { clamp01, noiseSamples } from './patterns'
 
 // ---------------------------------------------------------------------------------------------
@@ -24,27 +30,48 @@ import { clamp01, noiseSamples } from './patterns'
 
 // Footsteps ---------------------------------------------------------------------------------
 
-/** Footsteps per metre walked: 1.8 a second at a 1.5 m/s walk, and faster when hurrying. */
-export const STEPS_PER_METRE = 1.2
-/** Slower than this (m/s) you are standing, and there are no footsteps. */
-export const STEP_MIN_SPEED = 0.25
-/** The cadence cap, reached at about 3.75 m/s. */
-export const STEP_MAX_RATE_HZ = 4.5
+/** The part of your stride the footsteps read: the fields of `walkStride` (src/scene/player/state.ts). */
+export interface AmbienceStride {
+  /** Heel strikes since the page loaded: one step is played for each increment. */
+  readonly steps: number
+  /** Which foot struck last: 0 left, 1 right. */
+  readonly foot: number
+  /** The body's speed at the last strike (m/s) and the run blend of the legs (0 walking .. 1 running). */
+  readonly strikeSpeed: number
+  readonly run: number
+}
 
-/** Footsteps a second at `speed` (m/s): 0 standing still, 1.8 at 1.5 m/s, faster when hurrying. */
-export function stepRateHz(speed: number): number {
-  if (!(speed >= STEP_MIN_SPEED)) return 0
-  return Math.min(STEP_MAX_RATE_HZ, STEPS_PER_METRE * speed)
+/** The most steps one tick plays: after a Jump, a long pause or a tab that was hidden the count has moved on by more than you walked, and a burst of steps would be a glitch. */
+export const STEP_BURST_MAX = 3
+/** Spacing of the steps of a burst (s): two strikes inside one tick are heard as two. */
+const STEP_BURST_GAP_S = 0.03
+
+/** Heel strikes to play now: the increase of the stride's count since the engine last looked (`seen`), at most `STEP_BURST_MAX`; none if it did not grow (or restarted). */
+export function strikesSince(seen: number, steps: number): number {
+  const n = steps - seen
+  if (!(n > 0)) return 0
+  return n > STEP_BURST_MAX ? STEP_BURST_MAX : Math.floor(n)
+}
+
+/** How one step sounds: its loudness (an envelope peak, before the master trim), how long it rings (s) and how far its band is pulled down (heavier when running). */
+export interface StepVoice {
+  peak: number
+  decayS: number
+  /** Multiplies the foot's band: 1 walking, lower running. */
+  band: number
 }
 
 /**
- * The time of the next footstep at or after `from`, given the previous one at `lastStep` (audio seconds). Steps fall
- * 1 / rate apart. After a pause, or for the very first step, the next one is due at once (`from`). Infinity when the
- * rate is 0, which is standing still.
+ * The voice of a step from the speed at the strike and the run blend: a shuffle at a stop is soft, a walk is a firm step, a run is louder, longer and darker.
+ * Always above 0 and never above `STEP_PEAK`.
  */
-export function nextStepAt(lastStep: number, from: number, rate: number): number {
-  if (!(rate > 0)) return Number.POSITIVE_INFINITY
-  return Math.max(from, lastStep + 1 / rate)
+export function stepVoice(strikeSpeed: number, run: number, out: StepVoice = { peak: 0, decayS: 0, band: 1 }): StepVoice {
+  const w = clamp01(strikeSpeed / 3.2)
+  const r = clamp01(run)
+  out.peak = STEP_PEAK * (0.72 + 0.22 * w + 0.06 * r)
+  out.decayS = 0.07 + 0.03 * r
+  out.band = 1 - 0.12 * r
+  return out
 }
 
 // Room tone -------------------------------------------------------------------------------------
@@ -177,6 +204,8 @@ export interface AmbiencePod {
 export interface AmbienceInputs {
   /** You, or null. Read on every tick, because `sim` is a live binding. */
   player(): AmbiencePlayer | null
+  /** Your stride (the heel strikes of your legs). Absent: `walkStride`, which is where the crowd writes it. */
+  stride?(): AmbienceStride
   /** The live pod array. It is read, never copied. */
   pods(): readonly AmbiencePod[]
   /** The area under a point, or null outside the building. `areaAt` from the sim. */
@@ -255,8 +284,9 @@ export class AmbienceEngine {
   private tickTimer: ReturnType<typeof setInterval> | null = null
   private masterOn = false
   private cursor = 0
-  private lastStep = Number.NEGATIVE_INFINITY
-  private stepSide = 0
+  /** The count of heel strikes already played (-1 until the first tick of a walk adopts the current one: no burst of steps on starting to walk). */
+  private seenSteps = -1
+  private readonly voice: StepVoice = { peak: 0, decayS: 0, band: 1 }
   private lastAudible = Number.NEGATIVE_INFINITY
   private tone: RoomTone | null = null
   private readonly doorTriggers: Trigger[]
@@ -307,7 +337,10 @@ export class AmbienceEngine {
       rampTo(rig.master.gain, live ? AMBIENCE_MASTER : 0, now, FADE_S)
     }
     if (live) this.startTicking()
-    else this.stopTicking()
+    else {
+      this.stopTicking()
+      this.seenSteps = -1
+    }
     if (hidden) suspend(ctx)
     else if (!live && now - this.lastAudible > SUSPEND_AFTER_S) suspend(ctx)
   }
@@ -333,21 +366,25 @@ export class AmbienceEngine {
     const to = now + LOOKAHEAD_S
     if (to <= from) return
     this.cursor = to
-    this.scheduleFootsteps(rig, from, to, player.speed)
+    this.playFootsteps(rig, from)
     this.updateTone(rig, player, now)
     this.updateOneShots(rig, player, now)
     this.lastAudible = now
   }
 
-  private scheduleFootsteps(rig: Rig, from: number, to: number, speed: number): void {
-    const rate = stepRateHz(speed)
-    let t = nextStepAt(this.lastStep, from, rate)
-    while (t < to) {
-      footstep(rig, t, this.stepSide, speed)
-      this.stepSide ^= 1
-      this.lastStep = t
-      t = nextStepAt(t, from, rate)
+  /** One step for each heel strike of your legs since the last tick (the tick is 50 ms, so a step is heard within 50 ms of the foot landing). */
+  private playFootsteps(rig: Rig, at: number): void {
+    const stride = this.inputs.stride ? this.inputs.stride() : walkStride
+    if (this.seenSteps < 0) {
+      this.seenSteps = stride.steps
+      return
     }
+    const n = strikesSince(this.seenSteps, stride.steps)
+    this.seenSteps = stride.steps
+    if (n === 0) return
+    stepVoice(stride.strikeSpeed, stride.run, this.voice)
+    // the latest strike was `stride.foot`; the ones before it in this tick alternate behind it
+    for (let i = 0; i < n; i++) footstep(rig, at + i * STEP_BURST_GAP_S, (stride.foot + n - 1 - i) & 1, this.voice)
   }
 
   private updateTone(rig: Rig, player: AmbiencePlayer, now: number): void {
@@ -395,8 +432,7 @@ export class AmbienceEngine {
   private resetPlayback(): void {
     this.masterOn = false
     this.cursor = 0
-    this.lastStep = Number.NEGATIVE_INFINITY
-    this.stepSide = 0
+    this.seenSteps = -1
     this.lastAudible = Number.NEGATIVE_INFINITY
     this.tone = null
     for (const t of this.doorTriggers) resetTrigger(t)
@@ -504,17 +540,16 @@ function morphBed(rig: Rig, tone: RoomTone, now: number): void {
   rampTo(rig.bedGain.gain, spec.level * BED_PEAK, now, TONE_FADE_S)
 }
 
-/** One footstep at audio time `t`: a short band-passed burst. Heavier when hurrying. */
-function footstep(rig: Rig, t: number, side: number, speed: number): void {
+/** One footstep at audio time `t`: a short band-passed burst, the band alternating between the feet (side 0 left, 1 right). */
+function footstep(rig: Rig, t: number, side: number, voice: StepVoice): void {
   const f = rig.stepFilter.frequency
   f.cancelScheduledValues(t)
-  f.setValueAtTime(side === 0 ? STEP_HZ_LEFT : STEP_HZ_RIGHT, t)
+  f.setValueAtTime((side === 0 ? STEP_HZ_LEFT : STEP_HZ_RIGHT) * voice.band, t)
   const g = rig.stepGain.gain
-  const peak = STEP_PEAK * (0.8 + 0.2 * clamp01(speed / 3.2))
   g.cancelScheduledValues(t)
   g.setValueAtTime(0, t)
-  g.linearRampToValueAtTime(peak, t + 0.008)
-  g.exponentialRampToValueAtTime(1e-4, t + 0.07)
+  g.linearRampToValueAtTime(voice.peak, t + 0.008)
+  g.exponentialRampToValueAtTime(1e-4, t + voice.decayS)
 }
 
 /** A door whoosh: the noise swells and its band sweeps upward. */

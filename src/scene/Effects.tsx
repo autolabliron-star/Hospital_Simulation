@@ -1,6 +1,12 @@
 /**
- * Post-processing for the model look: soft ambient occlusion (half resolution), a gentle bloom that only
- * catches emissive lights (pod rings, drawer lights, screens), and Khronos PBR Neutral tone mapping last (keeps whites white and colours true; AgX greyed the model look).
+ * Post-processing: soft ambient occlusion (half resolution), a gentle bloom that only catches emissive lights (pod rings, drawer lights,
+ * screens, and in walk mode the ceiling panels), Khronos PBR Neutral tone mapping (keeps whites white and colours true; AgX greyed the model
+ * look and would recompile), and (W3) the colour grade and a vignette, which both merge into the tone mapper's pass (no extra draw).
+ *
+ * The grade (src/scene/lighting/grade.ts) is an always-mounted 32 cubed LUT in blend mode NORMAL: its blend opacity IS its strength, so the
+ * overview (opacity 0) is exactly the picture it always was and walk mode fades it in with the rest of the look. The vignette is the stock
+ * one, darkness 0 (the identity) in the overview. Both strengths are written through refs when the daylight driver publishes a new look
+ * (`liveLook`, read once a frame, written only when it changed): never through props, never a recompile.
  *
  * The AO pass has two switches, both written straight into the pass through a ref, never through the component props (which re-apply
  * every setting, and n8ao rebuilds a shader when some of them change):
@@ -15,8 +21,14 @@
  * The props below carry the first values only, read once, so they never change and never re-apply anything.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bloom, EffectComposer, N8AO, ToneMapping } from '@react-three/postprocessing'
-import { ToneMappingMode } from 'postprocessing'
+import { useFrame } from '@react-three/fiber'
+import { Bloom, EffectComposer, LUT, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { BlendFunction, ToneMappingMode, type LUT3DEffect, type VignetteEffect } from 'postprocessing'
+import { SRGBColorSpace } from 'three'
+import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { createGradeLut } from '@/scene/lighting/grade'
+import { liveLook } from '@/scene/lighting/liveLook'
+import { VIGNETTE_OFFSET } from '@/scene/lighting/look'
 import { useWalk } from '@/scene/player/state'
 import { aoSettings } from '@/scene/quality/aoProfile'
 import { useRenderStore } from '@/scene/quality/render.store'
@@ -35,6 +47,41 @@ export function Effects() {
   // the first values, read once: constant props never re-apply anything
   const [first] = useState(currentAo)
   const ao = useRef<AoPass | null>(null)
+  const [gradeLut] = useState(createGradeLut)
+  const lut = useRef<LUT3DEffect | null>(null)
+  const vignette = useRef<VignetteEffect | null>(null)
+  // the version of `liveLook` last written into the effects (-1: nothing yet)
+  const written = useRef(-1)
+
+  // the effects arrive late (the composer builds its passes after the first commit) and are written the moment they do, before any frame
+  // uses them: the grade at the strength of the look right now, the vignette likewise
+  const lutRef = useCallback((effect: LUT3DEffect | null) => {
+    lut.current = effect
+    if (effect) {
+      effect.blendMode.opacity.value = liveLook.grade
+      written.current = -1
+    }
+  }, [])
+  const vignetteRef = useCallback((effect: VignetteEffect | null) => {
+    vignette.current = effect
+    if (effect) {
+      // display-referred, like the grade: the darkness is a share of the picture's brightness as seen, not of its linear light
+      ;(effect as unknown as { inputColorSpace: string }).inputColorSpace = SRGBColorSpace // marked protected in the typings, a public setter in the build
+      effect.darkness = liveLook.vignette
+      written.current = -1
+    }
+  }, [])
+
+  // the daylight driver publishes the look; this writes it into the two effects, only when it changed
+  useFrame(() => {
+    if (written.current === liveLook.version) return
+    const l = lut.current
+    const v = vignette.current
+    if (!l || !v) return
+    l.blendMode.opacity.value = liveLook.grade
+    v.darkness = liveLook.vignette
+    written.current = liveLook.version
+  }, FRAME_PRIORITY.sim + 4)
 
   const apply = useCallback(() => {
     const pass = ao.current
@@ -83,6 +130,8 @@ export function Effects() {
       />
       <Bloom mipmapBlur luminanceThreshold={1.0} luminanceSmoothing={0.2} intensity={0.45} radius={0.6} />
       <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+      <LUT ref={lutRef} lut={gradeLut} blendFunction={BlendFunction.NORMAL} />
+      <Vignette ref={vignetteRef} offset={VIGNETTE_OFFSET} darkness={0} />
     </EffectComposer>
   )
 }

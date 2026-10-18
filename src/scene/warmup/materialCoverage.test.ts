@@ -68,7 +68,7 @@ describe('the source scan (manifest.ts)', () => {
     for (const [file, site] of Object.entries(MATERIAL_SITES)) {
       expect(site.count, file).toBeGreaterThan(0)
       expect(site.where.length, file).toBeGreaterThan(10)
-      expect(['palette', 'mounted'], file).toContain(site.via)
+      expect(['palette', 'mounted', 'offline'], file).toContain(site.via)
     }
   })
 })

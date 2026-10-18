@@ -18,6 +18,7 @@ import { MAT, STATUS } from '@/scene/materials'
 import type { LivingDayView, MealBot, MealBotLight } from '@/sim/types'
 import { botDoorGeometry, botRingGeometry, botShadowGeometry, botStaticGeometry, DOOR_ORIGIN } from './botParts'
 import { createBlobMaterial } from './blob'
+import { patchMaterialLook } from '@/scene/lighting/palettePatch'
 import { emissiveFollowsInstanceColor, FADE_ATTRIBUTE, fadeMaterial } from './ditherFade'
 import { hideAll, primeColors } from './instancing'
 import { MAX_BOTS } from './life'
@@ -67,6 +68,9 @@ export function createMealBotsRig(): MealBotsRig {
   // the emissive follows the instance colour (three does not multiply them), like MAT.tintedGlow, then the fade patch
   const ringMat = fadeMaterial(emissiveFollowsInstanceColor(MAT.tintedGlow.clone()), 'dither', 'mealbot-ring')
   ringMat.emissiveIntensity = 0.9
+  // W3: lit like the palette around them (the baked light volume), composed after the fade patch
+  patchMaterialLook(bodyMat, 'plain')
+  patchMaterialLook(ringMat, 'plain')
   const shadowMat = fadeMaterial(createBlobMaterial(), 'alpha', 'mealbot-shadow')
 
   const statics = new InstancedMesh(geos.statics, bodyMat, N)

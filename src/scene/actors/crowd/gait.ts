@@ -48,6 +48,21 @@
  * The arms and torso follow a smooth stride phase (`swing`, a cosine of each foot's own cycle) rather than the difference of the foot
  * positions (`gait`), which stops changing while both feet are down.
  *
+ * DRIVEN BODY (W3: the player). Everybody else is planned from a speed measured after the fact (a 0.1 s lag), which is right for an NPC that
+ * walks at a steady pace and wrong for a body that starts in 0.35 s, stops in 0.28 s and backs up. `updatePlanter(..., intent)` is given the
+ * body's TRUE velocity and what its keys ask for (`PlanterIntent`, the contract `walkBody`), and plans from that:
+ *
+ *   starting     the first step lifts on the first frame the keys ask for movement (`moving` follows the wish, not the measured speed), quick
+ *                (`DRIVEN.firstSwing`), so a foot is down within 0.2 s and the body never outruns its legs
+ *   direction    the stride offset and the "left behind" measure follow the direction of MOTION (the velocity, or the wish while slow), not the
+ *                facing: backing up takes real steps backwards, the arms still swing against the legs in space
+ *   stopping     the swing targets are the REST point the body will stop at plus the lateral foot offset, so the last step lands under the body;
+ *                a planted foot more than 0.12 m from its rest spot steps, the farther one first, one step per foot once the body is still
+ *   turning      on the spot a foot re-plants at 0.45 rad of (predicted: 0.15 s ahead at the turn rate) mismatch, swings 0.24 s, the foot on
+ *                the turn side first, the second waits until the first is 60 % through; when the turn is over the feet close up to 0.14 rad
+ *
+ * With `intent` null every line below runs as it always did (gait.test.ts compares the NPCs' feet frame by frame against the old planner).
+ *
  * Pure maths, no three.js. All positions are world metres, headings follow the simulation (0 faces +Z).
  */
 import { clamp, damp, smoother01, smoothstep, wrapPi } from './math'
@@ -123,6 +138,23 @@ export interface Planter {
   fast: boolean
   /** What `gaitParams` said for the last update (the swing time of the step in progress, the cadence, ...). */
   params: GaitParams
+  /** Footfalls (heel strikes) of the last update, and the foot (0 left, 1 right) of the latest one (-1 before the first). The player's footsteps and camera bob read these. */
+  landed: number
+  lastLanded: number
+  // --- the driven path (`PlanterIntent`) ---
+  /** Seconds a move key has been held without a break, and seconds the body has been at rest (speed under `DRIVEN.settleSpeed`; 0 while it moves). */
+  wishFor: number
+  restFor: number
+  /** Footfalls of each foot since the body came to rest (a foot closes up to its rest spot once). */
+  restSteps: [number, number]
+  /** The first step of a start is due at once. */
+  kick: boolean
+  /** The clock of the last re-plant for a turn on the spot (feet close up to the new heading for a while after). */
+  turnAt: number
+  /** At a stop: a foot is due to step but the other one has not landed yet (it lands in a hurry). */
+  waiting: boolean
+  /** The body was going against what the keys ask for last frame (backing up, and then W): when that ends the legs start afresh. */
+  opposing: boolean
 }
 
 export const GAIT = {
@@ -140,6 +172,48 @@ export const GAIT = {
   maxReach: 0.58,
   /** A jump bigger than this between frames is a teleport, not a step. */
   teleport: 2.5,
+} as const
+
+/** The driven body (W3). Distances in metres, times in seconds, angles in radians. */
+export const DRIVEN = {
+  /** A move key is held when the wished speed is above this (m/s). */
+  wishOn: 0.05,
+  /** The body is at rest below this speed (m/s). */
+  settleSpeed: 0.05,
+  /** The first swing of a start from rest: a foot is down within 0.2 s of the first input. */
+  firstSwing: 0.17,
+  /** and it lands this share of a steady stride ahead of the body. */
+  firstStride: 0.75,
+  /**
+   * The second and third steps of a start trail and wait for less than a steady stride (a share of the trailing limit and of the time between lifts):
+   * the body is pulling away at full acceleration, and the foot that stayed behind must follow before it is left 0.5 m back.
+   */
+  startScale: [0.5, 0.85] as readonly number[],
+  /** And their swings are quicker than a steady one (seconds), so the rhythm grows into the steady one without two feet in the air at once. The lock between lifts is off for as many steps. */
+  startSwing: [0.2, 0.27, 0.33, 0.36] as readonly number[],
+  /** The time between lifts of the first steps as a share of the steady one (`GaitParams.gap`). */
+  startGap: [0.45, 0.6, 0.8, 0.92] as readonly number[],
+  /** Stopping: a planted foot this far from its rest spot steps; the swing of such a step. */
+  restThreshold: 0.12,
+  stopSwing: 0.26,
+  /** At a stop a planted foot may trail the body this far (m, nominal body) before it lifts whatever the other foot is doing: it is the limit the legs can take without the pelvis sinking. */
+  stopTrail: 0.42,
+  /** A swing that has longer than that to go when the stop begins runs this much faster. */
+  stopBoost: 1.7,
+  /** Turning on the spot: re-plant at this yaw mismatch, predicted this far ahead at the turn rate; the swing; when the second may lift; the closing-up threshold after a turn. */
+  turnReplant: 0.45,
+  turnLead: 0.15,
+  turnSwing: 0.24,
+  turnGate: 0.6,
+  turnSettle: 0.14,
+  /** Above this turn rate (rad/s) the body is turning, not standing. */
+  turning: 0.25,
+  /** The body has turned round (backing up, then W): a foot still in the air has this long left to come down (s). */
+  reverseSwing: 0.15,
+  /** How far ahead (in frames of travel) the moving planner looks when it asks whether a foot is out of reach: the NPCs' is half a frame, a run at 30 fps wants a whole one. */
+  lookAhead: 1,
+  /** Move keys held for this long without moving: the body is blocked, the feet stop stepping. */
+  stalled: 0.5,
 } as const
 
 /** Speeds (m/s) that shape the gait: the old walk holds up to `walk`, the brisk walk is fully in by `brisk`, the run blends in over `runFrom`..`runTo`. */
@@ -315,6 +389,15 @@ export function createPlanter(): Planter {
     liftsAtMove: 0,
     fast: false,
     params: createGaitParams(),
+    landed: 0,
+    lastLanded: -1,
+    wishFor: 0,
+    restFor: 0,
+    restSteps: [0, 0],
+    kick: false,
+    turnAt: -1e9,
+    waiting: false,
+    opposing: false,
   }
 }
 
@@ -344,6 +427,15 @@ export function resetPlanter(p: Planter, x: number, z: number, heading: number, 
   p.airTime = 0
   p.stance[0] = 1
   p.stance[1] = 1
+  // (a person who sits down is reset every frame: nothing has landed)
+  p.landed = 0
+  p.kick = false
+  p.waiting = false
+  p.opposing = false
+  p.wishFor = 0
+  p.restFor = 0
+  p.restSteps[0] = 0
+  p.restSteps[1] = 0
   p.px = x
   p.pz = z
   p.initialised = true
@@ -368,16 +460,109 @@ function beginStep(f: Foot, dur: number, mix: number, lam: number): void {
 }
 
 /**
+ * What the body asks of the legs: the structural subset of `walkBody` (src/scene/player/state.ts) that the planner reads. `RigInput` has the same
+ * fields, so the rig hands itself over.
+ */
+export interface PlanterIntent {
+  /** The speed spring's acceleration (m/s^2, world). */
+  ax: number
+  az: number
+  /** Heading rate, rad/s, positive = `atan2(dx, dz)` growing (a turn to the left). */
+  turnRate: number
+  /** The velocity the keys ask for (m/s); 0 with no key held. */
+  wishX: number
+  wishZ: number
+  /** No key held, still coasting to a stop. */
+  stopping: boolean
+  /** Where the body will come to rest. */
+  restX: number
+  restZ: number
+}
+
+/**
+ * The summaries every update ends with, for the arms, the torso and the pelvis: the stride phase, the stance weights, the flight and the bounce.
+ * `aLeft` / `aRight` are how far each foot is ahead of the body along its direction of motion (the foot's own cycle), `gaitL` / `gaitR` along the
+ * facing (the legs as they swing in space: the difference drives the arms), `flip` is -1 when the body backs up (the arms still swing against the legs).
+ */
+function finish(p: Planter, dt: number, gp: GaitParams, sl: number, sb: number, ref: number, run: number, aLeft: number, aRight: number, gaitL: number, gaitR: number, flip: number): void {
+  p.gait = clamp((gaitL - gaitR) / (2 * ref), -1, 1)
+  const stanceShare = 1 - gp.swingFrac
+  let cosL = 0
+  let cosR = 0
+  for (let i = 0; i < 2; i++) {
+    const f = p.feet[i]
+    p.stance[i] = f.stepping ? 0.5 + 0.5 * Math.cos(2 * Math.PI * f.t) : 1
+    // where this foot is in its own cycle, 0 at its touchdown: the stance first (by how far the body has gone over it), then the swing
+    let phase: number
+    if (f.stepping) phase = stanceShare + gp.swingFrac * f.t
+    else phase = stanceShare * clamp(((i === 0 ? sl - aLeft : sl - aRight)) / Math.max(sl + sb, 1e-3), 0, 1)
+    const c = Math.cos(2 * Math.PI * phase)
+    if (i === 0) cosL = c
+    else cosR = c
+  }
+  p.swing = clamp(0.5 * (cosL - cosR) * flip, -1, 1)
+
+  // flight and bounce: both feet in the air is a run's flight phase; a runner sinks over the planted foot and rises in the flight
+  const f0 = p.feet[0]
+  const f1 = p.feet[1]
+  p.air = f0.stepping && f1.stepping
+  p.airTime = p.air ? p.airTime + dt : 0
+  p.run = run
+  let target = 0
+  if (run > 0.001) {
+    if (f0.stepping !== f1.stepping) {
+      const a = f0.stepping ? aRight : aLeft
+      const u = clamp((sl - a) / Math.max(sl + sb, 1e-3), 0, 1)
+      target = -BOUNCE.dip * Math.sin(Math.PI * u)
+    } else if (p.air) {
+      // the foot that lifted last has the smaller progress; the flight ends when the other one lands
+      const last = f0.t < f1.t ? f0 : f1
+      const first = last === f0 ? f1 : f0
+      const elapsed = last.t * last.dur
+      const left = (1 - first.t) * first.dur
+      target = BOUNCE.rise * Math.sin((Math.PI * elapsed) / Math.max(elapsed + left, 1e-4))
+    }
+    target *= run
+  }
+  p.bounce = damp(p.bounce, target, BOUNCE.follow, dt)
+}
+
+/**
+ * How far the body goes along its motion in the next `tau` seconds: its acceleration `a` (m/s^2, along the motion) holds until it reaches the wished speed
+ * `w` (or halts), then it goes on at that speed. The spring's own acceleration dies away, so this runs a little ahead of it; the landing spot is
+ * re-predicted every frame, and the error is gone by the time the foot lands.
+ */
+function predictTravel(v: number, a: number, w: number, tau: number): number {
+  let ta = tau
+  if (a > 1e-3) {
+    const r = (w - v) / a
+    if (r < ta) ta = r > 0 ? r : 0
+  } else if (a < -1e-3) {
+    const r = v / -a
+    if (r < ta) ta = r
+  }
+  const ve = v + a * ta
+  return v * ta + 0.5 * a * ta * ta + (ve > 0 ? ve : 0) * (tau - ta)
+}
+
+/**
  * Advance the planter by `dt` seconds.
  * @param x,z      body position (the entity's, on the ground)
  * @param heading  body heading
  * @param vx,vz    body velocity, m/s (smoothed)
  * @param speed    body speed, m/s (smoothed)
  * @param scale    the person's size relative to the nominal body (strides and foot spacing scale with it)
+ * @param intent   null for everybody that is measured (the NPCs, and the player before the player system is live); for the driven body the true
+ *                 velocity is passed as vx, vz, speed and this carries what its keys ask for (see the header, "DRIVEN BODY")
  */
-export function updatePlanter(p: Planter, dt: number, x: number, z: number, heading: number, vx: number, vz: number, speed: number, scale: number): void {
+export function updatePlanter(p: Planter, dt: number, x: number, z: number, heading: number, vx: number, vz: number, speed: number, scale: number, intent: PlanterIntent | null = null): void {
+  if (intent !== null) {
+    updateDriven(p, dt, x, z, heading, vx, vz, speed, scale, intent)
+    return
+  }
   if (!p.initialised) resetPlanter(p, x, z, heading, scale)
   p.clock += dt
+  p.landed = 0
   const moved = Math.sqrt((x - p.px) * (x - p.px) + (z - p.pz) * (z - p.pz))
   if (moved > GAIT.teleport) resetPlanter(p, x, z, heading, scale)
   else p.distance += moved
@@ -449,6 +634,8 @@ export function updatePlanter(p: Planter, dt: number, x: number, z: number, head
       f.yaw = f.tyaw
       f.steps++
       p.steps++
+      p.landed++
+      p.lastLanded = i
     }
   }
 
@@ -514,46 +701,302 @@ export function updatePlanter(p: Planter, dt: number, x: number, z: number, head
 
   if (!moving && p.fast && worstRatio < 1 && !f0Stepping(p)) p.fast = false
 
-  // 3. summaries for the rest of the body
-  const ref = Math.max(S, 0.2 * scale)
-  p.gait = clamp((aLeft - aRight) / (2 * ref), -1, 1)
-  const stanceShare = 1 - gp.swingFrac
-  let cosL = 0
-  let cosR = 0
+  // 3. and 4. summaries for the rest of the body, flight and bounce
+  finish(p, dt, gp, sl, sb, Math.max(S, 0.2 * scale), run, aLeft, aRight, aLeft, aRight, 1)
+}
+
+/**
+ * The driven body's update (see the header). The same planter, planted feet and swings; what differs is what it is told: the true velocity, the
+ * wish, the rest point, the turn rate. Every line that is not about those is the NPCs' planner above.
+ */
+function updateDriven(p: Planter, dt: number, x: number, z: number, heading: number, vx: number, vz: number, speed: number, scale: number, it: PlanterIntent): void {
+  if (!p.initialised) resetPlanter(p, x, z, heading, scale)
+  p.clock += dt
+  p.landed = 0
+  const moved = Math.sqrt((x - p.px) * (x - p.px) + (z - p.pz) * (z - p.pz))
+  if (moved > GAIT.teleport) resetPlanter(p, x, z, heading, scale)
+  else p.distance += moved
+  p.px = x
+  p.pz = z
+
+  // the wish, and the direction the body is going: the velocity, or the wish while it is slow
+  const wishMag = Math.sqrt(it.wishX * it.wishX + it.wishZ * it.wishZ)
+  const hasWish = wishMag > DRIVEN.wishOn
+  p.wishFor = hasWish ? p.wishFor + dt : 0
+  const sh = Math.sin(heading)
+  const ch = Math.cos(heading)
+  // forward (fx, fz) and left (lx, lz) unit vectors on the ground; (sx, sz) is the direction of motion
+  const fx = sh
+  const fz = ch
+  const lx = ch
+  const lz = -sh
+  let sx = fx
+  let sz = fz
+  if (speed > 0.25) {
+    sx = vx / speed
+    sz = vz / speed
+  } else if (hasWish) {
+    sx = it.wishX / wishMag
+    sz = it.wishZ / wishMag
+  }
+  // walking begins with the keys, not with the measured speed; a key held against a wall is not walking
+  const stalled = hasWish && p.wishFor > DRIVEN.stalled && speed < 0.1
+  const wasMoving = p.moving
+  const moving = hasWish ? !stalled : wasMoving && speed >= DRIVEN.settleSpeed
+  p.moving = moving
+  // going against the keys (backing up, then W; running, then S) is a stop and a start in one: the legs stop to where the body will turn round (the rest point is
+  // where it would stop), and when it has turned round they start afresh
+  const opposing = hasWish && speed > DRIVEN.settleSpeed && vx * it.wishX + vz * it.wishZ < 0
+  const stopping = moving && (!hasWish || opposing)
+  const reversed = moving && p.opposing && !opposing
+  p.opposing = opposing
+  if (reversed) {
+    // a foot still in the air from the stride that was going the wrong way comes down soon: shorten what is left of its swing
+    for (let i = 0; i < 2; i++) {
+      const f = p.feet[i]
+      const left = (1 - f.t) * f.dur
+      if (f.stepping && left > DRIVEN.reverseSwing) {
+        const done = f.t * f.dur
+        f.dur = done + DRIVEN.reverseSwing
+        f.t = done / f.dur
+      }
+    }
+  }
+  if ((moving && !wasMoving) || reversed) {
+    p.liftsAtMove = p.lifts
+    p.restSteps[0] = 0
+    p.restSteps[1] = 0
+    p.kick = !f0Stepping(p)
+  }
+  if (moving) p.restFor = 0
+  else p.restFor += dt
+  if (p.kick && (!hasWish || f0Stepping(p))) p.kick = false
+
+  const v = moving ? speed : 0
+  const gp = gaitParams(v, scale, p.params)
+  // a stop closes the feet one at a time, never a hop: once the body is down to a walk the gate is shut (a runner's feet go on in the run's rhythm until then)
+  if (stopping && speed < 2) gp.gate = 1
+  const sl = gp.sl
+  const sb = gp.sb
+  const run = gp.run
+  const S = (sl + sb) * 0.5
+  const homeLat = GAIT.homeLat * scale
+  const kb = briskBlend(v)
+  const latTol = 0.16 * scale * (1 + 0.7 * kb)
+  if (gp.gap > 0) p.fast = true
+  const motion = clamp(speed / 1.2, 0, 1)
+  const reach = GAIT.maxReach * scale
+  const aS = it.ax * sx + it.az * sz
+  const turning = Math.abs(it.turnRate) > DRIVEN.turning
+  // swings begun since the body set off (1 once the first step is up): the steps of a start are shorter and sooner than the steady ones
+  // (0 is a start that has no first step: the legs were in mid-stride when the body turned round, see `reversed`)
+  const nStep = p.lifts - p.liftsAtMove
+  const starting = moving && !stopping && nStep <= DRIVEN.startSwing.length
+  const nTab = nStep < 1 ? 1 : nStep
+  const startK = starting && nTab <= DRIVEN.startScale.length ? DRIVEN.startScale[nTab - 1] : 1
+  const startGap = starting ? DRIVEN.startGap[nTab - 1] : 1
+
+  // 1. advance swings, towards where the body will be (or its rest point) when the foot lands
   for (let i = 0; i < 2; i++) {
     const f = p.feet[i]
-    p.stance[i] = f.stepping ? 0.5 + 0.5 * Math.cos(2 * Math.PI * f.t) : 1
-    // where this foot is in its own cycle, 0 at its touchdown: the stance first (by how far the body has gone over it), then the swing
-    let phase: number
-    if (f.stepping) phase = stanceShare + gp.swingFrac * f.t
-    else phase = stanceShare * clamp(((i === 0 ? sl - aLeft : sl - aRight)) / Math.max(sl + sb, 1e-3), 0, 1)
-    const c = Math.cos(2 * Math.PI * phase)
-    if (i === 0) cosL = c
-    else cosR = c
-  }
-  p.swing = clamp(0.5 * (cosL - cosR), -1, 1)
-
-  // 4. flight and bounce: both feet in the air is a run's flight phase; a runner sinks over the planted foot and rises in the flight
-  const f0 = p.feet[0]
-  const f1 = p.feet[1]
-  p.air = f0.stepping && f1.stepping
-  p.airTime = p.air ? p.airTime + dt : 0
-  p.run = run
-  let target = 0
-  if (run > 0.001) {
-    if (f0.stepping !== f1.stepping) {
-      const a = f0.stepping ? aRight : aLeft
-      const u = clamp((sl - a) / Math.max(sl + sb, 1e-3), 0, 1)
-      target = -BOUNCE.dip * Math.sin(Math.PI * u)
-    } else if (p.air) {
-      // the foot that lifted last has the smaller progress; the flight ends when the other one lands
-      const last = f0.t < f1.t ? f0 : f1
-      const first = last === f0 ? f1 : f0
-      const elapsed = last.t * last.dur
-      const left = (1 - first.t) * first.dur
-      target = BOUNCE.rise * Math.sin((Math.PI * elapsed) / Math.max(elapsed + left, 1e-4))
+    if (!f.stepping) continue
+    const side = i === 0 ? 1 : -1
+    const e0 = swingEase(f.t, f.mix, f.lam)
+    // a foot still in a long swing when the body is stopping hurries: it has to be down by the time the body is
+    f.t = Math.min(1, f.t + (dt / f.dur) * ((stopping && (1 - f.t) * f.dur > DRIVEN.stopSwing) || (p.waiting && (stopping || starting)) ? DRIVEN.stopBoost : 1))
+    const e1 = swingEase(f.t, f.mix, f.lam)
+    const remaining = (1 - f.t) * f.dur
+    // the heading the foot will meet at touchdown
+    const hp = heading + clamp(it.turnRate * remaining, -0.8, 0.8)
+    const ox = Math.cos(hp) * side * homeLat
+    const oz = -Math.sin(hp) * side * homeLat
+    if (stopping) {
+      // the foot lands where the body's usual stride would put it, but never past the rest point: a foot planted at the rest point while the body is still half a
+      // metre short of it would hold the leg out stretched (and sink the pelvis) until the body arrived
+      const rx = it.restX - x
+      const rz = it.restZ - z
+      const rd = Math.sqrt(rx * rx + rz * rz)
+      if (rd < 0.02) {
+        f.tx = it.restX + ox
+        f.tz = it.restZ + oz
+      } else {
+        const ahead = Math.min(predictTravel(speed, aS, 0, remaining) + sl, rd)
+        f.tx = x + (rx / rd) * ahead + ox
+        f.tz = z + (rz / rd) * ahead + oz
+      }
+    } else if (moving) {
+      // the first step of a start is a short one
+      const reachAhead = predictTravel(speed, aS, wishMag, remaining) + (nStep === 1 && i === p.lastStepper ? DRIVEN.firstStride * sl : sl)
+      f.tx = x + sx * reachAhead + ox
+      f.tz = z + sz * reachAhead + oz
+    } else {
+      f.tx = x + ox
+      f.tz = z + oz
     }
-    target *= run
+    f.tyaw = hp + side * GAIT.toeOut
+    const k = e1 >= 1 || e0 >= 1 ? 1 : (e1 - e0) / (1 - e0)
+    f.x += (f.tx - f.x) * k
+    f.z += (f.tz - f.z) * k
+    f.yaw += wrapPi(f.tyaw - f.yaw) * k
+    const liftH = stopping ? Math.max(GAIT.liftIdle, gp.lift * clamp(speed / 3, 0.5, 1)) : moving ? gp.lift : GAIT.liftIdle
+    const arc = liftH * Math.sin(Math.PI * f.t)
+    const landPitch = 0.18 * motion * (1 - 0.75 * run)
+    f.pitch = f.spitch + (landPitch - f.spitch) * smoothstep(0, 0.85, f.t)
+    f.lift = arc + contactLift(f.pitch)
+    if (f.t >= 1) {
+      f.stepping = false
+      f.x = f.tx
+      f.z = f.tz
+      f.yaw = f.tyaw
+      f.steps++
+      p.steps++
+      p.landed++
+      p.lastLanded = i
+      if (!moving) p.restSteps[i]++
+    }
   }
-  p.bounce = damp(p.bounce, target, BOUNCE.follow, dt)
+
+  // 2. planted feet: pitch from stance progress, then decide whether one has to step
+  let worst = -1
+  let worstRatio = 0
+  /** How urgent the worst foot's step is for the emergency rule: how far it is from its rest spot says which goes first at a stop, not that it cannot wait. */
+  let worstForce = 0
+  let worstYaw = false
+  let ratio0 = 0
+  let ratio1 = 0
+  let yaw0 = false
+  let yaw1 = false
+  let aLeft = 0
+  let aRight = 0
+  let fLeft = 0
+  let fRight = 0
+  const turnRate = clamp(it.turnRate, -6, 6)
+  p.waiting = false
+  for (let i = 0; i < 2; i++) {
+    const f = p.feet[i]
+    const side = i === 0 ? 1 : -1
+    const dx = f.x - x
+    const dz = f.z - z
+    // how far the foot is ahead of the body along its motion (`a`, the foot's own cycle) and along its facing (`af`, the legs as they swing in space)
+    const a = dx * sx + dz * sz
+    const af = dx * fx + dz * fz
+    if (i === 0) {
+      aLeft = a
+      fLeft = af
+    } else {
+      aRight = a
+      fRight = af
+    }
+    if (f.stepping) continue
+    const ps = a >= 0 ? a / Math.max(sl, 0.15 * scale) : a / Math.max(sb, 0.15 * scale)
+    f.pitch = damp(f.pitch, stancePitch(ps, motion, run), 14 + 16 * kb + 24 * run, dt)
+    f.lift = contactLift(f.pitch) + (run > 0 ? 0.05 * run * smoothstep(0.75, 1.05, -a / sb) : 0)
+    const yawNow = Math.abs(wrapPi(f.yaw - (heading + side * GAIT.toeOut)))
+    let ratio: number
+    let byYaw = false
+    let backRatio = 0
+    if (stopping) {
+      // a foot far from its rest spot has to step to it; the farthest goes first
+      const ex = f.x - (it.restX + lx * side * homeLat)
+      const ez = f.z - (it.restZ + lz * side * homeLat)
+      const rest = Math.sqrt(ex * ex + ez * ez) / (DRIVEN.restThreshold * scale)
+      ratio = Math.max(rest, yawNow / 0.8)
+      // ... but a foot that trails as far as it would on the move cannot wait for the other one (the run's toe-off), however near its rest spot
+      backRatio = -(a - 0.5 * speed * dt) / (DRIVEN.stopTrail * scale)
+    } else if (moving) {
+      const back = gp.gap > 0 ? -(a - DRIVEN.lookAhead * speed * dt) : -a
+      // the sideways drift of the foot from its home, across the motion
+      const rx = lx * side * homeLat
+      const rz = lz * side * homeLat
+      const rs = rx * sx + rz * sz
+      const bx = dx - a * sx - (rx - rs * sx)
+      const bz = dz - a * sz - (rz - rs * sz)
+      ratio = Math.max(back / (sb * startK), Math.sqrt(bx * bx + bz * bz) / latTol, yawNow / 0.8)
+    } else {
+      // standing: re-home a foot that is far from its spot (and once, if it is more than a step-up from where the body came to rest), and re-plant
+      // one whose toes have been left pointing away by a turn: 0.45 rad, looking 0.15 s ahead at the turn rate; once the turn is over, 0.14 rad
+      const yawErr = Math.abs(wrapPi(f.yaw - (heading + turnRate * DRIVEN.turnLead + side * GAIT.toeOut)))
+      const settle = !turning && p.clock - p.turnAt < 2
+      const yawRatio = yawErr / (settle ? DRIVEN.turnSettle : DRIVEN.turnReplant)
+      const ex = f.x - (x + lx * side * homeLat)
+      const ez = f.z - (z + lz * side * homeLat)
+      const home = Math.sqrt(ex * ex + ez * ez)
+      let posRatio = home / (GAIT.idleStepDist * scale)
+      if (p.restFor < 1.5 && p.restSteps[i] < 1) posRatio = Math.max(posRatio, home / (DRIVEN.restThreshold * scale))
+      ratio = Math.max(posRatio, yawRatio)
+      byYaw = yawRatio >= 1 && yawRatio >= posRatio
+    }
+    let force = stopping ? backRatio : ratio
+    if (Math.sqrt(dx * dx + dz * dz) > reach) {
+      ratio = Math.max(ratio, 1.9)
+      force = Math.max(force, 1.9)
+    }
+    // the lock (see the planner above)
+    if (moving && !stopping && gp.gap > 0 && ratio < 1 && -a >= 0.25 * sb * startK && p.clock + 0.5 * dt - p.feet[1 - i].liftAt >= gp.gap * startGap) ratio = 1
+    if (i === 0) {
+      ratio0 = ratio
+      yaw0 = byYaw
+    } else {
+      ratio1 = ratio
+      yaw1 = byYaw
+    }
+    if (ratio > worstRatio) {
+      worstRatio = ratio
+      worstForce = force
+      worst = i
+      worstYaw = byYaw
+    }
+  }
+  // turning on the spot: the foot on the turn side goes first (a left turn, +turnRate, starts with the left foot)
+  if (worst >= 0 && worstYaw && turning) {
+    const ts = it.turnRate > 0 ? 0 : 1
+    if ((ts === 0 ? ratio0 : ratio1) >= 1 && (ts === 0 ? yaw0 : yaw1)) worst = ts
+  }
+
+  if (p.kick && !f0Stepping(p)) {
+    // the first step of a start: up on the first frame the keys ask for it, quick, so a foot is down within 0.2 s and the body never outruns its legs
+    const foot = p.lastStepper === 0 ? 1 : 0
+    beginStep(p.feet[foot], DRIVEN.firstSwing, kb, 0)
+    p.feet[foot].liftAt = p.clock
+    p.lifts++
+    p.lastStepper = foot
+    p.kick = false
+  } else if (worst >= 0 && worstRatio >= 1) {
+    const other = p.feet[1 - worst]
+    // the second of two feet that turn waits until the first is 60 % through; at a stop the feet go one at a time
+    // (on the move the run's gate has a few per cent of give: a foot that is a hair short of it is not an emergency, which a tight curve at a run is, once a stride, otherwise)
+    const gate = worstYaw && turning && !moving ? DRIVEN.turnGate : moving && !stopping && gp.gate < 1 ? gp.gate - 0.04 : gp.gate
+    const open = (!other.stepping || other.t >= gate) && (gp.gap === 0 || stopping || p.clock - other.liftAt >= 0.85 * gp.gap * startGap)
+    const overdue = stopping ? worstForce >= 1.1 : moving && (gp.gap > 0 || (starting && nStep === 0)) && worstRatio >= (gp.run > 0 && p.lifts - p.liftsAtMove < 2 ? 1 : 1.1)
+    const limit = moving ? 1.8 : worstYaw && turning ? 3 : p.fast ? 2.6 : 1.8
+    p.waiting = !open
+    if (open || overdue || worstForce > limit) {
+      if (!open && other.stepping && other.t < 0.9) p.forced++
+      let dur: number
+      if (stopping) dur = Math.min(gp.dur, DRIVEN.stopSwing)
+      else if (moving) {
+        dur = gp.dur
+        // the steps after the kick are quick too: the other foot has been left behind by the body since the start
+        if (nStep <= DRIVEN.startSwing.length) dur = Math.min(dur, DRIVEN.startSwing[nTab - 1])
+      } else dur = worstYaw ? DRIVEN.turnSwing : GAIT.swingIdle
+      // the foot sets off with the body's own speed (a stop from a run leaves the trailing foot half a metre back otherwise), but the body only has the rest of its stop to go
+      let bodyTravel = moving ? v * dur : 0
+      if (stopping) {
+        const rx = it.restX - x
+        const rz = it.restZ - z
+        bodyTravel = Math.min(bodyTravel, Math.sqrt(rx * rx + rz * rz))
+      }
+      beginStep(p.feet[worst], dur, moving ? kb : 0, bodyTravel / (bodyTravel + sl + sb))
+      p.feet[worst].liftAt = p.clock
+      p.lifts++
+      p.lastStepper = worst
+      if (!moving && worstYaw) p.turnAt = p.clock
+    }
+  }
+
+  if (!moving && p.fast && worstRatio < 1 && !f0Stepping(p)) p.fast = false
+
+  // 3. and 4. summaries; backing up the arms still swing against the legs in space
+  const flip = moving && speed > 0.25 ? clamp(2 * (sx * fx + sz * fz), -1, 1) : 1
+  finish(p, dt, gp, sl, sb, Math.max(S, 0.2 * scale), run, aLeft, aRight, fLeft, fRight, flip)
 }

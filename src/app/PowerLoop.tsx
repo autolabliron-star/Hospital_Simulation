@@ -1,8 +1,9 @@
 // Adapted from the living-3d-world template (Waltz City src/app/PowerLoop.tsx).
 import { advance, useThree } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
+import { useWalk } from '@/scene/player/state'
 import { reportFrame } from '@/scene/quality/frameTiming'
-import { FramePacer, GameClock, PowerMachine, usePower, usePresent } from './power'
+import { FramePacer, GameClock, PowerMachine, isWalkingMode, usePower, usePresent } from './power'
 
 interface BatteryLike extends EventTarget {
   charging: boolean
@@ -15,13 +16,13 @@ export interface PowerLoopProps {
 
 /**
  * The demo's frame loop. The Canvas runs with `frameloop="never"`, and this drives it at the frame cap (60, or 30 on the loading
- * screen and on battery outside presentation mode), and not at all while paused. The rules are in power.ts (pure and tested); this
- * wires the browser's events to them:
+ * screen and on battery outside presentation mode and walk mode), and not at all while paused. The rules are in power.ts (pure and
+ * tested); this wires the browser's events to them:
  *
  *   - the tab is hidden: paused, always (and the audio engines go quiet, they read `usePower`);
  *   - the window lost focus: paused, except in presentation mode (`?present=1`), where screen sharing must never freeze the picture;
  *   - on battery (the Battery API, where there is one; a desktop or a browser without it counts as plugged in): 30 fps, except in
- *     presentation mode, which holds 60.
+ *     presentation mode, which holds 60, and while you are in walk mode (W3: the walk is the thing that must be smooth).
  *
  * The time handed to R3F is the game's own clock, clamped to 0.1 s a frame, so an hour in another window adds one frame to the
  * clock and never fast-forwards the simulation. One `advance()` is one whole frame in the order written down in
@@ -37,7 +38,7 @@ export function PowerLoop({ loading = false }: PowerLoopProps) {
   // Inputs: tab visibility, window focus, battery, presentation mode.
   useEffect(() => {
     const m = new PowerMachine(
-      { hidden: document.hidden, focused: document.hasFocus(), present: usePresent.getState().on, loading },
+      { hidden: document.hidden, focused: document.hasFocus(), present: usePresent.getState().on, loading, walking: isWalkingMode(useWalk.getState().mode) },
       (next) => usePower.getState().set(next),
     )
     machine.current = m
@@ -51,6 +52,10 @@ export function PowerLoop({ loading = false }: PowerLoopProps) {
     window.addEventListener('blur', onBlur)
     const unsubPresent = usePresent.subscribe((s, prev) => {
       if (s.on !== prev.on) m.set({ present: s.on })
+    })
+    // walk mode (and the flights to and from it) holds 60 fps on battery; the overview does not need to
+    const unsubWalk = useWalk.subscribe((s, prev) => {
+      if (s.mode !== prev.mode) m.set({ walking: isWalkingMode(s.mode) })
     })
 
     let battery: BatteryLike | null = null
@@ -77,6 +82,7 @@ export function PowerLoop({ loading = false }: PowerLoopProps) {
       window.removeEventListener('blur', onBlur)
       battery?.removeEventListener('chargingchange', onCharging)
       unsubPresent()
+      unsubWalk()
     }
     // `loading` is read once, at mount: later changes are handled by the next effect
   }, [])

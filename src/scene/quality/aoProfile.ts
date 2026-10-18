@@ -14,9 +14,14 @@
  */
 import type { AoLevel } from './ladder'
 
-/** AO radius (metres) and strength per player mode. Walk mode: at eye level under ceilings, the overview's wide AO darkens every joint. */
+/**
+ * AO radius (metres) and strength per player mode. Walk mode: at eye level under ceilings, the overview's wide AO darkens every joint.
+ * W3: the baked light volume (src/scene/lighting/volume) now carries the broad occlusion while walking (a room's corners, the ceiling joints,
+ * the wall bases), at the same time as it adds the room's bounce light, so this pass keeps only the contact shadows (furniture on the floor, a
+ * person against a wall): a smaller radius and less strength, so a corner is not darkened twice.
+ */
 export const AO_OVERVIEW = { aoRadius: 1.4, intensity: 2.2 } as const
-export const AO_WALK = { aoRadius: 0.8, intensity: 1.6 } as const
+export const AO_WALK = { aoRadius: 0.55, intensity: 1.1 } as const
 
 /** n8ao's default number of blur passes. */
 export const DENOISE_FULL = 2

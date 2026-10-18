@@ -6,11 +6,15 @@
 import { describe, expect, it } from 'vitest'
 import { Vector3, type BufferGeometry } from 'three'
 import { DOORS } from '@/sim/places'
+import { CONFIG } from '@/sim/config'
+import { BLOCKER_STRIDE } from '@/scene/blockers'
+import { buildWallBoxes } from '@/scene/player/boomProbe'
+import { smoothDamp } from '@/scene/player/chaseMath'
 import { buildLayout } from '../../layout'
 import { buildWalkLayout } from '../../layout/walk'
 import type { WalkDoor } from '../../layout/walk/types'
-import { DoorBank, DOOR_TIMING, type PersonLike } from './doorBank'
-import { autoLeafWidth, autoTravel, setInstance, swingDirection, swingLeafWidth, writeAutoDoor, writeSwingDoor } from './doorMatrices'
+import { DoorBank, DOOR_TIMING, newLead, setLead, type DoorLead, type PersonLike } from './doorBank'
+import { LEAF_BLOCKER_GROW, autoLeafWidth, autoTravel, leafBlockerCount, setInstance, swingDirection, swingLeafWidth, writeAutoDoor, writeLeafBlockers, writeSwingDoor } from './doorMatrices'
 import { CEILING_PX, paintCeilingCell, type CeilingPaint } from './ceilingTexture'
 import { packAtlas, paintAtlas, type Paint2D } from './signAtlas'
 import { compileWalk } from './walkGeometry'
@@ -190,6 +194,513 @@ describe('door leaf matrices', () => {
       const z = readInstance(a, 0).p.z * d.into.z
       expect(z).toBeGreaterThanOrEqual(lastZ - 1e-9)
       lastZ = z
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// W3: the leaves are solid, so the doors have to be open when your body gets there
+// ---------------------------------------------------------------------------------------------
+
+const LEAD_SECONDS = CONFIG.player.doorLeadSeconds
+const WALK = CONFIG.player.walkSpeed
+const HURRY = CONFIG.player.hurrySpeed
+const DT = 1 / 60
+
+/** Which way people cross the wall of `d` (the axis), the wall line's coordinate on it, and the coordinate across the opening's middle. */
+function crossing(d: WalkDoor): { axis: 'x' | 'z'; wall: number; middle: number } {
+  return d.wallAxis === 'x' ? { axis: 'z', wall: d.z, middle: d.x } : { axis: 'x', wall: d.x, middle: d.z }
+}
+
+/**
+ * Walk straight at the middle of door `d` from 9 m out on `side` (1 or -1) at `speed`, the door shut when you start, the bank stepped at
+ * 60 Hz with your position and (with `lead`) the lead the game gives it. Returns how open the door was when your body centre was
+ * `at` metres from the wall line, and the distances from the wall line at which it first stirred and was first wide open (>= 0.999).
+ */
+function walkAtDoor(d: WalkDoor, side: 1 | -1, speed: number, lead: boolean, at = 0.6): { shownAt: number; stirred: number; wide: number } {
+  const bank = new DoorBank(walk.doors)
+  const idx = walk.doors.indexOf(d)
+  const c = crossing(d)
+  const l: DoorLead = newLead()
+  let s = c.wall + side * 9
+  let stirred = Infinity
+  let wide = Infinity
+  for (let i = 0; i < 60 * 12; i++) {
+    const pos = c.axis === 'z' ? { x: c.middle, z: s } : { x: s, z: c.middle }
+    const v = -side * speed
+    if (lead) setLead(l, c.axis === 'x' ? v : 0, c.axis === 'z' ? v : 0, 0, 0, LEAD_SECONDS)
+    bank.update(DT, [], pos, lead ? l : null)
+    const dist = Math.abs(s - c.wall)
+    if (bank.shown[idx] > 0 && stirred === Infinity) stirred = dist
+    if (bank.shown[idx] >= 0.999 && wide === Infinity) wide = dist
+    if (dist <= at) return { shownAt: bank.shown[idx], stirred, wide }
+    s += v * DT
+  }
+  throw new Error('never got there')
+}
+
+describe('W3: the doors sense you along your way (the leaves are solid)', () => {
+  const leafDoors = walk.doors.filter((d) => d.kind === 'auto' || d.kind === 'swing')
+
+  it('every auto and swing door, from both sides, at a walk and at a hurry: wide open (98 %) when your body is 0.6 m from the wall line', () => {
+    expect(leafDoors.length).toBeGreaterThan(30)
+    let worst = 1
+    for (const d of leafDoors) {
+      for (const side of [1, -1] as const) {
+        for (const speed of [WALK, HURRY]) {
+          const r = walkAtDoor(d, side, speed, true)
+          worst = Math.min(worst, r.shownAt)
+          expect(r.shownAt, `${d.id}, side ${side}, ${speed} m/s`).toBeGreaterThanOrEqual(0.98)
+        }
+      }
+    }
+    expect(worst).toBeGreaterThanOrEqual(0.98)
+  })
+
+  it('without the lead a hurrying body meets a swing door that is not open yet (it is the lead that does it)', () => {
+    const d = door('room:A3')
+    expect(walkAtDoor(d, 1, HURRY, false).shownAt).toBeLessThan(0.6)
+    expect(walkAtDoor(d, 1, HURRY, true).shownAt).toBeGreaterThanOrEqual(0.98)
+  })
+
+  it('at a hurry an auto door stirs about 5 m out and is wide open about 2.7 m out; a swing door about 4.1 m and 1.6 m', () => {
+    const auto = walkAtDoor(door('triage'), 1, HURRY, true)
+    expect(auto.stirred).toBeGreaterThan(4.6)
+    expect(auto.stirred).toBeLessThan(5.2)
+    expect(auto.wide).toBeGreaterThan(2.4)
+    expect(auto.wide).toBeLessThan(3.1)
+    const swing = walkAtDoor(door('room:A3'), 1, HURRY, true)
+    expect(swing.stirred).toBeGreaterThan(3.8)
+    expect(swing.stirred).toBeLessThan(4.4)
+    expect(swing.wide).toBeGreaterThan(1.3)
+    expect(swing.wide).toBeLessThan(2.2)
+  })
+
+  it('a lead of nothing (standing, or no lead at all) is exactly the old point sensing: a door 2.6 m away stays shut', () => {
+    const d = door('triage')
+    const bank = new DoorBank(walk.doors)
+    const idx = walk.doors.indexOf(d)
+    const l = newLead()
+    for (let i = 0; i < 120; i++) bank.update(DT, [], { x: d.x, z: d.z + 2.6 }, l)
+    expect(bank.shown[idx]).toBe(0)
+    for (let i = 0; i < 120; i++) bank.update(DT, [], { x: d.x, z: d.z + 2.6 }, null)
+    expect(bank.shown[idx]).toBe(0)
+    // the lead applies to YOU only: a person at the same spot with the same lead set does not open it either
+    for (let i = 0; i < 120; i++) bank.update(DT, [person(d.x, d.z + 2.6)], null, setLead(l, 0, -HURRY, 0, 0, LEAD_SECONDS))
+    expect(bank.shown[idx]).toBe(0)
+  })
+
+  it('setting off from rest with a key held: the wish is the lead until the body has the speed, and the door is still open in time', () => {
+    // (close to a door at a hurry there is no time for any door: a swing door takes 0.6 s and a hurried start covers 2 m in 0.7 s)
+    for (const [id, start] of [['room:A3', 2.8], ['triage', 3.2], ['staffA', 2.8]] as const) {
+      const d = door(id)
+      for (const speed of [WALK, HURRY]) {
+        const bank = new DoorBank(walk.doors)
+        const idx = walk.doors.indexOf(d)
+        const c = crossing(d)
+        const l = newLead()
+        const vel = { v: 0 }
+        let v = 0
+        let s = c.wall + start
+        let shownAt = -1
+        for (let i = 0; i < 60 * 6 && shownAt < 0; i++) {
+          // a critically damped start (CONFIG.player.startSeconds is the time to 95 %: the smooth time is that over 2.37)
+          v = smoothDamp(v, speed, vel, CONFIG.player.startSeconds / 2.37, DT)
+          const pos = c.axis === 'z' ? { x: c.middle, z: s } : { x: s, z: c.middle }
+          const vx = c.axis === 'x' ? -v : 0
+          const vz = c.axis === 'z' ? -v : 0
+          setLead(l, vx, vz, c.axis === 'x' ? -speed : 0, c.axis === 'z' ? -speed : 0, LEAD_SECONDS)
+          bank.update(DT, [], pos, l)
+          if (Math.abs(s - c.wall) <= 0.6) shownAt = bank.shown[idx]
+          s -= v * DT
+        }
+        expect(shownAt, `${id} from rest at ${speed} m/s`).toBeGreaterThanOrEqual(0.98)
+      }
+    }
+  })
+
+  it('setLead takes the wish when it is faster than the velocity you have, and the velocity otherwise', () => {
+    const l = newLead()
+    setLead(l, 0, 0, 0, 4.2, 0.6)
+    expect([l.vx, l.vz, l.seconds]).toEqual([0, 4.2, 0.6])
+    setLead(l, 2, 0, 0, 0, 0.6) // coasting to a stop: no key held
+    expect([l.vx, l.vz]).toEqual([2, 0])
+    setLead(l, 1, 1, 3, 0, 0.6)
+    expect([l.vx, l.vz]).toEqual([3, 0])
+  })
+
+  it('snapOpenNear: Tab into a doorway opens the doors you are in range of at once, and only those', () => {
+    const d = door('triage')
+    const bank = new DoorBank(walk.doors)
+    const idx = walk.doors.indexOf(d)
+    expect(bank.snapOpenNear({ x: d.x, z: d.z + 0.5 })).toBe(true)
+    expect(bank.shown[idx]).toBe(1)
+    expect(bank.raw[idx]).toBe(1)
+    for (let i = 0; i < bank.count; i++) if (i !== idx) expect(bank.shown[i], walk.doors[i].id).toBe(0)
+    // the leaves are rewritten (the next update reports the change), and it holds open the usual time, then closes
+    expect(bank.update(DT, [], { x: d.x, z: d.z + 0.5 })).toBe(true)
+    expect(bank.snapOpenNear({ x: d.x, z: d.z + 0.5 })).toBe(false) // already open: nothing to do
+    for (let i = 0; i < 60 * 4; i++) bank.update(DT, [], null)
+    expect(bank.shown[idx]).toBe(0)
+  })
+})
+
+describe('W3: the leaves as solid boxes (writeLeafBlockers)', () => {
+  const OPENINGS = [0, 0.3, 0.7, 1]
+  const read = (a: Float64Array, i: number) => ({ cx: a[i * 6], cz: a[i * 6 + 1], ux: a[i * 6 + 2], uz: a[i * 6 + 3], hu: a[i * 6 + 4], hv: a[i * 6 + 5] })
+
+  it('writes 2 boxes per auto door and 1 per swing door, for the count the registry is told', () => {
+    const out = new Float64Array(leafBlockerCount(walk.doors) * BLOCKER_STRIDE)
+    const n = writeLeafBlockers(walk.doors, new Float32Array(walk.doors.length), out)
+    expect(n).toBe(leafBlockerCount(walk.doors))
+    expect(n).toBe(walk.doors.filter((d) => d.kind === 'auto').length * 2 + walk.doors.filter((d) => d.kind === 'swing').length)
+    for (let i = 0; i < n; i++) {
+      const b = read(out, i)
+      expect(Math.hypot(b.ux, b.uz)).toBeCloseTo(1, 9)
+      expect(b.hu).toBeGreaterThan(0.25)
+      expect(b.hv).toBeGreaterThan(0.02)
+    }
+  })
+
+  it('match the drawn leaves within a millimetre at openings 0, 0.3, 0.7 and 1: where, how long, which way, and a centimetre thicker', () => {
+    for (const d of walk.doors) {
+      for (const e of OPENINGS) {
+        const out = new Float64Array(2 * BLOCKER_STRIDE)
+        const n = writeLeafBlockers([d], [e], out)
+        if (d.kind === 'auto') {
+          expect(n).toBe(2)
+          const glass = new Float32Array(2 * 16)
+          const bars = new Float32Array(8 * 16)
+          writeAutoDoor(glass, bars, 0, d, e)
+          for (let side = 0; side < 2; side++) {
+            // the leaf's top bar spans its whole width and thickness
+            const bar = readInstance(bars, side * 4)
+            const b = read(out, side)
+            const label = `${d.id} leaf ${side} at ${e}`
+            expect(Math.abs(b.cx - bar.p.x), label).toBeLessThan(1e-3)
+            expect(Math.abs(b.cz - bar.p.z), label).toBeLessThan(1e-3)
+            expect(Math.abs(b.hu - bar.xAxis.length() / 2), label).toBeLessThan(1e-3)
+            expect(Math.abs(b.hv - (bar.zAxis.length() / 2 + LEAF_BLOCKER_GROW)), label).toBeLessThan(1e-3)
+            expect(Math.abs(b.ux * bar.xAxis.x + b.uz * bar.xAxis.z) / bar.xAxis.length(), label).toBeGreaterThan(1 - 1e-6)
+          }
+        } else {
+          expect(n).toBe(1)
+          const leaves = new Float32Array(16)
+          writeSwingDoor(leaves, 0, d, e)
+          const leaf = readInstance(leaves, 0)
+          const b = read(out, 0)
+          const label = `${d.id} at ${e}`
+          expect(Math.abs(b.cx - leaf.p.x), label).toBeLessThan(1e-3)
+          expect(Math.abs(b.cz - leaf.p.z), label).toBeLessThan(1e-3)
+          expect(Math.abs(b.hu - leaf.xAxis.length() / 2), label).toBeLessThan(1e-3)
+          expect(Math.abs(b.hv - (leaf.zAxis.length() / 2 + LEAF_BLOCKER_GROW)), label).toBeLessThan(1e-3)
+          expect(Math.abs(b.ux * leaf.xAxis.x + b.uz * leaf.xAxis.z) / leaf.xAxis.length(), label).toBeGreaterThan(1 - 1e-6)
+        }
+      }
+    }
+  })
+
+  /** The four corners of box `b`. */
+  const corners = (b: { cx: number; cz: number; ux: number; uz: number; hu: number; hv: number }): [number, number][] => {
+    const out: [number, number][] = []
+    for (const su of [-1, 1]) for (const sv of [-1, 1]) out.push([b.cx + b.ux * b.hu * su - b.uz * b.hv * sv, b.cz + b.uz * b.hu * su + b.ux * b.hv * sv])
+    return out
+  }
+
+  it('shut, the leaves close the opening (nobody walks through a closed door)', () => {
+    for (const d of walk.doors) {
+      const out = new Float64Array(2 * BLOCKER_STRIDE)
+      const n = writeLeafBlockers([d], [0], out)
+      // the coordinates along the wall that the boxes cover must cover the whole opening but the jamb clearances
+      const c = crossing(d)
+      const along = c.axis === 'z' ? 'x' : 'z'
+      let lo = Infinity
+      let hi = -Infinity
+      for (let i = 0; i < n; i++) {
+        for (const [x, z] of corners(read(out, i))) {
+          const a = along === 'x' ? x : z
+          lo = Math.min(lo, a)
+          hi = Math.max(hi, a)
+        }
+      }
+      expect(hi - lo, d.id).toBeGreaterThanOrEqual(d.width - 0.06 - 1e-9)
+    }
+  })
+
+  it('fully open, the auto leaves are inside the wall beside the opening: no blocker in the clear opening', () => {
+    const walls = buildWallBoxes().filter((b) => b.y0 === 0 && !b.sign)
+    const inWall = (x: number, z: number): boolean => walls.some((b) => x >= b.x0 - 1e-6 && x <= b.x1 + 1e-6 && z >= b.z0 - 1e-6 && z <= b.z1 + 1e-6)
+    let doors = 0
+    for (const d of walk.doors.filter((q) => q.kind === 'auto')) {
+      const out = new Float64Array(2 * BLOCKER_STRIDE)
+      writeLeafBlockers([d], [1], out)
+      doors++
+      for (let i = 0; i < 2; i++) {
+        for (const [x, z] of corners(read(out, i))) expect(inWall(x, z), `${d.id} leaf ${i} corner (${x.toFixed(3)}, ${z.toFixed(3)})`).toBe(true)
+        // and the clear opening is the whole opening between the jambs
+        const c = crossing(d)
+        const mid = c.axis === 'z' ? d.x : d.z
+        const b = read(out, i)
+        const centre = c.axis === 'z' ? b.cx : b.cz
+        expect(Math.abs(centre - mid) - b.hu, `${d.id} leaf ${i}`).toBeGreaterThanOrEqual(d.width / 2)
+      }
+    }
+    expect(doors).toBeGreaterThan(10)
+  })
+
+  it('fully open, every swing leaf leaves at least 0.75 m of the doorway for your body', () => {
+    for (const d of walk.doors.filter((q) => q.kind === 'swing')) {
+      const out = new Float64Array(BLOCKER_STRIDE)
+      writeLeafBlockers([d], [1], out)
+      // along the wall, measured from the hinge jamb toward the far jamb
+      const hingeAt = d.hinge * (d.width / 2)
+      let reach = 0
+      for (const [x, z] of corners(read(out, 0))) {
+        const a = d.wallAxis === 'x' ? x - d.x : z - d.z
+        reach = Math.max(reach, (-d.hinge * a) + hingeAt) // distance from the hinge jamb along the doorway
+      }
+      expect(d.width - reach, d.id).toBeGreaterThanOrEqual(0.75)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// W3: the swing doors are double-acting
+// ---------------------------------------------------------------------------------------------
+
+describe('W3: swing doors are double-acting (the leaf opens away from whoever sets it off)', () => {
+  const swingDoors = walk.doors.filter((d) => d.kind === 'swing')
+  const indexOf = (d: WalkDoor): number => walk.doors.indexOf(d)
+  /** Signed metres from the wall line of `d`, positive on its `into` side. */
+  const across = (d: WalkDoor, x: number, z: number): number => (x - d.x) * d.into.x + (z - d.z) * d.into.z
+  /** The point `m` metres from the middle of the doorway on side `s` (+1 the `into` side, -1 the other), `lateral` metres along the wall. */
+  const at = (d: WalkDoor, s: 1 | -1, m: number, lateral = 0): { x: number; z: number } => ({
+    x: d.x + d.into.x * s * m + d.along.x * lateral,
+    z: d.z + d.into.z * s * m + d.along.z * lateral,
+  })
+  const who = (d: WalkDoor, s: 1 | -1, m = 1.2, lateral = 0): PersonLike => {
+    const p = at(d, s, m, lateral)
+    return person(p.x, p.z)
+  }
+  const step = (bank: DoorBank, seconds: number, people: PersonLike[], player: { x: number; z: number } | null = null, lead: DoorLead | null = null): void => {
+    for (let i = 0; i < Math.round(seconds * 60); i++) bank.update(DT, people, player, lead)
+  }
+  /** Where the leaf of `d` is, measured across its wall line (positive on the `into` side): the drawn leaf's centre and the blocker box's centre. */
+  const leafAcross = (d: WalkDoor, bank: DoorBank): { drawn: number; box: number } => {
+    const i = indexOf(d)
+    const m = new Float32Array(16)
+    writeSwingDoor(m, 0, d, bank.shown[i], bank.swing[i])
+    const l = readInstance(m, 0)
+    const out = new Float64Array(BLOCKER_STRIDE)
+    writeLeafBlockers([d], [bank.shown[i]], out, [bank.swing[i]])
+    return { drawn: across(d, l.p.x, l.p.z), box: across(d, out[0], out[1]) }
+  }
+
+  it('a person coming from either side: the leaf swings to the far side of the wall line from them (drawn, and as the solid box)', () => {
+    expect(swingDoors.length).toBe(20)
+    for (const d of swingDoors) {
+      for (const s of [1, -1] as const) {
+        const bank = new DoorBank(walk.doors)
+        step(bank, 1, [who(d, s)])
+        const i = indexOf(d)
+        expect(bank.shown[i], d.id).toBe(1)
+        // the person is on side s, so the leaf goes toward -s: `swing` is +1 toward `into`
+        expect(bank.swing[i], `${d.id} person on side ${s}`).toBe(-s)
+        const l = leafAcross(d, bank)
+        expect(l.drawn * s, `${d.id} drawn leaf, person on side ${s}`).toBeLessThan(-0.5)
+        expect(l.box * s, `${d.id} leaf box, person on side ${s}`).toBeLessThan(-0.5)
+        expect(Math.abs(l.drawn - l.box), d.id).toBeLessThan(1e-3)
+      }
+    }
+  })
+
+  it('you, running at the door from either side: the leaf swings away from you (the lead segment crosses the wall line, your side is where you stand)', () => {
+    for (const d of swingDoors) {
+      for (const s of [1, -1] as const) {
+        const bank = new DoorBank(walk.doors)
+        const from = at(d, s, 2.4)
+        const lead = setLead(newLead(), -s * d.into.x * HURRY, -s * d.into.z * HURRY, 0, 0, LEAD_SECONDS)
+        step(bank, 1, [], from, lead)
+        const i = indexOf(d)
+        expect(bank.swing[i], `${d.id} player on side ${s}`).toBe(-s)
+        expect(bank.shown[i], d.id).toBe(1)
+        expect(leafAcross(d, bank).box * s, d.id).toBeLessThan(-0.5)
+      }
+    }
+  })
+
+  it('standing in the doorway, the way you are heading decides (toward the into side: it swings that way; the other way, the other; no lead: toward into)', () => {
+    const d = door('room:A3')
+    const i = indexOf(d)
+    const mid = { x: d.x, z: d.z }
+    for (const [heading, want] of [[1, 1], [-1, -1]] as const) {
+      const bank = new DoorBank(walk.doors)
+      step(bank, 0.2, [], mid, setLead(newLead(), d.into.x * heading * WALK, d.into.z * heading * WALK, 0, 0, LEAD_SECONDS))
+      expect(bank.swing[i], `heading ${heading}`).toBe(want)
+    }
+    const bank = new DoorBank(walk.doors)
+    step(bank, 0.2, [], mid)
+    expect(bank.swing[i]).toBe(1)
+  })
+
+  it('a patient in bed (2 m off, either side) still does not set a swing door off: the sensing radius is unchanged', () => {
+    for (const d of swingDoors) {
+      for (const s of [1, -1] as const) {
+        const bank = new DoorBank(walk.doors)
+        step(bank, 2, [who(d, s, 2.0), who(d, s, 1.7, 0.6)])
+        expect(bank.shown[indexOf(d)], `${d.id} side ${s}`).toBe(0)
+      }
+    }
+  })
+
+  it('the direction is kept until the door has shut: another body on either side, while it opens, stands open or closes, never flips it', () => {
+    const d = door('room:A3')
+    const i = indexOf(d)
+    const bank = new DoorBank(walk.doors)
+    // somebody on side -1 opens it toward +1
+    step(bank, 1, [who(d, -1)])
+    expect([bank.swing[i], bank.shown[i]]).toEqual([1, 1])
+    // both sides at once: still the same way
+    step(bank, 1, [who(d, -1), who(d, 1)])
+    expect([bank.swing[i], bank.shown[i]]).toEqual([1, 1])
+    // only the side the leaf stands on is occupied: held open, same way
+    step(bank, 1, [who(d, 1)])
+    expect([bank.swing[i], bank.shown[i]]).toEqual([1, 1])
+    // everybody leaves; part-way through closing somebody comes from the leaf's own side: it opens again the SAME way
+    for (let k = 0; k < 600 && bank.raw[i] >= 0.5; k++) bank.update(DT, [], null)
+    expect(bank.raw[i]).toBeGreaterThan(0)
+    expect(bank.raw[i]).toBeLessThan(0.5)
+    const before = bank.raw[i]
+    step(bank, 0.1, [who(d, 1)])
+    expect(bank.swing[i]).toBe(1)
+    expect(bank.raw[i]).toBeGreaterThan(before)
+    // all the way open, everyone gone, and shut again: now the same side flips it (away from them)
+    step(bank, 1, [who(d, 1)])
+    step(bank, 4, [])
+    expect([bank.raw[i], bank.shown[i]]).toEqual([0, 0])
+    step(bank, 1, [who(d, 1)])
+    expect([bank.swing[i], bank.shown[i]]).toEqual([-1, 1])
+  })
+
+  it('from shut, people on both sides on the same frame: you before the crowd, then the crowd in order (a fixed rule, no flicker)', () => {
+    const d = door('room:A3')
+    const i = indexOf(d)
+    const you = at(d, -1, 1.2)
+    const a = new DoorBank(walk.doors)
+    step(a, 0.2, [who(d, 1)], you)
+    expect(a.swing[i]).toBe(1) // you are on side -1: away from you
+    const b = new DoorBank(walk.doors)
+    step(b, 0.2, [who(d, 1), who(d, -1)])
+    expect(b.swing[i]).toBe(-1) // the first person is on side 1
+    const c = new DoorBank(walk.doors)
+    step(c, 0.2, [who(d, -1), who(d, 1)])
+    expect(c.swing[i]).toBe(1)
+  })
+
+  it('a long muddle of people switching sides: the direction only ever changes on a frame the door was fully shut, and it does change between visits', () => {
+    const d = door('room:B5')
+    const i = indexOf(d)
+    const bank = new DoorBank(walk.doors)
+    const cycles = [5, 2.9, 3.4, 5, 2.7, 4, 3.1, 5]
+    let flips = 0
+    let t0 = 0
+    cycles.forEach((len, c) => {
+      const first: 1 | -1 = c % 3 === 1 ? 1 : c % 2 === 0 ? -1 : 1
+      for (let f = 0; f < Math.round(len * 60); f++) {
+        const t = f / 60
+        // for the first 1.5 s of a visit somebody is near, swapping sides every 16 frames; then nobody (the door closes, or is caught closing)
+        const people = t < 1.5 ? [who(d, (Math.floor(f / 16) % 2 === 0 ? first : -first) as 1 | -1, 1.0)] : []
+        const swingBefore = bank.swing[i]
+        const rawBefore = bank.raw[i]
+        bank.update(DT, people, null)
+        if (bank.swing[i] !== swingBefore) {
+          flips++
+          expect(rawBefore, `visit ${c} frame ${f}: the direction changed with the door ${(rawBefore * 100).toFixed(1)} % open`).toBe(0)
+        }
+      }
+      t0 += len
+    })
+    expect(t0).toBeGreaterThan(30)
+    expect(flips).toBeGreaterThan(0)
+  })
+
+  it('Tab into a doorway: the doors in range open at once and swing away from you; a door already part open keeps its way', () => {
+    const d = door('room:A3')
+    const i = indexOf(d)
+    for (const s of [1, -1] as const) {
+      const bank = new DoorBank(walk.doors)
+      const me = at(d, s, 0.5)
+      expect(bank.snapOpenNear(me)).toBe(true)
+      expect([bank.swing[i], bank.shown[i]]).toEqual([-s, 1])
+      expect(leafAcross(d, bank).box * s).toBeLessThan(-0.5)
+    }
+    const bank = new DoorBank(walk.doors)
+    step(bank, 0.25, [who(d, -1)]) // opening toward +1
+    expect(bank.raw[i]).toBeGreaterThan(0)
+    expect(bank.raw[i]).toBeLessThan(1)
+    bank.snapOpenNear(at(d, 1, 0.5))
+    expect([bank.swing[i], bank.shown[i]]).toEqual([1, 1])
+  })
+
+  it('auto doors have no direction: their swing stays +1 whoever comes and from where', () => {
+    const entrance = door('entrance')
+    const bank = new DoorBank(walk.doors)
+    step(bank, 1, [person(entrance.x - 1, entrance.z), person(entrance.x + 1, entrance.z)])
+    step(bank, 1, [who(entrance, -1)])
+    for (let k = 0; k < bank.count; k++) if (walk.doors[k].kind === 'auto') expect(bank.swing[k], walk.doors[k].id).toBe(1)
+  })
+
+  it('the drawn leaf and the blocker box agree within a millimetre at openings 0, 0.3, 0.7 and 1, in both directions; one is the mirror of the other across the wall line', () => {
+    for (const d of swingDoors) {
+      for (const e of [0, 0.3, 0.7, 1]) {
+        const centres: { along: number; across: number; ux: number; uz: number }[] = []
+        for (const dir of [1, -1] as const) {
+          const leaves = new Float32Array(16)
+          writeSwingDoor(leaves, 0, d, e, dir)
+          const leaf = readInstance(leaves, 0)
+          const out = new Float64Array(BLOCKER_STRIDE)
+          const n = writeLeafBlockers([d], [e], out, [dir])
+          expect(n).toBe(1)
+          const label = `${d.id} at ${e}, dir ${dir}`
+          expect(Math.abs(out[0] - leaf.p.x), label).toBeLessThan(1e-3)
+          expect(Math.abs(out[1] - leaf.p.z), label).toBeLessThan(1e-3)
+          expect(Math.abs(out[4] - leaf.xAxis.length() / 2), label).toBeLessThan(1e-3)
+          expect(Math.abs(out[5] - (leaf.zAxis.length() / 2 + LEAF_BLOCKER_GROW)), label).toBeLessThan(1e-3)
+          expect(Math.abs(out[2] * leaf.xAxis.x + out[3] * leaf.xAxis.z) / leaf.xAxis.length(), label).toBeGreaterThan(1 - 1e-6)
+          // the leaf's end points: the hinge end stays at the jamb, the free end is where `swingDirection` says
+          const dirV = swingDirection(d, e * d.maxAngle, dir)
+          const lw = swingLeafWidth(d)
+          const hx = d.x + d.hinge * d.along.x * (d.width / 2 - 0.015)
+          const hz = d.z + d.hinge * d.along.z * (d.width / 2 - 0.015)
+          expect(Math.abs(leaf.p.x - (hx + dirV.x * lw / 2)), label).toBeLessThan(1e-3)
+          expect(Math.abs(leaf.p.z - (hz + dirV.z * lw / 2)), label).toBeLessThan(1e-3)
+          centres.push({ along: (leaf.p.x - d.x) * d.along.x + (leaf.p.z - d.z) * d.along.z, across: across(d, leaf.p.x, leaf.p.z), ux: out[2], uz: out[3] })
+        }
+        // the mirror image across the wall line: the same place along the wall, the opposite across it
+        expect(Math.abs(centres[0].along - centres[1].along), `${d.id} at ${e}`).toBeLessThan(1e-3)
+        expect(Math.abs(centres[0].across + centres[1].across), `${d.id} at ${e}`).toBeLessThan(1e-3)
+        if (e === 0) expect(Math.abs(centres[0].across), d.id).toBeLessThan(1e-6)
+        else expect(centres[0].across, `${d.id} at ${e}: dir +1 is toward the into side`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('swung the other way a fully open leaf still leaves at least 0.75 m of the doorway for your body', () => {
+    for (const d of swingDoors) {
+      const out = new Float64Array(BLOCKER_STRIDE)
+      writeLeafBlockers([d], [1], out, [-1])
+      const hingeAt = d.hinge * (d.width / 2)
+      let reach = 0
+      const [cx, cz, ux, uz, hu, hv] = [out[0], out[1], out[2], out[3], out[4], out[5]]
+      for (const su of [-1, 1]) {
+        for (const sv of [-1, 1]) {
+          const x = cx + ux * hu * su - uz * hv * sv
+          const z = cz + uz * hu * su + ux * hv * sv
+          const a = d.wallAxis === 'x' ? x - d.x : z - d.z
+          reach = Math.max(reach, -d.hinge * a + hingeAt)
+        }
+      }
+      expect(d.width - reach, d.id).toBeGreaterThanOrEqual(0.75)
     }
   })
 })

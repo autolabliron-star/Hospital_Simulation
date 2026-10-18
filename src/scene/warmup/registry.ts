@@ -52,3 +52,39 @@ export function warmSourceNames(): string[] {
 export function clearWarmSources(): void {
   sources.clear()
 }
+
+/**
+ * W3: work that must finish before the warm-up looks at the scene: something that loads or bakes at mount and then puts new meshes or
+ * textures in (the realistic people, the light volume). The settle wait holds while any gate is open (up to its own limit), so what the
+ * gate brings is compiled behind the loading screen too. A rejected gate counts as done: a failed load must never keep the presenter out.
+ */
+const gates = new Map<string, { done: boolean }>()
+
+/** Register (or replace, by name) a gate. Returns the function that removes it. */
+export function registerWarmGate(name: string, work: Promise<unknown>): () => void {
+  const gate = { done: false }
+  gates.set(name, gate)
+  const close = () => {
+    gate.done = true
+  }
+  work.then(close, close)
+  return () => {
+    if (gates.get(name) === gate) gates.delete(name)
+  }
+}
+
+/** How many registered gates are still open. */
+export function warmGatesPending(): number {
+  let n = 0
+  for (const g of gates.values()) if (!g.done) n++
+  return n
+}
+
+export function warmGateNames(): string[] {
+  return [...gates.keys()]
+}
+
+/** For tests. */
+export function clearWarmGates(): void {
+  gates.clear()
+}

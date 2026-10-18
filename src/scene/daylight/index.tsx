@@ -3,7 +3,9 @@
  * `lightAt(hour)` at 1 Hz, easing the sun's colour and intensity, the fill and environment, the sky, the window glass, the warm room
  * panels, the bedside screens and the corridor night lights. Uniforms and existing properties only: the sun's direction never changes
  * and the baked shadow map is never rendered again. The one thing it draws is the corridor night-light strips (one draw call; by day
- * they write no pixels). In walk mode (W1) it also blends the indoor preset in (./indoor.ts): the sun down, the fill and environment up.
+ * they write no pixels). In walk mode (W1) it also blends the walk look in (src/scene/lighting/look.ts, ./driver.ts): the sun and fill down,
+ * the light volume, the floors' reflection, the grade and the exposure up. It also hands the driver what the look writes through (W3): the
+ * renderer's exposure, the floors with their walk roughness, the ceiling panels' brightness, and the ladder's effects rung.
  */
 import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
@@ -11,6 +13,10 @@ import { MeshBasicMaterial } from 'three'
 import { MAT } from '@/scene/materials'
 import { lightRig } from '@/scene/Lighting'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { CEILING_EMISSIVE } from '@/scene/building/render/walk/walkMaterials'
+import { FLOOR_WALK_ROUGHNESS } from '@/scene/lighting/look'
+import { FLOOR_KEYS } from '@/scene/lighting/palettePatch'
+import { useRenderStore } from '@/scene/quality/render.store'
 import { sim, simGeneration } from '@/sim'
 import { hourOf } from '@/sim/events'
 import { useWorld } from '@/sim/world.store'
@@ -25,6 +31,7 @@ const readHour = (): number => hourOf(useWorld.getState().t)
 
 export function Daylight() {
   const scene = useThree((s) => s.scene)
+  const gl = useThree((s) => s.gl)
   const assets = useMemo(() => {
     const material = new MeshBasicMaterial({ color: 0x000000, toneMapped: true, colorWrite: false, depthWrite: false })
     const targets: DayTargets = {
@@ -35,6 +42,10 @@ export function Daylight() {
       panels: MAT.glowTeal,
       lamps: MAT.glowWarm,
       nightLights: { material, setLit: () => undefined },
+      renderer: null,
+      floors: FLOOR_KEYS.map((key) => ({ material: MAT[key as keyof typeof MAT], walk: FLOOR_WALK_ROUGHNESS[key] })),
+      ceilingEmissive: CEILING_EMISSIVE,
+      fxLite: false,
     }
     return { driver: new DaylightDriver(), geometry: nightLightsGeometry(), material, targets }
   }, [])
@@ -59,6 +70,8 @@ export function Daylight() {
     t.sun = lightRig.sun
     t.hemi = lightRig.hemi
     t.scene = scene
+    t.renderer = gl
+    t.fxLite = useRenderStore.getState().step.fx === 'lite'
     // walk mode (W1): the rooms have ceilings, so the sun eases down and the indoor fill up (read the live sim: a Jump swaps it)
     assets.driver.frame(dt, readHour, simGeneration, t, indoorTarget(sim.player?.mode))
   }, DAYLIGHT_PRIORITY)

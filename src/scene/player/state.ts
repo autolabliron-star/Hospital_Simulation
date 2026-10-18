@@ -33,6 +33,56 @@ export const walkCam = {
   camera: { x: 0, y: 0, z: 0 },
 }
 
+/**
+ * W3: your body this frame, never reallocated. Written by the player system at FRAME_PRIORITY.player (after it moves you); read in the same
+ * frame by the crowd (your legs plan from it), and in the next frame by the doors (FRAME_PRIORITY.doors, before you move) and the quality
+ * ladder. Velocities are m/s on the floor plane, the rest point is metres.
+ */
+export const walkBody = {
+  /** The player system has written at least once since the page loaded. */
+  live: false,
+  x: 0,
+  z: 0,
+  /** The velocity actually achieved this frame, after walls, furniture, doors and people. */
+  vx: 0,
+  vz: 0,
+  /** What your keys ask for (m/s); 0 with no move key held. */
+  wishX: 0,
+  wishZ: 0,
+  /** The acceleration of the speed spring (smooth, m/s^2): the body leans into it. */
+  ax: 0,
+  az: 0,
+  /** How fast your heading turns (rad/s, positive = counter-clockwise seen from above, the sense of `atan2(dx, dz)` growing). */
+  turnRate: 0,
+  /** No move key is held and you are still coasting to a stop. */
+  stopping: false,
+  /** Where you will come to rest if you let go now (swept through the solids). Equals x, z while standing. */
+  restX: 0,
+  restZ: 0,
+  /** Seconds since your speed last exceeded 0.05 m/s. */
+  stillFor: 0,
+}
+
+/**
+ * W3: your legs, as the crowd's footfall planner sees them (written by the crowd model for the player's slot, priority 0, after the camera; so
+ * the camera reads last frame's, one frame late, which a bob does not show). Read by the chase camera (the footfall bob) and the ambience
+ * (a footstep sound on each heel strike). Never reallocated.
+ */
+export const walkStride = {
+  /** Heel strikes since the page loaded: a reader plays one step per increment. */
+  steps: 0,
+  /** Which foot struck last: 0 left, 1 right. */
+  foot: 0,
+  /** Seconds since the last heel strike. */
+  sinceStrike: 0,
+  /** The gait cycle, 0..1, 0 at a left heel strike and 0.5 at a right one (holds still while standing). */
+  phase: 0,
+  /** The body's speed at the last strike (m/s): louder and longer steps when running. */
+  strikeSpeed: 0,
+  /** 0 walking .. 1 running (the run blend the legs are using). */
+  run: 0,
+}
+
 export interface WalkState {
   mode: PlayerMode
   view: PlayerViewKind

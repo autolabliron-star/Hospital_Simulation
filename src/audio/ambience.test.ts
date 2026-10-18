@@ -1,69 +1,54 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AREAS, ROOMS, areaAt } from '@/sim/places'
 import {
+  AMBIENCE_MASTER,
   AmbienceEngine,
   DOOR_REACH,
   LIFT_REACH,
   POD_REACH,
   ROOM_TONES,
-  nextStepAt,
+  STEP_BURST_MAX,
   newTrigger,
   podChimeDue,
-  stepRateHz,
   stepTrigger,
+  stepVoice,
+  strikesSince,
   toneForArea,
   type AmbienceInputs,
   type AmbiencePlayer,
+  type AmbienceStride,
   type Reach,
   type RoomTone,
 } from './ambience'
 
-/** Steps a walker at `speed` takes in `seconds`, planned the way the engine plans them: 50 ms windows, one after another. */
-function stepTimes(speed: number, seconds: number): number[] {
-  const out: number[] = []
-  const rate = stepRateHz(speed)
-  let last = Number.NEGATIVE_INFINITY
-  for (let now = 0; now < seconds; now += 0.05) {
-    let t = nextStepAt(last, now, rate)
-    while (t < now + 0.05) {
-      out.push(t)
-      last = t
-      t = nextStepAt(last, now, rate)
-    }
-  }
-  return out
-}
-
-describe('footstep timing', () => {
-  it('is 1.8 steps a second at a 1.5 m/s walk', () => {
-    expect(stepRateHz(1.5)).toBeCloseTo(1.8, 9)
+describe('footsteps follow the heel strikes', () => {
+  it('plays one step for each increment of the strike count, and none when it did not grow', () => {
+    expect(strikesSince(10, 10)).toBe(0)
+    expect(strikesSince(10, 11)).toBe(1)
+    expect(strikesSince(10, 12)).toBe(2)
+    // a counter that went backwards (a restart) plays nothing
+    expect(strikesSince(10, 3)).toBe(0)
   })
 
-  it('is faster when hurrying, and capped', () => {
-    expect(stepRateHz(3.2)).toBeGreaterThan(stepRateHz(1.5))
-    expect(stepRateHz(3.2)).toBeCloseTo(3.84, 9)
-    expect(stepRateHz(10)).toBe(4.5)
+  it('never plays a burst after a long pause, a Jump or a hidden tab', () => {
+    expect(strikesSince(0, 500)).toBe(STEP_BURST_MAX)
+    expect(STEP_BURST_MAX).toBeLessThanOrEqual(3)
   })
 
-  it('is silent when standing still, or moving too slowly to count', () => {
-    expect(stepRateHz(0)).toBe(0)
-    expect(stepRateHz(0.1)).toBe(0)
-    expect(stepRateHz(Number.NaN)).toBe(0)
-    expect(stepTimes(0, 5)).toHaveLength(0)
-  })
-
-  it('plays about 18 steps in 10 s at a walk, and about 38 when hurrying', () => {
-    expect(Math.abs(stepTimes(1.5, 10).length - 18)).toBeLessThanOrEqual(1)
-    expect(Math.abs(stepTimes(3.2, 10).length - 38)).toBeLessThanOrEqual(1)
-  })
-
-  it('spaces the steps evenly, and a first or late step is due at once', () => {
-    const times = stepTimes(1.5, 6)
-    for (let i = 1; i < times.length; i++) expect(times[i] - times[i - 1]).toBeCloseTo(1 / 1.8, 6)
-    expect(nextStepAt(Number.NEGATIVE_INFINITY, 5, 1.8)).toBe(5)
-    expect(nextStepAt(5, 9, 2)).toBe(9)
-    expect(nextStepAt(5, 5, 2)).toBe(5.5)
-    expect(nextStepAt(5, 5, 0)).toBe(Number.POSITIVE_INFINITY)
+  it('is soft at a standing shuffle, firmer at a walk, loudest and longest running; always audible and never over the step peak', () => {
+    const still = stepVoice(0, 0)
+    const walk = stepVoice(2, 0)
+    const run = stepVoice(4.2, 1)
+    expect(still.peak).toBeGreaterThan(0)
+    expect(walk.peak).toBeGreaterThan(still.peak)
+    expect(run.peak).toBeGreaterThan(walk.peak)
+    expect(run.decayS).toBeGreaterThan(walk.decayS)
+    expect(run.band).toBeLessThan(walk.band)
+    for (const v of [0, 0.5, 1, 2, 4.2, 9]) for (const r of [0, 0.5, 1]) expect(stepVoice(v, r).peak).toBeLessThanOrEqual(0.5 + 1e-12)
+    // the same loudness as the old speed-timed steps at a walk (0.45 of the envelope at 1.5 m/s): the mix does not change
+    expect(stepVoice(1.5, 0).peak).toBeGreaterThan(0.38)
+    expect(stepVoice(1.5, 0).peak).toBeLessThan(0.5)
+    expect(AMBIENCE_MASTER).toBe(0.2)
   })
 })
 
@@ -249,5 +234,142 @@ describe('AmbienceEngine gating', () => {
 
   it('builds the graph once when you walk, unmuted, unlocked and visible', () => {
     expect(run({})).toBe(1)
+  })
+})
+
+describe('AmbienceEngine footsteps', () => {
+  const WALKING: AmbiencePlayer = { x: -60, z: 0, speed: 1.5, mode: 'walk' }
+  const realContext = (globalThis as { AudioContext?: unknown }).AudioContext
+  let now = 0
+  let filters = 0
+  let stepCalls: { hz: number; t: number }[] = []
+
+  const param = (record?: (v: number, t: number) => void) => ({
+    value: 0,
+    cancelScheduledValues() {},
+    setValueAtTime(v: number, t: number) {
+      record?.(v, t)
+    },
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    setTargetAtTime() {},
+  })
+  const node = (extra: Record<string, unknown> = {}) => ({ connect() {}, disconnect() {}, start() {}, ...extra })
+
+  /** A Web Audio context that records the band of every footstep (the second filter the engine builds is the step filter) and whose clock the test moves. */
+  class FakeContext {
+    sampleRate = 48000
+    state = 'running'
+    destination = {}
+    get currentTime(): number {
+      return now
+    }
+    createGain() {
+      return node({ gain: param() })
+    }
+    createBiquadFilter() {
+      const id = filters++
+      return node({ type: '', Q: param(), frequency: param((hz, t) => id === 1 && stepCalls.push({ hz, t })) })
+    }
+    createBufferSource() {
+      return node({ buffer: null, loop: false })
+    }
+    createBuffer(_channels: number, len: number) {
+      return { getChannelData: () => new Float32Array(len) }
+    }
+    createOscillator() {
+      return node({ type: '', frequency: param() })
+    }
+    resume() {
+      return Promise.resolve()
+    }
+    suspend() {
+      return Promise.resolve()
+    }
+    close() {
+      return Promise.resolve()
+    }
+  }
+
+  beforeEach(() => {
+    now = 0
+    filters = 0
+    stepCalls = []
+    vi.useFakeTimers()
+    ;(globalThis as { AudioContext?: unknown }).AudioContext = FakeContext
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    ;(globalThis as { AudioContext?: unknown }).AudioContext = realContext
+  })
+
+  /** Moves the audio clock and the timers on together, 50 ms at a time (the engine's tick). */
+  function advance(ms: number): void {
+    for (let t = 0; t < ms; t += 50) {
+      now += 0.05
+      vi.advanceTimersByTime(50)
+    }
+  }
+
+  function engineFor(stride: { steps: number; foot: number; strikeSpeed: number; run: number }, player: () => AmbiencePlayer | null = () => WALKING): AmbienceEngine {
+    const inputs: AmbienceInputs = { player, stride: (): AmbienceStride => stride, pods: () => [], area: () => null, muted: () => false, unlocked: () => true, hidden: () => false, autoDoors: [], lifts: [] }
+    const engine = new AmbienceEngine(inputs)
+    engine.start()
+    return engine
+  }
+
+  it('plays one step for each heel strike, on the foot that struck, and none while the count stands still, whatever the speed says', () => {
+    const stride = { steps: 40, foot: 0, strikeSpeed: 2, run: 0 }
+    const engine = engineFor(stride)
+    advance(300)
+    // starting to walk with a count that is already high plays nothing
+    expect(stepCalls).toHaveLength(0)
+    // the player's speed is high but no foot lands: silence (the old engine would have timed steps from it)
+    advance(1000)
+    expect(stepCalls).toHaveLength(0)
+    stride.steps += 1
+    stride.foot = 1
+    advance(50)
+    expect(stepCalls).toHaveLength(1)
+    // the two feet sound different: left and right bands
+    const right = stepCalls[0].hz
+    advance(500)
+    expect(stepCalls).toHaveLength(1)
+    stride.steps += 1
+    stride.foot = 0
+    advance(50)
+    expect(stepCalls).toHaveLength(2)
+    expect(stepCalls[1].hz).toBeLessThan(right)
+    // two strikes inside one tick are heard as two, in order, ending on the latest foot
+    stride.steps += 2
+    stride.foot = 1
+    advance(50)
+    expect(stepCalls).toHaveLength(4)
+    expect(stepCalls[2].hz).toBeLessThan(stepCalls[3].hz)
+    expect(stepCalls[3].t).toBeGreaterThan(stepCalls[2].t)
+    engine.stop()
+  })
+
+  it('caps a burst, and plays nothing for the strikes that happened while you were not walking', () => {
+    const stride = { steps: 0, foot: 0, strikeSpeed: 3, run: 1 }
+    let mode = 'walk'
+    const engine = engineFor(stride, () => ({ ...WALKING, mode }))
+    advance(300)
+    stride.steps += 100
+    advance(50)
+    expect(stepCalls).toHaveLength(STEP_BURST_MAX)
+    stepCalls.length = 0
+    // overview: the engine goes quiet and forgets the count; the strikes that pass meanwhile are not played when you come back
+    mode = 'overview'
+    advance(600)
+    stride.steps += 7
+    mode = 'walk'
+    advance(400)
+    expect(stepCalls).toHaveLength(0)
+    stride.steps += 1
+    advance(50)
+    expect(stepCalls).toHaveLength(1)
+    engine.stop()
   })
 })

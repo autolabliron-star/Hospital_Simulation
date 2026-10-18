@@ -126,8 +126,13 @@ export interface WarmupOptions {
   reveal?: boolean
   /** Longest stretch of compiling or uploading before the page gets a frame, ms. */
   sliceMs?: number
-  /** Wait for the scene to stop growing and for `scene.environment`. */
-  settle?: { minFrames?: number; stableFrames?: number; maxMs?: number; requireEnvironment?: boolean }
+  /**
+   * Wait for the scene to stop growing and for `scene.environment`. While a warm gate is open (registry.ts `registerWarmGate`: the people
+   * loading, the light volume baking) the wait goes on, up to `gateMaxMs` instead of `maxMs`.
+   */
+  settle?: { minFrames?: number; stableFrames?: number; maxMs?: number; requireEnvironment?: boolean; gateMaxMs?: number }
+  /** How many warm gates are still open (registry.ts `warmGatesPending`). Default: none. */
+  gatesPending?: () => number
   /** Longest wait for the drivers to finish compiling, ms. */
   readyWaitMs?: number
   /** Overall limit, ms: after it the warm-up reports ready anyway. */
@@ -142,7 +147,7 @@ const DEFAULTS = {
   sliceMs: 8,
   readyWaitMs: 8000,
   maxMs: 20000,
-  settle: { minFrames: 3, stableFrames: 3, maxMs: 3000, requireEnvironment: true },
+  settle: { minFrames: 3, stableFrames: 3, maxMs: 3000, requireEnvironment: true, gateMaxMs: 10000 },
   standIn: { size: 4, samples: 4 },
 } as const
 
@@ -300,14 +305,17 @@ export class WarmupRun {
     let frames = 0
     let stable = 0
     let last = this.signature()
-    while (!this.cancelled && this.clock.now() - t0 < o.maxMs) {
+    const pending = this.options.gatesPending ?? (() => 0)
+    // an open gate (people loading, the light volume baking) stretches the wait to its own limit
+    const limit = () => (pending() > 0 ? Math.max(o.maxMs, o.gateMaxMs) : o.maxMs)
+    while (!this.cancelled && this.clock.now() - t0 < limit()) {
       await this.clock.frame()
       frames++
       const sig = this.signature()
       stable = sig === last ? stable + 1 : 0
       last = sig
       this.advance('settle', frames / (o.minFrames + o.stableFrames))
-      if (frames >= o.minFrames && stable >= o.stableFrames && (!o.requireEnvironment || this.scene.environment)) break
+      if (frames >= o.minFrames && stable >= o.stableFrames && (!o.requireEnvironment || this.scene.environment) && pending() === 0) break
     }
     this.stat({ settleMs: this.clock.now() - t0 })
   }

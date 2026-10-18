@@ -411,6 +411,15 @@ describe('door leaves', () => {
     }
   })
 
+  it('the swing doors are double-acting: the same sweep (same hinge, same widest angle) also clears every footprint on the side the leaf comes from', () => {
+    for (const d of walk.doors.filter((q) => q.kind === 'swing')) {
+      const hx = d.x + d.hinge * d.along.x * (d.width / 2)
+      const hz = d.z + d.hinge * d.along.z * (d.width / 2)
+      const back = { x: -d.into.x, z: -d.into.z }
+      expect(sweepIsClear(hx, hz, d.along, d.hinge, back, d.width - 0.04, d.maxAngle, layout.footprints), d.id).toBe(true)
+    }
+  })
+
   it('the patient rooms\' doors all open wide, hinged on the side away from the bed', () => {
     for (const r of ROOMS) {
       const d = walk.doors.find((q) => q.id === `room:${r.id}`)!

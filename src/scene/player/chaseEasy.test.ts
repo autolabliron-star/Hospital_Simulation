@@ -14,7 +14,7 @@ import { BUILDING, ceilingHeight, areaAt } from '@/sim/places'
 import type { Vec3 } from '@/sim/types'
 import { OPEN_PROBE, WallBoxProbe, buildWallBoxes, insideWallBox, type BoomProbe } from './boomProbe'
 import { ChaseCamera } from './chaseCamera'
-import { angleDelta, rightOf, shoulderPose, wrapAngle } from './chaseMath'
+import { LAG_KNEE, angleDelta, rightOf, shoulderPose, wrapAngle } from './chaseMath'
 import { settle, walkableAt } from './collision'
 import { CHASE, EASY } from './tuning'
 
@@ -161,16 +161,19 @@ describe('the easy camera follows your heading', () => {
     expect(angleDelta(r.chase.facing, r.heading)).toBeCloseTo(0, 12)
   })
 
-  it('running and turning at 200 degrees a second: the lag stops at the limit (give or take the frame\'s own turn), however long you turn', () => {
+  it('running and turning at 200 degrees a second: the lag is squeezed softly under the limit, however long you turn', () => {
     const r = new Rig(0)
     r.run(0.5)
-    let atLimit = 0
+    let inSoftZone = 0
     for (let i = 0; i < 60 * 4; i++) {
       r.step({ turn: -200 * DEG, speed: RUN })
-      expect(r.lag()).toBeLessThanOrEqual(EASY.maxYawLag + 200 * DEG * DT + 1e-9)
-      if (r.lag() > EASY.maxYawLag - 1 * DEG) atLimit++
+      expect(r.lag()).toBeLessThanOrEqual(EASY.maxYawLag + 1e-9)
+      if (r.lag() > LAG_KNEE * EASY.maxYawLag) inSoftZone++
     }
-    expect(atLimit).toBeGreaterThan(60) // a long steady turn does reach the limit: the cap is what holds it there
+    // W3: the old cap was a wall (the lag sat at the limit plus a frame's turn, with the spring's speed left as it was: a kink). The lag
+    // beyond `LAG_KNEE * maxYawLag` is now bent through `softLimit`: a long steady turn spends its time in that soft zone, never at
+    // the limit, and the rate of the view has no kink (chaseSmooth.test.ts measures it)
+    expect(inSoftZone).toBeGreaterThan(60)
     r.run(3, { speed: RUN })
     expect(angleDelta(r.chase.facing, r.heading)).toBeCloseTo(0, 12)
   })
@@ -504,10 +507,13 @@ describe('the walls and the shoulder, with the easy camera', () => {
   const boxes = buildWallBoxes()
 
   /** Every frame: the camera's centre is in no wall, under the ceiling of its area, above the floor; the ball is clear unless the boom is squeezed. */
-  function checkFrame(cam: PerspectiveCamera, boom: number, label: string): void {
+  function checkFrame(cam: PerspectiveCamera, boom: number, label: string, settled = false): void {
     const p = cam.position
     expect(insideWallBox(boxes, p.x, p.y, p.z, 0), `${label}: camera centre in a wall`).toBeNull()
-    if (boom > CHASE.minBoom + 0.02) expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.probeRadius - 1e-6), `${label}: camera ball in a wall`).toBeNull()
+    // W3: the HARD ball (`nearRadius`) is clear on every frame (the boom is a spring, the clamp is the guarantee); the SOFT ball
+    // (`probeRadius`) once the spring has caught up, which a camera that is still being swung round does not give it time for
+    expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.nearRadius - 1e-6), `${label}: camera hard ball in a wall`).toBeNull()
+    if (settled && boom > CHASE.minBoom + 0.02) expect(insideWallBox(boxes, p.x, p.y, p.z, CHASE.probeRadius - 1e-6), `${label}: camera ball in a wall`).toBeNull()
     const area = areaAt(p.x, p.z)
     const ceiling = area ? ceilingHeight(area.id) : null
     if (ceiling !== null) expect(p.y, `${label}: camera above the ceiling (${area?.id})`).toBeLessThanOrEqual(ceiling - CHASE.ceilingClearance + 1e-9)
@@ -526,9 +532,16 @@ describe('the walls and the shoulder, with the easy camera', () => {
         for (const turn of [200 * DEG, -200 * DEG]) {
           const r = new Rig(spots * 0.7, { x: px, y: 0, z: pz })
           r.probe = probe
-          for (let i = 0; i < 100; i++) {
+          let swaps = 0
+          let lastSwap = -1000
+          for (let i = 0; i < 160; i++) {
             r.step({ turn: i < 70 ? turn : 0 })
-            checkFrame(r.camera, r.report.boom, `(${px.toFixed(2)}, ${pz.toFixed(2)}) ${turn > 0 ? 'A' : 'D'} frame ${i}`)
+            if (r.chase.shoulderSwaps !== swaps) {
+              swaps = r.chase.shoulderSwaps
+              lastSwap = i
+            }
+            // the soft ball is only promised once the camera has been still for a while: no swap in the last second either
+            checkFrame(r.camera, r.report.boom, `(${px.toFixed(2)}, ${pz.toFixed(2)}) ${turn > 0 ? 'A' : 'D'} frame ${i}`, i >= 130 && i - lastSwap >= 70)
           }
           if (r.chase.shoulderSwaps > 0) swapped++
         }
@@ -536,7 +549,7 @@ describe('the walls and the shoulder, with the easy camera', () => {
     }
     expect(spots).toBeGreaterThan(400)
     expect(swapped).toBeGreaterThan(20) // the spins do exercise the swap
-  })
+  }, 20_000) // a sweep of the whole floor plan: several seconds under a parallel load
 
   it('walking and running turns through the building (a figure of eight, W and A or D), every frame inside the guarantees', () => {
     let frames = 0

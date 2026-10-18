@@ -16,6 +16,7 @@ import { buildSignage } from '@/scene/building/layout/walk/signage'
 import { DRAWER_GAP, buildWallPieces, wallGaps } from '@/scene/building/layout/walls'
 import { ROOMS, WALL, areaAt, ceilingHeight } from '@/sim/places'
 import type { Vec3 } from '@/sim/types'
+import { CHASE } from './tuning'
 
 /** What the camera needs from the world (the real one is `WallBoxProbe`; tests pass small fakes). */
 export interface BoomProbe {
@@ -36,6 +37,12 @@ export interface WallBox {
   y1: number
   z0: number
   z1: number
+  /**
+   * A hanging sign (W3): a ball is swept against it at `CHASE.signRadius` (0.09 m) at most, whatever the radius asked for, so the
+   * camera passes under it (its lower edge is 2.18 m, the camera's resting height 2.04 m). Floor-standing walls and cabinets
+   * (`y0 === 0`, what the body's solids are built from) never carry it.
+   */
+  sign?: true
 }
 
 const HALF = WALL.thickness / 2
@@ -64,7 +71,7 @@ export function buildWallBoxes(): WallBox[] {
   }
   // the hanging wayfinding signs (walk mode): the camera ducks under a sign instead of passing through it
   for (const b of buildSignage().boxes) {
-    if (b.part === 'signBody') boxes.push({ x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1, z0: b.z0, z1: b.z1 })
+    if (b.part === 'signBody') boxes.push({ x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1, z0: b.z0, z1: b.z1, sign: true })
   }
   return boxes
 }
@@ -73,11 +80,15 @@ export class WallBoxProbe implements BoomProbe {
   readonly boxes: readonly WallBox[]
   /** x0 x1 y0 y1 z0 z1 per box, flat, for the sweep's inner loop. */
   private readonly flat: Float64Array
+  /** 1 for a hanging sign (swept at the hard radius at most), per box. */
+  private readonly signs: Uint8Array
 
   constructor(boxes: readonly WallBox[] = buildWallBoxes()) {
     this.boxes = boxes
     const f = new Float64Array(boxes.length * 6)
+    this.signs = new Uint8Array(boxes.length)
     boxes.forEach((b, i) => {
+      this.signs[i] = b.sign ? 1 : 0
       f[i * 6] = b.x0
       f[i * 6 + 1] = b.x1
       f[i * 6 + 2] = b.y0
@@ -90,7 +101,9 @@ export class WallBoxProbe implements BoomProbe {
 
   cast(from: Vec3, dir: Vec3, length: number, radius: number): number | null {
     const f = this.flat
+    const signs = this.signs
     const n = f.length
+    const signRadius = Math.min(radius, CHASE.signRadius)
     const ox = from.x
     const oy = from.y
     const oz = from.z
@@ -109,12 +122,13 @@ export class WallBoxProbe implements BoomProbe {
     const sz1 = Math.max(oz, ez) + radius
     let best = Infinity
     for (let i = 0; i < n; i += 6) {
-      const x0 = f[i] - radius
-      const x1 = f[i + 1] + radius
-      const y0 = f[i + 2] - radius
-      const y1 = f[i + 3] + radius
-      const z0 = f[i + 4] - radius
-      const z1 = f[i + 5] + radius
+      const r = signs[i / 6] === 1 ? signRadius : radius
+      const x0 = f[i] - r
+      const x1 = f[i + 1] + r
+      const y0 = f[i + 2] - r
+      const y1 = f[i + 3] + r
+      const z0 = f[i + 4] - r
+      const z1 = f[i + 5] + r
       if (x1 < sx0 || x0 > sx1 || y1 < sy0 || y0 > sy1 || z1 < sz0 || z0 > sz1) continue
       let tmin = 0
       let tmax = Math.min(length, best)
@@ -177,11 +191,13 @@ export class WallBoxProbe implements BoomProbe {
 
 /**
  * Is the point inside any wall box grown by `radius`? (For tests and the camera's own safety net: a ball centre that is inside
- * a grown box is a ball that overlaps a wall.)
+ * a grown box is a ball that overlaps a wall.) A hanging sign is grown by `min(radius, CHASE.signRadius)` only, as the sweep does.
  */
 export function insideWallBox(boxes: readonly WallBox[], x: number, y: number, z: number, radius: number): WallBox | null {
+  const signRadius = Math.min(radius, CHASE.signRadius)
   for (const b of boxes) {
-    if (x > b.x0 - radius && x < b.x1 + radius && y > b.y0 - radius && y < b.y1 + radius && z > b.z0 - radius && z < b.z1 + radius) return b
+    const r = b.sign ? signRadius : radius
+    if (x > b.x0 - r && x < b.x1 + r && y > b.y0 - r && y < b.y1 + r && z > b.z0 - r && z < b.z1 + r) return b
   }
   return null
 }

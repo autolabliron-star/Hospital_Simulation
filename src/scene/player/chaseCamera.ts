@@ -20,12 +20,19 @@
  *                    shoulder only after it has been clear for a moment, so a doorway does not flip it; the Q key chooses the
  *                    preferred one). With walls on both sides the pivot slides in over your head instead; it comes in at once
  *                    and grows back slowly, like the boom. It never swaps in first person
- *   boom             a camera-sized ball is swept from the (real) pivot to where the camera wants to be, and a second sweep looks
- *                    0.16 s ahead along the camera's own motion, so the pull-in has started when it reaches a wall. A wall
- *                    shortens the boom at once and it grows back over half a second; the camera is never allowed past the
- *                    swept length. The floor and the ceiling (per area, `ceilingHeight`) are also enforced geometrically.
+ *   boom             TWO camera-sized balls are swept from the (real) pivot to where the camera wants to be. The SOFT one
+ *                    (`probeRadius + wallMargin`, with a second sweep 0.16 s ahead along the camera's own motion) says how long the
+ *                    boom would like to be: a critically damped spring (`boomInSeconds`, at most `boomInMax` m/s) shortens it toward
+ *                    that and a slower one lets it out, so a wall never makes the camera snap or pump. The HARD one (`nearRadius`,
+ *                    about the near plane's corner) is the guarantee: the spring's length is clamped to it in the same frame, so the
+ *                    camera is never inside a wall, however fast the walls come. Hanging signs are only swept at the hard radius
+ *                    (the camera passes under them). The floor and the ceiling (per area, `ceilingHeight`) are enforced geometrically.
+ *   shoulder         the room each side has for the pivot moves the same way (a spring, then the hard clamp)
  *   near wall        when the swept camera is still within `CHASE.nearWall` of a wall (beside it or behind it), it rises and comes in a
- *                    little (more pitch, a shorter boom) instead of hugging the wall; the sweeps are redone along that boom
+ *                    little (more pitch, a shorter boom) instead of hugging the wall; that softened boom is what the sweeps look along
+ *   game feel        running widens the lens by up to `runFovWiden` degrees (a spring), and the camera bobs a few millimetres with your
+ *                    footfalls (`walkStride`: two bounces a gait cycle); both fade to exactly nothing when you stand, and neither
+ *                    exists in first person
  *   first person     the boom collapses into your eyes; the pose and the lens blend over 0.3 s; the avatar fades out
  *
  * Every smoother comes to an EXACT rest (`REST` in chaseMath.ts), so text over the picture never trails.
@@ -46,6 +53,7 @@ import {
   dampAngleRest,
   dampVec3,
   defaultBoom,
+  gaitBob,
   dragOrbit,
   followYawStep,
   lerp,
@@ -56,14 +64,17 @@ import {
   newDamped,
   orbitOffset,
   rightOf,
+  runShare,
   smooth01,
   smoothBoom,
   smoothDamp,
+  smoothLength,
   wrapAngle,
   zoomBoom,
   REST,
   type DampedVec3,
 } from './chaseMath'
+import { walkStride } from './state'
 import { BODY, CHASE, EASY } from './tuning'
 
 export interface CameraSubject {
@@ -105,6 +116,8 @@ export interface CameraReport {
   distance: number
   /** What the camera looks at. */
   target: Vec3
+  /** The hard sweep cut the boom (or a shoulder room) this frame: the spring had not got out of the wall's way yet. */
+  hardClamped: boolean
 }
 
 const _pos = new Vector3()
@@ -121,6 +134,12 @@ const _nd = { x: 0, y: 0, z: 0 }
 const _np = { x: 0, y: 0, z: 0 }
 const _o = { x: 0, y: 0, z: 0 }
 const _po = { x: 0, y: 0, z: 0 }
+const _sv = { x: 0, y: 0, z: 0 }
+const UP: Vec3 = { x: 0, y: 1, z: 0 }
+
+/** The widened lens is AT its target within this many degrees (and slower than this many degrees a second). */
+const FOV_REST = 0.01
+const FOV_REST_SPEED = 0.2
 
 /** The glide between the shoulders is a critically damped spring; it is within 1 % after 3.32 smoothing times. */
 const SWAP_SMOOTH_SECONDS = CHASE.swapGlideSeconds / 3.32
@@ -152,11 +171,36 @@ export function boomWithinCeilings(probe: BoomProbe, origin: Vec3, dir: Vec3, le
   return limit
 }
 
-/** How long the boom may be along `dir` from `pivot`: the ball sweep against the walls, and the floor and the ceilings. */
-function sweepBoom(probe: BoomProbe, pivot: Vec3, dir: Vec3, length: number, minY: number): number {
-  const hit = boomAfterHit(length, probe.cast(pivot, dir, length, CHASE.probeRadius), CHASE.wallMargin, CHASE.minBoom)
+/**
+ * How long the boom may be along `dir` from `pivot`: the ball sweep against the walls, and the floor and the ceilings. The SOFT sweep
+ * (the default) is the ball the boom would like to keep clear and may get as short as `minBoom`; the HARD one (`nearRadius`) is
+ * the one the camera is never allowed inside, and has no minimum.
+ */
+function sweepBoom(probe: BoomProbe, pivot: Vec3, dir: Vec3, length: number, minY: number, hard = false): number {
+  const hit = hard
+    ? boomAfterHit(length, probe.cast(pivot, dir, length, CHASE.nearRadius), CHASE.hardMargin, 0)
+    : boomAfterHit(length, probe.cast(pivot, dir, length, CHASE.probeRadius), CHASE.wallMargin, CHASE.minBoom)
   const slab = boomWithinSlab(pivot.y, dir.y, length, minY, Infinity)
   return boomWithinCeilings(probe, pivot, dir, Math.min(hit, slab))
+}
+
+/**
+ * The near-wall softening of a camera offset `v` (from the pivot), in place: more elevation (up to `nearWallPitch`, never above the
+ * max pitch unless it was already higher) and a shorter boom (up to `nearWallBoomCut`, never below `nearWallMinBoom` unless it was
+ * already shorter), both by `soft` (0..1).
+ */
+function soften(v: { x: number; y: number; z: number }, soft: number): void {
+  if (soft <= 0) return
+  const len = Math.hypot(v.x, v.y, v.z)
+  const horiz = Math.hypot(v.x, v.z)
+  if (len <= 1e-3 || horiz <= 1e-3) return
+  const elev = Math.atan2(v.y, horiz)
+  const elev2 = Math.min(elev + CHASE.nearWallPitch * soft, Math.max(elev, CHASE.maxPitch))
+  const len2 = Math.max(len * (1 - CHASE.nearWallBoomCut * soft), Math.min(len, CHASE.nearWallMinBoom))
+  const c = Math.cos(elev2) * len2
+  v.x = (v.x / horiz) * c
+  v.y = Math.sin(elev2) * len2
+  v.z = (v.z / horiz) * c
 }
 
 export class ChaseCamera {
@@ -175,8 +219,20 @@ export class ChaseCamera {
   private readonly pitchVel = { v: 0 }
   private readonly distVel = { v: 0 }
   private follow: DampedVec3 = newDamped({ x: 0, y: 0, z: 0 })
-  /** Share of the wanted boom that is free (1 = nothing in the way). */
+  /** Share of the wanted boom that is free (1 = nothing in the way): a spring toward what the soft sweep says, then clamped by the hard one. */
   private fraction = 1
+  private readonly fractionVel = { v: 0 }
+  /** The next update is the first since a `reset` or `snap`: the boom and the shoulder room land where the sweeps say at once (no pull-in from far). */
+  private fresh = true
+  /** Lens widening from running (degrees on top of the chase lens), and the footfall bob (the amplitude, and the bob as drawn, metres). */
+  private fovWide = 0
+  private readonly fovVel = { v: 0 }
+  private bobAmp = 0
+  private readonly bobAmpVel = { v: 0 }
+  private bobS = 0
+  private readonly bobVel = { v: 0 }
+  /** `settle` is running: no lens widening and no bob, the pose is the resting one. */
+  private settling = false
   /**
    * How far the pivot is moved out over your shoulder now, metres, along the camera's right: positive over the right shoulder,
    * negative over the left (it is pulled in by a wall at your side, and glides across when the shoulder swaps).
@@ -191,6 +247,10 @@ export class ChaseCamera {
   /** The room each side of your head has for the pivot, metres: in at once, out slowly (like the boom). */
   private freeR: number = CHASE.shoulder
   private freeL: number = CHASE.shoulder
+  private readonly freeRVel = { v: 0 }
+  private readonly freeLVel = { v: 0 }
+  private shoulderClamped = false
+  private roomClamped = false
   /** Seconds left before the side may change again, and how long the preferred side has been clear while you are on the other. */
   private sideHold = 0
   private backTime = 0
@@ -222,7 +282,7 @@ export class ChaseCamera {
   /** Seconds since the last mouse look (or drag). */
   private sinceLook = Infinity
 
-  private readonly report: CameraReport = { boom: 0, avatarFade: 1, wantsFirstPerson: false, yaw: 0, pitchDeg: 0, distance: 0, target: { x: 0, y: 0, z: 0 } }
+  private readonly report: CameraReport = { boom: 0, avatarFade: 1, wantsFirstPerson: false, yaw: 0, pitchDeg: 0, distance: 0, target: { x: 0, y: 0, z: 0 }, hardClamped: false }
 
   constructor(scheme: ControlScheme = DEFAULT_SCHEME) {
     this.scheme = scheme
@@ -248,6 +308,13 @@ export class ChaseCamera {
     this.follow = newDamped({ x: feet.x, y: feet.y + pivotHeight, z: feet.z })
     this.havePrev = false
     this.fraction = 1
+    this.fractionVel.v = 0
+    this.fresh = true
+    this.fovWide = 0
+    this.fovVel.v = 0
+    this.bobAmp = this.bobS = 0
+    this.bobAmpVel.v = this.bobVel.v = 0
+    this.freeRVel.v = this.freeLVel.v = 0
     this.firstPerson = 0
     // the preferred shoulder is the resting state (a wall beside you swaps it at once: the first frames of the settle)
     this.side = this.preferred
@@ -332,6 +399,9 @@ export class ChaseCamera {
     this.follow = newDamped({ x: feet.x, y: feet.y + pivotHeight, z: feet.z })
     this.havePrev = false
     this.fraction = 1
+    this.fractionVel.v = 0
+    this.freeRVel.v = this.freeLVel.v = 0
+    this.fresh = true
   }
 
   /**
@@ -395,11 +465,38 @@ export class ChaseCamera {
     const S = CHASE.shoulder
     const rawR = boomAfterHit(S, probe.cast(_head, _right, S, CHASE.shoulderProbeRadius), CHASE.wallMargin, 0)
     const rawL = boomAfterHit(S, probe.cast(_head, _left, S, CHASE.shoulderProbeRadius), CHASE.wallMargin, 0)
-    this.freeR = Math.min(smoothBoom(this.freeR, rawR, dt, CHASE.shortenSeconds, CHASE.lengthenSeconds), rawR)
-    this.freeL = Math.min(smoothBoom(this.freeL, rawL, dt, CHASE.shortenSeconds, CHASE.lengthenSeconds), rawL)
+    // each side's room: a spring toward the soft sweep, then clamped to the hard one (the pivot never goes into a wall)
+    const hardR = boomAfterHit(S, probe.cast(_head, _right, S, CHASE.nearRadius), CHASE.hardMargin, 0)
+    const hardL = boomAfterHit(S, probe.cast(_head, _left, S, CHASE.nearRadius), CHASE.hardMargin, 0)
+    let clampedR = false
+    let clampedL = false
+    if (this.fresh) {
+      this.freeR = Math.min(rawR, hardR)
+      this.freeL = Math.min(rawL, hardL)
+      this.freeRVel.v = this.freeLVel.v = 0
+    } else {
+      this.freeR = this.shoulderRoom(this.freeR, rawR, hardR, this.freeRVel, dt)
+      clampedR = this.roomClamped
+      this.freeL = this.shoulderRoom(this.freeL, rawL, hardL, this.freeLVel, dt)
+      clampedL = this.roomClamped
+    }
     this.chooseSide(rawR, rawL, dt, !fpWanted && this.firstPerson <= 0)
     this.bias = smoothDamp(this.bias, this.side, this.biasVel, SWAP_SMOOTH_SECONDS, dt)
     this.lateral = this.bias * (this.bias >= 0 ? this.freeR : this.freeL)
+    // only the room in use counts as a clamped frame
+    this.shoulderClamped = this.bias >= 0 ? clampedR : clampedL
+  }
+
+  /** One side's room for the pivot: in and out as springs, never more than the hard sweep allows (then the spring carries on from there). */
+  private shoulderRoom(current: number, soft: number, hard: number, vel: { v: number }, dt: number): number {
+    this.roomClamped = false
+    let next = smoothLength(current, soft, vel, dt, CHASE.shoulderInSeconds, CHASE.shoulderInMax, CHASE.lengthenSeconds, CHASE.shoulderOutMax, CHASE.boomOutFinish * CHASE.shoulder, CHASE.shoulder)
+    if (next > hard) {
+      next = hard
+      vel.v = dt > 0 ? Math.min(vel.v, (next - current) / dt) : 0
+      this.roomClamped = true
+    }
+    return next
   }
 
   /**
@@ -536,7 +633,7 @@ export class ChaseCamera {
     _pivot.y = _head.y
     _pivot.z = _head.z + _right.z * this.lateral
     dampVec3(this.follow, _head, CHASE.lagSeconds, dt)
-    limitFollowLag(this.follow, _head, CHASE.maxFollowLag)
+    limitFollowLag(this.follow, _head, CHASE.maxFollowLag, dt)
     const fx = this.follow.x + _right.x * this.lateral
     const fy = this.follow.y
     const fz = this.follow.z + _right.z * this.lateral
@@ -550,10 +647,38 @@ export class ChaseCamera {
     _dir.y = wy / want
     _dir.z = wz / want
 
-    // ---- the boom: sweep a ball from the real pivot, keep the camera between floor and ceiling
+    // ---- the boom. First where the camera would sit with no softening, by the soft sweep (the wall near the lens is looked for there)
     const minY = f.floorY + CHASE.floorClearance
-    const allowed = sweepBoom(probe, _pivot, _dir, want, minY)
-    const freeNow = clamp(allowed / want, 0, 1)
+    const allowed0 = sweepBoom(probe, _pivot, _dir, want, minY)
+
+    // ---- near-wall softening: a wall still within reach of the lens (beside it or behind it) gets the camera lifted off it a little
+    // (more pitch, a shorter boom). It is measured at the camera's own swept spot, which does not depend on the softening, so it
+    // cannot feed back on itself, and as if the shoulder had already arrived (the pivot glides away from a wall it has just left:
+    // that is the swap's work, and the camera does not bob for it). The softened offset is what everything below sweeps along.
+    let kTarget = 0
+    if (this.firstPerson < 1) {
+      const len0 = Math.min(want, allowed0)
+      _pos.set(_pivot.x + _dir.x * len0, _pivot.y + _dir.y * len0, _pivot.z + _dir.z * len0)
+      const d = this.wallNearLens(probe, _pos, (this.side === 1 ? this.freeR : -this.freeL) - this.lateral)
+      if (d < CHASE.nearWall) kTarget = smooth01((CHASE.nearWall - d) / (CHASE.nearWall - CHASE.nearWallFull))
+    }
+    this.comfort = smoothBoom(this.comfort, 1 - kTarget, dt, CHASE.softenSeconds, CHASE.softenReleaseSeconds)
+    const soft = 1 - this.comfort
+    let wantS = want
+    if (soft > 0) {
+      _sv.x = wx
+      _sv.y = wy
+      _sv.z = wz
+      soften(_sv, soft)
+      wantS = Math.max(Math.hypot(_sv.x, _sv.y, _sv.z), 1e-3)
+      _dir.x = _sv.x / wantS
+      _dir.y = _sv.y / wantS
+      _dir.z = _sv.z / wantS
+    }
+
+    // how much of the wanted boom the SOFT ball can have along that offset
+    const allowedNow = soft > 0 ? sweepBoom(probe, _pivot, _dir, wantS, minY) : allowed0
+    const freeNow = clamp(allowedNow / wantS, 0, 1)
     // a second sweep where the camera is about to be (its own yaw and follow-point motion, a few frames ahead): the pull-in
     // starts before the wall is reached, so it is a glide and not a snap
     let freeSoon = freeNow
@@ -572,19 +697,38 @@ export class ChaseCamera {
       const moved = Math.hypot(px - wx, py - wy, pz - wz)
       if (moved > CHASE.anticipateFloor) {
         const k = smooth01((moved - CHASE.anticipateFloor) / CHASE.anticipateRamp)
-        px = wx + (px - wx) * k
-        py = wy + (py - wy) * k
-        pz = wz + (pz - wz) * k
-        const wantP = Math.max(Math.hypot(px, py, pz), 1e-3)
-        _dirP.x = px / wantP
-        _dirP.y = py / wantP
-        _dirP.z = pz / wantP
+        _sv.x = wx + (px - wx) * k
+        _sv.y = wy + (py - wy) * k
+        _sv.z = wz + (pz - wz) * k
+        soften(_sv, soft)
+        const wantP = Math.max(Math.hypot(_sv.x, _sv.y, _sv.z), 1e-3)
+        _dirP.x = _sv.x / wantP
+        _dirP.y = _sv.y / wantP
+        _dirP.z = _sv.z / wantP
         freeSoon = Math.min(freeNow, clamp(sweepBoom(probe, _pivot, _dirP, wantP, minY) / wantP, 0, 1))
       }
     }
-    this.fraction = smoothBoom(this.fraction, freeSoon, dt, CHASE.pullInSeconds, CHASE.lengthenSeconds)
-    // never past the swept length, however the smoothing lags: no clipping into walls
-    let boom = Math.min(want * this.fraction, want * freeNow)
+    // The boom is a SPRING toward what the soft ball allows: it comes in over about `boomInSeconds` (never faster than `boomInMax`) and
+    // goes out more slowly. As a share of the unsoftened want, so the zoom wheel and the softening's cut pass through the spring too.
+    const ratioTarget = (wantS / want) * freeSoon
+    const fractionBefore = this.fraction
+    if (this.fresh) {
+      this.fraction = ratioTarget
+      this.fractionVel.v = 0
+    } else {
+      this.fraction = smoothLength(this.fraction, ratioTarget, this.fractionVel, dt, CHASE.boomInSeconds, CHASE.boomInMax / want, CHASE.lengthenSeconds, CHASE.boomOutMax / want, CHASE.boomOutFinish, 1)
+    }
+    let boom = want * this.fraction
+    // ...and the HARD ball, in the same frame: however the spring is placed, the camera is never inside a wall, a sign or past the ceiling
+    let clamped = false
+    const hardLen = sweepBoom(probe, _pivot, _dir, boom, minY, true)
+    if (hardLen < boom) {
+      boom = hardLen
+      clamped = true
+      this.fraction = boom / want
+      this.fractionVel.v = dt > 0 ? Math.min(this.fractionVel.v, (this.fraction - fractionBefore) / dt) : 0
+    }
+    this.fresh = false
     this.prevYawS = this.yawS
     this.prevFollow.x = this.follow.x
     this.prevFollow.y = this.follow.y
@@ -598,42 +742,6 @@ export class ChaseCamera {
     }
     _pos.set(_pivot.x + _dir.x * boom, _pivot.y + _dir.y * boom, _pivot.z + _dir.z * boom)
 
-    // ---- near-wall softening: a wall still within reach of the lens (beside it or behind it) gets the camera lifted off it a little
-    // (more pitch, a shorter boom). It is measured at the camera's own swept spot, which does not depend on the softening, so it
-    // cannot feed back on itself, and as if the shoulder had already arrived (the pivot glides away from a wall it has just left:
-    // that is the swap's work, and the camera does not bob for it); the sweeps are then repeated along the softened boom, so the
-    // guarantees hold
-    let kTarget = 0
-    if (this.firstPerson < 1) {
-      const d = this.wallNearLens(probe, _pos, (this.side === 1 ? this.freeR : -this.freeL) - this.lateral)
-      if (d < CHASE.nearWall) kTarget = smooth01((CHASE.nearWall - d) / (CHASE.nearWall - CHASE.nearWallFull))
-    }
-    this.comfort = smoothBoom(this.comfort, 1 - kTarget, dt, CHASE.softenSeconds, CHASE.softenReleaseSeconds)
-    const soft = 1 - this.comfort
-    if (soft > 0) {
-      const vx = _pos.x - _pivot.x
-      const vy = _pos.y - _pivot.y
-      const vz = _pos.z - _pivot.z
-      const len = Math.hypot(vx, vy, vz)
-      const horiz = Math.hypot(vx, vz)
-      if (len > 1e-3 && horiz > 1e-3) {
-        const elev = Math.atan2(vy, horiz)
-        const elev2 = Math.min(elev + CHASE.nearWallPitch * soft, Math.max(elev, CHASE.maxPitch))
-        const len2 = Math.max(len * (1 - CHASE.nearWallBoomCut * soft), Math.min(len, CHASE.nearWallMinBoom))
-        const c = Math.cos(elev2)
-        _dir.x = (vx / horiz) * c
-        _dir.y = Math.sin(elev2)
-        _dir.z = (vz / horiz) * c
-        boom = Math.min(len2, sweepBoom(probe, _pivot, _dir, len2, minY))
-        const ceil2 = probe.ceilingAt(_pivot.x + _dir.x * boom, _pivot.z + _dir.z * boom)
-        if (ceil2 !== null && _dir.y > 1e-6) {
-          const lim = (ceil2 - CHASE.ceilingClearance - _pivot.y) / _dir.y
-          if (boom > lim) boom = Math.max(lim, 0)
-        }
-        _pos.set(_pivot.x + _dir.x * boom, _pivot.y + _dir.y * boom, _pivot.z + _dir.z * boom)
-      }
-    }
-
     // ---- look-ahead: the aim point leads you along the way you are going, eased in and out
     lookAheadFor(subject.vx, subject.vz, _ahead)
     this.aheadS.x = smoothDamp(this.aheadS.x, _ahead.x, this.aheadVelX, CHASE.lookAheadSmoothSeconds, dt)
@@ -644,8 +752,40 @@ export class ChaseCamera {
     const t = lookTargetFor(_aim, this.yawS, _aim, this.aheadS)
     _look.set(t.x, t.y, t.z)
 
-    // ---- first person
+    // ---- first person (the blend)
     this.firstPerson = approach(this.firstPerson, fpWanted ? 1 : 0, dt / CHASE.firstPersonBlend)
+
+    // ---- game feel: the lens widens as you run, and the camera bobs with your footfalls. Both fade to exactly nothing when you stand
+    // (every smoother ends in a rest), neither exists in first person, and neither runs while `settle` computes the resting pose.
+    const speed = Math.hypot(subject.vx, subject.vz)
+    const awayFromFirst = 1 - smooth01(this.firstPerson)
+    const run = this.settling ? 0 : runShare(speed, walkStride.run)
+    const fovTarget = CHASE.runFovWiden * run * awayFromFirst
+    this.fovWide = smoothDamp(this.fovWide, fovTarget, this.fovVel, CHASE.runFovSeconds, dt)
+    // a lens in degrees can rest sooner than `REST.position` (5e-5): a hundredth of a degree is a tenth of a pixel
+    if (Math.abs(this.fovWide - fovTarget) < FOV_REST && Math.abs(this.fovVel.v) < FOV_REST_SPEED) {
+      this.fovWide = fovTarget
+      this.fovVel.v = 0
+    }
+    const moving = this.settling ? 0 : smooth01((speed - 0.4) / 0.8)
+    this.bobAmp = smoothDamp(this.bobAmp, moving * lerp(CHASE.bobWalk, CHASE.bobRun, run) * awayFromFirst, this.bobAmpVel, CHASE.bobSeconds, dt)
+    this.bobS = smoothDamp(this.bobS, this.bobAmp * gaitBob(walkStride.phase), this.bobVel, 0.03, dt)
+    let bob = this.bobS
+    if (bob !== 0) {
+      // the bob is only ever allowed to carry the camera where the hard ball fits: under a sign, under a ceiling, over the floor
+      if (bob > 0) {
+        const room = probe.cast(_pos, UP, bob, CHASE.nearRadius)
+        if (room !== null) bob = Math.max(0, room - CHASE.hardMargin)
+        const c = probe.ceilingAt(_pos.x, _pos.z)
+        if (c !== null) bob = Math.max(0, Math.min(bob, c - CHASE.ceilingClearance - _pos.y))
+      } else {
+        bob = Math.min(0, Math.max(bob, minY - _pos.y))
+      }
+      _pos.y += bob
+      _look.y += bob
+    }
+
+    // ---- first person
     if (this.firstPerson > 0) {
       const k = smooth01(this.firstPerson)
       const cp = Math.cos(this.pitchS)
@@ -660,7 +800,7 @@ export class ChaseCamera {
     }
 
     // ---- write the camera
-    const fov = chaseFov(this.firstPerson)
+    const fov = chaseFov(this.firstPerson) + this.fovWide
     camera.position.copy(_pos)
     camera.lookAt(_look)
     if (Math.abs(camera.fov - fov) > 1e-9) {
@@ -680,6 +820,7 @@ export class ChaseCamera {
     report.target.x = _look.x
     report.target.y = _look.y
     report.target.z = _look.z
+    report.hardClamped = clamped || this.shoulderClamped
     return report
   }
 
@@ -691,7 +832,12 @@ export class ChaseCamera {
   settle(subject: CameraSubject, f: Omit<CameraFrame, 'dt' | 'dx' | 'dy' | 'wheel' | 'dragging'>, probe: BoomProbe, camera: PerspectiveCamera, frames = 150): CameraReport {
     const frame: CameraFrame = { ...f, dt: 1 / 60, dx: 0, dy: 0, wheel: 0, dragging: false }
     let r = this.report
-    for (let i = 0; i < frames; i++) r = this.update(subject, frame, probe, camera)
+    this.settling = true
+    try {
+      for (let i = 0; i < frames; i++) r = this.update(subject, frame, probe, camera)
+    } finally {
+      this.settling = false
+    }
     return r
   }
 }

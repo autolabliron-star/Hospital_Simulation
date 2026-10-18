@@ -500,6 +500,18 @@ export const DEPARTURES = {
  */
 export const VEHICLE_AHEAD: Record<VehicleKind, number> = { none: 0, wheelchair: 0.8, stretcher: 1.45, cleaningCart: 0.8, linenCart: 0.8 }
 
+/**
+ * W3: each vehicle's floor footprint as [half width across, half length along the pusher's heading] (metres), centred VEHICLE_AHEAD in front
+ * of the pusher. Your body cannot pass through it. The same numbers as the crowd's drawn footprint (actors/crowd/gear.ts VEHICLE_FOOTPRINT).
+ */
+export const VEHICLE_HALF: Record<VehicleKind, readonly [number, number]> = {
+  none: [0, 0],
+  wheelchair: [0.36, 0.5],
+  stretcher: [0.4, 1.05],
+  cleaningCart: [0.33, 0.5],
+  linenCart: [0.36, 0.5],
+}
+
 export const LOBBY = {
   entrance: { x: -61, z: 0 } as Vec2,
   reception: { at: { x: -52, z: -3 }, heading: Math.PI / 2 } as Spot,

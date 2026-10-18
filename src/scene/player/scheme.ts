@@ -94,24 +94,27 @@ export function maxTurnRate(running: boolean): number {
   return (running ? EASY.sprintTurnDegPerSecond : EASY.turnDegPerSecond) * DEG
 }
 
+/** The turn rate follows its target like a first-order lag: this time constant while a key asks for a turn (rising), and this one once it is let go. */
+export const TURN_RISE_SECONDS = 0.07
+export const TURN_RELEASE_SECONDS = 0.05
+
 /**
- * One frame of turning: returns the change of heading (radians, add it to the heading) for the turn input (-1 left, +1 right). A key
- * press starts the turn at once (`EASY.turnKick` of the full rate on the first frame, so there is never a dead frame), the rate then
- * ramps up over `EASY.turnRampSeconds`, and letting go stops it in about `EASY.turnReleaseSeconds`, ending in an exact stop.
+ * One frame of turning: returns the change of heading (radians, add it to the heading) for the turn input (-1 left, +1 right). There is no
+ * kick: the rate follows its target (`maxTurnRate`) as a first-order lag, `TURN_RISE_SECONDS` while a key is held and
+ * `TURN_RELEASE_SECONDS` after it is let go, so the very first frame already turns a little and the rate never jumps. The lag is
+ * integrated exactly (the angle turned is the integral of the rate over the frame), so the turn does not depend on the frame rate, and
+ * a released turn ends in an exact stop.
  */
 export function stepTurn(s: TurnState, turn: number, running: boolean, dt: number): number {
   const d = Math.max(dt, 0)
+  if (d === 0) return 0
   const target = -clamp(turn, -1, 1) * maxTurnRate(running)
-  if (target === 0) {
-    s.rate *= Math.exp(-d / EASY.turnReleaseSeconds)
-    if (Math.abs(s.rate) < 1e-3) s.rate = 0
-  } else {
-    const kick = target * EASY.turnKick
-    // starting from rest, or reversing: begin at the kick rate, never slower
-    if (Math.sign(s.rate) !== Math.sign(target) || Math.abs(s.rate) < Math.abs(kick)) s.rate = kick
-    s.rate += (target - s.rate) * (1 - Math.exp(-d / EASY.turnRampSeconds))
-  }
-  return s.rate * d
+  const tau = target === 0 ? TURN_RELEASE_SECONDS : TURN_RISE_SECONDS
+  const e = Math.exp(-d / tau)
+  const r0 = s.rate
+  s.rate = target + (r0 - target) * e
+  if (target === 0 && Math.abs(s.rate) < 1e-3) s.rate = 0
+  return target * d + (r0 - target) * tau * (1 - e)
 }
 
 /** The heading after a frame of turning. */

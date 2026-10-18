@@ -4,8 +4,18 @@
  *
  *   auto    two sliding leaves that part into the wall (the leaves ride 0.06 m off the wall line, inside a solid wall's thickness and
  *           in front of a thin glass sheet), set off by anyone within 2.5 m of the opening's centre;
- *   swing   one leaf that swings into the room beyond (area `b`), set off within 1.6 m. The hinge side and the widest angle are
- *           chosen so the leaf's sweep clears every furniture footprint of the layout.
+ *   swing   one leaf, DOUBLE-ACTING (W3, like a real hospital corridor door): it opens away from whoever sets it off, so it swings
+ *           into the room beyond (area `b`, the `into` side) for somebody coming from area `a` and out into area `a` for somebody
+ *           coming from the room, set off within 1.6 m. The hinge side and the widest angle (the same both ways) are chosen so the
+ *           leaf's sweep clears every furniture footprint of the layout on BOTH sides of the wall; the side a leaf takes is the
+ *           DoorBank's business (render/walk/doorBank.ts `swing`), not the layout's.
+ *
+ * W3: the leaves are SOLID (render/walk/doorMatrices.ts `writeLeafBlockers`, published through src/scene/blockers.ts), so the sensing radii
+ * below are measured from YOU along the way you are going (`CONFIG.player.doorLeadSeconds` ahead, render/walk/doorBank.ts): at a run an auto
+ * door stirs about 5 m out and is wide open 2.7 m out, a swing door about 4.1 m and 1.6 m. The swing radius is deliberately small (1.6 m
+ * from the middle of the doorway): a patient in a bed 2.5 m from the door does not set it off, and the people of the sim are sensed from
+ * where they stand, as ever. An auto leaf slides its whole width into the wall beside the opening (`autoTravel`), so a wide-open door has
+ * no leaf in its clear opening.
  *
  * The pharmacy core's own doors (S2) are not here. Open passages and the hub counters have no leaf.
  */
@@ -48,12 +58,23 @@ export function sweepIsClear(hx: number, hz: number, alongV: { x: number; z: num
   return true
 }
 
+/**
+ * The hinge side and widest angle of a swing leaf. The leaf swings both ways (double-acting), so the widest-first search first wants a
+ * plan whose sweep clears the footprints on both sides of the wall, and only then settles for one that clears the room beyond alone
+ * (the plan before W3). Every door of today's layout is clear on both sides at 85 degrees, so the first candidate wins everywhere.
+ */
 function swingPlan(d: DoorSpec, alongV: { x: number; z: number }, into: { x: number; z: number }, footprints: readonly Footprint[]): { hinge: 1 | -1; maxAngle: number } {
-  for (const deg of SWING_ANGLES) {
-    for (const hinge of [1, -1] as const) {
-      const hx = d.center.x + hinge * alongV.x * (d.width / 2)
-      const hz = d.center.z + hinge * alongV.z * (d.width / 2)
-      if (sweepIsClear(hx, hz, alongV, hinge, into, d.width - 0.04, (deg * Math.PI) / 180, footprints)) return { hinge, maxAngle: (deg * Math.PI) / 180 }
+  const back = { x: -into.x, z: -into.z }
+  for (const bothSides of [true, false]) {
+    for (const deg of SWING_ANGLES) {
+      for (const hinge of [1, -1] as const) {
+        const hx = d.center.x + hinge * alongV.x * (d.width / 2)
+        const hz = d.center.z + hinge * alongV.z * (d.width / 2)
+        const angle = (deg * Math.PI) / 180
+        if (!sweepIsClear(hx, hz, alongV, hinge, into, d.width - 0.04, angle, footprints)) continue
+        if (bothSides && !sweepIsClear(hx, hz, alongV, hinge, back, d.width - 0.04, angle, footprints)) continue
+        return { hinge, maxAngle: angle }
+      }
     }
   }
   return { hinge: 1, maxAngle: (30 * Math.PI) / 180 }

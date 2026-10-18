@@ -335,8 +335,18 @@ export const CONFIG = {
     /** A brisk walk by default (game feel, still a person), and a real run on Shift. */
     walkSpeed: 2.0,
     hurrySpeed: 4.2,
-    accelSeconds: 0.15,
-    brakeSeconds: 0.1,
+    /**
+     * W3: speed changes are critically damped (no overshoot). Seconds to 95 % of the change; the spring's smoothTime is s / 2.37.
+     * Starting from rest (walk or run) peaks about 10 m/s^2; a stop from a walk takes about 0.24 m, from a run about 0.5 m.
+     */
+    startSeconds: 0.35,
+    stopSeconds: 0.28,
+    /** Walk <-> run (Shift pressed or released), and backing up. */
+    shiftSeconds: 0.45,
+    /** W3: your body stops this short of every solid (metres): the collide-and-slide skin. */
+    bodySkin: 0.01,
+    /** W3: doors sense you this far ahead along your velocity (seconds), so a 4.2 m/s run meets an open door. */
+    doorLeadSeconds: 0.6,
     turnSeconds: 0.12,
     /** Collision radius against walls and furniture, and the proxy NPCs steer around. */
     bodyRadius: 0.3,

@@ -1,5 +1,7 @@
 // Ported from Waltz City (src/scene/actors/crowd/model.ts): the slot/row bookkeeping, measured motion, fade in and out, LOD lists and rims. New: sit/lie levels, held
 // items, wheeled vehicles and their riders, blob shadows, capsule picking, and nothing that allocates in a frame.
+// W3: the slot of the entity `player` is driven by the player's true body (`FrameInput.driven`, the contract `walkBody`) instead of a measured velocity, and its heel strikes
+// are published in `walkStride` (footsteps, camera bob). Everybody else is measured exactly as before.
 /**
  * The crowd model: every person that is drawn, their state and the pose texture data, with no GL in it.
  *
@@ -26,6 +28,7 @@ import { aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput 
 import { pickRadius, rayVsSegment } from './picking'
 import { VEHICLE_FOOTPRINT } from './gear'
 import { reclineAngle, reclineOfEntity } from '@/scene/rooms/bedPose'
+import { walkStride } from '@/scene/player/state'
 
 export const FADE_SECONDS = 0.35
 const RIM_SECONDS = 0.15
@@ -102,6 +105,34 @@ export interface PersonSlot {
   bz: number
 }
 
+/**
+ * The part of `walkBody` (src/scene/player/state.ts) the crowd reads: the player's body as the player system moved it this frame. A structural type, so
+ * `walkBody` itself is passed in (crowdRig.ts) and the model never imports it. Only the slot of the entity `player` is driven by it.
+ */
+export interface DrivenBody {
+  /** The player system has written at least once. */
+  live: boolean
+  x: number
+  z: number
+  /** The velocity actually achieved this frame, and what the keys ask for. */
+  vx: number
+  vz: number
+  wishX: number
+  wishZ: number
+  /** The speed spring's acceleration, the heading rate (+ = a turn to the left), whether the body is coasting to a stop and where it will rest. */
+  ax: number
+  az: number
+  turnRate: number
+  stopping: boolean
+  restX: number
+  restZ: number
+}
+
+/** The driven body counts as the entity's own only while it is where the entity is (a Jump or a switch of mode leaves it stale for a frame). */
+const DRIVEN_NEAR = 0.5
+/** The entity of the player. */
+const PLAYER_ID = 'player'
+
 export interface FrameInput {
   dt: number
   time: number
@@ -112,6 +143,8 @@ export interface FrameInput {
   followId: string | null
   selectedId: string | null
   hoverId: string | null
+  /** W3: the player's body (see `DrivenBody`), or null/absent: the player is then measured like everybody else. */
+  driven?: DrivenBody | null
 }
 
 export interface CrowdStats {
@@ -180,6 +213,8 @@ export class CrowdModel {
   private cur: FrameInput = { dt: 0, time: 0, camX: 0, camY: 0, camZ: 0, entities: new Map(), followId: null, selectedId: null, hoverId: null }
   private dt = 0
   private warm = false
+  /** Seconds between two of your heel strikes at the moment (see `publishStride`). */
+  private stridePeriod = 0.45
   private readonly visitFn = (e: Entity): void => this.visit(e)
   private readonly tickFn = (p: PersonSlot): void => this.tick(p)
 
@@ -404,9 +439,13 @@ export class CrowdModel {
     }
     const d = this.data
     if (p.presence <= 0.001) {
-      // invisible for now (the sim has it at fade 0): keep tracking where it is, draw nothing
+      // invisible for now (the sim has it at fade 0): keep tracking where it is, draw nothing. Your own legs go on: the footsteps and the camera bob
+      // read them, and in first person your avatar is invisible
       d[o + TEX.lod * 4 + 2] = 0
-      if (e) this.trackMotion(p, dt)
+      if (e) {
+        if (p.key === PLAYER_ID) this.legsOnly(p, e, f, dt, o)
+        else this.trackMotion(p, dt)
+      }
       return
     }
     st.people++
@@ -414,45 +453,9 @@ export class CrowdModel {
     if (e && p.rideKind !== 0 && e.riding) st.riders++
 
     if (e) {
-      this.trackMotion(p, dt)
       const posture = p.posture
-      // what is in the right hand
-      let prop = e.prop ? PROP_OF[e.prop] : PROP.none
-      if (posture === 'lie') prop = PROP.none
-      else if (prop === PROP.none && posture === 'stand') {
-        if (e.anim === 'tablet') prop = PROP.tablet
-        else if (e.anim === 'carry') prop = PROP.folder
-      }
-      p.prop = prop
-      // whoever has a vehicle in front of them and is not riding it is pushing it, whatever the sim called the animation
-      p.mode = p.rideKind !== 0 && !e.riding && posture === 'stand' ? 'push' : modeFor(e.anim, posture, prop === PROP.tablet ? 'tablet' : 'none')
+      this.fillInput(p, e, f, dt)
       const inp = this.inp
-      inp.dt = dt
-      inp.time = f.time
-      inp.x = p.x
-      inp.y = p.y
-      inp.z = p.z
-      inp.heading = p.heading
-      inp.vx = p.vx
-      inp.vz = p.vz
-      inp.speed = p.speed
-      inp.mode = p.mode
-      inp.posture = posture
-      inp.mood = e.mood
-      inp.seatHeight = p.seatHeight
-      // a patient in a bed follows the head of the bed (src/scene/rooms/bedPose.ts); everybody else is flat
-      p.recline = posture === 'lie' ? damp(p.recline, reclineOfEntity(e), RECLINE_RATE, dt) : 0
-      if (p.recline < 0.002) p.recline = 0
-      p.rig.ctx.recline = p.recline
-      inp.footRest = e.riding && e.vehicle === 'wheelchair' ? FOOT_REST : 0
-      inp.prop = prop
-      const target = e.lookAt
-      inp.hasLook = !!target
-      if (target) {
-        inp.lookX = target.x
-        inp.lookY = target.y
-        inp.lookZ = target.z
-      }
       const k = p.look.scale
       // distance first: the far figure needs no skeleton
       const cdx = p.x - f.camX
@@ -461,9 +464,9 @@ export class CrowdModel {
       p.dist = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz)
       lodWeights(p.dist, this.w)
       if (this.w.far < 1) {
-        const headY = posture === 'stand' ? STAND_HEAD_CENTRE * k : posture === 'sit' ? p.seatHeight + SEATED_HEAD_CENTRE * k : p.seatHeight + 0.2 + (BODY.neck + BODY.headCentre) * k * Math.sin(reclineAngle(p.recline))
-        aimHead(p.rig, dt, inp, headY)
+        aimHead(p.rig, dt, inp, this.headYOf(p, posture, k))
         solveRig(p.rig, inp, d, o + TEX.parts * 4)
+        if (p.key === PLAYER_ID) this.publishStride(p, dt)
         const face = p.rig.face
         const fo = o + TEX.face * 4
         d[fo] = face.eyeYaw
@@ -533,6 +536,133 @@ export class CrowdModel {
       this.vehOffs[st.vehicles++] = p.vOff
     }
     this.blobs(p)
+  }
+
+  /**
+   * Everything the rig is told about a person this frame (motion, held item, pose mode, posture, look-at) into `this.inp`. For the player this is
+   * where the true body replaces the measured one (see `takeDriven`).
+   */
+  private fillInput(p: PersonSlot, e: Entity, f: FrameInput, dt: number): void {
+    const dv = f.driven ?? null
+    const posture = p.posture
+    // W3: the player's legs are planned from the body's true velocity and what its keys ask for (the contract `walkBody`), everybody else from the measured one
+    const driven = dv !== null && p.key === PLAYER_ID && dv.live && posture === 'stand' && Math.abs(dv.x - p.x) < DRIVEN_NEAR && Math.abs(dv.z - p.z) < DRIVEN_NEAR && !this.staleBody(p, dv, dt)
+    if (driven) this.takeDriven(p, dv)
+    else this.trackMotion(p, dt)
+    // what is in the right hand
+    let prop = e.prop ? PROP_OF[e.prop] : PROP.none
+    if (posture === 'lie') prop = PROP.none
+    else if (prop === PROP.none && posture === 'stand') {
+      if (e.anim === 'tablet') prop = PROP.tablet
+      else if (e.anim === 'carry') prop = PROP.folder
+    }
+    p.prop = prop
+    // whoever has a vehicle in front of them and is not riding it is pushing it, whatever the sim called the animation
+    p.mode = p.rideKind !== 0 && !e.riding && posture === 'stand' ? 'push' : modeFor(e.anim, posture, prop === PROP.tablet ? 'tablet' : 'none')
+    const inp = this.inp
+    inp.dt = dt
+    inp.time = f.time
+    inp.x = p.x
+    inp.y = p.y
+    inp.z = p.z
+    inp.heading = p.heading
+    inp.vx = p.vx
+    inp.vz = p.vz
+    inp.speed = p.speed
+    inp.mode = p.mode
+    inp.posture = posture
+    inp.mood = e.mood
+    inp.seatHeight = p.seatHeight
+    // a patient in a bed follows the head of the bed (src/scene/rooms/bedPose.ts); everybody else is flat
+    p.recline = posture === 'lie' ? damp(p.recline, reclineOfEntity(e), RECLINE_RATE, dt) : 0
+    if (p.recline < 0.002) p.recline = 0
+    p.rig.ctx.recline = p.recline
+    inp.footRest = e.riding && e.vehicle === 'wheelchair' ? FOOT_REST : 0
+    inp.prop = prop
+    const target = e.lookAt
+    inp.hasLook = !!target
+    if (target) {
+      inp.lookX = target.x
+      inp.lookY = target.y
+      inp.lookZ = target.z
+    }
+    inp.driven = driven
+    if (driven) {
+      inp.ax = dv.ax
+      inp.az = dv.az
+      inp.turnRate = dv.turnRate
+      inp.wishX = dv.wishX
+      inp.wishZ = dv.wishZ
+      inp.stopping = dv.stopping
+      inp.restX = dv.restX
+      inp.restZ = dv.restZ
+    }
+  }
+
+  /** The head centre's height above the root, for the head look-at. */
+  private headYOf(p: PersonSlot, posture: Posture, k: number): number {
+    return posture === 'stand' ? STAND_HEAD_CENTRE * k : posture === 'sit' ? p.seatHeight + SEATED_HEAD_CENTRE * k : p.seatHeight + 0.2 + (BODY.neck + BODY.headCentre) * k * Math.sin(reclineAngle(p.recline))
+  }
+
+  /** Your legs while your avatar is invisible (first person): solved all the same, into your row of the pose texture, which nothing draws. */
+  private legsOnly(p: PersonSlot, e: Entity, f: FrameInput, dt: number, o: number): void {
+    this.fillInput(p, e, f, dt)
+    aimHead(p.rig, dt, this.inp, this.headYOf(p, p.posture, p.look.scale))
+    solveRig(p.rig, this.inp, this.data, o + TEX.parts * 4)
+    this.publishStride(p, dt)
+  }
+
+  /**
+   * Your heel strikes, for the footsteps and the camera bob (state.ts `walkStride`). Called once per frame after your legs were solved, so each foot that
+   * landed in that frame counts as one strike. `phase` runs half a cycle from one strike to the next (0 at a left strike, 0.5 at a right) at the rate the
+   * last two strikes had, and holds while you stand.
+   */
+  private publishStride(p: PersonSlot, dt: number): void {
+    const pl = p.rig.planter
+    const ws = walkStride
+    if (pl.landed > 0) {
+      // the time between this strike and the last one is the half cycle the phase has to cover
+      if (ws.sinceStrike > 0.12 && ws.sinceStrike < 1) this.stridePeriod = damp(this.stridePeriod, ws.sinceStrike, 8, 1 / 60)
+      ws.steps += pl.landed
+      ws.foot = pl.lastLanded === 1 ? 1 : 0
+      ws.sinceStrike = 0
+      ws.strikeSpeed = p.speed
+      ws.phase = ws.foot === 0 ? 0 : 0.5
+    } else {
+      ws.sinceStrike += dt
+      if (pl.moving) ws.phase = (ws.foot === 0 ? 0 : 0.5) + 0.49 * clamp(ws.sinceStrike / this.stridePeriod, 0, 1)
+    }
+    ws.run = p.rig.run
+  }
+
+  /**
+   * The body says it is going somewhere fast and the avatar did not move: nobody is writing it any more (the overview, where the player system is idle,
+   * leaves the last velocity in it). Then the slot is measured like everybody else's.
+   */
+  private staleBody(p: PersonSlot, dv: DrivenBody, dt: number): boolean {
+    if (!p.hasPrev || dt < 1e-5) return false
+    const sp = Math.sqrt(dv.vx * dv.vx + dv.vz * dv.vz)
+    if (sp < 0.5) return false
+    const dx = p.x - p.px
+    const dz = p.z - p.pz
+    return Math.sqrt(dx * dx + dz * dz) < 0.25 * sp * dt
+  }
+
+  /** The player's true ground velocity (the contract `walkBody`) instead of the measured one; the bookkeeping `trackMotion` keeps goes on, so a switch back is seamless. */
+  private takeDriven(p: PersonSlot, dv: DrivenBody): void {
+    const sp = Math.sqrt(dv.vx * dv.vx + dv.vz * dv.vz)
+    if (sp < 0.02) {
+      p.vx = 0
+      p.vz = 0
+      p.speed = 0
+    } else {
+      p.vx = dv.vx
+      p.vz = dv.vz
+      p.speed = sp
+    }
+    p.px = p.x
+    p.pz = p.z
+    p.hasPrev = true
   }
 
   /** The measured, smoothed ground velocity: how far the body actually moved this frame. */

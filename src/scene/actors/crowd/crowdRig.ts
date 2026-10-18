@@ -19,6 +19,7 @@ import {
   type Object3D,
 } from 'three'
 import type { Entity } from '@/sim/types'
+import { walkBody } from '@/scene/player/state'
 import { MAX_PEOPLE, RING_COLORS, TEX } from './constants'
 import { buildPropGeometry, buildVehicleGeometry } from './gear'
 import { buildBodyGeometries } from './geometry'
@@ -120,7 +121,7 @@ export function createCrowdRig(): CrowdRig {
   ring.frustumCulled = false
   ring.renderOrder = 2
 
-  const frame: FrameInput = { dt: 0, time: 0, camX: 0, camY: 0, camZ: 0, entities: new Map<string, Entity>(), followId: null, selectedId: null, hoverId: null }
+  const frame: FrameInput = { dt: 0, time: 0, camX: 0, camY: 0, camZ: 0, entities: new Map<string, Entity>(), followId: null, selectedId: null, hoverId: null, driven: null }
 
   return {
     model,
@@ -170,6 +171,9 @@ export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, c
   f.followId = highlight.followId
   f.selectedId = highlight.selectedId
   f.hoverId = highlight.hoverId
+  // W3: your legs are planned from your true body (the player system writes it at priority -10, before this runs at 0 in the same frame); until the
+  // player system is live `walkBody.live` is false and the model measures you like everybody else
+  f.driven = walkBody
   const model = r.model
   model.update(f)
   const st = model.stats

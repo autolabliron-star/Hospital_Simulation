@@ -3,7 +3,8 @@
  * three.js objects, so it is safe to import anywhere (the probe overlay, the effects, tests).
  *
  *   - `level` and `step`: the rung, written by <Quality /> (the ladder moving) or by a dev switch. `step.ao` is read by Effects.tsx,
- *     `step.dpr` by <Quality /> itself.
+ *     `step.dpr` by <Quality /> itself, `step.fx` (W3: 'lite' drops the floors' panel reflection) by the daylight driver's glue
+ *     (src/scene/daylight/index.tsx), once a frame.
  *   - `dpr`: the pixel ratio actually applied to the renderer (the rung's, capped by the display).
  *   - `workP95` / `lateShare` / `reason`: slow numbers for the probe overlay, published once per window (about every 2 s).
  *   - `?quality=N` forces rung N and turns adaptation off, for screenshots and profiling.

@@ -1,16 +1,29 @@
 /**
  * Light for the architect's-model look, kept cheap enough that the demo never stutters:
- *   - three's built-in RoomEnvironment as the reflection/ambient environment (no HDRI download);
+ *   - three's built-in RoomEnvironment as the reflection/ambient environment (no HDRI download), and (W3) a second environment built the
+ *     same way from the hospital's own things (src/scene/lighting/env): both rendered once into a 256 PMREM at mount, so the lit programs
+ *     are the same either way; the daylight driver says which is bound (the hospital's while walking, `liveLook.hospitalEnv`) and this
+ *     component swaps `scene.environment` between frames, no allocation, no recompile;
+ *   - (W3) the light volume's bake starts here, behind the loading screen (a warm gate, src/scene/lighting/volume/texture.ts), and the
+ *     textures of the realistic light are registered with the warm-up so they upload before the Enter button;
  *   - a soft sky/ground hemisphere fill;
  *   - one sun whose shadow map is rendered ONCE for the static building (autoUpdate off), and again only
  *     when a layer calls `invalidateShadows()` (e.g. after it finished building its meshes). Moving things
  *     (pods, people) do not cast into it; they get soft blob shadows instead.
  */
-import { useEffect, useState } from 'react'
-import { useThree } from '@react-three/fiber'
-import { type DirectionalLight, type HemisphereLight, Object3D, PMREMGenerator } from 'three'
+import { useEffect, useRef, useState } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { type DirectionalLight, type HemisphereLight, Object3D, PMREMGenerator, type Texture } from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { LIGHT_NOON } from '@/scene/daylight/lightAt'
+import { createCeilingTexture } from '@/scene/lighting/ceilingMap'
+import { buildHospitalEnvironment, disposeEnvironment } from '@/scene/lighting/env/hospitalEnvironment'
+import { createGradeLut } from '@/scene/lighting/grade'
+import { liveLook } from '@/scene/lighting/liveLook'
+import { ensureLightVolume } from '@/scene/lighting/volume/texture'
+import { volumeTexture } from '@/scene/lighting/volume/uniforms'
+import { registerWarmSource } from '@/scene/warmup/registry'
 import { BUILDING } from '@/sim/places'
 
 /** Sun direction (high, from the south-south-east), and the shadow box around the whole building. */
@@ -50,18 +63,47 @@ export function Lighting() {
   const scene = useThree((s) => s.scene)
   // the sun's target must live in the scene so its world matrix (and so the shadow box) follows it
   const [target] = useState(() => new Object3D())
+  // the two environments, once built (the overview's RoomEnvironment and the hospital's)
+  const envs = useRef<{ room: Texture | null; hospital: Texture | null }>({ room: null, hospital: null })
 
   useEffect(() => {
     const pmrem = new PMREMGenerator(gl)
-    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-    scene.environment = env
-    scene.environmentIntensity = LIGHT_NOON.envIntensity
+    const room = pmrem.fromScene(new RoomEnvironment(), 0.04)
+    const hospitalScene = buildHospitalEnvironment()
+    const hospital = pmrem.fromScene(hospitalScene, 0.04)
+    disposeEnvironment(hospitalScene)
     pmrem.dispose()
+    envs.current = { room: room.texture, hospital: hospital.texture }
+    scene.environment = liveLook.hospitalEnv ? hospital.texture : room.texture
+    scene.environmentIntensity = LIGHT_NOON.envIntensity
     return () => {
+      envs.current = { room: null, hospital: null }
       scene.environment = null
-      env.dispose()
+      room.dispose()
+      hospital.dispose()
     }
   }, [gl, scene])
+
+  // the realistic light's textures upload behind the loading screen, and the light volume bakes there too (a warm gate: the warm-up waits)
+  useEffect(() => {
+    void ensureLightVolume()
+    return registerWarmSource({
+      name: 'lighting',
+      textures: () => {
+        const list: Texture[] = [volumeTexture, createCeilingTexture(), createGradeLut()]
+        if (envs.current.room) list.push(envs.current.room)
+        if (envs.current.hospital) list.push(envs.current.hospital)
+        return list
+      },
+    })
+  }, [])
+
+  // swap the bound environment when the daylight driver says so (the walk look's, past half way through the Tab flight); the driver already wrote
+  // the intensity for the environment it chose, in its own frame callback just before this one
+  useFrame(() => {
+    const want = liveLook.hospitalEnv ? envs.current.hospital : envs.current.room
+    if (want && scene.environment !== want) scene.environment = want
+  }, FRAME_PRIORITY.sim + 3)
 
   useEffect(() => {
     gl.shadowMap.autoUpdate = false

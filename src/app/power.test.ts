@@ -7,6 +7,7 @@ import {
   activeNow,
   clampFrameDelta,
   frameCap,
+  isWalkingMode,
   notePaused,
   pauseReason,
   presentFromSearch,
@@ -37,6 +38,71 @@ describe('the frame cap', () => {
   })
 })
 
+describe('W3: walk mode keeps 60 fps on battery', () => {
+  it('walking holds 60 on battery in normal mode (the overview still saves it)', () => {
+    expect(frameCap(true, false, false, true)).toBe(60)
+    expect(frameCap(true, false, false, false)).toBe(30)
+    expect(frameCap(true, false, false)).toBe(30) // the old three-argument call: not walking
+    expect(frameCap(false, false, false, true)).toBe(60)
+  })
+
+  it('the loading screen is still 30 while walking, and presentation mode is still 60', () => {
+    expect(frameCap(true, false, true, true)).toBe(30)
+    expect(frameCap(false, false, true, true)).toBe(30)
+    expect(frameCap(true, true, false, true)).toBe(60)
+    expect(frameCap(true, true, false, false)).toBe(60)
+  })
+
+  it('every old case with walking false is exactly as it was', () => {
+    for (const battery of [false, true]) {
+      for (const present of [false, true]) {
+        for (const loading of [false, true]) {
+          const old = loading ? 30 : battery && !present ? 30 : 60
+          expect(frameCap(battery, present, loading, false), `battery ${battery} present ${present} loading ${loading}`).toBe(old)
+        }
+      }
+    }
+  })
+
+  it('resolves the walking input: on battery, walking 60 and in the overview 30', () => {
+    const base = { hidden: false, focused: true, present: false, onBattery: true, loading: false }
+    expect(resolvePower({ ...base, walking: true })).toEqual({ paused: false, reason: null, fps: 60, onBattery: true })
+    expect(resolvePower({ ...base, walking: false })).toEqual({ paused: false, reason: null, fps: 30, onBattery: true })
+    expect(resolvePower(base)).toEqual({ paused: false, reason: null, fps: 30, onBattery: true }) // an input set without it: not walking
+  })
+
+  it('the machine follows Tab: unplugged and walking it stays at 60, into the overview it drops to 30, back to walking it is 60 again at once', () => {
+    const changes: PowerDecision[] = []
+    const machine = new PowerMachine({ onBattery: true, walking: true }, (next) => changes.push(next))
+    expect(machine.decision.fps).toBe(60)
+    machine.set({ walking: false })
+    expect(machine.decision.fps).toBe(30)
+    machine.set({ walking: true })
+    expect(machine.decision.fps).toBe(60)
+    expect(changes.map((c) => c.fps)).toEqual([30, 60])
+    // plugged in, Tab changes nothing anybody could see
+    const plugged = new PowerMachine({ walking: true }, (next) => changes.push(next))
+    const before = changes.length
+    plugged.set({ walking: false })
+    plugged.set({ walking: true })
+    expect(changes.length).toBe(before)
+  })
+
+  it('the modes: the overview is not walking, everything else (walk and both flights) is', () => {
+    expect(isWalkingMode('overview')).toBe(false)
+    for (const m of ['walk', 'toWalk', 'toOverview']) expect(isWalkingMode(m)).toBe(true)
+  })
+
+  it('the pacer draws every other frame of a 120 Hz screen at 60, on battery too, once walking says so', () => {
+    const pacer = new FramePacer()
+    let drawn = 0
+    const period = 1000 / 120
+    for (let i = 0; i < 240; i++) if (pacer.accept(i * period, frameCap(true, false, false, true))) drawn++
+    expect(drawn).toBeGreaterThan(110) // 120 frames a second of display, half of them drawn: 60 fps
+    expect(drawn).toBeLessThan(130)
+  })
+})
+
 describe('when the demo pauses', () => {
   it('pauses a hidden tab, in every mode', () => {
     expect(pauseReason(true, true, false)).toBe('hidden')
@@ -49,6 +115,9 @@ describe('when the demo pauses', () => {
     expect(pauseReason(false, false, false)).toBe('background')
     expect(pauseReason(false, false, true)).toBe(null)
     expect(pauseReason(false, true, false)).toBe(null)
+    // W3: the loading screen keeps drawing without focus (its first frame compiles the post-processing passes); hidden still pauses it
+    expect(pauseReason(false, false, false, true)).toBe(null)
+    expect(pauseReason(true, false, false, true)).toBe('hidden')
     expect(pauseReason(false, true, true)).toBe(null)
   })
 

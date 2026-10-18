@@ -15,6 +15,7 @@ import { clamp, damp, smoother01, smoothstep, wrapPi } from './math'
 import { lookFor } from './outfit'
 import { U } from './pose'
 import { createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
+import { drive as kitDrive, type DFrame } from './playerDrive.testkit'
 
 // ---------------------------------------------------------------------------------------------
 // The old planner, as it was before the speed-dependent gait. Do not edit: it is the reference the NPCs are held to.
@@ -997,104 +998,31 @@ interface PathResult {
   finite: boolean
   rig: PersonRig
   heading: number
-  frames: Frame[]
+  frames: DFrame[]
 }
 /**
- * A person driven the way the player is: the velocity moves to the wanted one in 0.15 s (braking in 0.1 s) and the body turns to face its
- * velocity with the configured turn time.
+ * A person driven the way the player system drives the player (playerDrive.testkit.ts): the speed follows a critically damped spring
+ * (CONFIG.player.startSeconds / stopSeconds / shiftSeconds), the body turns to face its way with the configured turn time, and the rig is handed the
+ * true velocity and the intent (what the keys ask for, the acceleration, the turn rate, the rest point), like `walkBody` carries them.
  */
 function drive(path: Path, seconds: number, dt = 1 / 60): PathResult {
-  const rig = createRig(LOOK)
-  const inp = makeInput()
-  const out = new Float32Array(PART_COUNT * 12)
-  const acc = CONFIG.player.accelSeconds
-  const brake = CONFIG.player.brakeSeconds
-  const turn = CONFIG.player.turnSeconds
-  let x = 0
-  let z = 0
-  let vx = 0
-  let vz = 0
-  let mx = 0
-  let mz = 0
-  let ms = 0
-  let heading = 0
-  let minPelvis = 9
-  let maxReach = 0
-  let maxYawGap = 0
-  let finite = true
+  const r = kitDrive({ speed: path.speed, dir: path.dir }, seconds, { dt, driven: true })
+  const fr = r.frames
   let bothAirAfterStop = 0
-  const frames: Frame[] = []
-  for (let i = 0; i < seconds / dt; i++) {
-    const t = i * dt
-    const w = path.speed(t)
-    const d = path.dir(t)
-    // velocity toward the wanted one
-    const tx = Math.sin(d) * w
-    const tz = Math.cos(d) * w
-    const sp = Math.hypot(vx, vz)
-    const rate = w < sp ? Math.max(sp, 0.3) / brake : Math.max(w, 0.3) / acc
-    const dx = tx - vx
-    const dz = tz - vz
-    const dl = Math.hypot(dx, dz)
-    const step = Math.min(dl, rate * dt)
-    if (dl > 1e-9) {
-      vx += (dx / dl) * step
-      vz += (dz / dl) * step
-    }
-    if (w === 0 && Math.hypot(vx, vz) < 0.02) {
-      vx = 0
-      vz = 0
-    }
-    x += vx * dt
-    z += vz * dt
-    if (Math.hypot(vx, vz) > 0.2) {
-      const target = Math.atan2(vx, vz)
-      const diff = wrapPi(target - heading)
-      heading = wrapPi(heading + clamp(diff * (1 - Math.exp(-dt / turn)), -20 * dt, 20 * dt))
-    }
-    // what the crowd model measures: the real ground velocity, smoothed over 0.1 s
-    mx = damp(mx, (vx * dt) / dt, 10, dt)
-    mz = damp(mz, (vz * dt) / dt, 10, dt)
-    ms = Math.hypot(mx, mz)
-    if (ms < 0.02) {
-      mx = 0
-      mz = 0
-      ms = 0
-    }
-    inp.dt = dt
-    inp.time = t
-    inp.x = x
-    inp.z = z
-    inp.heading = heading
-    inp.vx = mx
-    inp.vz = mz
-    inp.speed = ms
-    solveRig(rig, inp, out, 0)
-    for (let k = 0; k < PART_COUNT * 12; k++) if (!Number.isFinite(out[k])) finite = false
-    if (i * dt > 0.3) {
-      const f = frameOf(rig, out, t, z, heading)
-      // frameOf assumes a person at x = 0: redo the reach error for a person anywhere
-      let reach = 0
-      const c = Math.cos(heading)
-      const s = Math.sin(heading)
-      for (const [part, foot] of [
-        [P.footL, rig.planter.feet[0]],
-        [P.footR, rig.planter.feet[1]],
-      ] as const) {
-        if (foot.stepping) continue
-        const lx = out[part * 12 + 3]
-        const lz = out[part * 12 + 11]
-        reach = Math.max(reach, Math.hypot(x + c * lx + s * lz - foot.x, z - s * lx + c * lz - foot.z))
-      }
-      f.reachErr = reach
-      frames.push(f)
-      minPelvis = Math.min(minPelvis, f.pelvisY)
-      maxReach = Math.max(maxReach, reach)
-      if (!rig.planter.moving && w === 0 && rig.planter.feet[0].stepping && rig.planter.feet[1].stepping) bothAirAfterStop++
-    }
+  for (const f of fr) if (f.wishSpeed === 0 && f.speed < 0.05 && f.bothAir) bothAirAfterStop++
+  let maxYawGap = 0
+  for (let k = 0; k < 2; k++) maxYawGap = Math.max(maxYawGap, Math.abs(wrapPi(r.rig.planter.feet[k].yaw - r.heading - (k === 0 ? 1 : -1) * GAIT.toeOut)))
+  return {
+    minPelvis: Math.min(...fr.map((f) => f.pelvisY)),
+    maxReach: Math.max(...fr.map((f) => f.reachErr)),
+    maxYawGap,
+    forced: r.forced,
+    bothAirAfterStop,
+    finite: r.finite,
+    rig: r.rig,
+    heading: r.heading,
+    frames: fr,
   }
-  for (let k = 0; k < 2; k++) maxYawGap = Math.max(maxYawGap, Math.abs(wrapPi(rig.planter.feet[k].yaw - heading - (k === 0 ? 1 : -1) * GAIT.toeOut)))
-  return { minPelvis, maxReach, maxYawGap, forced: rig.planter.forced, bothAirAfterStop, finite, rig, heading, frames }
 }
 
 describe('turning', () => {
@@ -1103,7 +1031,7 @@ describe('turning', () => {
     expect(CONFIG.player.turnSeconds).toBeLessThanOrEqual(0.15)
   })
 
-  it('in place: the feet step round to the new heading, nothing is left twisted, and the pelvis does not sink', () => {
+  it('in place, for a body that is measured (the NPCs): the feet step round to the new heading, nothing is left twisted, and the pelvis does not sink', () => {
     for (const angle of [0.4, Math.PI / 2, Math.PI, -2.5]) {
       const rig = createRig(LOOK)
       const inp = makeInput()
@@ -1149,6 +1077,8 @@ describe('turning', () => {
         expect(r.finite).toBe(true)
         expect(r.maxReach, `reach in a turn at ${v}`).toBeLessThan(0.03)
         expect(STAND_Y - r.minPelvis, `sink in a turn at ${v}`).toBeLessThan(drop + 0.04)
+        // no emergency step in the turn
+        expect(r.forced, `emergencies in a turn at ${v}`).toBeLessThanOrEqual(1)
         // after the turn the steady stride is back: the lunge is gone
         const after = r.frames.filter((f) => f.t > 4.5)
         expect(range(after.map((f) => f.pelvisY)).p2p).toBeLessThan(0.07)
@@ -1163,22 +1093,23 @@ describe('turning', () => {
     ] as const) {
       const r = drive({ speed: () => v, dir: (t) => t * rate }, 10)
       expect(r.finite).toBe(true)
-      // one emergency at the start (the body is away before the first swing is over) and none after
-      expect(r.forced, `forced on a curve at ${v}`).toBeLessThanOrEqual(1)
+      // the first step is up on the first frame and every one after it is in time: none is an emergency
+      expect(r.forced, `forced on a curve at ${v}`).toBe(0)
       expect(r.maxReach).toBeLessThan(0.03)
-      expect(STAND_Y - r.minPelvis).toBeLessThan(0.14)
+      expect(STAND_Y - r.minPelvis).toBeLessThan(0.12)
     }
   })
 })
 
 describe('starting and stopping', () => {
-  it('starting from rest at a walk or a run does not lunge: one quick first step, the pelvis stays within 17 cm, the legs always reach', () => {
+  it('starting from rest at a walk or a run does not lunge: no emergency step, the pelvis stays within a few cm of a steady stride, the legs always reach', () => {
     for (const v of [CONFIG.player.walkSpeed, CONFIG.player.hurrySpeed]) {
-      const r = drive({ speed: (t) => (t < 1 ? 0 : v), dir: () => 0 }, 6)
+      const r = drive({ speed: () => v, dir: () => 0 }, 6)
       expect(r.finite).toBe(true)
       expect(r.maxReach).toBeLessThan(0.02)
-      expect(STAND_Y - r.minPelvis, `start dip at ${v}`).toBeLessThan(v > 3 ? 0.17 : 0.11)
-      expect(r.forced).toBeLessThanOrEqual(1)
+      // (a steady stride bottoms out about 6.5 cm below standing at a walk and 4 cm at a run: see playerGait.test.ts for the start against that)
+      expect(STAND_Y - r.minPelvis, `start dip at ${v}`).toBeLessThan(v > 3 ? 0.09 : 0.08)
+      expect(r.forced, `emergency steps starting at ${v}`).toBe(0)
       // and settles at once: the stride after the first second is the steady one
       const steady = r.frames.filter((f) => f.t > 3)
       expect(range(steady.map((f) => f.pelvisY)).p2p).toBeLessThan(0.065)
@@ -1194,7 +1125,7 @@ describe('starting and stopping', () => {
       // both feet end up beside each other
       const [a, b] = r.rig.planter.feet
       expect(a.stepping || b.stepping).toBe(false)
-      expect(Math.abs(a.z - b.z)).toBeLessThan(0.25)
+      expect(Math.abs(a.z - b.z)).toBeLessThan(0.12)
     }
   })
 
@@ -1202,8 +1133,8 @@ describe('starting and stopping', () => {
     const r = drive({ speed: (t) => (t % 4 < 2 ? CONFIG.player.walkSpeed : CONFIG.player.hurrySpeed), dir: () => 0 }, 20)
     expect(r.finite).toBe(true)
     expect(r.maxReach).toBeLessThan(0.02)
-    expect(STAND_Y - r.minPelvis).toBeLessThan(0.2)
-    expect(r.forced).toBeLessThanOrEqual(8)
+    expect(STAND_Y - r.minPelvis).toBeLessThan(0.12)
+    expect(r.forced).toBeLessThanOrEqual(1)
   })
 })
 

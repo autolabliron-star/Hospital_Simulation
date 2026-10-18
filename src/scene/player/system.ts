@@ -6,11 +6,12 @@
  * What happens each frame (`update`):
  *   1. the keys: Tab flips between walking and the overview, V between third and first person, Q between the two shoulders;
  *   2. walking (`scheme.ts`): by default W and S walk along the way you face and A and D TURN you (the camera follows behind by
- *      itself); with `?controls=classic` W A S D are camera-relative and the mouse steers. Speeds and accel/brake come from
- *      `CONFIG.player`; the body circle slides along walls and furniture on the nav grid (`collision.ts`) and stands off other
- *      people (`motion.pushOutOfPerson`);
+ *      itself); with `?controls=classic` W A S D are camera-relative and the mouse steers. The body is a `BodyMover` (`body.ts`): a
+ *      critically damped speed spring (`CONFIG.player` start / stop / shift seconds) and a collide-and-slide circle that cannot enter any
+ *      wall, piece of furniture, closed door leaf, person, vehicle or MealBot (`collision.ts`, `solids.ts`, `sweep.ts`);
  *   3. the camera: the chase camera over your shoulder (the right, until a wall is there; Q chooses: `chaseCamera.ts`), or one of the two flights (`flight.ts`);
- *   4. write-back: `sim.movePlayer(...)` every frame, `sim.player.mode` / `.view`, your avatar's `fade`, `walkCam`, and `useWalk`
+ *   4. write-back: `sim.movePlayer(...)` every frame, `sim.player.mode` / `.view`, your avatar's `fade`, `walkCam`, `walkBody` (the
+ *      body's velocity, intent, acceleration and stop point, for the legs, the doors, the camera and the quality ladder) and `useWalk`
  *      when something the UI shows changes.
  *
  * The phases (`PlayerMode`): `walk` (the chase camera owns the lens, the overview rig is suspended), `toOverview` (our flight from
@@ -23,19 +24,23 @@
 import { PerspectiveCamera, Vector3 } from 'three'
 import { cancelFlight, getRig, overviewPose, poseToLookAt, registerWalkBridge, OVERVIEW_FOV_DEG, type CameraPose, type RigHandle, type WalkBridge } from '@/scene/camera/cameraApi'
 import { useFocus } from '@/scene/camera/focus.store'
-import { groundHeightAt, PLAYER_SPAWN } from '@/sim/places'
+import { BOT_RADIUS } from '@/sim/meals/bot'
+import { groundHeightAt, PLAYER_SPAWN, VEHICLE_AHEAD, VEHICLE_HALF } from '@/sim/places'
 import type { Simulation } from '@/sim/Simulation'
-import type { Entity, PlayerViewKind, PlayerMode, Vec2 } from '@/sim/types'
+import type { Entity, MealBot, PlayerViewKind, PlayerMode, Vec2 } from '@/sim/types'
 import { WallBoxProbe, type BoomProbe } from './boomProbe'
 import { ChaseCamera, type CameraFrame, type CameraSubject } from './chaseCamera'
-import { approach, clamp, wrapAngle } from './chaseMath'
-import { moveBody, newBodyMove, settle } from './collision'
+import { angleDelta, approach, clamp, wrapAngle } from './chaseMath'
+import { BodyMover, copyBodyState, BODY_FEEL } from './body'
+import { settle, type DynamicShapes } from './collision'
 import { ModeFlight, newFlightState, type FlightState } from './flight'
 import { PlayerInput, type InputAxes } from './input'
-import { facingFromVelocity, newVelocity, pushOutOfPerson, speedOf, stepVelocity, turnTowards, type Planar } from './motion'
-import { DEFAULT_SCHEME, newSteering, newTurn, routeInput, stepTurn, turnedHeading, type ControlScheme } from './scheme'
-import { useWalk, walkCam } from './state'
-import { BODY, CHASE, CROWD, FLIGHT, MOVE } from './tuning'
+import { facingFromVelocity, turnTowards } from './motion'
+import { DEFAULT_SCHEME, turnedHeading, type ControlScheme } from './scheme'
+import { useWalk, walkBody, walkCam } from './state'
+import { BODY, CHASE, FLIGHT, MOVE } from './tuning'
+
+export { BodyMover } from './body'
 
 export interface PlayerDeps {
   /** The one camera of the scene. */
@@ -90,26 +95,20 @@ export class PlayerSystem {
 
   private phase: PlayerMode = 'walk'
   private viewKind: PlayerViewKind = 'third'
-  private x = PLAYER_SPAWN.at.x
-  private z = PLAYER_SPAWN.at.z
-  private heading = PLAYER_SPAWN.heading
-  private speed = 0
-  private readonly vel = newVelocity()
+  /** The walking body: position, heading, the speed spring and the collision. Pure (`body.ts`). */
+  readonly body: BodyMover
   private readonly feet = { x: 0, y: 0, z: 0 }
   private readonly subject: CameraSubject = { feet: this.feet, vx: 0, vz: 0, heading: 0, turning: false }
   private readonly frame: CameraFrame = { dt: 0, dx: 0, dy: 0, wheel: 0, dragging: false, firstPerson: false, floorY: 0 }
-  private readonly steer = newSteering()
-  /** The easy scheme's turning state (A and D). */
-  private readonly turn = newTurn()
   private readonly axes: InputAxes = { forward: 0, right: 0, hurry: false }
   private readonly look = { dx: 0, dy: 0, wheel: 0 }
-  private readonly move = newBodyMove()
-  private readonly pushOut: Planar = { x: 0, z: 0 }
   private readonly settled: Vec2 = { x: 0, z: 0 }
-  /** The sum of the pushes out of the people near you this frame (see `visitPerson`). */
-  private pushX = 0
-  private pushZ = 0
-  private pushStep = 0
+  /** The simulation of this frame, for the callback that collects the moving shapes (set in `stepWalk`). */
+  private simNow: Simulation | null = null
+  /** The heading of the last frame, for the turn rate that `walkBody` publishes. */
+  private lastHeading = 0
+  /** Scratch: the body's velocity, for the classic scheme's facing. */
+  private readonly vel = { x: 0, z: 0 }
 
   // the camera
   private readonly lookTarget = { x: 0, y: 0, z: 0 }
@@ -126,24 +125,40 @@ export class PlayerSystem {
   private lastPublished: { mode: PlayerMode; view: PlayerViewKind; locked: boolean } = { mode: 'walk', view: 'third', locked: false }
   private disposed = false
 
+  private get x(): number {
+    return this.body.x
+  }
+  private get z(): number {
+    return this.body.z
+  }
+  private get heading(): number {
+    return this.body.heading
+  }
+  private set heading(v: number) {
+    this.body.heading = v
+  }
+
   constructor(deps: PlayerDeps) {
     this.deps = deps
     this.scheme = deps.scheme ?? DEFAULT_SCHEME
     this.chase = new ChaseCamera(this.scheme)
     this.probe = deps.probe ?? new WallBoxProbe()
+    this.body = new BodyMover(this.scheme)
+    this.body.collect = this.collectShapes
+    this.body.place(PLAYER_SPAWN.at.x, PLAYER_SPAWN.at.z, PLAYER_SPAWN.heading)
     const sim = deps.getSim()
     const existing = sim.player
     if (existing) {
       // a remount (hot reload, strict mode) or a Jump: carry on from where you are
-      this.x = existing.x
-      this.z = existing.z
-      this.heading = existing.heading
+      this.body.x = existing.x
+      this.body.z = existing.z
+      this.body.heading = existing.heading
       this.viewKind = existing.view
       this.phase = existing.mode === 'overview' || existing.mode === 'toOverview' ? 'overview' : 'walk'
     }
     settle(this.x, this.z, this.settled)
-    this.x = this.settled.x
-    this.z = this.settled.z
+    this.body.place(this.settled.x, this.settled.z)
+    this.lastHeading = this.heading
     this.feet.x = this.x
     this.feet.y = groundHeightAt(this.x, this.z)
     this.feet.z = this.z
@@ -215,15 +230,22 @@ export class PlayerSystem {
     switch (this.phase) {
       case 'walk':
         this.stepWalk(dt, !blocked, sim)
+        // the body is published BEFORE the camera moves, so the camera (and everything after it this frame) reads this frame's body
+        this.publishBody(dt)
         this.cameraStep(dt)
+        this.finishBody(dt)
         break
       case 'toWalk':
       case 'toOverview':
         this.standStill(dt)
+        this.publishBody(dt)
         this.flightStep(dt)
+        this.finishBody(dt)
         break
       default:
         this.standStill(dt)
+        this.publishBody(dt)
+        this.finishBody(dt)
         break
     }
     this.syncSim(sim)
@@ -235,55 +257,25 @@ export class PlayerSystem {
     this.input.axes(this.axes)
     const forward = control ? this.axes.forward : 0
     const right = control ? this.axes.right : 0
-    const easy = this.scheme === 'easy'
-    // easy: A and D turn the body, before the direction is read, so a press moves you in this very frame (running only goes forward)
-    if (easy) this.heading = turnedHeading(this.heading, stepTurn(this.turn, right, this.axes.hurry && forward > 0, dt))
-    const steer = routeInput(this.scheme, forward, right, this.heading, this.chase.facing, this.steer)
-    const wanting = steer.dirX !== 0 || steer.dirZ !== 0
-    // backing up (S) is slower than walking and never runs
-    const wish = wanting ? (this.axes.hurry && !steer.backing ? MOVE.hurrySpeed : MOVE.walkSpeed) * steer.speedFactor : 0
-    stepVelocity(this.vel, steer.dirX, steer.dirZ, wish, dt)
+    const body = this.body
+    this.simNow = sim
+    body.step(dt, forward, right, this.axes.hurry, this.chase.facing)
+    this.simNow = null
 
-    // the body slides along walls and furniture; what it did not move it does not carry
-    const ox = this.x
-    const oz = this.z
-    moveBody(ox, oz, this.vel.x * dt, this.vel.z * dt, this.move)
-    this.x = this.move.x
-    this.z = this.move.z
-    // other people are circles: stand off them (they step aside for you too)
-    this.pushX = 0
-    this.pushZ = 0
-    this.pushStep = 1.5 * dt
-    sim.entities.forEach(this.visitPerson)
-    if (this.pushX !== 0 || this.pushZ !== 0) {
-      moveBody(this.x, this.z, this.pushX, this.pushZ, this.move)
-      this.x = this.move.x
-      this.z = this.move.z
-    }
-    if (dt > 0) {
-      const gx = this.x - ox
-      const gz = this.z - oz
-      const got = Math.hypot(gx, gz)
-      const want = Math.hypot(this.vel.x * dt, this.vel.z * dt)
-      if (want > 1e-6 && got < want * 0.97) {
-        this.vel.x = gx / dt
-        this.vel.z = gz / dt
-      }
-      // what the gait sees: the speed you really have (a wall has already taken what it took from the velocity)
-      this.speed = speedOf(this.vel)
-      if (this.speed < 0.02) this.speed = 0
-    }
-
-    // heading. Easy: you steer the body (A and D above; in first person the mouse too, `cameraStep`), so nothing turns it here.
+    // heading. Easy: you steer the body (A and D, in `BodyMover.step`; in first person the mouse too, `cameraStep`), so nothing turns it here.
     // Classic: through your own eyes you face where you look; otherwise the body turns to face where it goes
-    if (easy) {
+    if (this.scheme === 'easy') {
       /* the keys and the mouse steer the body */
     } else if (this.viewKind === 'first') {
       this.heading = turnTowards(this.heading, this.chase.facing, dt, MOVE.firstPersonTurnSeconds)
     } else {
       let target: number | null = null
-      if (wanting && this.speed < 0.5) target = Math.atan2(steer.dirX, steer.dirZ)
-      else target = facingFromVelocity(this.vel)
+      if (body.wanting && body.speed < 0.5) target = Math.atan2(body.steer.dirX, body.steer.dirZ)
+      else {
+        this.vel.x = body.state.vx
+        this.vel.z = body.state.vz
+        target = facingFromVelocity(this.vel)
+      }
       if (target !== null) this.heading = turnTowards(this.heading, target, dt)
     }
     this.feet.x = this.x
@@ -291,25 +283,62 @@ export class PlayerSystem {
     this.feet.z = this.z
   }
 
-  /** `sim.entities.forEach` callback: the push out of one person, added to this frame's. Prebound, so the frame allocates nothing. */
+  /**
+   * The moving shapes of this frame, added to the body's buffer (door leaves are collected by the mover itself): standing people, the
+   * pushed wheelchairs and stretchers, their riders and the MealBots. Prebound, so the frame allocates nothing.
+   */
+  private readonly collectShapes = (shapes: DynamicShapes): void => {
+    const sim = this.simNow
+    if (!sim) return
+    this.shapes = shapes
+    sim.entities.forEach(this.visitPerson)
+    sim.life.mealBots.forEach(this.visitBot)
+    this.shapes = null
+  }
+  private shapes: DynamicShapes | null = null
+
+  /** `sim.entities.forEach` callback: one person's circle (and a pushed vehicle's box) into this frame's shapes. */
   private readonly visitPerson = (e: Entity): void => {
-    if (e.id === 'player' || e.seated || e.anim === 'lie' || e.anim === 'sit') return
+    const shapes = this.shapes
+    if (shapes === null || e.id === 'player') return
     if ((e.fade ?? 1) < 0.4) return
     const dx = e.position.x - this.x
     const dz = e.position.z - this.z
-    if (dx > CROWD.scanRadius || dx < -CROWD.scanRadius || dz > CROWD.scanRadius || dz < -CROWD.scanRadius) return
-    pushOutOfPerson(this.x, this.z, e.position.x, e.position.z, BODY.radius, this.pushStep, this.pushOut)
-    this.pushX += this.pushOut.x
-    this.pushZ += this.pushOut.z
+    const scan = BODY_FEEL.scanRadius
+    if (dx > scan || dx < -scan || dz > scan || dz < -scan) return
+    const kind = e.vehicle
+    if (kind !== undefined && kind !== 'none') {
+      if (e.riding) {
+        // a rider sits on the vehicle, which the pusher's box already covers; the rider's own circle is for the edges
+        shapes.addCircle(e.position.x, e.position.z, BODY_FEEL.riderRadius)
+        return
+      }
+      // the pusher is a person, and the vehicle is a box centred ahead of them along their heading
+      const hw = VEHICLE_HALF[kind][0]
+      const hl = VEHICLE_HALF[kind][1]
+      const sinH = Math.sin(e.heading)
+      const cosH = Math.cos(e.heading)
+      const ahead = VEHICLE_AHEAD[kind]
+      shapes.addBox(e.position.x + sinH * ahead, e.position.z + cosH * ahead, cosH, -sinH, hw, hl)
+    }
+    if (e.seated || e.anim === 'lie' || e.anim === 'sit') return
+    shapes.addCircle(e.position.x, e.position.z, BODY_FEEL.npcRadius)
   }
 
-  /** Not walking (the overview, or a flight): you stand where you are, braking to a stop. */
+  /** `sim.life.mealBots.forEach` callback: a bot, unless it is still fading in or out at the service lift. */
+  private readonly visitBot = (b: MealBot): void => {
+    const shapes = this.shapes
+    if (shapes === null || b.fade < 0.4) return
+    const dx = b.position.x - this.x
+    const dz = b.position.z - this.z
+    const scan = BODY_FEEL.scanRadius
+    if (dx > scan || dx < -scan || dz > scan || dz < -scan) return
+    shapes.addCircle(b.position.x, b.position.z, BOT_RADIUS)
+  }
+
+  /** Not walking (the overview, or a flight): you stand where you are, at rest. */
   private standStill(dt: number): void {
-    this.turn.rate = 0
-    stepVelocity(this.vel, 0, 0, 0, dt)
-    this.vel.x = 0
-    this.vel.z = 0
-    this.speed = 0
+    this.body.stand(dt)
   }
 
   // ------------------------------------------------------------------------------------------
@@ -327,10 +356,10 @@ export class PlayerSystem {
     const input = this.input
     input.takeLook(this.look)
     if (!input.listening) this.look.dx = this.look.dy = this.look.wheel = 0
-    this.subject.vx = this.vel.x
-    this.subject.vz = this.vel.z
+    this.subject.vx = this.body.state.vx
+    this.subject.vz = this.body.state.vz
     this.subject.heading = this.heading
-    this.subject.turning = Math.abs(this.turn.rate) > TURNING_RATE
+    this.subject.turning = Math.abs(this.body.turn.rate) > TURNING_RATE
     const f = this.frame
     f.dt = dt
     f.dx = this.look.dx
@@ -418,12 +447,11 @@ export class PlayerSystem {
     this.feet.x = this.x
     this.feet.y = groundHeightAt(this.x, this.z)
     this.feet.z = this.z
-    this.vel.x = this.vel.z = 0
+    this.body.halt()
     this.subject.vx = 0
     this.subject.vz = 0
     this.subject.heading = this.heading
     this.subject.turning = false
-    this.turn.rate = 0
     camera.near = FLIGHT.walkNear
     this.chase.reset(this.feet, this.heading)
     const report = this.chase.settle(this.subject, { firstPerson: false, floorY: this.feet.y }, this.probe, camera)
@@ -475,7 +503,7 @@ export class PlayerSystem {
     this.input.releaseLock()
     this.input.clear()
     this.viewKind = 'third'
-    this.vel.x = this.vel.z = 0
+    this.body.halt()
     this.startFlight()
   }
 
@@ -602,10 +630,27 @@ export class PlayerSystem {
     p.view = this.viewKind
     const e = sim.playerAvatar
     // `movePlayer` sets walk or idle from the speed; a pose another system gave you (sitting, the tablet) stays while you stand still
-    const keep = e && this.speed <= 0.05 && e.anim !== 'idle' && e.anim !== 'walk' ? e.anim : null
-    sim.movePlayer(this.x, this.z, this.heading, this.speed)
+    const speed = this.body.speed
+    const keep = e && speed <= 0.05 && e.anim !== 'idle' && e.anim !== 'walk' ? e.anim : null
+    sim.movePlayer(this.x, this.z, this.heading, speed)
     if (e && keep) e.anim = keep
     if (e) e.fade = this.avatarFadeNow
+  }
+
+  /** The body's numbers for the legs, the doors, the camera and the quality ladder: the shared `walkBody`, every frame, never reallocated. */
+  private publishBody(dt: number): void {
+    const b = this.body.state
+    // the heading turns for other reasons than the keys (the classic scheme's facing, the mouse in first person), so measure it
+    b.turnRate = dt > 0 ? angleDelta(this.lastHeading, this.heading) / dt : 0
+    this.lastHeading = this.heading
+    b.live = true
+    copyBodyState(b, walkBody)
+  }
+
+  /** The end of the frame: the camera may have turned the body (the mouse in first person): that turn is part of this frame's rate too. */
+  private finishBody(dt: number): void {
+    if (dt > 0) walkBody.turnRate += angleDelta(this.lastHeading, this.heading) / dt
+    this.lastHeading = this.heading
   }
 
   /** The slow copy for the UI: only when something it shows changes. */
@@ -626,12 +671,10 @@ export class PlayerSystem {
 
   /** Put you down at (x, z), on the nearest walkable spot, facing `heading` (a seat, a bedside, a debug jump). The view is kept. */
   placeAt(x: number, z: number, heading?: number): void {
-    settle(x, z, this.settled)
-    this.x = this.settled.x
-    this.z = this.settled.z
-    if (heading !== undefined) this.heading = heading
-    this.vel.x = this.vel.z = 0
-    this.speed = 0
+    // only the walls and the region count: a seat is INSIDE its chair, and from there you can only walk out of it
+    settle(x, z, this.settled, BODY.radius, false)
+    this.body.place(this.settled.x, this.settled.z, heading)
+    this.lastHeading = this.heading
     this.feet.x = this.x
     this.feet.y = groundHeightAt(this.x, this.z)
     this.feet.z = this.z
@@ -650,7 +693,7 @@ export class PlayerSystem {
       x: this.x,
       z: this.z,
       heading: this.heading,
-      speed: this.speed,
+      speed: this.body.speed,
       camera: { x: c.x, y: c.y, z: c.z },
       facing: this.chase.facing,
       lookOffset: this.chase.lookOffset,

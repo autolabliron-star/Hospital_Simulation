@@ -376,6 +376,34 @@ describe('the settle wait', () => {
     expect(done.stats.settleMs).toBeGreaterThanOrEqual(100)
   })
 
+  it('holds while a warm gate is open (people loading, a bake), then goes on; a gate that never closes gives up at its own limit', async () => {
+    let open = 1
+    const s = setup({}, { gatesPending: () => open })
+    const frame = s.clock.frame
+    s.clock.frame = async () => {
+      await frame()
+      if (s.clock.frames === 40) open = 0 // well past the usual six-frame settle
+    }
+    let framesAtCompile = -1
+    s.run = new WarmupRun(s.gl, s.scene, s.camera, {
+      scheduler: s.clock,
+      gatesPending: () => open,
+      onUpdate: (x) => {
+        if (x.phase === 'compiling' && framesAtCompile < 0) framesAtCompile = s.clock.frames
+      },
+    })
+    const done = await s.run.start()
+    expect(done.ready).toBe(true)
+    expect(framesAtCompile).toBeGreaterThanOrEqual(40)
+
+    // never closes: the wait passes the normal 3 s limit and stops at the gate limit
+    const stuck = setup({}, { gatesPending: () => 1, settle: { maxMs: 100, gateMaxMs: 500 } })
+    const late = await stuck.run.start()
+    expect(late.ready).toBe(true)
+    expect(late.stats.settleMs).toBeGreaterThanOrEqual(500)
+    expect(late.stats.settleMs).toBeLessThan(600)
+  })
+
   it('does not wait for the environment when it is not required', async () => {
     const s = setup({}, { settle: { requireEnvironment: false, maxMs: 100000 } })
     s.scene.environment = null

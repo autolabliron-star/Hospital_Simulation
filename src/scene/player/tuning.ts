@@ -24,8 +24,6 @@ export const BODY = {
 export const MOVE = {
   walkSpeed: P.walkSpeed,
   hurrySpeed: P.hurrySpeed,
-  accelSeconds: P.accelSeconds,
-  decelSeconds: P.brakeSeconds,
   /** Time constant of the body turning to face where it goes, seconds, and the fastest turn, rad/s. */
   turnSeconds: P.turnSeconds,
   maxTurnRate: 20,
@@ -33,16 +31,6 @@ export const MOVE = {
   facingSpeed: 0.2,
   /** In first person the body faces where you look, a little quicker than it turns to face its walk. */
   firstPersonTurnSeconds: 0.05,
-  /** A step is split into pieces no longer than this (metres), so a long frame can never hop over a wall. */
-  maxSubstep: 0.1,
-} as const
-
-/** Other people: the circle that keeps you from walking through somebody, and how far it looks. */
-export const CROWD = {
-  /** An NPC's body radius for your push-out (your own is `BODY.radius`). */
-  npcRadius: 0.28,
-  /** Only people within this many metres of you are considered. */
-  scanRadius: 1.4,
 } as const
 
 export const CHASE = {
@@ -130,6 +118,43 @@ export const CHASE = {
   lengthenSeconds: 0.5,
   /** ...but it does arrive: the regrowth never goes slower than `lengthenFinish * sqrt(share still to grow)` of the wanted length per second. */
   lengthenFinish: 1.6,
+  /**
+   * W3 (a smooth walk): TWO radii. The soft one is `probeRadius + wallMargin`: the room the camera would like to keep from a wall, and
+   * what the boom's spring aims at. The hard one, `nearRadius`, is about the corner of the near plane (0.1 m near plane, 60 degrees,
+   * 16:9: 0.155 m; the ball is a touch smaller on purpose): the camera is NEVER closer than that to a wall, in the same frame the wall
+   * is there, whatever the spring is doing. The boom therefore glides in at a bounded speed (`boomInSeconds`, at most `boomInMax` m/s)
+   * and the clamp is only the safety net. It lets out more slowly (`lengthenSeconds`, at most `boomOutMax` m/s).
+   *
+   * Hanging signs are only ever tested at `signRadius` (never more than the radius asked for), so the camera passes under them: a sign's
+   * lower edge is 2.18 m, the camera rests at 2.04 m (1.62 m + 3 m of boom at 8 degrees: the follow lag lengthens the boom along the
+   * floor, not up) and bobs up to 2.05 m, and a 0.2 m ball would reach 2.24 m. The hard radius 0.13 would leave 1.2 cm of air at rest
+   * and none at all as soon as the camera is a centimetre higher (a wall beside it lifts it by up to 0.2 m, a mouse tilt by more), so
+   * it would dip under the signs again. The near plane's own top edge is only 0.058 m above the camera, so 0.09 m (3 cm of air over
+   * it) is the ball that still means "the lens does not touch it": 5 cm of height to spare under a sign.
+   */
+  nearRadius: 0.13,
+  signRadius: 0.09,
+  hardMargin: 0.004,
+  boomInSeconds: 0.08,
+  boomInMax: 2.6,
+  boomOutMax: 2.4,
+  /** Lengthening never goes slower than `boomOutFinish * sqrt(share still to grow)` of the wanted length per second (`lengthenFinish`'s job, for the spring). */
+  boomOutFinish: 1.6,
+  /** The shoulder room (how far out over your shoulder the pivot may go) moves the same way, in metres per second. */
+  shoulderInSeconds: 0.08,
+  shoulderInMax: 1.4,
+  shoulderOutMax: 1.2,
+  /** Running widens the lens by up to `runFovWiden` degrees (a critically damped spring, `runFovSeconds`); first person keeps its own lens. */
+  runFovWiden: 4,
+  runFovSeconds: 0.4,
+  /**
+   * The footfall bob: the camera rises and falls with your steps (two bounces per gait cycle, lowest on a heel strike). Metres of
+   * amplitude walking and running; the amplitude is smoothed (`bobSeconds`) so starting and stopping fade it, and it is 0 in first
+   * person (the view there IS your head).
+   */
+  bobWalk: 0.008,
+  bobRun: 0.015,
+  bobSeconds: 0.15,
   /** Never closer than this to the floor or the ceiling. */
   floorClearance: 0.25,
   ceilingClearance: 0.25,
@@ -160,11 +185,7 @@ export const EASY = {
   /** How fast A and D turn you, degrees per second; faster while running, so a run can still take a corner. */
   turnDegPerSecond: 140,
   sprintTurnDegPerSecond: 200,
-  /** A turn starts at this share of the full rate on the very first frame (never a dead frame), then ramps up over `turnRampSeconds`. */
-  turnKick: 0.45,
-  turnRampSeconds: 0.07,
-  /** Letting go of the key stops the turn in about this long. */
-  turnReleaseSeconds: 0.05,
+  /** (W3) The turn rate follows these as a first-order lag with no kick: scheme.ts TURN_RISE_SECONDS / TURN_RELEASE_SECONDS. */
   /** S backs up at this share of the walking speed (and never runs). */
   backSpeedFactor: 0.5,
   /** The camera's yaw follows your heading with this smoothing time (a steady turn leaves it about `rate * followSeconds` behind)... */
