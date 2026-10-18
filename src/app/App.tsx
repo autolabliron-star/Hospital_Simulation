@@ -12,14 +12,18 @@ import { CommandWallLive } from '@/scene/building/render/CommandWallLive'
 import { Interaction } from '@/scene/interact'
 import { Player } from '@/scene/player'
 import { RigControls } from '@/scene/player/rigControls'
+import { Quality } from '@/scene/quality/Quality'
 import { SimDriver } from '@/scene/SimDriver'
+import { Warmup, useEntered, useLoadingUp } from '@/scene/warmup'
 import { World } from '@/scene/World'
 import { GoToMenu } from '@/ui/GoToMenu'
 import { Hud } from '@/ui/Hud'
 import { JumpFade, JumpMenu } from '@/ui/JumpMenu'
+import { LoadingScreen } from '@/ui/loading'
 import { RoomKeys } from '@/ui/RoomKeys'
 import { RoomPanel } from '@/ui/RoomPanel'
 import { DevProbe, ProbeOverlay, probeEnabled } from './DevProbe'
+import { PowerLoop } from './PowerLoop'
 
 const FOV = 35
 /** Camera elevation above the horizon (the plan's Sims-style 50° look-in). */
@@ -88,10 +92,27 @@ function CameraRig() {
 }
 
 /** M1: the simulation made visible: a flat floor plan, boxes for robots, capsules for people, a top camera and the HUD. */
+/**
+ * M5: the frame loop and the quality ladder, in their own tiny component so the loading flag never re-renders App (and with
+ * it the Canvas). 30 fps and no quality steps until the presenter presses Enter; then 60 fps and the ladder watches.
+ */
+function Pacing() {
+  const loading = useLoadingUp()
+  const entered = useEntered()
+  return (
+    <>
+      <PowerLoop loading={loading} />
+      <Quality ready={entered} />
+    </>
+  )
+}
+
 export function App() {
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
-      <Canvas flat shadows="percentage" dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ fov: FOV, near: 1, far: 500, position: [VIEW.center.x, 80, 66] }}>
+      {/* M5: frameloop "never": PowerLoop drives every frame (the cap, pauses, no fast-forward); Quality owns the real pixel ratio */}
+      <Canvas flat shadows="percentage" frameloop="never" dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ fov: FOV, near: 1, far: 500, position: [VIEW.center.x, 80, 66] }}>
+        <Pacing />
         <DevProbe />
         <SimDriver />
         <World />
@@ -101,6 +122,8 @@ export function App() {
         <Player />
         <Interaction />
         <CameraRig />
+        {/* M5: LAST in the Canvas, so every layer's effects (the environment map) have run. Compiles both modes, uploads every texture. */}
+        <Warmup />
       </Canvas>
       <Hud />
       <GoToMenu />
@@ -111,6 +134,8 @@ export function App() {
       <JumpMenu />
       <JumpFade />
       <ProbeOverlay />
+      {/* M5: above everything; holds the sim paused until the presenter presses Enter */}
+      <LoadingScreen />
     </div>
   )
 }

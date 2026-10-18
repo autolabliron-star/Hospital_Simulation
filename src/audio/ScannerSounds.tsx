@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { usePower } from '@/app/power'
 import { sim } from '@/sim'
 import type { ImagingModality, ScannerState } from '@/sim/types'
 import { modalityOfArea, useFocus } from '@/scene/camera/focus.store'
@@ -23,7 +24,8 @@ export function ScannerSounds(): null {
         const { muted, unlocked } = useAudio.getState()
         return { muted, unlocked }
       },
-      hidden: () => typeof document !== 'undefined' && document.hidden,
+      // the engine reads `hidden` as "stay silent": a hidden tab, or a paused demo (PowerLoop: hidden tab, or a blurred window outside presentation mode)
+      hidden: () => (typeof document !== 'undefined' && document.hidden) || usePower.getState().paused,
       scanner: readScanner,
     })
     engine.start()

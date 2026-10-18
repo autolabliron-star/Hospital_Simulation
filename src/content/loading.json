@@ -1,0 +1,15 @@
+{
+  "title": "The Ideal Hospital",
+  "tagline": "A living hospital you can walk through",
+  "progressLabel": "Preparing the hospital",
+  "status": {
+    "preparing": "Preparing the hospital…",
+    "finishing": "Almost ready…",
+    "ready": "The hospital is ready.",
+    "readyDegraded": "Ready. The first few moments may be a little less smooth."
+  },
+  "enter": {
+    "label": "Enter",
+    "hint": "The day begins when you enter."
+  }
+}

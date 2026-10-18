@@ -4,6 +4,7 @@
  * card does not (you can stand there and watch it), but Esc closes it. Closing the room panel here is `setArea(null)` and nothing
  * else: no camera flight to the overview (that is what `unfocus()` in roomFocus.ts does, for the overview camera).
  */
+import { useWarmup } from '@/scene/warmup'
 import { useFocus } from '@/scene/camera/focus.store'
 import { useDrawerCard } from '@/ui/walk/drawerCard.store'
 import { useGoTo } from '@/ui/goTo.store'
@@ -17,6 +18,8 @@ function menuOpen(): boolean {
 }
 
 export function overlayOpen(): boolean {
+  // (M5) before the presenter presses Enter on the loading screen nobody walks, turns or Tabs
+  if (!useWarmup.getState().entered) return true
   return useRx.getState().open || useFocus.getState().area !== null || menuOpen()
 }
 

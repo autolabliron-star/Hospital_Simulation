@@ -2,6 +2,9 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { WebGLRenderer } from 'three'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { MAX_LEVEL } from '@/scene/quality/ladder'
+import { useRenderStore } from '@/scene/quality/render.store'
+import { usePower, usePresent } from './power'
 
 /**
  * Performance probe for the scripted checks and the presenter's `?probe=1` view. It holds the budget in CLAUDE.md
@@ -140,6 +143,16 @@ interface OverlayView {
   p95Ms: number
   dpr: number
   renderDpr: number | null
+  /** The quality ladder (scene/quality) and the power state (app/power): which rung, what the last window saw, the frame cap. */
+  level: number
+  ladderDpr: number
+  ao: string
+  forced: boolean
+  workP95: number
+  lateShare: number
+  cap: number
+  present: boolean
+  paused: boolean
 }
 
 /** DOM overlay, mounted outside the `<Canvas>`. Refreshes at 2 Hz, not per frame. */
@@ -150,6 +163,8 @@ export function ProbeOverlay() {
     if (!probeEnabled) return
     const tick = () => {
       const stats = probeStats()
+      const rq = useRenderStore.getState()
+      const power = usePower.getState()
       setView({
         calls: probe.calls,
         triangles: probe.triangles,
@@ -157,6 +172,15 @@ export function ProbeOverlay() {
         p95Ms: stats.p95Ms,
         dpr: window.devicePixelRatio,
         renderDpr: hospitalHandle()?.gl.getPixelRatio() ?? null,
+        level: rq.level,
+        ladderDpr: rq.dpr,
+        ao: rq.step.ao,
+        forced: !rq.auto,
+        workP95: rq.workP95,
+        lateShare: rq.lateShare,
+        cap: power.fps,
+        present: usePresent.getState().on,
+        paused: power.paused,
       })
     }
     tick()
@@ -173,6 +197,9 @@ export function ProbeOverlay() {
       <div>avg fps     {view.fps.toFixed(1)}</div>
       <div>p95 frame   {view.p95Ms.toFixed(1)} ms</div>
       <div>dpr         {view.dpr.toFixed(2)} (render {view.renderDpr === null ? '-' : view.renderDpr.toFixed(2)})</div>
+      <div>quality     L{view.level}/{MAX_LEVEL} dpr {view.ladderDpr.toFixed(2)} ao {view.ao}{view.forced ? ' (forced)' : ''}</div>
+      <div>last window work p95 {view.workP95.toFixed(1)} ms, late {(view.lateShare * 100).toFixed(1)} %</div>
+      <div>power       cap {view.cap} fps{view.present ? ', present' : ''}{view.paused ? ', PAUSED' : ''}</div>
     </div>
   )
 }
