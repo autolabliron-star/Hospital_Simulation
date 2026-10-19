@@ -7,7 +7,8 @@
  *
  *   props     tablet, folder, tray, coffee cup, bag, flowers, and the cleaner's mop. Frame: the part matrix `P.prop` of the carrier's
  *             pose row (the rig puts it at the right hand), geometry authored upright around the grip. W3 wave B: the player's "You" badge
- *             (BADGE_KIND) is built on its own (buildBadgeGeometry); its frame is BADGE_FRAME (on the realistic coat's chest, model.ts).
+ *             (BADGE_KIND) is built on its own (buildBadgeGeometry); its frame is BADGE_FRAME (on the realistic coat's chest, model.ts). R2: so is
+ *             the surgical cap of a realistic person in theatre scrubs (CAP_KIND, buildCapGeometry); its frame is CAP_FRAME (fitted on the skull).
  *   blankets  The cover of a patient in a bed (PROP.blanket, buildBlanketGeometry). A lying patient holds nothing, so the rig puts the blanket in
  *             their prop frame, on the mattress under the hips (rig.ts). It has a mesh of its own, like the badge: with the other props in one
  *             geometry every held item in the crowd (a hundred or more) would also pay for its 270 triangles.
@@ -18,8 +19,9 @@
  * pusher's frame, so the pusher's hands meet it.
  */
 import { BufferGeometry, InstancedBufferGeometry } from 'three'
-import { BADGE_KIND, FX, LIE, PROP, PROP_COUNT, VEHICLE, VEHICLE_AHEAD, fixedSlot, SLOT } from './constants'
+import { BADGE_KIND, CAP_KIND, FX, LIE, PROP, PROP_COUNT, VEHICLE, VEHICLE_AHEAD, fixedSlot, SLOT } from './constants'
 import { MADE_BLANKET } from '@/scene/rooms/bedParts'
+import { capRadius, capRim } from './avatars'
 import { Builder } from './geometry'
 import { HANDLE } from './pose'
 
@@ -278,6 +280,45 @@ function blanket(b: Builder): void {
   for (let j = 0; j < BLANKET_SEG; j++) b.tri(centre, end[j], end[j + 1], 0, 0, BLANKET.zFoot - 1)
 }
 
+/** R2: facets round the theatre cap and bands from its rim to its crown. */
+export const CAP_SEG = 18
+export const CAP_RINGS = 7
+
+/**
+ * R2: the surgical cap of a realistic person in theatre scrubs (kind CAP_KIND), in the unit space of their skull: the cap frame (model.ts, CAP_FRAME) maps
+ * the unit sphere onto the avatar's fitted skull (avatars.ts measureCapFit, padded so the hair stays inside). A dome from a rim that rides above the brows
+ * and down the nape (avatars.ts capRim) to the crown, a little squarer than a sphere as a head is and puffed out at the back (capRadius), its first band
+ * tucked in a little like the elastic of a real bouffant cap. The hair colour slot: in theatre it is the cap's pale blue (outfit.ts).
+ */
+function theatreCap(b: Builder): void {
+  const k = CAP_KIND
+  const rows: number[][] = []
+  for (let i = 0; i < CAP_RINGS; i++) {
+    const row: number[] = []
+    for (let j = 0; j < CAP_SEG; j++) {
+      const th = (j / CAP_SEG) * Math.PI * 2
+      // x = cos(th) (the wearer's left), z = sin(th) (forward)
+      const fwd = Math.sin(th)
+      const rim = capRim(fwd)
+      const lat = rim + ((Math.PI / 2 - rim) * i) / CAP_RINGS
+      const r = capRadius(fwd, lat) * (i === 0 ? 0.975 : 1)
+      const cl = Math.cos(lat) * r
+      row.push(b.vertex(cl * Math.cos(th), Math.sin(lat) * r, cl * fwd, k, SLOT.hair))
+    }
+    rows.push(row)
+  }
+  const pole = b.vertex(0, capRadius(0, Math.PI / 2), 0, k, SLOT.hair)
+  for (let i = 0; i + 1 < rows.length; i++) {
+    for (let j = 0; j < CAP_SEG; j++) {
+      const n = (j + 1) % CAP_SEG
+      b.tri(rows[i][j], rows[i][n], rows[i + 1][j], 0, 0, 0)
+      b.tri(rows[i][n], rows[i + 1][n], rows[i + 1][j], 0, 0, 0)
+    }
+  }
+  const top = rows[rows.length - 1]
+  for (let j = 0; j < CAP_SEG; j++) b.tri(top[j], top[(j + 1) % CAP_SEG], pole, 0, 0, 0)
+}
+
 export interface GearGeometry {
   geometry: InstancedBufferGeometry
   /** Triangles of each kind, indexed by kind (0 unused). */
@@ -328,6 +369,13 @@ export function buildBadgeGeometry(): GearGeometry {
   const b = new Builder()
   badge(b)
   return { geometry: toInstanced(b.build()), triangles: perKind([badge], BADGE_KIND + 1), total: b.triangles }
+}
+
+/** R2: the theatre cap on its own (kind CAP_KIND), for the cap mesh of the realistic people (crowdRig.ts attachPeople). */
+export function buildCapGeometry(): GearGeometry {
+  const b = new Builder()
+  theatreCap(b)
+  return { geometry: toInstanced(b.build()), triangles: perKind([theatreCap], CAP_KIND + 1), total: b.triangles }
 }
 
 // ---------------------------------------------------------------------------------------------

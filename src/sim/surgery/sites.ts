@@ -7,7 +7,8 @@
  * consoles and the anaesthetist's stool), and they may arrive after this code does. Everything here therefore prefers the real seat (in the seat
  * registry: claimed there) and falls back to a synthetic seat made from the anchors (not in the registry: claimed here, which is safe because one
  * case is in the suite at a time). A standing spot is the first walkable candidate with 0.3 m clear of walls and furniture, so it adapts to
- * whatever the layout puts in the room.
+ * whatever the layout puts in the room. The OR's spots start from the contract's (SURGERY.staff, R2 polish: the table side, the waiting spots, the
+ * cleaner's round, the drive's end), then try nearby points.
  */
 import { isWalkable, nearestWalkable } from '../nav/layout'
 import { l2 } from '../levels'
@@ -198,7 +199,6 @@ export class SurgerySites {
   // --- spots ------------------------------------------------------------------------------------------------------
 
   private buildSpots(): TheatreSpots {
-    const toTable = -Math.PI / 2
     const sink0 = SURGERY.scrubSink.spots[0]
     const sink1 = SURGERY.scrubSink.spots[1]
     const baseRing: Spot[] = []
@@ -235,22 +235,22 @@ export class SurgerySites {
         spotOf(Math.PI, [-52.8, -13.4]),
       ],
       loungeStand: [spotOf(0, [-58.2, 5.0]), spotOf(0, [-56.6, 5.0]), spotOf(0, [-58.2, 6.2]), spotOf(0, [-57.4, 15.0]), spotOf(0, [-58.4, 16.2]), spotOf(0, [-56.4, 10.4])],
-      tableSurgeon: spotOf(toTable, [-48.45, 5.25], [-48.0, 5.2], [-47.9, 5.7], [-47.6, 4.9]),
+      tableSurgeon: spotNear(SURGERY.staff.tableSurgeon, [-48.0, 5.2], [-47.9, 5.7], [-47.6, 4.9]),
       assistant: spotNear(SURGERY.staff.assistant, [-48.0, 6.2], [-47.8, 6.0]),
-      assistantWait: spotOf(toTable, [-47.0, 4.9], [-46.8, 5.2], [-47.3, 5.5], [-46.4, 4.8]),
+      assistantWait: spotNear(SURGERY.staff.assistantWait, [-46.8, 5.2], [-47.3, 5.5], [-46.4, 4.8]),
       scrub: spotNear(SURGERY.staff.scrub, [-48.0, 7.2], [-47.8, 7.6]),
-      scrubWait: spotOf(toTable, [-47.0, 8.5], [-46.6, 8.4], [-47.4, 8.8], [-46.3, 7.6]),
+      scrubWait: spotNear(SURGERY.staff.scrubWait, [-46.6, 8.4], [-47.4, 8.8], [-46.3, 7.6]),
       circulator: spotNear(SURGERY.staff.circulator, [-45.4, 2.9], [-46.0, 2.9]),
       anaesHead: spotNear(SURGERY.anaesthesia.stand, [-49.2, 4.4], [-49.6, 4.3]),
       drive: spotNear(SURGERY.staff.drive, [-52.4, 8.9], [-52.3, 8.7]),
-      driveEnd: spotOf(Math.PI / 2, [-52.4, 5.9], [-52.35, 5.5], [-52.4, 6.4]),
+      driveEnd: spotNear(SURGERY.staff.driveEnd, [-52.35, 5.5], [-52.4, 6.4]),
       drape: spotNear(SURGERY.staff.drape, [-51.8, 7.4], [-51.5, 7.5]),
       sink: [spotNear(sink0, [-50.0, 1.0]), spotNear(sink1, [-48.8, 1.0])],
       clean: [
-        spotOf(toTable, [-47.6, 5.0], [-47.9, 5.0], [-47.4, 5.4]),
-        spotOf(toTable, [-47.4, 6.4], [-47.8, 6.4], [-47.2, 6.8]),
-        spotOf(-Math.PI / 2, [-47.6, 8.6], [-47.0, 8.6], [-47.8, 8.8]),
-        spotOf(Math.PI / 2, [-50.6, 7.2], [-50.4, 7.0], [-50.8, 7.0]),
+        spotNear(SURGERY.staff.clean[0], [-47.9, 5.0], [-47.4, 5.4]),
+        spotNear(SURGERY.staff.clean[1], [-47.8, 6.4], [-47.2, 6.8]),
+        spotNear(SURGERY.staff.clean[2], [-47.0, 8.6], [-47.8, 8.8]),
+        spotNear(SURGERY.staff.clean[3], [-50.4, 7.0], [-50.8, 7.0]),
       ],
       pacuNurse: spotNear(PACU.nurse, [-48.5, 16.8], [-49.5, 16.4]),
       base: baseRing,

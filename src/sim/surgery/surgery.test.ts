@@ -9,7 +9,7 @@ import { THEATRE_STAFF } from '@/content/staff'
 import { CONFIG } from '../config'
 import { clockText } from '../events'
 import { l2, levelOf } from '../levels'
-import { LIFTS, PACU, PREOP, SURGERY, THEATRE_BASE, VIEW_WINDOWS } from '../places'
+import { LIFTS, PACU, PREOP, SURGERY, THEATRE_BASE, VIEW_WINDOWS, type Spot } from '../places'
 import { tryPlanRoute } from '../nav/graph'
 import { timeAtHour } from '../population/schedule'
 import { Simulation } from '../Simulation'
@@ -679,6 +679,32 @@ describe('seats and the registry', () => {
       expect(levelOf(ref.seat.x), ref.seat.id).toBe(2)
     }
     void DT
+  })
+})
+
+describe('the OR team\'s standing spots', () => {
+  it('start from the contract (SURGERY.staff): the table side, the waiting spots, the cleaner\'s round and the drive\'s end, facing its way', () => {
+    const sites = new SurgerySites(new MiniHospital(1, { crowd: false, seats: seatsFor('layout') }).seats)
+    const s = sites.spots
+    const pairs: [string, Spot, Spot][] = [
+      ['tableSurgeon', s.tableSurgeon, SURGERY.staff.tableSurgeon],
+      ['assistantWait', s.assistantWait, SURGERY.staff.assistantWait],
+      ['scrubWait', s.scrubWait, SURGERY.staff.scrubWait],
+      ['driveEnd', s.driveEnd, SURGERY.staff.driveEnd],
+      ...SURGERY.staff.clean.map((c, i): [string, Spot, Spot] => [`clean${i}`, s.clean[i], c]),
+    ]
+    expect(s.clean).toHaveLength(SURGERY.staff.clean.length)
+    const exact: string[] = []
+    for (const [name, got, want] of pairs) {
+      expect(levelOf(want.at.x), name).toBe(2)
+      expect(got.heading, name).toBe(want.heading)
+      // the contract's spot, or (furniture over it) one of the points tried next, within a stride of it
+      const d = Math.hypot(got.at.x - want.at.x, got.at.z - want.at.z)
+      expect(d, name).toBeLessThan(0.6)
+      if (d === 0) exact.push(name)
+    }
+    // eslint-disable-next-line no-console
+    console.log(`OR spots taken as the contract has them: ${exact.join(', ')} (${exact.length} of ${pairs.length})`)
   })
 })
 

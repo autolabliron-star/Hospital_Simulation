@@ -301,6 +301,16 @@ export const BADGE_KIND = PROP_COUNT
  * body parts only (avatars.ts SKINNED_PARTS), so the close-up head's third hair piece, which only the procedural body draws, is free for it.
  */
 export const BADGE_FRAME: number = P.hairFront
+/**
+ * R2: the props shader's kind for the surgical cap of a person drawn as a realistic avatar in the 'theatre' outfit (the procedural body draws its own cap as
+ * the `theatreCap` hair style). Drawn by a mesh of its own (gear.ts buildCapGeometry) with the props material, only while somebody wears one.
+ */
+export const CAP_KIND = BADGE_KIND + 1
+/**
+ * R2: the part slot that carries the frame of that cap: the head (binds applied) moved and scaled onto the avatar's skull (model.ts). The avatar mesh is not
+ * skinned to the hair cap slot, so it is free for it, and it is not the badge's slot: you wear both in theatre.
+ */
+export const CAP_FRAME: number = P.hairCap
 
 /** Wheeled things. A pusher pushes one, a rider sits or lies on it. */
 export const VEHICLE = { none: 0, wheelchair: 1, stretcher: 2, cleaningCart: 3, linenCart: 4 } as const

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { LIGHT_VOLUME_KEY } from '@/scene/lighting/volumeChunk'
 import { FRAG_LV, VERT_MAIN } from '@/scene/lighting/volume/glsl'
 import { lvUniforms } from '@/scene/lighting/volume/uniforms'
-import { BADGE_FRAME, BADGE_KIND, MAX_PEOPLE, P, SLOT, TEX } from './constants'
+import { BADGE_FRAME, BADGE_KIND, CAP_FRAME, CAP_KIND, MAX_PEOPLE, P, SLOT, TEX } from './constants'
 import { readIndex } from './avatars.testkit'
 import { AVATAR_PROGRAM_KEY, avatarUniformValues, createAvatarMaterials, createCrowdMaterials } from './shaders'
 
@@ -120,9 +120,10 @@ describe('the avatar material', () => {
     for (const mats of all) for (const m of mats) expect((m as unknown as { customDepthMaterial?: unknown }).customDepthMaterial).toBeUndefined()
   })
 
-  it("the props shader draws the player's badge from its own frame", () => {
+  it("the props shader draws the player's badge and the theatre caps from their own frames", () => {
     const crowd = createCrowdMaterials(tex)
     const s = patched(crowd.props as never)
-    expect(s.vertexShader).toContain(`(aKind > ${BADGE_KIND - 0.5} ? ${BADGE_FRAME} : ${P.prop}) * 3`)
+    expect(s.vertexShader).toContain(`(aKind > ${CAP_KIND - 0.5} ? ${CAP_FRAME} : aKind > ${BADGE_KIND - 0.5} ? ${BADGE_FRAME} : ${P.prop}) * 3`)
+    expect(CAP_FRAME).not.toBe(BADGE_FRAME)
   })
 })

@@ -1,7 +1,7 @@
 /**
  * The surgery scene's per-frame paths allocate nothing: no `new`, no array or object literals, no spreads, no closures and no array methods inside the functions
  * that run every frame (a GC pause is a hitch in the middle of a walk). This reads the source, like src/scene/drawCentre/noAllocations.test.ts, and follows the
- * helpers: the chain from the layer's two frame callbacks to the last matrix is listed here. (The canvas painters run at most 10-12 Hz and build strings; they are not
+ * helpers: the chain from the layer's frame callbacks to the last matrix (and the cart's blocker box) is listed here. (The canvas painters run at most 10-12 Hz and build strings; they are not
  * on this list, and the V8 sampling profiler in rig.test.ts measures the rig's frame itself.)
  */
 import { readFileSync } from 'node:fs'
@@ -56,6 +56,7 @@ const PATHS: Record<string, string[]> = {
   'endoscope.ts': ['tipOnScreen'],
   'liveEndoscope.ts': ['playerInOr', 'inOr', 'cameraLive', 'update'],
   '../interact/surgery/teaching.ts': ['tick', 'end'],
+  'cartBlocker.ts': ['writeCartBlocker'],
 }
 
 describe('the per-frame paths of the surgery scene allocate nothing', () => {
@@ -74,7 +75,7 @@ describe('the per-frame paths of the surgery scene allocate nothing', () => {
     })
   }
 
-  it('SurgeryLayer\'s two frame callbacks allocate nothing', () => {
+  it('SurgeryLayer\'s three frame callbacks allocate nothing (the rig, the screens, the cart\'s blocker box)', () => {
     const src = code(readFileSync(join(ROOT, 'src/scene/surgery/SurgeryLayer.tsx'), 'utf8'))
     let from = 0
     let found = 0
@@ -100,13 +101,15 @@ describe('the per-frame paths of the surgery scene allocate nothing', () => {
       found++
       from = end
     }
-    expect(found).toBe(2)
+    expect(found).toBe(3)
   })
 
   it('uses negative frame priorities from the shared frame order (positive ones take over rendering in R3F)', () => {
     const src = readFileSync(join(ROOT, 'src/scene/surgery/SurgeryLayer.tsx'), 'utf8')
     expect(src).toContain('FRAME_PRIORITY.surgeryRig')
     expect(src).toContain('FRAME_PRIORITY.surgeryScreens')
+    // the cart's blocker box is written with the door leaves, before you move against it
+    expect(src).toContain('FRAME_PRIORITY.doors')
   })
 
   it('the scan itself catches the allocations it is meant to catch, and lets plain arithmetic through', () => {

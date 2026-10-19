@@ -5,6 +5,9 @@
  * W3 wave B: the realistic people. `attachPeople` builds, inside the `people` group, one instanced mesh per avatar and LOD (near, mid, far) that
  * reads the same pose texture through the per-avatar instance lists of the model; every mesh is hidden while its list is empty, so the draws are
  * at most one per avatar and band on screen (a person in a dithered cross-fade is in two). `detachPeople` goes back to the procedural bodies.
+ *
+ * R2: the people bring one more mesh, the theatre cap of the realistic people in theatre scrubs (the props material, so no program of its own; hidden while
+ * nobody on screen wears one). Each avatar's cap is fitted on its LOD 0 mesh once, at attach (avatars.ts measureCapFit).
  */
 import {
   Color,
@@ -20,18 +23,20 @@ import {
   PlaneGeometry,
   RGBAFormat,
   RingGeometry,
+  type BufferAttribute,
   type MeshBasicMaterial,
   type MeshStandardMaterial,
   type Object3D,
 } from 'three'
 import type { Entity } from '@/sim/types'
 import { walkBody } from '@/scene/player/state'
-import { BADGE_KIND, MAX_PEOPLE, RING_COLORS, TEX } from './constants'
-import { buildBadgeGeometry, buildBlanketGeometry, buildPropGeometry, buildVehicleGeometry } from './gear'
+import { BADGE_KIND, CAP_KIND, MAX_PEOPLE, RING_COLORS, TEX } from './constants'
+import { buildBadgeGeometry, buildBlanketGeometry, buildCapGeometry, buildPropGeometry, buildVehicleGeometry } from './gear'
 import { buildBodyGeometries } from './geometry'
-import { CrowdModel, MAX_BADGES, MAX_BLANKETS, MAX_BLOBS, MAX_PROPS, type FrameInput } from './model'
+import { CrowdModel, MAX_BADGES, MAX_BLANKETS, MAX_BLOBS, MAX_CAPS, MAX_PROPS, type FrameInput } from './model'
 import { highlight } from './runtime'
 import { createAvatarMaterials, createCrowdMaterials } from './shaders'
+import { measureCapFit, type CapFit } from './avatars'
 import type { LoadedPeople } from './avatarLoader'
 
 /** The realistic people's draws: meshes[avatar][lod], in the order of the model's avatars. */
@@ -39,6 +44,8 @@ export interface PeopleMeshes {
   meshes: [Mesh, Mesh, Mesh][]
   /** The player's "You" badge on the realistic coat: the props material, its own one-kind geometry, hidden while nobody wears it. */
   badge: Mesh
+  /** R2: the theatre caps of the realistic people in theatre scrubs: the props material, its own one-kind geometry, hidden while nobody wears one. */
+  cap: Mesh
   geometries: InstancedBufferGeometry[]
   materials: MeshStandardMaterial[]
   /** Bytes the avatars took to download (for the probe). */
@@ -200,13 +207,35 @@ export function createCrowdRig(): CrowdRig {
   }
 }
 
+/** R2: an avatar's theatre cap, fitted on its near (LOD 0) body: the vertex buffers as plain numbers (dequantised), then avatars.ts measureCapFit. */
+export function capFitOfBody(g: InstancedBufferGeometry): CapFit | null {
+  const pos = g.getAttribute('position') as BufferAttribute
+  const joints = g.getAttribute('aJoints') as BufferAttribute
+  const weights = g.getAttribute('aWeights') as BufferAttribute
+  const n = pos.count
+  const p = new Float32Array(n * 3)
+  const j = new Float32Array(n * 4)
+  const w = new Float32Array(n * 4)
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 3; c++) p[i * 3 + c] = pos.getComponent(i, c)
+    for (let c = 0; c < 4; c++) {
+      j[i * 4 + c] = joints.getComponent(i, c)
+      w[i * 4 + c] = weights.getComponent(i, c)
+    }
+  }
+  return measureCapFit(p, j, w, n)
+}
+
 /**
  * W3 wave B: dress the crowd in the loaded realistic people. The model chooses everybody's avatar again; one mesh per avatar and LOD goes into
  * `r.people`, wrapping the loaded vertex buffers (shared with any other rig) with an instanced list of its own. Replaces an earlier attach.
  */
 export function attachPeople(r: CrowdRig, loaded: LoadedPeople): PeopleMeshes {
   detachPeople(r)
-  r.model.setAvatars(loaded.avatars.map((a) => a.entry))
+  r.model.setAvatars(
+    loaded.avatars.map((a) => a.entry),
+    loaded.avatars.map((a) => capFitOfBody(a.lods[0])),
+  )
   const L = r.model.avatarLists
   const geometries: InstancedBufferGeometry[] = []
   const materials: MeshStandardMaterial[] = []
@@ -243,7 +272,20 @@ export function attachPeople(r: CrowdRig, loaded: LoadedPeople): PeopleMeshes {
   badge.receiveShadow = true
   badge.visible = false
   r.people.add(badge)
-  r.avatars = { meshes, badge, geometries, materials, bytes: loaded.bytes }
+  // R2: the theatre caps, a row per realistic person in theatre scrubs (the cap frame of their row)
+  const cg = buildCapGeometry().geometry
+  cg.setAttribute('aRow', instancedAttr(r.model.capRows, 1))
+  cg.setAttribute('aKind', instancedAttr(new Float32Array(MAX_CAPS).fill(CAP_KIND), 1))
+  cg.setAttribute('aOff', instancedAttr(new Float32Array(MAX_CAPS), 1))
+  geometries.push(cg)
+  const cap = new Mesh(cg, r.propsMaterial)
+  cap.name = 'crowd-theatre-caps'
+  cap.frustumCulled = false
+  cap.castShadow = false
+  cap.receiveShadow = true
+  cap.visible = false
+  r.people.add(cap)
+  r.avatars = { meshes, badge, cap, geometries, materials, bytes: loaded.bytes }
   return r.avatars
 }
 
@@ -253,6 +295,7 @@ export function detachPeople(r: CrowdRig): void {
   if (!pm) return
   for (const row of pm.meshes) for (const m of row) r.people.remove(m)
   r.people.remove(pm.badge)
+  r.people.remove(pm.cap)
   for (const m of pm.materials) m.dispose()
   for (const g of pm.geometries) g.dispose()
   r.avatars = null
@@ -318,6 +361,7 @@ export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, c
       setAvatarInstances(row[2], counts[2][i])
     }
     setAvatarInstances(pm.badge, st.badges)
+    setAvatarInstances(pm.cap, st.caps)
   }
   r.texture.needsUpdate = true
 

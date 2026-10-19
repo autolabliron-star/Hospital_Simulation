@@ -976,6 +976,22 @@ export const SURGERY = {
     drape: { at: { x: l2(-51.8), z: 7.6 }, heading: 0 } as Spot,
     /** Behind the cart while it drives in (the bedside assistant steers it). */
     drive: { at: { x: l2(-52.5), z: 8.7 }, heading: Math.PI / 2 } as Spot,
+    // R2 polish: the spots the surgery sim used to derive on its own (src/sim/surgery/sites.ts takes each as its first choice and falls back to nearby
+    // walkable points when furniture covers it). The values are the ones it derived, so the day is unchanged.
+    /** The operating surgeon at the table's east side, before going to the console. */
+    tableSurgeon: { at: { x: l2(-48.45), z: 5.25 }, heading: -Math.PI / 2 } as Spot,
+    /** The bedside assistant and the scrub nurse waiting east of the table, clear of the cart while it drives in and docks. */
+    assistantWait: { at: { x: l2(-47.0), z: 4.9 }, heading: -Math.PI / 2 } as Spot,
+    scrubWait: { at: { x: l2(-47.0), z: 8.5 }, heading: -Math.PI / 2 } as Spot,
+    /** The cleaner's turnover round, in order: the table's east side (two spots), by the consoles, and the west side where the cart stood. */
+    clean: [
+      { at: { x: l2(-47.6), z: 5.0 }, heading: -Math.PI / 2 },
+      { at: { x: l2(-47.4), z: 6.4 }, heading: -Math.PI / 2 },
+      { at: { x: l2(-47.6), z: 8.6 }, heading: -Math.PI / 2 },
+      { at: { x: l2(-50.6), z: 7.2 }, heading: Math.PI / 2 },
+    ] as Spot[],
+    /** Behind the docked cart, where its driver ends up. */
+    driveEnd: { at: { x: l2(-52.4), z: 5.9 }, heading: Math.PI / 2 } as Spot,
   },
   /** The scrub sinks in the theatre hall, against the OR's north wall: two scrubbing spots facing the sink. */
   scrubSink: { at: { x: l2(-49.4), z: 1.6 } as Vec2, w: 2.0, d: 0.6, spots: [{ at: { x: l2(-50.0), z: 0.9 }, heading: 0 }, { at: { x: l2(-48.8), z: 0.9 }, heading: 0 }] as Spot[] },

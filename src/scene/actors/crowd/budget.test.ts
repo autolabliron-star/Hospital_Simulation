@@ -244,8 +244,8 @@ describe('crowd budget with the realistic people', () => {
     console.log(`people from the close camera: draw calls ${close.calls}, triangles ${Math.round(close.triangles)}`)
     expect(close.calls).toBeLessThanOrEqual(46)
     expect(close.triangles).toBeLessThanOrEqual(450_000)
-    // the absolute ceiling: one avatar body per draw, the meshes the people bring (3 per avatar and the badge)
-    expect(rig.people.children.length).toBe(loaded.avatars.length * 3 + 1)
+    // the absolute ceiling: one avatar body per draw, the meshes the people bring (3 per avatar, the badge and R2's theatre caps)
+    expect(rig.people.children.length).toBe(loaded.avatars.length * 3 + 2)
     expect(LOD_TRIANGLES[2] * 200).toBeLessThanOrEqual(120_000)
     highlight.selectedId = 'pusher-0'
     frames(rig, es, OVERVIEW, 2)

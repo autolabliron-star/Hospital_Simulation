@@ -165,8 +165,8 @@ export const GOWN: Wardrobe = Object.freeze({ female: ['business_female_02', 'fe
 export const EVERYDAY: Wardrobe = Object.freeze({ female: EVERYDAY_F, male: EVERYDAY_M, tint: TINT.none })
 /**
  * R2: everybody in the 'theatre' outfit (level 2's clinical side, and you behind the lift cover): the surgical-scrubs avatars, top and trousers both taking the
- * theatre blue or teal of the person's palette (outfit.ts). The converter dropped these avatars' own surgical caps and masks (AvatarEntry.dropped), so the cap
- * of the procedural body (hair.ts theatreCap) has no counterpart here.
+ * theatre blue or teal of the person's palette (outfit.ts). The converter dropped these avatars' own surgical caps and masks (AvatarEntry.dropped); the cap
+ * they wear instead is the crowd's own (gear.ts theatreCap), fitted on each avatar's skull (`measureCapFit`) and drawn by the cap mesh (crowdRig.ts).
  */
 export const THEATRE: Wardrobe = Object.freeze({ female: ['medical_female_01'], male: ['medical_male_04'], tint: TINT.both })
 
@@ -295,6 +295,127 @@ export function avatarFor(key: AvatarKey, avatars: readonly Pick<AvatarEntry, 'i
   out.index = i
   out.tint = tintFor(w.tint, avatars[i])
   return out
+}
+
+// ---------------------------------------------------------------------------------------------
+// R2: the theatre cap on an avatar
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Where the theatre cap of a person wearing an avatar sits: an ellipsoid round the skull in the avatar's bind space (+Y up, +Z forward, nominal metres),
+ * padded so the hair stays inside. The cap geometry (gear.ts theatreCap) is authored on the unit sphere, and the cap frame (model.ts) is the head's row with
+ * the binds applied (M_head * B_head^-1: bind space to the person's frame) times T(cx, cy, cz) S(rx, ry, rz), so the cap moves exactly as the head's own
+ * vertices do.
+ */
+export interface CapFit {
+  cx: number
+  cy: number
+  cz: number
+  rx: number
+  ry: number
+  rz: number
+}
+
+/** The skull is measured over the top `CAP_BAND` metres of the head (from about the brows up: the face and the ears are below it). */
+export const CAP_BAND = 0.12
+/** The dome's height above its centre (the procedural skull's crown is 0.115 above its head centre), and the cap's clearance over the skull and hair. */
+export const CAP_RY = 0.112
+export const CAP_PAD = 0.012
+/** A vertex counts as the head's when at least this much of its weight is on the head part. */
+const HEAD_WEIGHT = 0.5
+/** What the cap must cover: the head's vertices at least this far (metres, up the dome) inside its rim. */
+export const CAP_COVER = 0.05
+/** The cap grows (about its centre) by at most this much to cover a hairstyle that stands out of the dome (a high bun). */
+export const CAP_GROW_MAX = 1.12
+/** How square the dome is: a superellipsoid of this exponent (2 is a sphere; a head is squarer between its crown and its sides). */
+export const CAP_SQUARENESS = 2.5
+
+/**
+ * The rim of the theatre cap, a latitude of the unit skull for the direction whose forward component (+Z) is `fwd` (-1 straight back .. +1 straight ahead):
+ * just above the brows in front (+0.2 rad), over the tops of the ears at the sides (-0.06) and well down the nape behind (-0.62).
+ */
+export function capRim(fwd: number): number {
+  return fwd >= 0 ? -0.06 + 0.26 * fwd : -0.06 + 0.56 * fwd
+}
+
+/**
+ * How far the cap's surface is from the centre of the unit skull at a direction (`fwd` as in capRim) and latitude: a superellipsoid (CAP_SQUARENESS) that is 1
+ * on the axes, gathered and fuller over the back of the head (a bouffant).
+ */
+export function capRadius(fwd: number, lat: number): number {
+  const n = CAP_SQUARENESS
+  const cl = Math.cos(lat)
+  const side = Math.sqrt(Math.max(0, 1 - fwd * fwd))
+  const base = Math.pow(Math.pow(cl * side, n) + Math.pow(Math.abs(Math.sin(lat)), n) + Math.pow(cl * Math.abs(fwd), n), -1 / n)
+  const back = fwd < 0 ? -fwd : 0
+  const puff = Math.max(0, 1 - Math.abs(lat + 0.15) / 1.1)
+  return base * (1 + 0.1 * back * Math.sqrt(back) * puff)
+}
+
+/** How far outside the cap a point of the fit's space is: |unit position| / capRadius at its direction (above 1: outside), or 0 where the cap does not cover it. */
+export function capOverreach(f: CapFit, x: number, y: number, z: number): number {
+  const ux = (x - f.cx) / f.rx
+  const uy = (y - f.cy) / f.ry
+  const uz = (z - f.cz) / f.rz
+  const len = Math.sqrt(ux * ux + uy * uy + uz * uz)
+  if (len < 1e-9) return 0
+  const lat = Math.asin(clamp(uy / len, -1, 1))
+  const hz = Math.sqrt(ux * ux + uz * uz)
+  const fwd = hz > 1e-9 ? uz / hz : 0
+  if (lat < capRim(fwd) + CAP_COVER / f.ry) return 0
+  return len / capRadius(fwd, lat)
+}
+
+/**
+ * The cap of an avatar measured from its own mesh (LOD 0 in bind space: positions xyz, joints and weights four per vertex): the head's vertices (hair included)
+ * give the crown, and the band under it gives the skull's width and depth. The dome is centred CAP_RY under the crown and stands CAP_PAD clear of
+ * everything it was measured on; then it grows about its centre (at most CAP_GROW_MAX) until every head vertex it covers is inside it. Null when the mesh
+ * has no head.
+ */
+export function measureCapFit(pos: ArrayLike<number>, joints: ArrayLike<number>, weights: ArrayLike<number>, count: number): CapFit | null {
+  const isHead = (v: number): boolean => {
+    let w = 0
+    for (let k = 0; k < 4; k++) if (Math.round(joints[v * 4 + k]) === P.head) w += weights[v * 4 + k]
+    return w >= HEAD_WEIGHT
+  }
+  let top = -Infinity
+  for (let v = 0; v < count; v++) if (isHead(v) && pos[v * 3 + 1] > top) top = pos[v * 3 + 1]
+  if (top === -Infinity) return null
+  let x0 = Infinity
+  let x1 = -Infinity
+  let z0 = Infinity
+  let z1 = -Infinity
+  for (let v = 0; v < count; v++) {
+    if (pos[v * 3 + 1] < top - CAP_BAND || !isHead(v)) continue
+    const x = pos[v * 3]
+    const z = pos[v * 3 + 2]
+    if (x < x0) x0 = x
+    if (x > x1) x1 = x
+    if (z < z0) z0 = z
+    if (z > z1) z1 = z
+  }
+  const fit: CapFit = { cx: (x0 + x1) / 2, cy: top - CAP_RY, cz: (z0 + z1) / 2, rx: (x1 - x0) / 2 + CAP_PAD, ry: CAP_RY + CAP_PAD, rz: (z1 - z0) / 2 + CAP_PAD }
+  let grow = 1
+  for (let v = 0; v < count; v++) {
+    if (!isHead(v)) continue
+    const k = capOverreach(fit, pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2])
+    if (k > grow) grow = k
+  }
+  grow = Math.min(grow, CAP_GROW_MAX)
+  fit.rx *= grow
+  fit.ry *= grow
+  fit.rz *= grow
+  return fit
+}
+
+/**
+ * The cap of an avatar whose mesh was not measured (the node tests that dress people from index.json alone): over the skeleton's crown, at the size of a
+ * typical measured skull (width 0.19 m, depth 0.23 m, its middle 2 cm forward of the neck). `headBind` is B_head^-1 (the head's 12 floats of bindInverse):
+ * the crown is `body.crown` above the neck base, which sits at -t in bind space.
+ */
+export function defaultCapFit(body: Pick<BodyDims, 'crown'>, headBind: ArrayLike<number>): CapFit {
+  const top = -headBind[7] + body.crown
+  return { cx: -headBind[3], cy: top - CAP_RY, cz: -headBind[11] + 0.02, rx: 0.095 + CAP_PAD, ry: CAP_RY + CAP_PAD, rz: 0.115 + CAP_PAD }
 }
 
 /** Width factor of a person wearing an avatar: the mesh has its own build, so only a little variety (0.97 to 1.03). */

@@ -7,6 +7,8 @@
 // skeleton, their skinned part matrices become M_p * B_p^-1 (applyBinds), their garment tint bits go into TEX.size.z, they are always solved (the
 // far body of an avatar is skinned too) and they go into per-avatar instance lists instead of the procedural ones. The player's "You" badge rides
 // the BADGE_FRAME slot. Until then, or if the assets never load, everybody keeps the procedural body exactly as before.
+// R2: a realistic person in theatre scrubs (hair style `theatreCap`) wears the crowd's surgical cap: its frame rides the CAP_FRAME slot (the head, binds
+// applied, moved and scaled onto the avatar's skull: avatars.ts CapFit) and the cap mesh draws the rows in `capRows`.
 /**
  * The crowd model: every person that is drawn, their state and the pose texture data, with no GL in it.
  *
@@ -30,14 +32,14 @@ import { presentationOf, type Presentation } from '@/content/roster'
 import { LEVEL_Y, levelDx, levelOf, type LevelId } from '@/sim/levels'
 import type { Entity, Outfit, PropKind, Role, VehicleKind } from '@/sim/types'
 import { shownAt } from '@/scene/levels/levelView'
-import { BADGE_FRAME, MAX_PEOPLE, NOMINAL_BODY, P, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
+import { BADGE_FRAME, CAP_FRAME, MAX_PEOPLE, NOMINAL_BODY, P, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
 import { inBlanketBed, levelsOf, type Levels } from './head'
 import { AVATAR_LOD, LOD, lodBounds, lodWeights, type LodWeights } from './lod'
 import { clamp, damp } from './math'
 import { modeFor, type Mode, type Posture } from './blend'
 import { clothesOf, lookFor, type Look } from './outfit'
 import { BADGE, GEAR_BIT } from './staff'
-import { applyBinds, avatarBuild, avatarFor, type AvatarChoice, type AvatarEntry } from './avatars'
+import { applyBinds, avatarBuild, avatarFor, defaultCapFit, type AvatarChoice, type AvatarEntry, type CapFit } from './avatars'
 import { aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
 import { pickRadius, rayVsSegment } from './picking'
 import { VEHICLE_FOOTPRINT } from './gear'
@@ -51,6 +53,8 @@ export const MAX_VEHICLES = 96
 export const MAX_PROPS = MAX_PEOPLE
 /** "You" badges the badge mesh can hold (there is one player). */
 export const MAX_BADGES = 4
+/** R2: theatre caps the cap mesh can hold (the theatre team is 9, and you). */
+export const MAX_CAPS = 24
 /** Blankets the blanket mesh can hold: one per patient lying in a ward bed, an ER trolley or on a stretcher. */
 export const MAX_BLANKETS = 64
 /** One blob for each person and each vehicle. */
@@ -197,6 +201,8 @@ export interface CrowdStats {
   avatarFar: number
   /** "You" badges drawn on realistic coats (the player's: 0 or 1). */
   badges: number
+  /** R2: theatre caps drawn on realistic people in theatre scrubs. */
+  caps: number
   /** Blankets drawn over patients lying in a bed or on a stretcher. */
   blankets: number
 }
@@ -241,18 +247,21 @@ export class CrowdModel {
   /** Blob shadows: a 4x4 matrix and a fade per instance (written straight into the InstancedMesh's attributes). */
   readonly blobMatrix = new Float32Array(MAX_BLOBS * 16)
   readonly blobFade = new Float32Array(MAX_BLOBS)
-  readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0, avatars: 0, avatarHigh: 0, avatarMid: 0, avatarFar: 0, badges: 0, blankets: 0 }
+  readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0, avatars: 0, avatarHigh: 0, avatarMid: 0, avatarFar: 0, badges: 0, caps: 0, blankets: 0 }
   /** Blankets draw: the row of each covered lying patient (the blanket is in its prop frame), and the kind (always PROP.blanket). */
   readonly blanketRows = new Float32Array(MAX_BLANKETS)
   readonly blanketKinds = new Float32Array(MAX_BLANKETS).fill(PROP.blanket)
   /** W3 wave B: the rows of the people whose "You" badge the badge mesh draws (BADGE_FRAME of their row). */
   readonly badgeRows = new Float32Array(MAX_BADGES)
+  /** R2: the rows of the realistic people in theatre scrubs whose cap the cap mesh draws (CAP_FRAME of their row). */
+  readonly capRows = new Float32Array(MAX_CAPS)
   /** One set of lists per loaded avatar (empty until setAvatars). */
   readonly avatarLists: AvatarLists = { rows: [[], [], []], counts: [new Int32Array(0), new Int32Array(0), new Int32Array(0)] }
   frame = 0
 
   private avatarList: AvatarEntry[] = []
   private binds: Float64Array[] = []
+  private caps: CapFit[] = []
   private readonly choice: AvatarChoice = { index: -1, tint: 0 }
 
   private readonly free: number[] = []
@@ -307,11 +316,13 @@ export class CrowdModel {
 
   /**
    * W3 wave B: hands in the loaded avatars (in the order the renderer's per-avatar meshes use), or an empty list to go back to the procedural
-   * bodies. Everybody already drawn is re-dressed at once.
+   * bodies. Everybody already drawn is re-dressed at once. R2: `caps` are the theatre caps measured on the avatars' meshes (avatars.ts measureCapFit), in
+   * the same order; an avatar without one wears a cap over its skeleton's crown (defaultCapFit).
    */
-  setAvatars(avatars: readonly AvatarEntry[]): void {
+  setAvatars(avatars: readonly AvatarEntry[], caps: readonly (CapFit | null)[] = []): void {
     this.avatarList = [...avatars]
     this.binds = this.avatarList.map((a) => Float64Array.from(a.bindInverse))
+    this.caps = this.avatarList.map((a, i) => caps[i] ?? defaultCapFit(a.body, a.bindInverse.slice(P.head * 12, P.head * 12 + 12)))
     const L = this.avatarLists
     L.rows = [0, 1, 2].map(() => this.avatarList.map(() => new Float32Array(MAX_PEOPLE))) as AvatarLists['rows']
     L.counts = [0, 1, 2].map(() => new Int32Array(this.avatarList.length)) as AvatarLists['counts']
@@ -530,6 +541,7 @@ export class CrowdModel {
     st.avatarMid = 0
     st.avatarFar = 0
     st.badges = 0
+    st.caps = 0
     st.blankets = 0
     const counts = this.avatarLists.counts
     for (let l = 0; l < 3; l++) counts[l].fill(0)
@@ -673,6 +685,8 @@ export class CrowdModel {
       }
       // the player's gold "You" badge on the coat
       if (p.look.badgeKind === BADGE.you && st.badges < MAX_BADGES) this.badgeRows[st.badges++] = p.row
+      // R2: the surgical cap over theatre scrubs
+      if (p.look.hairStyle === 'theatreCap' && st.caps < MAX_CAPS) this.capRows[st.caps++] = p.row
     } else {
       if (w.high > 0) this.rowsHigh[st.high++] = p.row
       if (w.mid > 0) this.rowsMid[st.mid++] = p.row
@@ -762,12 +776,28 @@ export class CrowdModel {
 
   /**
    * A realistic person's skinned parts become M_p * B_p^-1, and the player's badge frame is the chest's (binds applied) moved to the avatar's badge
-   * anchor: a point of its bind pose, so the badge stays on the cloth however the chest turns. Allocates nothing.
+   * anchor: a point of its bind pose, so the badge stays on the cloth however the chest turns. R2: in theatre scrubs the cap frame is the head's (binds
+   * applied) times T(centre) S(radii) of the avatar's cap fit, so the unit dome of the cap mesh sits on the skull and turns with it. Allocates nothing.
    */
   private bindAvatar(p: PersonSlot, o: number): void {
     const d = this.data
     const parts = o + TEX.parts * 4
     applyBinds(d, parts, this.binds[p.avatar])
+    if (p.look.hairStyle === 'theatreCap') {
+      const f = this.caps[p.avatar]
+      const h = parts + P.head * 12
+      const c = parts + CAP_FRAME * 12
+      for (let r = 0; r < 3; r++) {
+        const i = r * 4
+        const a = d[h + i]
+        const b = d[h + i + 1]
+        const e = d[h + i + 2]
+        d[c + i] = a * f.rx
+        d[c + i + 1] = b * f.ry
+        d[c + i + 2] = e * f.rz
+        d[c + i + 3] = a * f.cx + b * f.cy + e * f.cz + d[h + i + 3]
+      }
+    }
     if (p.look.badgeKind !== BADGE.you) return
     const anchor = this.avatarList[p.avatar].badge
     const c = parts + P.chest * 12

@@ -34,7 +34,7 @@ import {
   type Texture,
   type WebGLProgramParametersWithUniforms,
 } from 'three'
-import { BADGE_FRAME, BADGE_KIND, FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
+import { BADGE_FRAME, BADGE_KIND, CAP_FRAME, CAP_KIND, FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
 import { TINT_MAX_GAIN, tintContrast, type AvatarEntry } from './avatars'
 import { LIGHT_VOLUME_KEY, applyLightVolume } from '@/scene/lighting/volumeChunk'
 import { FACE } from './face'
@@ -244,8 +244,9 @@ vCrowdBase = gSlot < ${PALETTE_SLOTS} ? texelFetch(uPose, ivec2(${TEX.palette} +
 float gSn = sin(gRoot.w);
 float gCs = cos(gRoot.w);
 #ifdef GEAR_PROP
-  // W3 wave B: the player's "You" badge rides its own frame (pinned on the realistic coat), every held item the prop frame
-  int gCol = ${TEX.parts} + (aKind > ${g(BADGE_KIND - 0.5)} ? ${BADGE_FRAME} : ${P.prop}) * 3;
+  // W3 wave B: the player's "You" badge rides its own frame (pinned on the realistic coat), every held item the prop frame. R2: an avatar's theatre cap
+  // rides the cap frame (fitted on the skull)
+  int gCol = ${TEX.parts} + (aKind > ${g(CAP_KIND - 0.5)} ? ${CAP_FRAME} : aKind > ${g(BADGE_KIND - 0.5)} ? ${BADGE_FRAME} : ${P.prop}) * 3;
   vec4 gM0 = texelFetch(uPose, ivec2(gCol, gRow), 0);
   vec4 gM1 = texelFetch(uPose, ivec2(gCol + 1, gRow), 0);
   vec4 gM2 = texelFetch(uPose, ivec2(gCol + 2, gRow), 0);
