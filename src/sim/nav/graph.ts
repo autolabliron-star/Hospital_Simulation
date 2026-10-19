@@ -414,6 +414,18 @@ function buildGraph(): NavGraph {
       linkGroup(groupName, 12)
     }
 
+    // W4: the automated lab (ward B side), behind the blood-draw centre
+    if (w === 'B') {
+      const d = doorSpec('lab')
+      const out = corridorNode(w, d.center.x)
+      const door = g.add('lab:door', d.center.x, d.center.z, 'door')
+      const inside = g.add('lab:in', d.center.x, d.center.z + s * 1.6, 'inside', 'lab')
+      must(out, door)
+      must(door, inside)
+      lattice('lab', 'lab')
+      linkGroup('lab', 12)
+    }
+
     // grid every 4 m along the centre line, skipping near-duplicates of a door node
     for (let x = -40; x <= 36; x += 4) {
       if (CORRIDOR_CHAINS[w].some((e) => Math.abs(e.x - x) < 0.5)) continue

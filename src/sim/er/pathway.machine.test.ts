@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { Rng } from '../rng'
-import { createPathway, PATHWAY_STATES, stageOf, stateOf, type PathwayActor, type PathwayHost, type PathwayState } from './pathway.machine'
+import { CONFIG } from '../config'
+import { createPathway, DRAW_FALLBACK_SECONDS, PATHWAY_STATES, RESULTS_FALLBACK_SECONDS, stageOf, stateOf, type PathwayActor, type PathwayHost, type PathwayState } from './pathway.machine'
 import { SimClock } from './simClock'
 
-function make(opts: { acuity?: number; ambulance?: boolean; patience?: number; seed?: number } = {}) {
+function make(opts: { acuity?: number; ambulance?: boolean; patience?: number; seed?: number; liveBlood?: boolean; triageScale?: () => number } = {}) {
   const clock = new SimClock()
   const visited: PathwayState[] = []
   const host: PathwayHost = { enter: (s) => visited.push(s) }
@@ -15,6 +16,8 @@ function make(opts: { acuity?: number; ambulance?: boolean; patience?: number; s
       acuity: opts.acuity ?? 4,
       ambulance: opts.ambulance ?? false,
       patienceSeconds: opts.patience ?? Infinity,
+      liveBlood: opts.liveBlood,
+      triageScale: opts.triageScale,
     },
     clock,
   )
@@ -178,5 +181,125 @@ describe('ER pathway machine', () => {
     for (const s of ['arriving', 'checkIn', 'waitingTriage', 'triage', 'waitingDoctor', 'inBay', 'tests', 'decision', 'leaving', 'admittedOut', 'gone']) {
       expect(stages.has(s as never)).toBe(true)
     }
+  })
+})
+
+/** Walk a patient with a blood test to the draw (the exam says tests), for the live-blood tests. */
+function toTests(opts: { liveBlood: boolean; seed?: number }) {
+  for (let seed = opts.seed ?? 1; seed < 200; seed++) {
+    const m = make({ seed, liveBlood: opts.liveBlood })
+    toExam(m.actor, m.clock)
+    m.clock.advanceTo(m.clock.now + 181_000)
+    if (at(m.actor) === 'tests.waitingPorter') return m
+  }
+  throw new Error('no seed leads to the tests branch')
+}
+
+describe('W4 live bloods (the draw centre and the lab behind the patient)', () => {
+  it('waits for DRAW_DONE in the chair, not for the old chair timer', () => {
+    const { actor, clock } = toTests({ liveBlood: true })
+    actor.send({ type: 'PICKED_UP' })
+    expect(at(actor)).toBe('tests.toLab')
+    actor.send({ type: 'AT_LAB' })
+    expect(at(actor)).toBe('tests.testing')
+    clock.advanceTo(clock.now + 91_000) // the M3 chair timer (60-90 s) would have moved them on
+    expect(at(actor)).toBe('tests.testing')
+    actor.send({ type: 'DRAW_DONE' })
+    expect(at(actor)).toBe('tests.waitingReturn')
+  })
+
+  it('the old chair timer still moves M3 patients on, and they ignore DRAW_DONE', () => {
+    const { actor, clock } = toTests({ liveBlood: false })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'AT_LAB' })
+    actor.send({ type: 'DRAW_DONE' })
+    expect(at(actor)).toBe('tests.testing')
+    clock.advanceTo(clock.now + 91_000)
+    expect(at(actor)).toBe('tests.waitingReturn')
+  })
+
+  it('a draw that never finishes does not strand the patient (fallback after config.blood.stuckSeconds x 3)', () => {
+    expect(DRAW_FALLBACK_SECONDS).toBe(CONFIG.blood.stuckSeconds * 3)
+    const { actor, clock } = toTests({ liveBlood: true })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'AT_LAB' })
+    clock.advanceTo(clock.now + (DRAW_FALLBACK_SECONDS - 5) * 1000)
+    expect(at(actor)).toBe('tests.testing')
+    clock.advanceTo(clock.now + 10_000)
+    expect(at(actor)).toBe('tests.waitingReturn')
+  })
+
+  it('waits in the bay for the lab (REPORT_READY) and decides when it comes, not after the old 2-4 minute timer', () => {
+    const { actor, clock, visited } = toTests({ liveBlood: true })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'AT_LAB' })
+    actor.send({ type: 'DRAW_DONE' })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'BACK_IN_BAY' })
+    expect(at(actor)).toBe('tests.awaitingResults')
+    clock.advanceTo(clock.now + 20 * 60 * 1000) // 20 minutes: the M3 timer (120-240 s) is long gone
+    expect(at(actor)).toBe('tests.awaitingResults')
+    actor.send({ type: 'REPORT_READY' })
+    expect(['leaving.home', 'admittedOut.waitingPorter']).toContain(at(actor))
+    expect(visited).toContain('decision')
+  })
+
+  it('a report that arrives before the patient is back in the bay is kept', () => {
+    const { actor } = toTests({ liveBlood: true })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'AT_LAB' })
+    actor.send({ type: 'DRAW_DONE' })
+    actor.send({ type: 'REPORT_READY' }) // the lab was quick: they are still on the wheelchair
+    expect(at(actor)).toBe('tests.waitingReturn')
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'BACK_IN_BAY' })
+    expect(['leaving.home', 'admittedOut.waitingPorter']).toContain(at(actor))
+  })
+
+  it('a lab that never completes does not strand the patient either (fallback after the results bound)', () => {
+    const { actor, clock } = toTests({ liveBlood: true })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'AT_LAB' })
+    actor.send({ type: 'DRAW_DONE' })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'BACK_IN_BAY' })
+    clock.advanceTo(clock.now + (RESULTS_FALLBACK_SECONDS - 5) * 1000)
+    expect(at(actor)).toBe('tests.awaitingResults')
+    clock.advanceTo(clock.now + 10_000)
+    expect(['leaving.home', 'admittedOut.waitingPorter']).toContain(at(actor))
+  })
+
+  it('takes the same draws from the patient stream whether the bloods are live or on timers (nothing else shifts)', () => {
+    const seen = (live: boolean) => {
+      const { actor, clock } = toTests({ liveBlood: live, seed: 3 })
+      const c = actor.getSnapshot().context
+      return { exam: c.examSeconds, tests: c.needsTests, admit: c.admit, triage: c.triageSeconds, service: c.serviceSeconds, now: clock.now }
+    }
+    expect(seen(true)).toEqual(seen(false))
+  })
+
+  it('triage takes the scaled time when the patient already has kiosk vitals (0.8 x), and the usual time otherwise', () => {
+    const triageOf = (scale: () => number) => {
+      const m = make({ seed: 21, triageScale: scale })
+      m.actor.send({ type: 'ARRIVED' })
+      m.actor.send({ type: 'SERVICE_BEGIN' })
+      m.clock.advanceTo(41_000)
+      m.actor.send({ type: 'CALLED' })
+      m.actor.send({ type: 'IN_TRIAGE_BAY' })
+      return m.actor.getSnapshot().context.triageSeconds
+    }
+    const plain = triageOf(() => 1)
+    const quick = triageOf(() => CONFIG.vitals.triageWithVitalsFactor)
+    expect(CONFIG.vitals.triageWithVitalsFactor).toBe(0.8)
+    expect(plain).toBeGreaterThanOrEqual(CONFIG.er.triageSeconds[0])
+    expect(plain).toBeLessThanOrEqual(CONFIG.er.triageSeconds[1])
+    expect(quick).toBeCloseTo(plain * 0.8, 9)
+  })
+
+  it('an imaging patient is not touched by DRAW_DONE', () => {
+    const clock = new SimClock()
+    const actor = createPathway({ rng: new Rng(1), host: { enter: () => {} }, clock, acuity: 3, ambulance: false, patienceSeconds: Infinity, testKind: 'imaging' }, clock)
+    actor.send({ type: 'DRAW_DONE' })
+    expect(at(actor)).toBe('arriving')
   })
 })

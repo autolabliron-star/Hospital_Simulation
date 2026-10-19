@@ -30,10 +30,11 @@ const PLURAL: Record<Role, [string, string]> = {
   radiographer: ['radiographer', 'radiographers'],
   sonographer: ['sonographer', 'sonographers'],
   host: ['ward host', 'ward hosts'],
+  labScientist: ['lab scientist', 'lab scientists'],
 }
 
 /** Staff first, then patients and visitors: the order names are listed in. */
-const ROLE_ORDER: Role[] = ['doctor', 'nurse', 'pharmacist', 'radiographer', 'sonographer', 'coordinator', 'receptionist', 'paramedic', 'porter', 'host', 'cleaner', 'patient', 'visitor']
+const ROLE_ORDER: Role[] = ['doctor', 'nurse', 'pharmacist', 'radiographer', 'sonographer', 'coordinator', 'receptionist', 'paramedic', 'porter', 'host', 'labScientist', 'cleaner', 'patient', 'visitor']
 
 export function roleWord(role: Role, count: number): string {
   return PLURAL[role][count === 1 ? 0 : 1]

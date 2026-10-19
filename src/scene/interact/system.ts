@@ -203,6 +203,16 @@ export class InteractionSystem {
     this.nextPromptAt = 0
   }
 
+  /**
+   * W4: sit you on one particular seat from a flow that is not "E at a free seat" (the health kiosk's blood-pressure stool, healthCheck.ts): the same claim,
+   * glide and seated pose as sitting anywhere, and stood up again by E, a move key or `standUp`. False when you are not in the hospital or somebody holds it.
+   */
+  sitAt(seat: SeatSpec): boolean {
+    this.clearTarget()
+    this.nextPromptAt = 0
+    return this.seat.sit(this.env.sim(), seat)
+  }
+
   /** While the prescribing panel is open you are drawn with the tablet out; the player system leaves a pose like that alone while you stand still. */
   private holdTablet(sim: Simulation, walking: boolean): void {
     const av = sim.playerAvatar

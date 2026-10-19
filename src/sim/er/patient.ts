@@ -7,14 +7,17 @@
  */
 import { staffName } from '@/content/staff'
 import { protocolById, testForReason } from '@/content/imaging'
+import { erPanelFor } from '@/content/lab'
+import type { DrawSubject } from '../blood/subject'
 import { CONFIG } from '../config'
 import type { BedAssignment } from '../beds/board'
 import type { Booking, ScanSubject } from '../imaging/booking'
 import type { ScannerSites } from '../imaging/sites'
 import type { PeopleContext } from '../people'
-import { DEPARTURES, roomById } from '../places'
+import { DEPARTURES, HEALTH_KIOSKS, roomById, type Spot } from '../places'
 import type { Rng } from '../rng'
-import type { ScannerState, SeatSpec, Vec2 } from '../types'
+import type { DrawTicket, LabOrder, ScannerState, SeatSpec, Vec2, VitalsReading } from '../types'
+import type { KioskSubject } from '../vitals/ports'
 import type { Walker } from '../walker'
 import { Actor } from './actor'
 import type { Companion } from './companion'
@@ -60,13 +63,33 @@ function lcFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1)
 }
 
+/** The kiosk detour is capped: this long from the offer in the line, and this long once on the platform (then a partial reading is kept). */
+export const KIOSK_LINE_SECONDS = 300
+export const KIOSK_SESSION_SECONDS = 180
+/**
+ * Optional brake on the kiosk detour: a walk-in only stops at a kiosk when at least this many patients are already waiting for triage ahead of
+ * them. The default 0 is the brief (every eligible walk-in rolls `config.vitals.erUseChance`). Measured over four seeds of the 07:30-12:30 morning
+ * (bloods live, real kiosks): left-without-being-seen averaged 8.4 % with no detour, 9.5 % with the detour at 0 and 9.9 % at 2, which is inside the
+ * seed-to-seed noise (0-16 %), so the brake is off.
+ */
+export const kioskTuning = { minAhead: 0 }
+
+/**
+ * The results lounge (W4). Real bloods keep an ER patient waiting for the lab about 16-22 minutes instead of the old 2-4, and a patient on a
+ * trolley that long keeps a bay from the next. A patient who will be discharged (the exam already decided it) does not need the bay while
+ * they wait: the porter wheels them to the draw centre and, afterwards, to a waiting chair in the Lab & imaging hall; the bay is cleaned for
+ * the next patient the moment they leave it, and when the lab reports they walk out from the chair. Admitted patients keep their bay.
+ * With no free hall chair, or `enabled` false, they wait in their bay as before.
+ */
+export const resultsLounge = { enabled: true }
+
 /** Where a standing patient waits when the lobby has no free seat. */
 const STANDING: Record<'triage' | 'er', Vec2> = {
   triage: { x: -49, z: -3.4 },
   er: { x: -49, z: 3.4 },
 }
 
-export class ErPatient extends Actor implements PathwayHost, ScanSubject {
+export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSubject, KioskSubject {
   readonly c: ErCase
   readonly world: World
   /** Started by `start()` once the person is part of the simulation. */
@@ -81,6 +104,20 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
   readonly testKind: TestKind
   /** The protocol id of the scan, for `testKind === 'imaging'`. */
   readonly protocolId: string | null
+  /** W4: the draw centre and the lab handle this patient's bloods (set by `start()`); false: the M3 chair and results timers. */
+  liveBlood = false
+  /** W4: the V ticket at the blood draw centre, from the moment the doctor orders the bloods. */
+  drawTicket: DrawTicket | null = null
+  /** W4: the draw is over (the arm is free): the porter may take them back. */
+  drawFinishedFlag = false
+  /**
+   * W4 results lounge: the hall chair this discharge-bound patient waits in for their results (claimed when the bloods are ordered), and whether
+   * they have left their bay for it. While `loungeActive` the lounge chair is this patient's `baySeat`: the porter takes them back to it, the
+   * companion stands by it, and `BACK_IN_BAY` means "back on the chair".
+   */
+  loungeSeat: SeatSpec | null = null
+  loungeActive = false
+  usedLounge = false
   /** The imaging booking, once the doctor has ordered the scan. */
   booking: Booking | null = null
   /** The scanner's table seat, from the moment a scanner has taken them until they are collected. */
@@ -99,6 +136,9 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
   becameInpatient = false
   private scanJobAsked = false
   private returnJobAsked = false
+  /** W4 kiosk detour (a vitals session while waiting for triage): where they are in it. */
+  private kioskPhase: 'none' | 'offered' | 'queueing' | 'standingUp' | 'toKiosk' | 'using' | 'toStool' | 'onStool' | 'back' = 'none'
+  private kioskStool: SeatSpec | null = null
   /** The nurse or paramedic they follow, and the seat they are being taken to. */
   private escort: Actor | null = null
   private escortSeat: SeatSpec | null = null
@@ -153,6 +193,8 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
   /** Start the pathway machine. Call once the patient has been added to the simulation. */
   start(): void {
     const clock = this.world.clock
+    // W4: with the draw centre and the lab in the world, a reason that orders bloods goes through them (the timers stay as a fallback)
+    this.liveBlood = this.testKind === 'blood' && this.world.blood !== null && this.world.lab !== null && erPanelFor(this.c.reason) !== null
     this.pathway = createPathway(
       {
         rng: this.prng,
@@ -162,6 +204,8 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
         ambulance: this.c.ambulance,
         patienceSeconds: this.patience,
         testKind: this.testKind,
+        liveBlood: this.liveBlood,
+        triageScale: () => (this.hasKioskVitals() ? CONFIG.vitals.triageWithVitalsFactor : 1),
       },
       clock,
     )
@@ -197,12 +241,16 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
         this.entity.mood = 'waiting'
         this.showEmote('hourglass', w.t)
         this.seekSeat('triage')
+        this.offerKiosk()
         break
       case 'triage.walking':
+        this.cancelKiosk()
         this.showEmote('none', w.t)
         break
       case 'triage.assessing':
         this.entity.mood = 'neutral'
+        // W4: the nurse's own reading goes into the record beside the kiosk's (and a patient with kiosk vitals is assessed faster)
+        w.vitals?.recordTriage(c.id, c.name, c.nurseId ?? 'nurse-T1')
         break
       case 'waitingDoctor':
         this.entity.mood = 'waiting'
@@ -250,6 +298,12 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
             subjectId: c.id,
             actorId: c.doctorId ?? undefined,
           })
+          // W4: a V ticket now, so the tray is made while the porter is on the way
+          if (this.liveBlood && this.drawTicket === null) {
+            this.drawTicket = w.blood!.requestEr(this, erPanelFor(c.reason)!)
+            // a patient who will go home waits for the results in the Lab & imaging hall, not in the bay
+            if (!ctx.admit && resultsLounge.enabled) this.loungeSeat = w.seats.claim(c.id, { kind: 'waiting', area: 'imagingHall' }, this.pos)
+          }
         }
         c.doctorId = null
         this.showEmote('hourglass', w.t)
@@ -286,6 +340,11 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
         this.entity.mood = 'happy'
         this.showEmote('check', w.t, 8)
         w.er.vacate(c, w.t)
+        if (this.loungeSeat !== null) {
+          w.seats.release(this.loungeSeat.id, c.id)
+          this.loungeSeat = null
+          this.loungeActive = false
+        }
         this.beginLeaving(DEPARTURES.entrance)
         break
       }
@@ -296,6 +355,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
         this.outcome = 'lwbs'
         this.entity.mood = 'unwell'
         this.showEmote('hourglass', w.t, 8)
+        this.cancelKiosk(false)
         this.releaseWaitSeat()
         this.beginLeaving(DEPARTURES.entrance)
         break
@@ -339,6 +399,9 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
 
   /** The caller reached the patient: stand up and follow `leader` to `seat` (a triage chair or a bay trolley). */
   followTo(leader: Actor, seat: SeatSpec): void {
+    this.world.vitals?.abort(this.c.id)
+    this.kioskPhase = 'none'
+    this.kioskStool = null
     this.escort = leader
     this.escortSeat = seat
     this.releaseWaitSeat()
@@ -375,18 +438,25 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
   }
 
   get baySeat(): SeatSpec | null {
+    if (this.loungeActive) return this.loungeSeat
     return this.c.bay >= 0 ? this.world.er.bays[this.c.bay].seat : null
   }
 
   /** The porter reached the patient with a vehicle: get on. */
   loadOn(pusher: Actor, kind: 'wheelchair' | 'stretcher'): void {
     if (this.state === 'tests.waitingReturn' && this.labSeat) {
-      this.world.seats.release(this.labSeat.id, this.c.id)
-      this.labSeat = null
+      this.releaseLabSeat()
     }
     if (this.state === 'admittedOut.waitingPorter') {
       this.world.er.vacate(this.c, this.world.t)
       if (this.bed) this.world.beds?.boardingEnded(this.c.id, this.world.t)
+    }
+    if (this.state === 'tests.waitingPorter' && this.loungeSeat !== null && !this.loungeActive) {
+      // off the trolley for good: the bay is cleaned for the next patient while they have their bloods and wait for the results
+      this.world.er.vacate(this.c, this.world.t)
+      this.c.bay = -1
+      this.loungeActive = true
+      this.usedLounge = true
     }
     this.world.attach(pusher, this)
     this.mountOn(pusher, kind)
@@ -415,7 +485,273 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
 
   /** May the porter load this patient for the job now? (On the way back from a scan, only once the table is out.) */
   pickupReady(kind: PorterJobKind): boolean {
-    return kind === 'fromImaging' ? this.scanFinishedFlag : true
+    if (kind === 'fromImaging') return this.scanFinishedFlag
+    // W4: the robot's arm must be free (the porter waits at the chair until the draw is over)
+    if (kind === 'fromDiagnostics' && this.liveBlood) return this.drawFinishedFlag
+    return true
+  }
+
+  // --- the blood draw centre's side (DrawSubject, W4) ---------------------------------------------------------------------
+
+  /** Your ticket is called to robot `station`: the chair is yours; the porter waiting with you takes you there. */
+  drawCalled(_station: number, seat: SeatSpec): void {
+    this.labSeat = seat
+    this.world.blood?.releaseHold(this.c.id)
+  }
+
+  seatedOn(seat: SeatSpec): boolean {
+    return this.seat === seat && this.mode === 'static' && this.done
+  }
+
+  /** Lifted onto the wheelchair (or otherwise up): the robot's chair is free again. */
+  offChair(seat: SeatSpec): boolean {
+    return this.seat !== seat
+  }
+
+  armIn(on: boolean): void {
+    if (this.seat !== null) this.entity.anim = on ? 'armIn' : 'sit'
+  }
+
+  /** The bandage is going on: ask for the ride back now, so it is there when the arm is free. */
+  drawNearlyDone(): void {
+    this.requestDrawReturn()
+  }
+
+  /** The arm is free: the pathway moves on to waiting for the porter and the results. */
+  drawReleased(): void {
+    this.drawFinishedFlag = true
+    this.pathway.send({ type: 'DRAW_DONE' })
+  }
+
+  /** The draw centre gave up on the call (a safety net): carry on as if the draw had finished. */
+  drawAborted(): void {
+    this.drawFinishedFlag = true
+    this.pathway.send({ type: 'DRAW_DONE' })
+  }
+
+  /** The lab verified every test of the order: the results are back. */
+  resultsReady(_order: LabOrder): void {
+    if (this.state !== 'gone') this.pathway.send({ type: 'REPORT_READY' })
+  }
+
+  /** The porter has the patient at the draw room's holding spot: they may be called to a robot. */
+  drawArrived(): void {
+    if (this.drawTicket) this.world.blood?.erArrived(this.drawTicket.id)
+  }
+
+  private requestDrawReturn(): void {
+    if (this.returnJobAsked) return
+    this.returnJobAsked = true
+    this.world.porters.request('fromDiagnostics', this.c.id, this.world.t)
+  }
+
+  private releaseLabSeat(): void {
+    const seat = this.labSeat
+    if (!seat) return
+    if (this.liveBlood) this.world.blood?.releaseChairSeat(seat, this.c.id)
+    else this.world.seats.release(seat.id, this.c.id)
+    this.labSeat = null
+  }
+
+  // --- the health kiosk detour (KioskSubject, W4) ------------------------------------------------------------------------
+
+  private kioskStand: Spot | null = null
+  private kioskLine: Spot | null = null
+  private kioskLineSent = false
+  /** Seconds since the offer was accepted, and since they first reached the platform (0 until then). */
+  private kioskHoldT = 0
+  private kioskPlatformT = 0
+  private kioskOnPlatform = false
+  /** The moment they would have been ready for triage: restored when the session ends, so they keep their first-come place. */
+  private keptReadyAt: number | null = null
+
+  /** Kiosk vitals are in the record: triage takes a little less time. */
+  private hasKioskVitals(): boolean {
+    return this.world.vitals?.readingsFor(this.c.id).some((r) => r.source === 'kiosk') ?? false
+  }
+
+  /**
+   * A walk-in with acuity 3 or less urgent sometimes uses a health kiosk while waiting for triage. While they are in the kiosk's line or
+   * its session they are NOT ready for triage (no nurse calls them away mid-session), but they keep their first-come place: `keptReadyAt` is
+   * restored when the session ends. The detour is capped (`KIOSK_LINE_SECONDS` from the offer, `KIOSK_SESSION_SECONDS` once on the platform):
+   * past it the session is aborted (the service keeps the partial reading) and they go back to wait.
+   */
+  private offerKiosk(): void {
+    const w = this.world
+    const c = this.c
+    if (c.ambulance || w.vitals === null || c.acuity < CONFIG.vitals.erMinAcuity) return
+    // a fork of the patient's stream: the draw never shifts the draws the pathway makes
+    if (!this.prng.fork('kiosk').chance(CONFIG.vitals.erUseChance)) return
+    if (this.waitingAhead() < kioskTuning.minAhead) return
+    // the phase is set first: the service may tell them where to stand in the same breath
+    this.kioskPhase = 'offered'
+    if (!w.vitals.offer(this, 'vitals')) {
+      this.kioskPhase = 'none'
+      return
+    }
+    this.keptReadyAt = w.t
+    this.kioskHoldT = 0
+    this.kioskPlatformT = 0
+    this.kioskOnPlatform = false
+    this.kioskLine = null
+    this.kioskLineSent = false
+  }
+
+  /** Patients who arrived earlier and are still waiting for triage (and so will be taken before this one). */
+  private waitingAhead(): number {
+    let n = 0
+    for (const o of this.world.er.cases.values()) if (o !== this.c && o.state === 'waitingTriage' && !o.ambulance && o.arrivedAt <= this.c.arrivedAt) n++
+    return n
+  }
+
+  /** Where to stand in the kiosk's line (place 0 is the front). They get up from their seat (which stays theirs) and walk there. */
+  kioskQueued(spot: Spot, place: number): void {
+    if (this.state !== 'waitingTriage' || (this.kioskPhase !== 'offered' && this.kioskPhase !== 'queueing')) return
+    this.kioskLine = spot
+    this.kioskPhase = 'queueing'
+    this.showEmote(place > 0 ? 'hourglass' : 'none', this.world.t)
+    if (this.seat) {
+      this.kioskLineSent = false
+      this.standUp()
+    } else {
+      this.kioskLineSent = true
+      this.moveTo(spot.at, { face: spot.heading })
+    }
+  }
+
+  kioskCalled(_index: number, stand: Spot): void {
+    if (this.state !== 'waitingTriage' || this.kioskPhase === 'none') return
+    this.kioskStand = stand
+    this.showEmote('scan', this.world.t)
+    if (this.seat) {
+      this.kioskPhase = 'standingUp'
+      this.standUp()
+    } else {
+      this.kioskPhase = 'toKiosk'
+      this.moveTo(stand.at, { face: stand.heading })
+    }
+  }
+
+  /** Called but not on the platform in time: the kiosk starts anyway, so glide onto it. */
+  kioskForced(stand: Spot): void {
+    if (this.state !== 'waitingTriage' || this.kioskPhase === 'none' || this.kioskPhase === 'toStool' || this.kioskPhase === 'onStool') return
+    this.kioskStand = stand
+    this.kioskPhase = 'using'
+    this.kioskOnPlatform = true
+    if (this.seat) this.standUp()
+    this.slideTo(stand.at.x, stand.at.z, stand.heading, 0.9, 'stand')
+  }
+
+  kioskSit(seat: Spot): void {
+    if (this.state !== 'waitingTriage' || this.kioskPhase === 'none' || this.kioskPhase === 'offered') return
+    const stool = this.stoolSeat(seat)
+    this.kioskStool = stool
+    this.kioskPhase = 'toStool'
+    this.sitOn(stool)
+  }
+
+  kioskDone(_reading: VitalsReading): void {
+    if (this.kioskPhase === 'none') return
+    this.endKiosk()
+  }
+
+  /** The stool as a seat: the layout's `kioskBp:<i>` if it has one, else one made from the anchor. */
+  private stoolSeat(spot: Spot): SeatSpec {
+    let idx = HEALTH_KIOSKS.findIndex((k) => Math.abs(k.bpSeat.at.x - spot.at.x) < 0.05 && Math.abs(k.bpSeat.at.z - spot.at.z) < 0.05)
+    if (idx < 0) idx = 0
+    const id = `kioskBp:${idx}`
+    const real = this.world.seats.all.find((x) => x.id === id)
+    if (real) return real
+    const k = HEALTH_KIOSKS[idx]
+    return { id, kind: 'kioskBp', area: 'lobby', x: spot.at.x, z: spot.at.z, heading: spot.heading, pose: 'sit', height: 0.48, approach: { x: k.stand.at.x, z: k.stand.at.z } }
+  }
+
+  /** The session is over (or cut short): back up and back to the waiting seat (or any seat); they become ready for triage there. */
+  private endKiosk(): void {
+    this.kioskStool = null
+    this.kioskLine = null
+    this.kioskOnPlatform = false
+    if (this.state !== 'waitingTriage') {
+      this.kioskPhase = 'none'
+      return
+    }
+    this.showEmote('hourglass', this.world.t)
+    if (this.seat) {
+      this.kioskPhase = 'back'
+      this.standUp()
+    } else {
+      this.kioskPhase = 'none'
+      if (this.waitSeat) this.sitOn(this.waitSeat)
+      else this.seekSeat('triage')
+    }
+  }
+
+  /** The detour is dropped for good (called to triage, or they gave up): the service keeps the partial reading. */
+  private cancelKiosk(standUp = true): void {
+    if (this.kioskPhase === 'none') return
+    this.world.vitals?.abort(this.c.id)
+    const onStool = standUp && this.kioskStool !== null && this.seat === this.kioskStool
+    this.kioskPhase = 'none'
+    this.kioskStool = null
+    this.kioskLine = null
+    this.kioskOnPlatform = false
+    if (onStool) this.standUp()
+  }
+
+  /** True while the kiosk detour drives the patient (the ordinary waiting-room logic must not seat or ready them). */
+  private thinkKiosk(dt: number): boolean {
+    const ph = this.kioskPhase
+    if (ph === 'none') return false
+    if (ph === 'back') {
+      if (this.done) {
+        this.kioskPhase = 'none'
+        if (this.state === 'waitingTriage') {
+          if (this.waitSeat) this.sitOn(this.waitSeat)
+          else this.seekSeat('triage')
+        }
+      }
+      return true
+    }
+    // the caps: past them the session is aborted (a partial reading is kept) and they go back to wait
+    this.kioskHoldT += dt
+    if (this.kioskOnPlatform) this.kioskPlatformT += dt
+    if (this.kioskOnPlatform ? this.kioskPlatformT > KIOSK_SESSION_SECONDS : this.kioskHoldT > KIOSK_LINE_SECONDS) {
+      this.world.vitals?.abort(this.c.id)
+      this.endKiosk()
+      return true
+    }
+    switch (ph) {
+      case 'offered':
+        // still in their seat (or walking to one) until the service says where to stand
+        if (this.waitSeat === null && this.done && this.due(dt, 2)) this.seekSeat('triage')
+        return true
+      case 'queueing':
+        if (!this.kioskLineSent && this.done && this.seat === null && this.kioskLine) {
+          this.kioskLineSent = true
+          this.moveTo(this.kioskLine.at, { face: this.kioskLine.heading })
+        }
+        return true
+      case 'standingUp':
+        if (this.done && this.kioskStand) {
+          this.kioskPhase = 'toKiosk'
+          this.moveTo(this.kioskStand.at, { face: this.kioskStand.heading })
+        }
+        return true
+      case 'toKiosk':
+        if (this.done) {
+          this.kioskPhase = 'using'
+          this.kioskOnPlatform = true
+        }
+        return true
+      case 'toStool':
+        if (this.done && this.seat === this.kioskStool) {
+          this.kioskPhase = 'onStool'
+          this.entity.anim = 'armIn'
+        }
+        return true
+      default:
+        return true
+    }
   }
 
   // --- the scanner's side (ScanSubject) ------------------------------------------------------------------------
@@ -498,6 +834,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
         break
       case 'waitingTriage':
       case 'waitingDoctor':
+        if (this.thinkKiosk(dt)) break
         if (this.phase === 'standingFromTriage') {
           if (this.done) {
             this.phase = 'none'
@@ -508,7 +845,9 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
         if (c.ambulance) break
         if (!c.ready && this.done) {
           c.ready = true
-          c.readyAt = w.t
+          // after a kiosk session they keep the place they had when it began
+          c.readyAt = this.keptReadyAt !== null && this.keptReadyAt < w.t ? this.keptReadyAt : w.t
+          this.keptReadyAt = null
           c.from = this.pos
         } else if (this.waitSeat === null && this.done && this.due(dt, 2)) {
           this.seekSeat(this.state === 'waitingTriage' ? 'triage' : 'er')
@@ -526,10 +865,15 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
             w.porters.request('toImaging', c.id, w.t)
           }
         } else if (!this.jobAsked && this.due(dt, 1)) {
-          const chair = this.labSeat ?? w.seats.claim(c.id, { area: 'diagnostics' }, this.pos)
-          if (chair) {
-            this.labSeat = chair
+          if (this.liveBlood) {
+            // W4: the porter takes them to the draw centre's holding spot; the chair is the robot's, given when the ticket is called
             this.askPorter('toDiagnostics')
+          } else {
+            const chair = this.labSeat ?? w.seats.claim(c.id, { kind: 'drawChair', area: 'diagnostics' }, this.pos)
+            if (chair) {
+              this.labSeat = chair
+              this.askPorter('toDiagnostics')
+            }
           }
         }
         this.sendPicked()
@@ -544,6 +888,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
       }
       case 'tests.waitingReturn':
         if (this.testKind === 'imaging') this.scanRequestReturn()
+        else if (this.liveBlood) this.requestDrawReturn()
         else if (!this.jobAsked) this.askPorter('fromDiagnostics')
         this.sendPicked()
         break
@@ -730,6 +1075,8 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject {
   }
 
   override onRemoved(world: World): void {
+    if (this.kioskPhase !== 'none') world.vitals?.abort(this.c.id)
+    world.blood?.releaseHold(this.c.id)
     world.detach(this)
     this.pathway.send({ type: 'OUT' })
     this.pathway.stop()

@@ -9,7 +9,7 @@
  */
 import { seatSpot } from '../er/spots'
 import { isWalkable } from '../nav/layout'
-import { DOORS, IMAGING, areaById, type ScannerAnchors, type Spot } from '../places'
+import { DOORS, DRAW_CENTRE, IMAGING, areaById, type ScannerAnchors, type Spot } from '../places'
 import type { SeatRegistry } from '../seats'
 import type { ImagingModality, SeatKind, SeatSpec, Vec2 } from '../types'
 import { MODALITIES } from '../types'
@@ -154,11 +154,8 @@ export function buildSites(seats: SeatRegistry): ImagingSites {
   const scanners = {} as Record<ImagingModality, ScannerSites>
   for (const m of MODALITIES) scanners[m] = scannerSites(seats, m)
 
-  const real = seats.all.filter((s) => s.area === 'diagnostics' && s.kind !== 'drawChair' && /chang|cubicle/i.test(s.id))
-  const cubicles: Cubicle[] =
-    real.length > 0
-      ? real.map((s) => ({ seat: s, at: { x: s.x, z: s.z }, approach: s.approach, heading: s.heading }))
-      : [-27.0, -25.0, -23.0].map((x) => ({ seat: null, at: { x, z: 4.2 }, approach: { x, z: 5.4 }, heading: 0 }))
+  // W4: the MRI changing cubicles are the draw centre's anchors on its east wall (`DRAW_CENTRE.cubicles`: `at` inside, `approach` outside)
+  const cubicles: Cubicle[] = DRAW_CENTRE.cubicles.map((c) => ({ seat: null, at: { x: c.at.x, z: c.at.z }, approach: { x: c.approach.x, z: c.approach.z }, heading: c.heading }))
 
   const hall = areaById('imagingHall').rect
   const hallStand: Vec2[] = []

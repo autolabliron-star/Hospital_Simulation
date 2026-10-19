@@ -215,6 +215,72 @@ describe('single-file doors', () => {
     expect(isArrived(inn, room.doorInside)).toBe(true)
     expect(out.x).toBeGreaterThan(room.doorOutside.x + 3)
   })
+
+  // the doorway proper (the wall line of a ward-A room door, z -16.35 .. -15.65): nobody may come to rest in it
+  const inDoorway = (w: Walker, door: Vec2, width: number) => Math.abs(w.x - door.x) < width / 2 && Math.abs(w.z - door.z) < 0.35
+
+  it('a walker following another into a room waits short of the door while the one ahead stops just inside it', () => {
+    const room = roomById('A3')
+    const door = room.door
+    const deep = { x: door.x, z: -19 }
+    const side = { x: door.x + 0.6, z: -18.4 }
+    expect(isWalkable(deep.x, deep.z, 0.3) && isWalkable(side.x, side.z, 0.3)).toBe(true)
+    const r = rig()
+    // both in the corridor in line with the door, 1.2 m apart, going in
+    const lead = add(r, 'lead', { x: door.x, z: -14.3 }, Math.PI, deep)
+    const next = add(r, 'next', { x: door.x, z: -13.1 }, Math.PI, side)
+    let holdUntil = -1
+    let t = 0
+    let stillInDoor = 0
+    let waitedOutside = false
+    for (let i = 0; i < 60 * 60; i++) {
+      t += DT
+      // the one ahead stops dead 0.95 m inside the room (somebody crossed in front of it) for 4 s, still on its way
+      if (holdUntil < 0 && lead.z < door.z - 0.95) holdUntil = t + 4
+      r.crowd.beginStep()
+      const a = lead.step(DT, t < holdUntil ? 0 : 1.3)
+      const b = next.step(DT, 1.3)
+      if (next.speed < 0.05 && inDoorway(next, door, room.doorWidth)) stillInDoor += DT
+      if (t < holdUntil && next.speed < 0.05 && next.z > door.z + 0.35) waitedOutside = true
+      if (a === 'arrived' && b === 'arrived') break
+    }
+    expect(holdUntil).toBeGreaterThan(0)
+    expect(stillInDoor).toBe(0)
+    expect(waitedOutside).toBe(true)
+    expect(isArrived(lead, deep)).toBe(true)
+    expect(isArrived(next, side)).toBe(true)
+  })
+
+  it('somebody giving way at a door (a porter with a wheelchair, 0.4 m) stands aside off its centre line, and the one coming out walks past', () => {
+    const room = roomById('A3')
+    const door = room.door
+    const r = rig()
+    // one is just inside the room, nearer the door, going out; the other is in the corridor in line with the door, going in
+    const out = add(r, 'out', room.doorInside, 0, { x: door.x + 4, z: room.doorOutside.z })
+    const inn = add(r, 'inn', { x: door.x, z: -13.2 }, Math.PI, room.doorInside, { radius: 0.4 })
+    let slowest = Infinity
+    let worstAside = Infinity
+    let stillInDoor = 0
+    let minGap = Infinity
+    for (let i = 0; i < 60 * 60; i++) {
+      const moving = stepAll(r)
+      if (out.speed < 0.05 && inDoorway(out, door, room.doorWidth)) stillInDoor += DT
+      // from the moment it has had time to react, while the one coming out is in the door or just past it, the one giving way
+      // slows down and stands to the side, still outside the door
+      if (i > 30 && inn.z > door.z + 0.35 && out.z > door.z - 0.35 && out.z < door.z + 1.2) {
+        slowest = Math.min(slowest, inn.speed)
+        worstAside = Math.min(worstAside, Math.abs(inn.x - door.x))
+      }
+      minGap = Math.min(minGap, Math.hypot(out.x - inn.x, out.z - inn.z))
+      if (moving === 0) break
+    }
+    expect(slowest).toBeLessThan(0.6)
+    expect(worstAside).toBeGreaterThanOrEqual(0.45)
+    expect(stillInDoor).toBe(0)
+    expect(minGap).toBeGreaterThanOrEqual(0.6)
+    expect(isArrived(inn, room.doorInside)).toBe(true)
+    expect(out.x).toBeGreaterThan(door.x + 3)
+  })
 })
 
 // ---------------------------------------------------------------------------------------------

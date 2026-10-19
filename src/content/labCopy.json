@@ -1,0 +1,7 @@
+{
+  "samplesReceived": "Lab received {ticket}'s samples.",
+  "samplesReceivedNoTicket": "Lab received {name}'s samples.",
+  "labResults": "Results ready for {name}, {min} min after the draw.",
+  "demoReceived": "Lab received the demo sample from the tube.",
+  "demoResults": "Demo sample verified, {min} min after it was sent."
+}

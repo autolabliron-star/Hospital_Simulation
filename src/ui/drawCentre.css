@@ -1,0 +1,199 @@
+/* The robot blood-draw centre's room panel (W4). Colours come from the variables in src/styles/base.css and the HUD (hud.css). */
+
+.dc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dc-call {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--teal);
+}
+
+.dc-call[data-empty='true'] {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--hud-muted);
+}
+
+.dc-tickets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dc-ticket {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--mint) 26%, transparent);
+}
+
+.dc-ticket[data-priority='true'] {
+  background: color-mix(in srgb, var(--amber) 28%, transparent);
+}
+
+.dc-robots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dc-robot {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--hud-faint);
+  border-radius: 12px;
+}
+
+.dc-robot__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-robot__name {
+  font-weight: 650;
+}
+
+.dc-light {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #cfd8d8;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 15%, transparent) inset;
+}
+
+.dc-light[data-light='teal'] {
+  background: #1fb5ad;
+}
+
+.dc-light[data-light='amber'] {
+  background: #ffb23a;
+}
+
+.dc-light[data-light='green'] {
+  background: #35e07a;
+}
+
+.dc-chip {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--hud-muted);
+}
+
+.dc-chip[data-tone='busy'] {
+  background: color-mix(in srgb, var(--mint) 28%, transparent);
+  color: var(--teal);
+}
+
+.dc-chip[data-tone='live'] {
+  background: color-mix(in srgb, var(--teal) 16%, transparent);
+  color: var(--teal);
+}
+
+.dc-chip[data-tone='attention'] {
+  background: color-mix(in srgb, var(--amber) 30%, transparent);
+  color: #8a5a10;
+}
+
+.dc-chip[data-tone='done'] {
+  background: color-mix(in srgb, #35e07a 24%, transparent);
+  color: #1d7a47;
+}
+
+.dc-robot__who {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  min-height: 1.35em;
+}
+
+.dc-tick {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #1d7a47;
+}
+
+.dc-tick[data-attempt='second'] {
+  color: #8a5a10;
+}
+
+.dc-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dc-prep {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dc-prep__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+}
+
+.dc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dc-actions .hud-send {
+  width: 100%;
+}
+
+.dc-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--hud-muted);
+}
+
+.dc-disclaimer {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--hud-muted);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dc-chip[data-tone='live'] {
+    animation: dc-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes dc-pulse {
+  50% {
+    opacity: 0.6;
+  }
+}

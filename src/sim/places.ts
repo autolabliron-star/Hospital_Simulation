@@ -18,7 +18,7 @@
  *
  * Ward B is ward A mirrored in z. `wardSign(w)` is -1 for A and +1 for B: multiply a ward-A z by -1 * sign.
  */
-import type { RoomId, VehicleKind, Vec2, WardId } from './types'
+import type { RoomId, TubeKind, VehicleKind, Vec2, Vec3, WardId } from './types'
 
 export interface Rect {
   x0: number
@@ -89,6 +89,8 @@ export type AreaId =
   | 'loungeA'
   | 'hubA'
   | 'supplyB'
+  /** W4: the automated lab (sample track, centrifuges, analysers), split from the clean-supply room. */
+  | 'lab'
   | 'quietB'
   | 'hubB'
   | `room:${string}`
@@ -301,7 +303,7 @@ export const AREAS: Area[] = [
   { id: 'ctControl', label: 'CT control', subtitle: '', rect: { x0: -31, x1: -22, z0: -4.5, z1: -2 }, kind: 'staff', mapLabel: false },
   { id: 'xray', label: 'X-ray', subtitle: 'Radiography', rect: { x0: -40, x1: -34, z0: 2, z1: 12 }, kind: 'clinical', mapLabel: true },
   { id: 'ultrasound', label: 'Ultrasound', subtitle: '', rect: { x0: -34, x1: -28, z0: 2, z1: 12 }, kind: 'clinical', mapLabel: true },
-  { id: 'diagnostics', label: 'Blood draw', subtitle: 'Changing cubicles and blood tests', rect: { x0: -28, x1: -22, z0: 2, z1: 12 }, kind: 'clinical', mapLabel: true },
+  { id: 'diagnostics', label: 'Blood draw centre', subtitle: 'Robot blood draws and changing cubicles', rect: { x0: -28, x1: -22, z0: 2, z1: 12 }, kind: 'clinical', mapLabel: true },
   { id: 'command', label: 'Command center', subtitle: 'Every pod, room and order, live', rect: { x0: -22, x1: -12, z0: -12, z1: 12 }, kind: 'staff', mapLabel: true },
   { id: 'core', label: 'Pharmacy core', subtitle: 'MedVend dispensing wall and MedPods', rect: CORE, kind: 'robot', mapLabel: true },
   { id: 'atrium', label: 'Healing atrium', subtitle: 'Garden, café and daylight', rect: { x0: 12, x1: 40, z0: -12, z1: 12 }, kind: 'public', mapLabel: true },
@@ -310,7 +312,9 @@ export const AREAS: Area[] = [
   { id: 'staffA', label: 'Staff room', subtitle: '', rect: wardRect('A', -40, -25), kind: 'staff', ward: 'A', mapLabel: false },
   { id: 'hubA', label: 'Nurse hub A', subtitle: '', rect: wardRect('A', -5, 5), kind: 'staff', ward: 'A', mapLabel: true },
   { id: 'loungeA', label: 'Family lounge', subtitle: '', rect: wardRect('A', 25, 40), kind: 'public', ward: 'A', mapLabel: false },
-  { id: 'supplyB', label: 'Clean supply', subtitle: '', rect: wardRect('B', -40, -25), kind: 'service', ward: 'B', mapLabel: false },
+  { id: 'supplyB', label: 'Clean supply', subtitle: '', rect: wardRect('B', -40, -31), kind: 'service', ward: 'B', mapLabel: false },
+  // W4: the automated lab, behind the blood-draw centre across corridor B (the pneumatic tube crosses the corridor overhead)
+  { id: 'lab', label: 'Lab', subtitle: 'Automated sample track and analysers', rect: wardRect('B', -31, -25), kind: 'clinical', ward: 'B', mapLabel: true },
   { id: 'hubB', label: 'Nurse hub B', subtitle: '', rect: wardRect('B', -5, 5), kind: 'staff', ward: 'B', mapLabel: true },
   { id: 'quietB', label: 'Quiet room', subtitle: '', rect: wardRect('B', 25, 40), kind: 'public', ward: 'B', mapLabel: false },
   ...ROOMS.map(
@@ -368,6 +372,7 @@ export const DOORS: DoorSpec[] = [
   { id: 'staffA', center: { x: -33, z: -16 }, width: 1.2, wallAxis: 'x', a: 'corridorA', b: 'staffA', kind: 'swing' },
   { id: 'loungeA', center: { x: 33, z: -16 }, width: 2, wallAxis: 'x', a: 'corridorA', b: 'loungeA', kind: 'opening' },
   { id: 'supplyB', center: { x: -33, z: 16 }, width: 1.2, wallAxis: 'x', a: 'corridorB', b: 'supplyB', kind: 'swing' },
+  { id: 'lab', center: { x: -26.3, z: 16 }, width: 1.4, wallAxis: 'x', a: 'corridorB', b: 'lab', kind: 'swing' },
   { id: 'quietB', center: { x: 33, z: 16 }, width: 2, wallAxis: 'x', a: 'corridorB', b: 'quietB', kind: 'opening' },
   { id: 'hubA', center: { x: 0, z: -16 }, width: 2, wallAxis: 'x', a: 'corridorA', b: 'hubA', kind: 'counter' },
   { id: 'hubB', center: { x: 0, z: 16 }, width: 2, wallAxis: 'x', a: 'corridorB', b: 'hubB', kind: 'counter' },
@@ -663,3 +668,163 @@ export const DRAWER_CHUTES: DrawerChute[] = ROOMS.map((r) => {
     funnelTo: r.podDock,
   }
 })
+
+// ---------------------------------------------------------------------------------------------
+// Smart diagnostics (W4): entrance health kiosks, the robot blood-draw centre, the pneumatic tube and the automated lab.
+// See docs/W4-DIAGNOSTICS.md. Builders (scene) and services (sim) read these; the layout tests are the judge of clearances.
+// ---------------------------------------------------------------------------------------------
+
+/** One health kiosk (China 健康一体机): a tower against the lobby's south wall with a weighing platform in front, and a blood-pressure wing with a stool beside it. */
+export interface HealthKioskAnchor {
+  index: number
+  /** Tower centre on the floor; it is 0.56 wide (x) and 0.42 deep (z), its screen faces -z (north, into the lobby). */
+  tower: Vec2
+  /** The platform's centre: where you stand facing the tower (heading 0, +z). */
+  stand: Spot
+  /** The BP wing's desk centre (0.50 wide, 0.48 deep); the arm tunnel's mouth faces the stool (the crowd's ARM_IN line, src/scene/actors/crowd/armIn.ts). */
+  wing: Vec2
+  /** The stool in front of the wing (seat 'kioskBp:<i>', height 0.45 like every plain seat), facing the wing (heading 0). */
+  bpSeat: Spot
+}
+export const HEALTH_KIOSKS: HealthKioskAnchor[] = [-53.95, -52.35].map((x, index) => ({
+  index,
+  tower: { x, z: 5.45 },
+  stand: { at: { x, z: 4.98 }, heading: 0 },
+  wing: { x: x + 0.6, z: 5.36 },
+  bpSeat: { at: { x: x + 0.6, z: 4.62 }, heading: 0 },
+}))
+/** One shared line for both kiosks: the front spot, then back along -z (north) at `pitch`. */
+export const HEALTH_LINE = { front: { x: -53.15, z: 3.7 } as Vec2, pitch: 0.8, heading: 0, capacity: 4 }
+/** Where the kiosk guide stands between helping elderly users. */
+export const HEALTH_GUIDE: Spot = { at: { x: -51.0, z: 3.9 }, heading: -Math.PI / 2 }
+
+/** One robot blood-draw station: the cabinet against the corridor wall, the patient chair in front, facing it. */
+export interface DrawRobotAnchor {
+  index: number
+  /** Cabinet centre on the floor; 0.82 wide (x), 0.62 deep (z); its enclosed arm tunnel reaches 0.4 m out towards the chair. */
+  cabinet: Vec2
+  /** The patient chair (seat 'drawChair:robot:<i>', height 0.45), facing the cabinet (heading 0, +z). */
+  chair: Spot
+  /** Where the supervising nurse stands to help or draw by hand (the patient's right side). */
+  assist: Spot
+  /** The tube riser from the cabinet up to the pneumatic trunk (x, z on the floor). */
+  riser: Vec2
+}
+export const DRAW_CENTRE = {
+  robots: [-26.9, -25.2, -23.5].map(
+    (x, index): DrawRobotAnchor => ({
+      index,
+      cabinet: { x, z: 11.43 },
+      chair: { at: { x, z: 10.25 }, heading: 0 },
+      assist: { at: { x: x - 0.6, z: 10.3 }, heading: Math.PI / 2 },
+      riser: { x: x - 0.25, z: 11.78 },
+    }),
+  ),
+  /** The tube-prep machine (BC-ROBO-like, 0.60 wide along the wall, 0.755 deep) against the west wall, facing east; its tray outlet, and where the nurse takes the tray. */
+  prep: {
+    center: { x: -27.5225, z: 6.45 } as Vec2,
+    heading: Math.PI / 2,
+    tray: { x: -27.15, y: 0.95, z: 6.45 } as Vec3,
+    nurse: { at: { x: -26.6, z: 6.45 }, heading: -Math.PI / 2 } as Spot,
+    /** The tube kind in each of the 8 bins (the colour the gripper goes to): `TubePrepState.bin` indexes this. */
+    bins: ['citrate', 'serum', 'serum', 'heparin', 'EDTA', 'EDTA', 'fluoride', 'serum'] as readonly TubeKind[],
+  },
+  /** Waiting bench seats along the west wall, facing east ('waiting:draw:<i>'). */
+  bench: [7.7, 8.35, 9.0].map((z): Spot => ({ at: { x: -27.55, z }, heading: Math.PI / 2 })),
+  /** The check-in kiosk inside the door (ticket printer): device and the guest spot in front of it. */
+  checkIn: { device: { x: -24.6, z: 2.35 } as Vec2, guest: { at: { x: -24.6, z: 3.0 }, heading: Math.PI } as Spot, capacity: 2 },
+  /** The queue screen above the door, facing into the room. */
+  queueScreen: { x: -26.6, y: 2.55, z: 2.12, heading: 0 },
+  /** Standing spots in the imaging hall by the door when the bench is full. */
+  overflow: [
+    { x: -25.0, z: 1.15 },
+    { x: -24.2, z: 1.15 },
+    { x: -23.4, z: 1.15 },
+  ] as Vec2[],
+  /** The supervising nurse's watch spot, facing the three robots. */
+  nurse: { at: { x: -25.1, z: 8.6 }, heading: 0 } as Spot,
+  /** A wall send station at the east end for tubes the nurse drew by hand. */
+  manualSend: { x: -22.42, z: 11.66 } as Vec2,
+  /** The changing cubicles on the east wall (MRI patients change here): the spot inside, the approach outside. */
+  cubicles: [4.6, 6.0, 7.4].map((z) => ({ at: { x: -22.8, z } as Vec2, approach: { x: -24.0, z } as Vec2, heading: Math.PI / 2 })),
+} as const
+
+/**
+ * The single-tube pneumatic line (no carrier: the tube itself flies, about 10 m/s). A clear trunk under the ceiling (centre 2.85 m) along the
+ * draw room's south wall, through that wall at x -27.8, west along corridor B's north wall, across the corridor at x -29.9 (0.72 m and more
+ * from the ward-B pod rail's U-turn; the rule is 0.45 m) and down into the lab's receive station. Each robot (and the manual send station)
+ * joins it with a riser. Paths and the flight profile: src/sim/pneumaticPath.ts.
+ */
+export const PNEUMATIC = {
+  outerDiameter: 0.063,
+  y: 2.85,
+  trunk: [
+    { x: -22.42, y: 2.85, z: 11.78 },
+    { x: -27.8, y: 2.85, z: 11.78 },
+    { x: -27.8, y: 2.85, z: 12.15 },
+    { x: -29.9, y: 2.85, z: 12.15 },
+    { x: -29.9, y: 2.85, z: 16.5 },
+    { x: -29.9, y: 1.45, z: 16.5 },
+  ] as Vec3[],
+  /** Riser bottoms: robots 0..2 (out of the cabinet top), then the manual send station (index 3). */
+  sources: [
+    { x: -27.15, y: 1.05, z: 11.78 },
+    { x: -25.45, y: 1.05, z: 11.78 },
+    { x: -23.75, y: 1.05, z: 11.78 },
+    { x: -22.42, y: 1.65, z: 11.78 },
+  ] as Vec3[],
+  profile: { vMax: 10, accel: 20, decel: 25 },
+} as const
+
+export type LabModuleKind = 'receive' | 'camera' | 'centrifuge' | 'decapper' | 'haematology' | 'chemistry' | 'immunoassay' | 'coagulation' | 'recapper' | 'archive'
+/** A module on the outer side of the lab track: its id, kind, footprint centre and size (along the track, across it), and its stop on the track (`at`, the point beside it). */
+export interface LabModuleAnchor {
+  id: string
+  kind: LabModuleKind
+  center: Vec2
+  along: number
+  across: number
+  at: Vec2
+}
+/**
+ * The automated lab. A one-way U track on a 0.86 m bench (outbound lane on the module side, return lane inside, 0.12 apart, turntables at both
+ * ends): west leg x -30.0 (z 16.95 -> 20.7), south leg z 21.0 (x -29.7 -> -26.25), east leg x -25.95 (z 20.7 -> 18.4), arcs r 0.3. The
+ * modules sit on the outer side, in sample order. Paths and stops: src/sim/labTrack.ts.
+ */
+export const LAB = {
+  benchY: 0.86,
+  laneGap: 0.12,
+  /** The U's centre line, in order. */
+  track: [
+    { x: -30.0, z: 16.95 },
+    { x: -30.0, z: 20.7 },
+    { x: -29.7, z: 21.0 },
+    { x: -26.25, z: 21.0 },
+    { x: -25.95, z: 20.7 },
+    { x: -25.95, z: 18.4 },
+  ] as Vec2[],
+  turnRadius: 0.3,
+  /** The pneumatic receive station and sorter, where the trunk drops in. */
+  receive: { x: -29.9, z: 16.5 } as Vec2,
+  modules: [
+    { id: 'camera', kind: 'camera', center: { x: -30.0, z: 17.35 }, along: 0.3, across: 0.35, at: { x: -30.0, z: 17.35 } },
+    { id: 'cfg0', kind: 'centrifuge', center: { x: -30.6, z: 17.95 }, along: 0.7, across: 0.7, at: { x: -30.0, z: 17.95 } },
+    { id: 'cfg1', kind: 'centrifuge', center: { x: -30.6, z: 18.75 }, along: 0.7, across: 0.7, at: { x: -30.0, z: 18.75 } },
+    { id: 'decap', kind: 'decapper', center: { x: -30.55, z: 19.45 }, along: 0.5, across: 0.6, at: { x: -30.0, z: 19.45 } },
+    { id: 'haem', kind: 'haematology', center: { x: -29.25, z: 21.5 }, along: 0.85, across: 0.75, at: { x: -29.25, z: 21.0 } },
+    { id: 'chem', kind: 'chemistry', center: { x: -28.05, z: 21.5 }, along: 1.45, across: 0.75, at: { x: -28.05, z: 21.0 } },
+    { id: 'immuno', kind: 'immunoassay', center: { x: -26.8, z: 21.5 }, along: 0.95, across: 0.75, at: { x: -26.8, z: 21.0 } },
+    { id: 'coag', kind: 'coagulation', center: { x: -25.5, z: 20.1 }, along: 0.6, across: 0.7, at: { x: -25.95, z: 20.1 } },
+    { id: 'recap', kind: 'recapper', center: { x: -25.5, z: 19.4 }, along: 0.45, across: 0.6, at: { x: -25.95, z: 19.4 } },
+    { id: 'archive', kind: 'archive', center: { x: -25.5, z: 18.75 }, along: 0.7, across: 0.7, at: { x: -25.95, z: 18.75 } },
+  ] as LabModuleAnchor[],
+  /** The review terminal inside the U, and the scientist's spots. */
+  terminal: { at: { x: -28.0, z: 19.3 }, heading: Math.PI / 2 } as Spot,
+  tech: [
+    { at: { x: -28.0, z: 19.3 }, heading: Math.PI / 2 },
+    { at: { x: -29.05, z: 18.1 }, heading: -Math.PI / 2 },
+  ] as Spot[],
+  statusTotem: { x: -28.1, z: 16.45 } as Vec2,
+  /** Where you stand in corridor B to look in (E). */
+  viewpoint: { x: -28.0, z: 15.4 } as Vec2,
+} as const

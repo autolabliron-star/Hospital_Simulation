@@ -21,6 +21,9 @@ import type { ErPatient } from './patient'
 import { PorterBoard } from './porterBoard'
 import type { QueueLike } from './ports'
 import { SimClock } from './simClock'
+import type { DrawCentre } from '../blood'
+import type { Lab } from '../lab'
+import type { VitalsService } from '../vitals'
 
 export interface WorldHooks {
   add(p: Person): void
@@ -53,6 +56,10 @@ export class World {
   ambient: AmbientLike | null = null
   /** The imaging department (scanners, bookings, outpatients), set by the Simulation; null in a bare world. */
   imaging: ImagingDepartment | null = null
+  /** W4 smart diagnostics, set by the Simulation; null in a bare world (ER bloods then fall back to the M3 timers). */
+  vitals: VitalsService | null = null
+  blood: DrawCentre | null = null
+  lab: Lab | null = null
   /**
    * The bed board (L1): the lifecycle of the 16 ward beds and the bed manager's rules, set by the Simulation's BedFlow;
    * null in a bare world (the ER and the porters then behave as in M3: admitted patients go "to a ward upstairs").

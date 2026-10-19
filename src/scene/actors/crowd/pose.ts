@@ -23,6 +23,8 @@
  */
 import { noise1, TAU, clamp } from './math'
 import { MODES, type Mode } from './blend'
+import { ARM_IN, FINGER, GRIP } from './armIn'
+import { BODY, STAND_PELVIS } from './constants'
 import { reclineAngle } from '@/scene/rooms/bedPose'
 
 export const U = {
@@ -85,6 +87,14 @@ export interface PoseCtx {
   slump: number
   /** 0..1: how far the bed head is raised under a person lying in a ward bed (0 flat, 1 about 45 degrees). Only the 'lie' mode reads it. */
   recline: number
+  /**
+   * W4: this person's own skeleton, for a SEATED reach target that must land on a fixed point above the seat ('sitArmIn'): the pelvis height of a relaxed
+   * standing person and of a seated one above the seat (constants.ts `standPelvis(B)` and `B.seatedPelvis`). The defaults are the nominal body's; the
+   * rig writes the person's own (an avatar's seated pelvis is up to 8 cm higher), see `seatedReachY`. A STANDING fixed point needs neither: the rig's
+   * conversion cancels them.
+   */
+  standPelvis: number
+  seatedPelvis: number
   // personality
   armRoll: number
   armElbow: number
@@ -106,6 +116,8 @@ export function createPoseCtx(seed: number, hand: 1 | -1, rnd: (k: number) => nu
     happy: 0,
     slump: 0,
     recline: 0,
+    standPelvis: STAND_PELVIS,
+    seatedPelvis: BODY.seatedPelvis,
     armRoll: 0.05 + rnd(61) * 0.09,
     armElbow: 0.14 + rnd(62) * 0.16,
     gestureRate: 0.8 + rnd(63) * 0.45,
@@ -399,6 +411,72 @@ function evalLie(c: PoseCtx, o: Out): void {
   o[U.headRoll] = 0.04 * noise1(c.t * 0.13, c.seed + 29)
 }
 
+// ---------------------------------------------------------------------------------------------
+// W4: the health kiosk and the robot draw chairs (the numbers are in armIn.ts)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The reach-target y that puts a hand `up` metres ABOVE THE SEAT for a seated person of size c.size. The rig turns a target into a point of the world as
+ * `pelvisRef + (y - standPelvis) * size`, and seated `pelvisRef` is the seat surface plus the seated pelvis height, so
+ * `y = standPelvis + up / size - seatedPelvis` lands on `seat + up`.
+ */
+export function seatedReachY(c: Pick<PoseCtx, 'standPelvis' | 'seatedPelvis' | 'size'>, up: number): number {
+  return c.standPelvis + up / c.size - c.seatedPelvis
+}
+
+/**
+ * Standing at the kiosk with both hands on the body-fat handles on the tower's sides, a little above the waist: the arms reach out and forward, the
+ * head tips down to the screen. The handles are fixed in the world, so the targets are divided by the size (the rig scales them back).
+ */
+function evalGrip(c: PoseCtx, o: Out): void {
+  const breath = Math.sin(TAU * c.breathHz * c.t + c.seed)
+  const k = 1 / c.size
+  const settle = 0.006 * breath
+  arm(o, ARM_L, 0.75, 0.42, 0, 0.5, 0.05, 0.6)
+  arm(o, ARM_R, 0.75, 0.42, 0, 0.5, 0.05, 0.6)
+  reach(o, REACH_L, GRIP.side * k, (GRIP.up + settle) * k, GRIP.ahead * k)
+  reach(o, REACH_R, -GRIP.side * k, (GRIP.up + settle) * k, GRIP.ahead * k)
+  o[U.chestPitch] = 0.05 + 0.012 * breath
+  o[U.headPitch] = 0.16 + 0.02 * breath
+  o[U.headYaw] = 0.03 * noise1(c.t * 0.3, c.seed + 30)
+}
+
+/**
+ * Standing at the kiosk with the right hand held out, one finger forward, to the QR reader, the finger clip or the printer on the tower; the left
+ * arm hangs. The point is fixed in the world.
+ */
+function evalFinger(c: PoseCtx, o: Out): void {
+  const breath = Math.sin(TAU * c.breathHz * c.t + c.seed)
+  const k = 1 / c.size
+  const press = Math.max(0, sine(c.t, 0.45, c.seed)) * 0.012
+  arm(o, ARM_R, 1.05, 0.12, 0, 1.2, -0.1, 1.1)
+  arm(o, ARM_L, 0.05, c.armRoll, 0, c.armElbow + 0.1, 0, 0.2)
+  reach(o, REACH_R, FINGER.x * k, (FINGER.up + 0.004 * breath) * k, (FINGER.ahead + press) * k)
+  o[U.chestPitch] = 0.07 + 0.01 * breath
+  o[U.chestYaw] = -0.06
+  o[U.headPitch] = 0.2 + 0.02 * breath
+  o[U.headYaw] = -0.04 + 0.03 * noise1(c.t * 0.3, c.seed + 31)
+}
+
+/**
+ * Seated at a cuff or a robot tunnel: the left arm forward, nearly straight, palm up, the hand resting in the tunnel on the ARM_IN point; the right hand
+ * on the thigh; the head turned a little to the screen on the right and tipped down to it. Used by the BP stool and by S2's robot chairs.
+ */
+function evalSitArmIn(c: PoseCtx, o: Out): void {
+  const breath = Math.sin(TAU * c.breathHz * c.t + c.seed)
+  const sway = noise1(c.t * 0.4, c.seed + 14)
+  const k = 1 / c.size
+  // the angles that would reach about this far without the solve (a blend that starts from another mode begins near them)
+  arm(o, ARM_L, 1.2, 0.05, 0, 0.45, -0.05, -1.1)
+  reach(o, REACH_L, ARM_IN.left * k, seatedReachY(c, ARM_IN.up) + 0.004 * breath * k, ARM_IN.ahead * k)
+  arm(o, ARM_R, 0.2 - 0.015 * sway, 0.1, 0, 1.05, -0.05, 0.9)
+  o[U.chestPitch] = 0.02 + 0.012 * breath
+  o[U.chestRoll] = 0.02 * noise1(c.t * 0.25, c.seed + 15)
+  o[U.headPitch] = 0.22 + 0.02 * breath
+  o[U.headYaw] = -0.2 + 0.04 * noise1(c.t * 0.3, c.seed + 16)
+  o[U.headRoll] = 0.03 * noise1(c.t * 0.22, c.seed + 17)
+}
+
 /** Fill `o` (UP_COUNT floats) with the pose of `mode` at the context's time. Every entry is written. */
 export function evalMode(mode: Mode, c: PoseCtx, o: Out): void {
   o.fill(0)
@@ -429,6 +507,12 @@ export function evalMode(mode: Mode, c: PoseCtx, o: Out): void {
       return evalSitListen(c, o)
     case 'lie':
       return evalLie(c, o)
+    case 'grip':
+      return evalGrip(c, o)
+    case 'finger':
+      return evalFinger(c, o)
+    case 'sitArmIn':
+      return evalSitArmIn(c, o)
   }
 }
 

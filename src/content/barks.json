@@ -46,6 +46,11 @@
       "Hi, Doctor. Quiet one so far.",
       "Hello, Doctor."
     ],
+    "labScientist": [
+      "{hello}, Doctor.",
+      "Hi, Doctor. Your results are on the track.",
+      "Hello, Doctor."
+    ],
     "radiographer": [
       "{hello}, Doctor. Scanner's ready when you are.",
       "Hi, Doctor.",
@@ -348,6 +353,10 @@
     "paramedic.idle": [
       "Resting between calls. All good.",
       "Ready for the next call."
+    ],
+    "labScientist.working": [
+      "The track does the running. I check the results it flags.",
+      "Most results verify themselves. I look at the rest."
     ],
     "generic.patient": [
       "Hello. Everything's fine, thank you.",

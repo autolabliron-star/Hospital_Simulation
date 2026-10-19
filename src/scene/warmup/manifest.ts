@@ -46,6 +46,7 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/meals/botsRig.ts': { count: 2, via: 'mounted', where: 'MealBot body and light ring (kept on hidden zero-size instances while no bot is out)' },
   'src/scene/meals/traysRig.ts': { count: 1, via: 'mounted', where: 'tray and cloche meshes (hidden instances)' },
   'src/scene/meals/ward/wardParts.ts': { count: 2, via: 'mounted', where: 'ward rig: bedside screens and door tiles' },
+  'src/scene/drawCentre/liveTexture.ts': { count: 1, via: 'mounted', where: 'DrawCentreLayer: the three robot screens (draw-screens), made at mount by createDrawRig; imaging-monitor settings, shared program' },
   'src/scene/robots/faceMaterial.ts': { count: 1, via: 'mounted', where: 'PodsLayer: the pod face screens' },
 }
 

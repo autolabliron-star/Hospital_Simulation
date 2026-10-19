@@ -230,6 +230,147 @@ export const CONFIG = {
   },
 
   // ---------------------------------------------------------------------------------------------
+  // W4: smart diagnostics (docs/W4-DIAGNOSTICS.md). Seconds unless named; ranges are [min, max] seeded draws. Sources in the comments.
+  // ---------------------------------------------------------------------------------------------
+
+  /** Entrance health kiosks (China 健康一体机 / 智能健康小屋): ID/insurance card or WeChat QR login; whole session 3-5 min; 20-60 sessions a day
+   *  per station with a morning peak; one attendant helps the elderly (Nanjing/Shanghai/Beijing reports, SiSU). */
+  vitals: {
+    loginSeconds: [12, 30] as readonly [number, number],
+    heightSeconds: [4, 6] as readonly [number, number],
+    weightSeconds: [3, 5] as readonly [number, number],
+    bodyFatSeconds: [10, 15] as readonly [number, number],
+    sitSeconds: [3, 5] as readonly [number, number],
+    /** Finger clip; doubles as the seated rest before the cuff. */
+    spo2Seconds: [20, 40] as readonly [number, number],
+    /** Arm-tunnel cuff (Omron HBP-9020 style), about a minute per reading. */
+    bpSeconds: [45, 65] as readonly [number, number],
+    bpReadingsFull: 2,
+    bpGapSeconds: 60,
+    /** If two readings disagree by more than this (systolic, mmHg), a third after a 3-minute rest (PUMCH guidance). */
+    bpRepeatDeltaSys: 10,
+    bpRepeatRestSeconds: 180,
+    tempSeconds: [2, 4] as readonly [number, number],
+    reportSeconds: [8, 12] as readonly [number, number],
+    screenHoldSeconds: 8,
+    assistAge: 75,
+    assistChance: 0.15,
+    assistFactor: 1.3,
+    /** Waiting-area readings run 10-30 mmHg below the consulting room (the white-coat effect, PUMCH): a per-person offset added at triage. */
+    whiteCoatSys: [0, 30] as readonly [number, number],
+    whiteCoatDiaShare: 0.4,
+    /** ER walk-ins: who stops at a kiosk on the way to the triage wait (vitals-only session, one cuff reading). */
+    erMinAcuity: 3,
+    erUseChance: 0.35,
+    erMaxAhead: 1,
+    /** Triage takes this share of its time when kiosk vitals are already in the record. */
+    triageWithVitalsFactor: 0.8,
+    /** Walk-up health checks per hour PER KIOSK, by clock hour (piecewise linear): about 35 a day per kiosk (field: 20-60). */
+    walkUpsPerHour: [
+      [7.0, 2],
+      [8.0, 6],
+      [9.5, 6],
+      [11.0, 3],
+      [13.0, 2],
+      [17.0, 2],
+      [19.0, 0],
+    ] as readonly (readonly [number, number])[],
+    /** Your own session (E at a kiosk) is a short demo. */
+    playerSessionSeconds: 40,
+  },
+
+  /** Robot blood-draw centre. MagicNurse/迈纳士 (NMPA Class III 2019, Zhongshan Hospital): 205 s for 4 tubes, 94.3 % of 6,016 patients;
+   *  Vitestro Aletta: median 2:37 start-to-bandage, 94.5 % first stick when a vein was found, ~6 % no suitable vein -> manual, haemolysis
+   *  0.3 %, one supervisor per 3 robots. Draw-centre flow (Guangdong, Taihu, Fudan Cancer): ticket -> call -> tube prep (BC-ROBO 10-12 s) ->
+   *  draw -> pneumatic; peak 07:30-09:30. */
+  blood: {
+    outpatientHours: [7.0, 17.0] as readonly [number, number],
+    outpatientsPerHour: [
+      [7.0, 14],
+      [7.5, 28],
+      [8.5, 30],
+      [9.5, 20],
+      [10.5, 10],
+      [12.0, 6],
+      [14.0, 6],
+      [16.5, 3],
+      [17.0, 0],
+    ] as readonly (readonly [number, number])[],
+    robotsPerNurse: 3,
+    checkInSeconds: [10, 20] as readonly [number, number],
+    prepSeconds: [10, 12] as readonly [number, number],
+    callRepeatSeconds: 45,
+    stuckSeconds: 300,
+    priorityAge: 80,
+    cardScanSeconds: [3, 6] as readonly [number, number],
+    armInSeconds: [8, 14] as readonly [number, number],
+    cuffSeconds: [10, 15] as readonly [number, number],
+    sanitiseSeconds: [20, 30] as readonly [number, number],
+    veinScanSeconds: [15, 35] as readonly [number, number],
+    needleInSeconds: [6, 10] as readonly [number, number],
+    inversionSeconds: 1.1,
+    fillSeconds: {
+      citrate: [10, 14],
+      serum: [14, 20],
+      heparin: [12, 18],
+      EDTA: [10, 14],
+      fluoride: [8, 12],
+    } as Readonly<Record<'citrate' | 'serum' | 'heparin' | 'EDTA' | 'fluoride', readonly [number, number]>>,
+    needleOutSeconds: [4, 6] as readonly [number, number],
+    bandageSeconds: [8, 12] as readonly [number, number],
+    releaseSeconds: [6, 10] as readonly [number, number],
+    resetSeconds: [10, 15] as readonly [number, number],
+    noVeinChance: 0.06,
+    firstStickMissChance: 0.055,
+    maxRobotAttempts: 2,
+    armMoveChance: 0.015,
+    /** Manual draw by the supervising nurse: 52 s for 4 tubes by hand (Zhongshan) plus her preparation. */
+    manualDrawSeconds: [55, 90] as readonly [number, number],
+    reassureSeconds: [15, 30] as readonly [number, number],
+    /** Contrast-CT outpatients arrive this much earlier for a creatinine draw. */
+    preScanLeadSeconds: 3000,
+    /** Safety nets so a stalled draw or lab can never strand an ER patient: give up waiting for the draw, and for the results (the lab takes 16-22 min). */
+    drawFallbackSeconds: 900,
+    resultsFallbackSeconds: 2700,
+  },
+
+  /** The automated lab (Roche cobas / Mindray MT 8000 / Sysmex XN-9100 style). Single-tube pneumatic about 10 m/s (Wenling). Centrifuge 5-10
+   *  min. Field turnaround: blood count ~30 min, chemistry 40-60, immunoassay 60-120; next door, on a track, with auto-verification, faster. */
+  lab: {
+    sendGapSeconds: 2.5,
+    receiveSeconds: 1.5,
+    sortSeconds: [3, 5] as readonly [number, number],
+    cameraSeconds: 2,
+    haemolysisChance: 0.003,
+    trackSpeed: 0.25,
+    puckGap: 0.12,
+    centrifugeCapacity: 24,
+    spinSeconds: { stat: 300, routine: 420 } as Readonly<Record<'stat' | 'routine', number>>,
+    loadSecondsPerTube: 2,
+    routineBatchMaxWaitSeconds: 600,
+    decapSeconds: 2.5,
+    recapSeconds: 2.5,
+    /** Seconds per aspiration (a blood count analyser does about 100 an hour). */
+    aspirateSeconds: { haematology: 36, chemistry: 4.5, immunoassay: 20, coagulation: 30 } as Readonly<Record<'haematology' | 'chemistry' | 'immunoassay' | 'coagulation', number>>,
+    autoVerifyShare: 0.85,
+    reviewSeconds: { stat: [45, 120], routine: [90, 420] } as Readonly<Record<'stat' | 'routine', readonly [number, number]>>,
+    archiveCapacity: 3000,
+    /** Ward samples arriving through the riser (drawn at the bedside, not modelled), per hour by clock hour. */
+    backgroundPerHour: [
+      [6.0, 10],
+      [7.0, 30],
+      [9.0, 20],
+      [12.0, 10],
+      [18.0, 8],
+      [23.5, 4],
+    ] as readonly (readonly [number, number])[],
+    /** Target turnaround (minutes, draw to verified result) per analyser: the tests check 95 % fall inside. */
+    tatTargetMinutes: { haematology: [2, 20], chemistry: [12, 45], immunoassay: [15, 60], coagulation: [8, 40] } as Readonly<
+      Record<'haematology' | 'chemistry' | 'immunoassay' | 'coagulation', readonly [number, number]>
+    >,
+  },
+
+  // ---------------------------------------------------------------------------------------------
   // L1: living day & bed flow (docs/L1-LIVING-DAY.md). Nothing reads these yet: the L1 builders switch the sim over
   // to them, each with its tests. Until then the M3 and R1 tables above run unchanged.
   // ---------------------------------------------------------------------------------------------

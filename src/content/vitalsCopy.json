@@ -1,0 +1,10 @@
+{
+  "healthCheck": {
+    "er": "{name} finished a health check: BP {sys}/{dia}, SpO₂ {spo2}%, sent to triage.",
+    "walkUp": "{name} finished a health check at kiosk {kiosk}: BP {sys}/{dia}, SpO₂ {spo2}%, BMI {bmi}.",
+    "player": "You finished a health check: BP {sys}/{dia}, SpO₂ {spo2}%, BMI {bmi}.",
+    "earlyWithBp": "{name} left the health check early, with BP {sys}/{dia} recorded.",
+    "early": "{name} left the health check early.",
+    "guide": "{guide} is helping {name} at kiosk {kiosk}."
+  }
+}

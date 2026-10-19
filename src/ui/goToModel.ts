@@ -56,9 +56,10 @@ export function buildGoToGroups(rooms?: ReadonlyMap<RoomId, RoomStatus>): GoToGr
         item('xray', 'X-ray', 'Radiography'),
         item('ultrasound', 'Ultrasound', 'Live sonography'),
         item('imagingHall', 'Imaging corridor', 'Waiting seats'),
-        item('diagnostics', 'Blood draw', 'Changing cubicles and blood tests'),
       ],
     },
+    // W4: the robot draw centre and the automated lab it sends its tubes to
+    { id: 'bloodLab', title: 'Blood & lab', items: [item('diagnostics'), item('lab')] },
     { id: 'wardA', title: 'Ward A', items: wardItems('A', rooms) },
     { id: 'wardB', title: 'Ward B', items: wardItems('B', rooms) },
     { id: 'pharmacy', title: 'Pharmacy core', items: [item('core', 'Pharmacy core', 'MedVend wall and MedPods')] },

@@ -7,6 +7,7 @@
 import { useWarmup } from '@/scene/warmup'
 import { useFocus } from '@/scene/camera/focus.store'
 import { useDrawerCard } from '@/ui/walk/drawerCard.store'
+import { useHealthCard } from '@/ui/walk/healthCard.store'
 import { useGoTo } from '@/ui/goTo.store'
 import { useJump } from '@/ui/jump.store'
 import { useRx } from '@/ui/walk/rx.store'
@@ -26,11 +27,12 @@ export function overlayOpen(): boolean {
 /** Esc would close something of ours, and no menu has a claim on it. */
 export function closableOverlayOpen(): boolean {
   if (menuOpen()) return false
-  return useRx.getState().open || useFocus.getState().area !== null || useDrawerCard.getState().roomId !== null
+  return useRx.getState().open || useFocus.getState().area !== null || useDrawerCard.getState().roomId !== null || useHealthCard.getState().open
 }
 
 export function closeOverlays(): void {
   useRx.getState().close()
   useDrawerCard.getState().close()
+  useHealthCard.getState().close()
   if (useFocus.getState().area !== null) useFocus.getState().setArea(null)
 }

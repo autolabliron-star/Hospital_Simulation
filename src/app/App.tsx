@@ -6,6 +6,7 @@ import { Box3, MathUtils, Vector3 } from 'three'
 import { BUILDING, VIEW } from '@/sim/places'
 import { Ambience } from '@/audio/AmbienceSounds'
 import { ScannerSounds } from '@/audio/ScannerSounds'
+import { DeviceSounds } from '@/audio/devices/DeviceSounds'
 import { registerControls } from '@/scene/camera/cameraApi'
 import { RoomPicker } from '@/scene/camera/RoomPicker'
 import { CommandWallLive } from '@/scene/building/render/CommandWallLive'
@@ -129,6 +130,7 @@ export function App() {
       <GoToMenu />
       <RoomPanel />
       <ScannerSounds />
+      <DeviceSounds />
       <Ambience />
       <RoomKeys />
       <JumpMenu />

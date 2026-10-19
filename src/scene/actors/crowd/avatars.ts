@@ -182,6 +182,8 @@ export const UNIFORM: Readonly<Record<Role, Wardrobe>> = Object.freeze({
   receptionist: { female: ['business_female_02', 'female_adult_15'], male: ['male_adult_08'], tint: TINT.none },
   coordinator: { female: ['business_female_02', 'female_adult_15'], male: ['male_adult_08'], tint: TINT.none },
   host: { female: ['female_adult_17'], male: ['male_adult_12'], tint: TINT.top },
+  // W4: lab coat over lavender scrubs
+  labScientist: { female: ['medical_female_01'], male: ['medical_male_05'], tint: TINT.both },
   patient: GOWN,
   visitor: EVERYDAY,
 })

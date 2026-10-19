@@ -12,7 +12,7 @@
 import type { Role, ShiftId, WardId } from '@/sim/types'
 
 /** Where a member of staff works. */
-export type StaffPost = 'ward' | 'er' | 'triage' | 'reception' | 'transport' | 'housekeeping' | 'pharmacy' | 'command' | 'imaging'
+export type StaffPost = 'ward' | 'er' | 'triage' | 'reception' | 'transport' | 'housekeeping' | 'pharmacy' | 'command' | 'imaging' | 'bloodDraw' | 'kiosk' | 'lab'
 
 export interface StaffMember {
   id: string
@@ -29,6 +29,7 @@ export interface StaffMember {
     | 'radiographer'
     | 'sonographer'
     | 'host'
+    | 'labScientist'
   >
 
   ward?: WardId
@@ -88,7 +89,18 @@ export const HOSTS: StaffMember[] = [
   { id: 'host-B', role: 'host', ward: 'B', post: 'ward', shift: 'day', name: 'Host Caspian' },
 ]
 
-const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS].map((s) => [s.id, s]))
+/**
+ * W4 smart diagnostics: on site around the clock in v1 (not on the day rhythm's roster; robots only work while the supervising nurse is there,
+ * and manual review needs the scientist). Spawned by their services: the draw centre (src/sim/blood), the kiosks (src/sim/vitals) and the lab
+ * (src/sim/lab).
+ */
+export const W4_STAFF: StaffMember[] = [
+  { id: 'draw-nurse', role: 'nurse', post: 'bloodDraw', shift: 'day', name: 'Nurse Hana' },
+  { id: 'kiosk-guide', role: 'nurse', post: 'kiosk', shift: 'day', name: 'Nurse Ingrid' },
+  { id: 'lab-sci-1', role: 'labScientist', post: 'lab', shift: 'day', name: 'Scientist Arjun' },
+]
+
+const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF].map((s) => [s.id, s]))
 
 export function staffName(id: string): string {
   return BY_ID.get(id)?.name ?? id

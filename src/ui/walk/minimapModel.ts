@@ -59,6 +59,7 @@ export const MAP_LABELS: readonly { area: AreaId; text: string }[] = [
   { area: 'xray', text: 'X-ray' },
   { area: 'ultrasound', text: 'US' },
   { area: 'diagnostics', text: 'Blood' },
+  { area: 'lab', text: 'Lab' },
   { area: 'command', text: 'Command' },
   { area: 'core', text: 'Pharmacy' },
   { area: 'atrium', text: 'Atrium' },

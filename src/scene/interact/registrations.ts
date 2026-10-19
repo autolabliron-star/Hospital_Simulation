@@ -26,6 +26,9 @@ import {
 } from '@/sim/places'
 import type { Vec3 } from '@/sim/types'
 import type { WalkActions } from './actions'
+import { buildDrawInteractables } from './w4/drawRegs'
+import { buildKioskInteractables } from './w4/kioskRegs'
+import { buildLabInteractables } from './w4/labRegs'
 
 /** The part of the sim the labels read: who lies in the bed (the bed board's answer, the one a prescription is checked against). */
 export interface RegSim {
@@ -144,7 +147,9 @@ export function buildWalkInteractables(host: RegHost): Interactable[] {
 
 /** Register everything; returns the function that takes it all out again. */
 export function registerWalkInteractables(host: RegHost): () => void {
-  const undo = buildWalkInteractables(host).map((item) => useInteract.getState().register(item))
+  // W4: the health kiosks, the robot draw centre and the lab add their own (src/scene/interact/w4)
+  const all = [...buildWalkInteractables(host), ...buildKioskInteractables(host), ...buildDrawInteractables(host), ...buildLabInteractables(host)]
+  const undo = all.map((item) => useInteract.getState().register(item))
   return () => {
     for (const u of undo) u()
   }

@@ -20,7 +20,10 @@ export function buildLabels(b: LayoutBuilder): void {
     { id: 'ct', text: 'CT', x: -27.6, z: -5.75, height: 0.6, maxWidth: 2.2 },
     { id: 'xray', text: 'X-RAY', x: -37.4, z: 11.0, height: 0.5, maxWidth: 3.6 },
     { id: 'ultrasound', text: 'ULTRASOUND', x: -31.0, z: 5.6, height: 0.4, maxWidth: 4.6 },
-    { id: 'diagnostics', text: 'BLOOD DRAW', x: -25.3, z: 8.9, height: 0.42, maxWidth: 3.6 },
+    // W4: the robot draw centre's furniture stands along the south wall and the nurse's spot is at z 8.6: the name lies on the open floor mid-room
+    { id: 'diagnostics', text: 'BLOOD DRAW', x: -25.2, z: 5.9, height: 0.42, maxWidth: 3.6 },
+    // W4: the automated lab, on the open floor of the U's mouth (clear of the door's swing, the totem and the review desk)
+    { id: 'lab', text: 'LAB', x: -28.8, z: 17.25, height: 0.5, maxWidth: 2.2 },
     { id: 'command', text: 'COMMAND CENTER', x: -15, z: -7.2, height: 0.5, maxWidth: 4.9 },
     { id: 'core', text: 'PHARMACY CORE', x: 0, z: -9.8, height: 0.8 },
     { id: 'atrium', text: 'HEALING ATRIUM', x: 23.5, z: 0, height: 0.7 },
@@ -37,7 +40,8 @@ export function buildLabels(b: LayoutBuilder): void {
   const side: { door: string; text: string; dx: number; sign: 1 | -1 }[] = [
     { door: 'staffA', text: 'STAFF ROOM', dx: 2.2, sign: -1 },
     { door: 'loungeA', text: 'FAMILY LOUNGE', dx: -3.5, sign: -1 },
-    { door: 'supplyB', text: 'CLEAN SUPPLY', dx: 2.2, sign: 1 },
+    // W4: the room shrank to x -40..-31, so its name sits west of the door (the lab starts at x -31)
+    { door: 'supplyB', text: 'CLEAN SUPPLY', dx: -2.6, sign: 1 },
     { door: 'quietB', text: 'QUIET ROOM', dx: -3.5, sign: 1 },
   ]
   for (const s of side) {

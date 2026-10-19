@@ -217,6 +217,9 @@ const SHOTS: Partial<Record<AreaId, Shot>> = {
   ctControl: { target: { x: -27.4, y: 0.9, z: -3.4 }, pitchDeg: 34, yawDeg: 0, box: { x0: -31, x1: -22, y0: 0, y1: 2.4, z0: -11, z1: -2 } },
   xray: { target: { x: -37, y: 0.8, z: 7.2 }, pitchDeg: 46, yawDeg: 160, box: { x0: -40, x1: -34, y0: 0, y1: 2.8, z0: 2, z1: 12 } },
   ultrasound: { target: { x: -31, y: 0.7, z: 8.4 }, pitchDeg: 44, yawDeg: 188, box: { x0: -34, x1: -28, y0: 0, y1: 2.1, z0: 3.5, z1: 12 } },
+  // W4: both look south from the north side, at the machines' fronts
+  diagnostics: { target: { x: -25, y: 0.9, z: 9.6 }, pitchDeg: 40, yawDeg: 180, box: { x0: -28, x1: -22, y0: 0, y1: 2.4, z0: 5, z1: 12 } },
+  lab: { target: { x: -28, y: 0.9, z: 19.5 }, pitchDeg: 44, yawDeg: 180, box: { x0: -31, x1: -25, y0: 0, y1: 2.0, z0: 16, z1: 22 } },
 }
 
 function clamp(v: number, lo: number, hi: number): number {

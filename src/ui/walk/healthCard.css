@@ -1,0 +1,251 @@
+/*
+ * W4: your health card (walk mode). A frosted card like the MedDrawer card while your session runs; once it is done it looks like the thermal slip the kiosk
+ * printed: white paper, a monospaced face, a torn edge. Position: bottom right, where the drawer card goes (you are never at both).
+ */
+
+.walk-health {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: min(292px, calc(100vw - 32px));
+  padding: 12px 14px 14px;
+  animation: hud-fade-in 0.25s ease both;
+}
+
+.walk-health__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.walk-health__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.walk-health__step {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.walk-health__hint {
+  margin: 1px 0 0;
+  color: var(--hud-muted);
+  font-size: 12.5px;
+}
+
+.walk-health__progress {
+  position: relative;
+  height: 4px;
+  margin: 8px 0 0;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--hud-faint);
+}
+
+.walk-health__progress > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--teal);
+  transition: width 0.3s linear;
+}
+
+.walk-health__dots {
+  display: flex;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.walk-health__dots li {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--hud-faint);
+}
+
+.walk-health__dots li[data-state='done'] {
+  background: var(--teal);
+}
+
+.walk-health__dots li[data-state='current'] {
+  background: var(--ink);
+  transform: scale(1.25);
+}
+
+.walk-health__rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.walk-health__row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding-left: 7px;
+  border-left: 2px solid transparent;
+}
+
+.walk-health__row[data-current='true'] {
+  border-left-color: var(--teal);
+}
+
+.walk-health__label {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+.walk-health__value {
+  font-size: 17px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.walk-health__value[data-measured='false'] {
+  color: var(--hud-muted);
+  font-weight: 500;
+}
+
+/* outside its usual range: amber, never worded */
+.walk-health__value[data-out='true'] {
+  color: #b26a05;
+}
+
+.walk-health__unit {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--hud-muted);
+}
+
+.walk-health__bp {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--hud-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.walk-health__sent {
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+}
+
+.walk-health__foot {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  color: var(--hud-muted);
+}
+
+/* ---------- the printed slip ---------- */
+
+.walk-health--slip {
+  --slip: #fdfdfb;
+  background: var(--slip);
+  border-radius: 3px 3px 0 0;
+  border: 0;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--ink) 16%, transparent), 0 1px 2px color-mix(in srgb, var(--ink) 12%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  animation: walk-health-print 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  margin-bottom: 8px;
+}
+
+/* the torn bottom edge */
+.walk-health--slip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 6px;
+  background:
+    linear-gradient(-45deg, transparent 5px, var(--slip) 0) 0 0 / 10px 6px repeat-x,
+    linear-gradient(45deg, transparent 5px, var(--slip) 0) 0 0 / 10px 6px repeat-x;
+}
+
+.walk-health--slip .walk-health__title {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.walk-health--slip .walk-health__head {
+  padding-bottom: 8px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--ink) 28%, transparent);
+}
+
+.walk-health--slip .walk-health__rows {
+  display: block;
+  margin-top: 10px;
+}
+
+.walk-health--slip .walk-health__row {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  border-left: 0;
+}
+
+.walk-health--slip .walk-health__label {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.walk-health--slip .walk-health__value {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.walk-health--slip .walk-health__sent {
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--ink) 28%, transparent);
+  text-align: center;
+  font-size: 11.5px;
+}
+
+.walk-health--slip .walk-health__foot {
+  text-align: center;
+}
+
+@keyframes walk-health-print {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-health,
+  .walk-health--slip {
+    animation: none;
+  }
+
+  .walk-health__progress > span {
+    transition: none;
+  }
+}

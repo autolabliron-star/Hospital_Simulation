@@ -109,6 +109,8 @@ export const TALK_FIELDS = {
   'host.idle': [],
   'paramedic.handover': [],
   'paramedic.idle': [],
+  // W4: the automated lab
+  'labScientist.working': [],
   // anybody, when nothing more specific applies
   'generic.patient': [],
   'generic.visitor': [],
@@ -132,6 +134,7 @@ const GREET_ROLES = {
   radiographer: true,
   sonographer: true,
   host: true,
+  labScientist: true,
 } as const satisfies Record<Role, true>
 export const GREET_ROLE_LIST = Object.keys(GREET_ROLES) as Role[]
 

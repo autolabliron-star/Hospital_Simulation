@@ -20,6 +20,10 @@
  *   -0.5  label anchors       name tag lift and visibility, speech bubble positions (THIS FILE)   NameTag.tsx, SpeechBubbles.tsx
  *   -0.3  imaging images      live scan canvases (10 Hz in the focused room, 1 Hz elsewhere)       src/scene/imaging/index.tsx
  *  -0.25  imaging machines    MRI table, CT rotor, X-ray tube, ultrasound probe from scanner state src/scene/imaging/machines
+ *  -0.24  health kiosks       W4: height arm, cuff, LEDs, paper slip from kiosk state            src/scene/kiosks
+ *  -0.23  draw centre         W4: robot heads, needles, tourniquets, prep gripper, live strip     src/scene/drawCentre
+ *  -0.22  lab                 W4: pneumatic flights, pucks and tubes on the track, centrifuges    src/scene/lab
+ *  -0.21  W4 status screens   repaint changed tiles (4 Hz check, 2 Hz upload)                    src/scene/w4kit
  *   -0.2  beds wall           the command wall's Beds panel (checks at 2 Hz, repaints on change) src/scene/building/render
  *   -0.1  walk building       door leaves, walk-only walls/ceilings/signs shown by mode (W1)       src/scene/building/render/walk
  *      0  everything else     drei <Html> labels project here (their own useFrame), and so do
@@ -47,6 +51,11 @@ export const FRAME_PRIORITY = {
   labelAnchors: -0.5,
   imagingImages: -0.3,
   imagingMachines: -0.25,
+  /** W4 smart diagnostics (docs/W4-DIAGNOSTICS.md). */
+  kiosks: -0.24,
+  drawCentre: -0.23,
+  lab: -0.22,
+  w4Screens: -0.21,
   bedsWall: -0.2,
   labels: 0,
 } as const

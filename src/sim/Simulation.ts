@@ -32,6 +32,9 @@ import { Reactions } from './reactions'
 import { groundHeightAt, type Spot } from './places'
 import type { Entity, OrderItem, PlayerView, RoomId } from './types'
 import { makeWalker, type Walker } from './walker'
+import { DrawCentre } from './blood'
+import { Lab } from './lab'
+import { VitalsService } from './vitals'
 
 function lerpAngle(a: number, b: number, t: number): number {
   let d = (b - a) % (Math.PI * 2)
@@ -73,6 +76,10 @@ export class Simulation {
   readonly director: Director | null
   /** The imaging suite: four scanners (`sim.imaging.scanners[modality]`), their queues and the outpatients. */
   readonly imaging: ImagingDepartment
+  /** W4 smart diagnostics: the entrance health kiosks, the robot blood-draw centre and the automated lab. */
+  readonly vitals: VitalsService
+  readonly blood: DrawCentre
+  readonly lab: Lab
   /** Beds, meals and MealBots for the renderers and the HUD (L1). */
   readonly life: LivingDay
   /** L1 services (src/sim/beds, src/sim/day, src/sim/meals); stepped after the director. */
@@ -132,6 +139,14 @@ export class Simulation {
     this.world.t = t0
     this.imaging = new ImagingDepartment(this.world, root.fork('imaging'), walkerFor)
     this.world.imaging = this.imaging
+    // W4: the lab first (the draw centre orders from it), then the kiosks and the draw centre
+    this.lab = new Lab(this.world, root.fork('lab'))
+    this.world.lab = this.lab
+    this.vitals = new VitalsService(this.world, root.fork('vitals'), walkerFor)
+    this.vitals.playerOf = () => this.playerAvatar
+    this.world.vitals = this.vitals
+    this.blood = new DrawCentre(this.world, root.fork('blood'), walkerFor)
+    this.world.blood = this.blood
     this.ctx = {
       t: t0,
       meds: this.meds,
@@ -173,6 +188,9 @@ export class Simulation {
       this.beds.warmStart(startHour)
       this.day.warmStart(startHour)
       this.meals.warmStart(startHour)
+      this.lab.warmStart(startHour)
+      this.vitals.warmStart(startHour)
+      this.blood.warmStart(startHour)
     }
     this.sync(1)
   }
@@ -203,6 +221,9 @@ export class Simulation {
     this.meds.step(dt, this.t)
     this.world.step(this.t, dt)
     this.imaging.step(this.t, dt)
+    this.vitals.step(this.t, dt)
+    this.blood.step(this.t, dt)
+    this.lab.step(this.t, dt)
     this.director?.step(this.t, dt)
     this.beds.step(this.t, dt)
     this.day.step(this.t, dt)
@@ -231,6 +252,9 @@ export class Simulation {
     this.meds.dispensers.A.sync(alpha)
     this.meds.dispensers.B.sync(alpha)
     this.meals.sync(alpha)
+    this.vitals.sync(alpha)
+    this.blood.sync(alpha)
+    this.lab.sync(alpha)
     const people = this.people
     for (let i = 0; i < people.length; i++) {
       const p = people[i]

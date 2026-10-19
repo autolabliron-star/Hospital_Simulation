@@ -394,7 +394,7 @@ describe('door leaves', () => {
     const want = DOORS.filter((d) => isWalkDoor(d) && (d.kind === 'auto' || d.kind === 'swing')).map((d) => d.id)
     expect(walk.doors.map((d) => d.id)).toEqual(want)
     expect(walk.doors.some((d) => d.id.startsWith('pharmacist'))).toBe(false)
-    expect(walk.doors.filter((d) => d.kind === 'swing').length).toBe(20)
+    expect(walk.doors.filter((d) => d.kind === 'swing').length).toBe(21) // 20 + the W4 lab door
   })
 
   it('a swing leaf swings into the room beyond and its whole sweep clears every footprint of the layout', () => {

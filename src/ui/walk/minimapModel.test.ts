@@ -122,6 +122,12 @@ describe('the area labels', () => {
     expect(labelLayout({ x: 0, y: 0, w: 100, h: 8 }, 20, 9)).toBeNull()
   })
 
+  it('names the lab ("Lab"): its room is 6 m wide, so the word fits on a larger map but not on this small one', () => {
+    expect(MAP_LABELS).toContainEqual({ area: 'lab', text: 'Lab' })
+    expect(labelLayout(labelBox(f, 'lab'), 16, 9)).toBeNull()
+    expect(labelLayout(labelBox(mapFrame(420), 'lab'), 16, 9)).toBe('h')
+  })
+
   it('turns a label a quarter to fit a tall, narrow room (the command center)', () => {
     const command = labelBox(f, 'command')
     expect(command.h).toBeGreaterThan(command.w)

@@ -5,6 +5,8 @@
  * drops the cart at once if a patient job is waiting and nobody else can take it.
  *
  *   idle -> toPickup (pushing the empty vehicle) -> loading -> pushing -> unloading -> idle / next job
+ *   W4 blood draws: a patient whose bloods go through the draw centre is pushed to a holding spot in the draw room (drawHold) and waits
+ *   there, on the wheelchair, until a robot is called for them; then they are pushed to that robot's chair and lifted onto it
  *   idle -> linenGet -> linenOut -> linenDrop -> linenBack -> idle
  *
  * L1 bed flow adds, after the ER jobs in priority:
@@ -14,6 +16,7 @@
  */
 import type { StaffMember } from '@/content/staff'
 import { staffName } from '@/content/staff'
+import { bloodText } from '@/content/bloodCopy'
 import { CONFIG } from '../config'
 import { linenSpot, porterSpot } from '../beds/spots'
 import type { PeopleContext } from '../person'
@@ -36,6 +39,7 @@ type State =
   | 'toPickup'
   | 'loading'
   | 'pushing'
+  | 'drawHold'
   | 'unloading'
   | 'returning'
   | 'linenGet'
@@ -130,12 +134,30 @@ export class Porter extends Actor {
       }
       case 'pushing':
         if (this.done) {
+          const p = this.patient!
+          if (this.job!.kind === 'toDiagnostics' && p.liveBlood && p.labSeat === null) {
+            // W4: at the draw room's holding spot: the patient may now be called, the porter waits with them
+            this.entity.anim = 'push'
+            p.drawArrived()
+            this.state = 'drawHold'
+            break
+          }
           this.entity.anim = 'give'
           this.timer = 0
-          this.unload(this.patient!)
+          this.unload(p)
           this.state = 'unloading'
         }
         break
+      case 'drawHold': {
+        const p = this.patient!
+        const chair = p.labSeat
+        if (chair !== null) {
+          // a robot was called for them: on to its chair
+          this.moveTo(chair.approach, { face: headingTo(chair.approach, chair) })
+          this.state = 'pushing'
+        }
+        break
+      }
       case 'unloading': {
         const p = this.patient!
         // a patient discharged while still riding back from a scan never settles on a seat: `gone` ends the job too
@@ -351,8 +373,11 @@ export class Porter extends Actor {
   private destination(p: ErPatient): { at: Vec2; face?: number } {
     switch (this.job!.kind) {
       case 'toDiagnostics': {
-        const s = p.labSeat!
-        return { at: s.approach, face: headingTo(s.approach, s) }
+        const s = p.labSeat
+        if (s) return { at: s.approach, face: headingTo(s.approach, s) }
+        // W4: no robot called yet: the draw room's holding spot
+        const hold = this.world.blood!.claimHold(p.c.id)
+        return { at: hold.at, face: hold.heading }
       }
       case 'fromDiagnostics':
       case 'fromImaging': {
@@ -396,14 +421,17 @@ export class Porter extends Actor {
     const name = p.c.name
     switch (this.job!.kind) {
       case 'toDiagnostics':
-        w.say('porterJob', `${me} is taking ${name} to Lab & imaging.`, { subjectId: p.c.id, actorId: this.staff.id })
+        if (p.liveBlood) w.say('porterJob', bloodText('porterToDraw', { porter: me, name }), { subjectId: p.c.id, actorId: this.staff.id })
+        else w.say('porterJob', `${me} is taking ${name} to Lab & imaging.`, { subjectId: p.c.id, actorId: this.staff.id })
         break
       case 'toImaging':
         w.say('porterJob', `${me} is taking ${name} to ${SCAN_PLACE[p.booking?.modality ?? 'ct']}.`, { subjectId: p.c.id, actorId: this.staff.id })
         break
       case 'fromDiagnostics':
       case 'fromImaging':
-        w.say('porterJob', `${me} is bringing ${name} back to ER bay ${p.c.bay + 1}.`, { subjectId: p.c.id, actorId: this.staff.id })
+        if (this.job!.kind === 'fromDiagnostics' && p.liveBlood && p.loungeActive) w.say('porterJob', bloodText('porterToLounge', { porter: me, name }), { subjectId: p.c.id, actorId: this.staff.id })
+        else if (this.job!.kind === 'fromDiagnostics' && p.liveBlood) w.say('porterJob', bloodText('porterFromDraw', { porter: me, name, bay: p.c.bay + 1 }), { subjectId: p.c.id, actorId: this.staff.id })
+        else w.say('porterJob', `${me} is bringing ${name} back to ER bay ${p.c.bay + 1}.`, { subjectId: p.c.id, actorId: this.staff.id })
         break
       case 'admit':
         if (p.bed) w.say('porterJob', `${me} is taking ${name} to room ${p.bed.roomId}.`, { subjectId: p.c.id, actorId: this.staff.id, roomId: p.bed.roomId })

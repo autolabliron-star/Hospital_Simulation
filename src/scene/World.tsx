@@ -6,6 +6,10 @@ import { Drawers } from './drawers'
 import { Effects } from './Effects'
 import { EmoteLayer, SpeechBubbles } from './fx'
 import { ImagingMachines } from './imaging'
+import { DrawCentreLayer } from './drawCentre/DrawCentreLayer'
+import { KioskLayer } from './kiosks/KioskLayer'
+import { LabLayer } from './lab/LabLayer'
+import { StatusScreens } from './w4kit/StatusScreens'
 import { Lighting } from './Lighting'
 import { Meals } from './meals'
 import { PharmacyCore } from './pharmacy'
@@ -31,6 +35,11 @@ export function World() {
       <Meals />
       <Drawers />
       <ImagingMachines />
+      {/* W4 smart diagnostics: health kiosks, the robot draw centre, the lab and pneumatic tube, their status screens */}
+      <KioskLayer />
+      <DrawCentreLayer />
+      <LabLayer />
+      <StatusScreens />
       <People />
       {/* these capture the running hospital's entity map when they mount: rebuilt on a Jump (L1) */}
       <SimKeyed>

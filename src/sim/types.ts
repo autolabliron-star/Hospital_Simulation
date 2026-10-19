@@ -42,6 +42,8 @@ export type Role =
   | 'sonographer'
   /** Ward host (L1): hospitality staff who serve meals with the MealBot. */
   | 'host'
+  /** W4: works the automated lab (review terminal, reagent loading). */
+  | 'labScientist'
 
 export type Mood = 'neutral' | 'happy' | 'waiting' | 'unwell'
 
@@ -49,6 +51,12 @@ export type Mood = 'neutral' | 'happy' | 'waiting' | 'unwell'
 export type Emote = 'none' | 'tablet' | 'pill' | 'hourglass' | 'bed' | 'check' | 'scan' | 'heart' | 'question' | 'coffee' | 'meal'
 
 export type AnimState = 'idle' | 'walk' | 'run' | 'talk' | 'sit' | 'lie' | 'tablet' | 'give' | 'carry' | 'wave' | 'push' | 'clean'
+  /** W4 health kiosk: both hands on the body-fat grips (standing). */
+  | 'grip'
+  /** W4: one finger forward (touch screen, SpO2 clip; standing). */
+  | 'finger'
+  /** W4: seated with the left arm forward into a cuff or robot tunnel (the crowd's ARM_IN line). */
+  | 'armIn'
 
 /** Something small held in the hand (drawn by the crowd renderer). */
 export type PropKind = 'none' | 'tablet' | 'folder' | 'tray' | 'coffee' | 'bag' | 'flowers'
@@ -79,7 +87,8 @@ export type SeatKind =
   | 'scanTable' // MRI / CT table at its loading (out) position (pose 'lie')
   | 'xrayTable' // pose 'lie'
   | 'usCouch' // ultrasound couch (pose 'lie')
-  | 'drawChair' // blood-draw chair (pose 'sit')
+  | 'drawChair' // blood-draw chair (pose 'sit'); W4: the robot chairs are 'drawChair:robot:<i>'
+  | 'kioskBp' // W4: the stool at a health kiosk's blood-pressure wing (pose 'sit')
   | 'console' // radiographer / sonographer seat (pose 'sit')
 
 /** A place to sit or lie, exported by the building layout (src/scene/building/layout) and used by the sim. */
@@ -317,6 +326,15 @@ export type SimEventType =
   // walk-in (W1): you, the doctor
   | 'youPrescribed'
   | 'talkedTo'
+  // smart diagnostics (W4): health kiosks, robot blood draws, the automated lab
+  | 'healthCheck'
+  | 'drawTicket'
+  | 'drawCalled'
+  | 'bloodDrawn'
+  | 'drawByNurse'
+  | 'samplesSent'
+  | 'samplesReceived'
+  | 'labResults'
 
 export interface SimEvent {
   /** Sequential, stable across replays with the same seed. */
@@ -587,4 +605,240 @@ export interface PlayerView {
   speed: number
   mode: PlayerMode
   view: PlayerViewKind
+}
+
+// ---------------------------------------------------------------------------------------------
+// Smart diagnostics (W4): entrance health kiosks, the robot blood-draw centre and the automated lab. See docs/W4-DIAGNOSTICS.md.
+// All values are synthetic and display-only: the sim never branches on a value (no clinical decisions). An "outside the usual range" look is
+// a UI style from content ranges, never a flag here.
+// ---------------------------------------------------------------------------------------------
+
+export type VitalsSource = 'kiosk' | 'triage' | 'player'
+
+export interface VitalsReading {
+  id: string
+  personId: string
+  personName: string
+  /** Sim seconds when the session ended (or was cut short). */
+  at: number
+  source: VitalsSource
+  /** Which kiosk (0, 1), or null for a triage reading. */
+  station: number | null
+  sys: number | null
+  dia: number | null
+  pulse: number | null
+  spo2: number | null
+  tempC: number | null
+  heightCm: number | null
+  weightKg: number | null
+  bmi: number | null
+  bodyFatPct: number | null
+  /** Every cuff reading of the session, in order ([sys, dia]). */
+  bp: [number, number][]
+  /** The session ended early (called to triage, walked away). */
+  partial: boolean
+}
+
+export type HealthKioskPhase = 'idle' | 'calling' | 'login' | 'height' | 'weight' | 'bodyFat' | 'sit' | 'spo2' | 'bp' | 'bpRest' | 'temp' | 'report'
+export type HealthSessionKind = 'full' | 'vitals' | 'player'
+
+/** One health kiosk, read by the scene every frame (no allocation: the sim mutates it in place). */
+export interface HealthKioskState {
+  index: number
+  phase: HealthKioskPhase
+  /** Seconds into the phase, and 0..1 through it. */
+  phaseTime: number
+  progress: number
+  kind: HealthSessionKind | null
+  userId: string | null
+  userName: string | null
+  /** Which cuff reading (1, 2, 3) during 'bp' / 'bpRest'. */
+  bpRound: number
+  /** Cuff inflation 0..1 (rises, holds, falls during each reading). */
+  cuff: number
+  /** The reading so far (fields fill in as each step finishes), or null when idle. */
+  reading: VitalsReading | null
+  /** The guide is helping this user. */
+  assisted: boolean
+  sessionsToday: number
+  /** Bumped whenever anything a screen shows changes (canvas screens repaint only then, at most 2 Hz). */
+  version: number
+}
+
+export type TubeKind = 'citrate' | 'serum' | 'heparin' | 'EDTA' | 'fluoride'
+export type CapColour = 'lightBlue' | 'gold' | 'green' | 'lavender' | 'grey'
+/** P: booked outpatient; V: priority (ER, 80+). */
+export type TicketClass = 'P' | 'V'
+
+export interface DrawTicket {
+  /** "P023", "V004". */
+  id: string
+  cls: TicketClass
+  patientId: string
+  patientName: string
+  orderId: string
+  issuedAt: number
+  calledAt: number | null
+  station: number | null
+  state: 'waiting' | 'called' | 'drawing' | 'done'
+}
+
+export type DrawPhase =
+  | 'idle'
+  | 'calling'
+  | 'cardScan'
+  | 'armIn'
+  | 'cuff'
+  | 'sanitise'
+  | 'veinScan'
+  | 'needleIn'
+  | 'filling'
+  | 'needleOut'
+  | 'bandage'
+  | 'release'
+  | 'awaitPorter'
+  | 'armMoved'
+  | 'fallbackToNurse'
+  | 'reset'
+
+/** One robot blood-draw station (MagicNurse / Aletta-like), read by the scene every frame. */
+export interface DrawStationState {
+  index: number
+  phase: DrawPhase
+  phaseTime: number
+  progress: number
+  ticket: string | null
+  patientId: string | null
+  patientName: string | null
+  /** The tubes of this draw in order of draw, and which one is filling (index), its fill 0..1 and inversions done. */
+  tubes: TubeKind[]
+  tube: number
+  tubeFill: number
+  inversions: number
+  /** Tourniquet 0..1, needle advance 0..1, scan head position 0..1 along the forearm. */
+  cuff: number
+  needle: number
+  scan: number
+  /** The labelled tray has been brought to this robot. */
+  trayHere: boolean
+  /** The supervising nurse is at this station (fallback, arm moved). */
+  attendantId: string | null
+  light: 'white' | 'teal' | 'amber' | 'green'
+  attempts: number
+  drawsToday: number
+  robotDrawsToday: number
+  nurseDrawsToday: number
+  version: number
+}
+
+/** The automatic tube-prep machine (Techno Medica BC-ROBO-like). */
+export interface TubePrepState {
+  phase: 'idle' | 'picking' | 'labelling' | 'output'
+  progress: number
+  ticket: string | null
+  /** Patients waiting for their tubes. */
+  queue: number
+  /** The bin the gripper is at (0..7), or -1; the tube it holds, or null. */
+  bin: number
+  held: TubeKind | null
+  /** Tickets whose labelled trays are waiting in the output rack. */
+  rack: string[]
+  traysToday: number
+  version: number
+}
+
+export type LabPriority = 'stat' | 'routine'
+export type SampleStage =
+  | 'ordered'
+  | 'labelled'
+  | 'drawn'
+  | 'inTube'
+  | 'received'
+  | 'onTrack'
+  | 'centrifuge'
+  | 'decap'
+  | 'analysing'
+  | 'recap'
+  | 'archived'
+
+/** One tube of blood, from labelling to the fridge archive. */
+export interface Sample {
+  id: string
+  orderId: string
+  patientId: string
+  tube: TubeKind
+  cap: CapColour
+  tests: string[]
+  priority: LabPriority
+  stage: SampleStage
+  stageAt: Partial<Record<SampleStage, number>>
+  /** Where it is: on the prep tray, flying in the pneumatic tube, on the lab track, inside a module. `s` is metres along that line (the sim's), `sDraw` the render-interpolated value. */
+  where: { line: 'none' | 'tray' | 'pneumatic' | 'track' | 'module'; s: number; sDraw: number; module: string | null; source: number }
+  qc: 'ok' | 'haemolysed'
+  /** Render slot 0..63 (LabState.slots), stable while the sample is in the lab or in flight; -1 otherwise. */
+  slot: number
+  archiveSlot: number
+}
+
+export type AnalyserKind = 'haematology' | 'chemistry' | 'immunoassay' | 'coagulation'
+/** Names, units and usual ranges live in content (src/content/lab.json). */
+export interface LabValue {
+  analyte: string
+  value: number
+}
+export interface LabTestResult {
+  testId: string
+  values: LabValue[]
+  measuredAt: number
+  verifiedAt: number | null
+  verifiedBy: 'auto' | string | null
+}
+export interface LabOrder {
+  id: string
+  patientId: string
+  patientName: string
+  source: 'er' | 'outpatient' | 'preScan' | 'background' | 'demo'
+  panel: string
+  tests: string[]
+  priority: LabPriority
+  sampleIds: string[]
+  ticket: string | null
+  drawnBy: 'robot' | 'nurse' | 'external' | null
+  orderedAt: number
+  drawnAt: number | null
+  receivedAt: number | null
+  completeAt: number | null
+  results: LabTestResult[]
+}
+export interface CentrifugeState {
+  index: number
+  phase: 'idle' | 'loading' | 'spinning' | 'unloading'
+  load: number
+  capacity: number
+  /** Rotor speed 0..1 (eases up and down) and lid opening 0..1. */
+  rpm01: number
+  lid: number
+  program: LabPriority | null
+  timeLeft: number
+}
+export interface AnalyserState {
+  kind: AnalyserKind
+  queue: number
+  /** The sample being aspirated, and the probe dip 0..1. */
+  aspirating: string | null
+  probe: number
+  running: number
+  testsToday: number
+}
+/** The automated lab, read by the scene every frame. */
+export interface LabState {
+  pneumatic: { inFlight: string | null; queued: number; sentToday: number }
+  /** Render slots: slot i holds a sample id or null (fixed length 64, never reallocated). */
+  slots: (string | null)[]
+  centrifuges: CentrifugeState[]
+  analysers: Record<AnalyserKind, AnalyserState>
+  reviewQueue: number
+  archived: number
+  kpis: { samplesToday: number; onTrack: number; medianTatMin: number | null; autoVerifiedPct: number | null }
+  version: number
 }

@@ -27,6 +27,7 @@ export function floorMaterial(a: Area): MatKey | null {
     case 'command':
       return 'floorSlate'
     case 'diagnostics':
+    case 'lab': // W4: the automated lab is a clean clinical room like the imaging suite
     case 'mri':
     case 'ct':
     case 'xray':

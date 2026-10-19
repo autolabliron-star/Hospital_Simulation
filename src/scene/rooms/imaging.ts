@@ -7,7 +7,7 @@
  *                  animated machines put live ones at `consoleScreens`)
  *   X-ray          radiography table, wall detector stand, a lead-glass screen and exposure console by the door
  *   ultrasound     a couch and an operator's stool
- *   blood draw     (`diagnostics`) two draw chairs, three changing cubicles with curtains, a sample hatch and a sink
+ *   blood draw     (`diagnostics`) W4: built by src/scene/rooms/bloodDraw.ts (three robot draw stations, the tube-prep machine, the changing cubicles, a sink)
  *
  * What is NOT drawn here: the MRI magnet and table, the CT gantry and table, the X-ray ceiling tube and rails, the ultrasound
  * cart and probe. `src/scene/imaging` (the machines agent) draws those and animates them. They appear here as FOOTPRINT-ONLY
@@ -400,84 +400,8 @@ function buildUltrasound(b: LayoutBuilder): void {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Blood draw and changing room (the `diagnostics` area)
-// ---------------------------------------------------------------------------------------------
-
-/** The blood-draw chair at (x, z), facing north: a padded chair with fixed arm rests. */
-function drawChair(f: Frame, i: number, x: number, z: number): void {
-  const c = f.sub(x, z, Math.PI)
-  c.rbox(0, 0.1, 0, 0.7, 0.3, 1.05, 'fabricTeal', { r: 0.08 })
-  c.rbox(0, 0.4, -0.45, 0.7, 0.5, 0.18, 'fabricTeal', { r: 0.08, rx: 0.2 })
-  c.cyl(0, 0, 0.1, 0.4, 0.1, 'metalDark')
-  for (const s of [-1, 1]) {
-    c.rbox(s * 0.37, 0.4, 0.05, 0.06, 0.05, 0.6, 'whitePlastic', { r: 0.015 })
-    c.box(s * 0.37, 0.1, 0.05, 0.03, 0.3, 0.05, 'metalDark', { cast: false })
-  }
-  // the approach is on the foot side (north): the chair's footprint is 1.1 m long, so the spot is a little over 1 m out
-  c.seat(`drawChair:diag:${i}`, 'drawChair', 0, -0.15, 0.4, { far: 1.3 })
-  f.rect(`diag:draw${i}`, x, z, 0.8, 1.1)
-}
-
-/** Three changing cubicles along the east wall: partitions, a bench and hooks in each, a curtain rail and a curtain each. */
-function cubicles(f: Frame): void {
-  const xFront = -23.45
-  const xWall = -22.15
-  const depth = xWall - xFront
-  const cxm = (xFront + xWall) / 2
-  const z0 = 3.9
-  const pitch = 1.4
-  const n = 3
-  for (let k = 0; k <= n; k++) f.box(cxm, 0, z0 + k * pitch, depth, 1.9, 0.04, 'whitePlastic')
-  f.box(xFront + 0.02, 1.94, z0 + (n * pitch) / 2, 0.04, 0.03, n * pitch, 'frame', { cast: false }) // curtain rail
-  for (let k = 0; k < n; k++) {
-    const zc = z0 + (k + 0.5) * pitch
-    f.rbox(xWall - 0.2, 0, zc, 0.34, 0.45, 1.0, 'woodOak', { r: 0.03 }) // bench
-    f.box(xWall - 0.01, 1.5, zc, 0.03, 0.04, 1.0, 'frame', { cast: false }) // hook rail
-    f.rbox(xWall - 0.18, 0.45, zc + 0.15, 0.28, 0.07, 0.34, 'linen', { r: 0.03 }) // a folded gown
-  }
-  // curtains: the first cubicle is closed (occupied), the second half drawn, the third open with the curtain gathered
-  f.box(xFront + 0.02, 0.1, z0 + 0.5 * pitch, 0.03, 1.84, pitch - 0.08, 'fabricSage')
-  f.box(xFront + 0.02, 0.1, z0 + pitch + 0.32, 0.03, 1.84, 0.7, 'fabricSage')
-  f.box(xFront + 0.02, 0.1, z0 + 2 * pitch + 0.13, 0.08, 1.84, 0.2, 'fabricSage')
-  f.rect('imaging:cubicles', cxm, z0 + (n * pitch) / 2, depth, n * pitch)
-}
-
-function sampleHatch(f: Frame): void {
-  const cx = -25.0
-  // a counter with a rack of sample tubes under a pass-through hatch into the lab (R2 builds the lab behind it)
-  f.rbox(cx, 0, 11.625, 1.0, 0.9, 0.55, 'whitePlastic', { r: 0.03 })
-  f.rbox(cx, 0.9, 11.625, 1.06, 0.04, 0.59, 'woodOak', { r: 0.02 })
-  f.box(cx, 1.15, 11.84, 0.9, 0.62, 0.12, 'frame')
-  f.box(cx, 1.22, 11.775, 0.7, 0.42, 0.02, 'metalDark', { cast: false })
-  f.box(cx, 1.55, 11.775, 0.5, 0.025, 0.012, 'glowTeal', { cast: false })
-  f.rbox(cx - 0.2, 0.94, 11.6, 0.4, 0.04, 0.2, 'metalDark', { r: 0.01, cast: false })
-  const tubes = ['#d94b4b', '#7a4fb8', '#e8c13a', '#3a8fd9', '#d94b4b', '#7a4fb8']
-  tubes.forEach((color, i) => f.cyl(cx - 0.34 + i * 0.07, 0.98, 11.6, 0.035, 0.1, 'tinted', { color, cast: false }))
-  f.rect('imaging:hatch', cx, 11.625, 1.0, 0.55)
-}
-
-function sinkCounter(f: Frame): void {
-  // by the door: hand washing on the way in, and the paper towels and gloves
-  f.rbox(-27.63, 0, 4.6, 0.54, 0.88, 1.8, 'whitePlastic', { r: 0.03 })
-  f.rbox(-27.63, 0.88, 4.6, 0.55, 0.04, 1.82, 'woodOak', { r: 0.02 })
-  f.rbox(-27.6, 0.9, 4.2, 0.4, 0.015, 0.36, 'frame', { r: 0.01, cast: false })
-  f.cyl(-27.8, 0.9, 4.2, 0.03, 0.25, 'frame', { cast: false })
-  f.rbox(-27.8, 1.2, 5.2, 0.12, 0.28, 0.2, 'whitePlastic', { r: 0.03 })
-  f.rbox(-27.8, 1.2, 5.55, 0.1, 0.16, 0.16, 'tinted', { r: 0.03, color: '#7fc4e8', cast: false })
-  f.rect('imaging:sink', -27.63, 4.6, 0.54, 1.8)
-}
-
-function buildBloodDraw(b: LayoutBuilder): void {
-  b.area = 'diagnostics'
-  const w = b.world
-  // two chairs on the south wall, facing north, with the sample hatch between them
-  drawChair(w, 0, -26.4, 10.6)
-  drawChair(w, 1, -23.6, 10.6)
-  sampleHatch(w)
-  cubicles(w)
-  sinkCounter(w)
-}
-
+// The blood-draw corner (`diagnostics`: x -28..-22, z 2..12) is built by src/scene/rooms/bloodDraw.ts (W4: the robot draw centre, the
+// changing cubicles and the sink moved there).
 // ---------------------------------------------------------------------------------------------
 
 export function buildImaging(b: LayoutBuilder): void {
@@ -488,5 +412,4 @@ export function buildImaging(b: LayoutBuilder): void {
   buildCtRoom(b)
   buildXray(b)
   buildUltrasound(b)
-  buildBloodDraw(b)
 }

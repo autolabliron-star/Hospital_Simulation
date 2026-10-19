@@ -9,6 +9,10 @@ import { buildCommand } from '@/scene/rooms/command'
 import { buildHub } from '@/scene/rooms/hub'
 import { buildImaging } from '@/scene/rooms/imaging'
 import { buildLobby } from '@/scene/rooms/lobby'
+import { buildDrawCentre } from '@/scene/rooms/bloodDraw'
+import { buildHealthKiosks } from '@/scene/rooms/healthKiosks'
+import { buildLab } from '@/scene/rooms/lab'
+import { buildPneumatic } from '@/scene/rooms/pneumatic'
 import { buildPatientRoom } from '@/scene/rooms/patientRoom'
 import { buildServiceRooms } from '@/scene/rooms/serviceRooms'
 import { buildTriageEr } from '@/scene/rooms/triageEr'
@@ -35,6 +39,11 @@ export function buildLayout(opts: BuildOptions = {}): BuildingLayout {
   buildTriageEr(b)
   if (opts.imaging !== false) buildImaging(b)
   buildServiceRooms(b)
+  // W4 smart diagnostics (docs/W4-DIAGNOSTICS.md)
+  buildHealthKiosks(b)
+  if (opts.imaging !== false) buildDrawCentre(b)
+  buildLab(b)
+  buildPneumatic(b)
   buildAtrium(b)
   buildExterior(b)
   buildWayfinding(b)

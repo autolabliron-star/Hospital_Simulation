@@ -18,6 +18,9 @@ import { describeHere, roomView, type GenericRoomView, type HereNow, type Pharma
 import { usePoll } from './usePoll'
 import { wardLifeView, type WardLifeView } from './wardRoomView'
 import './roomPanel.css'
+import { DrawCentreBody } from './DrawCentreBody'
+import { KioskSection } from './KioskSection'
+import { LabBody } from './LabBody'
 
 /** How long the panel stays mounted after Esc so it can slide out. Matches `rp-out` in roomPanel.css. */
 const EXIT_MS = 240
@@ -247,6 +250,16 @@ function RoomBody({ area }: { area: AreaId }) {
   const { v, life } = usePoll(read)
   if (v.kind === 'ward') return <WardBody v={v} life={life} />
   if (v.kind === 'pharmacy') return <PharmacyBody v={v} />
+  // W4: the robot draw centre, the lab, and the lobby's health kiosks
+  if (area === 'diagnostics') return <DrawCentreBody />
+  if (area === 'lab') return <LabBody />
+  if (area === 'lobby')
+    return (
+      <>
+        <KioskSection />
+        <GenericBody v={v} />
+      </>
+    )
   return <GenericBody v={v} />
 }
 

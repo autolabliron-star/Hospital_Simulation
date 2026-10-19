@@ -1,0 +1,94 @@
+{
+  "disclaimer": "Simulated, not real patient data",
+  "panel": {
+    "nowCalling": "Now calling",
+    "noCall": "Nobody is being called",
+    "callLine": "{ticket} → Robot {robot}",
+    "waiting": "Waiting",
+    "noWaiting": "Nobody is waiting",
+    "moreWaiting": "and {count} more",
+    "robots": "Robots",
+    "robot": "Robot {n}",
+    "free": "Free",
+    "noPatient": "No patient",
+    "staff": "{nurses} nurse · {robots} robots",
+    "staffNone": "No nurse on site · {robots} robots",
+    "stats": "Today",
+    "draws": "Draws",
+    "firstAttempt": "First-attempt success",
+    "manual": "Drawn by the nurse",
+    "wait": "Median wait",
+    "waitUnit": "min",
+    "noData": "–",
+    "prep": "Tube prep",
+    "labels": "Labels printed",
+    "tray": "Trays waiting: {count}",
+    "callNext": "Call next patient",
+    "callNextWaiting": "Patient on the way…",
+    "noneFree": "Every robot is busy right now.",
+    "firstTick": "First attempt",
+    "secondTry": "Second attempt",
+    "doneLabel": "Done"
+  },
+  "phase": {
+    "idle": "Free",
+    "calling": "Calling a patient",
+    "cardScan": "Scanning the card",
+    "armIn": "Arm in the tunnel",
+    "cuff": "Cuff tightening",
+    "sanitise": "Cleaning the skin",
+    "veinScan": "Finding the vein",
+    "needleIn": "Needle going in",
+    "filling": "Filling tube {tube} of {tubes}",
+    "needleOut": "Needle coming out",
+    "bandage": "Putting on a bandage",
+    "release": "Arm released",
+    "awaitPorter": "Waiting for the porter",
+    "armMoved": "Arm moved: paused",
+    "fallbackToNurse": "Passing to the nurse",
+    "reset": "Resetting"
+  },
+  "prepPhase": {
+    "idle": "Ready",
+    "picking": "Picking tubes",
+    "labelling": "Printing labels",
+    "output": "Tray ready"
+  },
+  "toast": {
+    "ticket": "Your number is {ticket}. Please wait to be called."
+  },
+  "prompt": {
+    "robot": "Look at Robot {n}",
+    "checkIn": "Take a queue number",
+    "send": "Open the sample send station"
+  },
+  "tiles": {
+    "welcome": "Welcome",
+    "takeNumber": "Take a number",
+    "waitingNow": "{count} waiting",
+    "nowCalling": "Now calling",
+    "callLine": "{ticket} → Robot {robot}",
+    "waiting": "Waiting",
+    "nobody": "No one waiting",
+    "prepTitle": "Tube prep",
+    "labelsToday": "Labels printed: {count}",
+    "traysWaiting": "Trays waiting: {count}",
+    "manualTitle": "Manual send",
+    "manualLine": "Put tubes in the inlet",
+    "manualCount": "Hand draws today: {count}"
+  },
+  "strip": {
+    "ready": "Ready",
+    "robot": "ROBOT {n}",
+    "nir": "NIR vein map",
+    "us": "Ultrasound",
+    "needle": "Needle",
+    "tube": "Tube {n} of {total}",
+    "vein": "Vein found",
+    "scanning": "Scanning",
+    "simulated": "Simulated"
+  },
+  "speech": {
+    "call": "Number {ticket}, please go to robot {robot}"
+  }
+}

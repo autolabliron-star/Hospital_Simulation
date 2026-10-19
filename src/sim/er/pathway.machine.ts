@@ -20,6 +20,15 @@ import { CONFIG } from '../config'
 import type { PatientStage } from '../types'
 import type { SimClock } from './simClock'
 
+/**
+ * W4 live bloods: when the real draw centre and lab handle an ER patient's bloods, the old chair and results timers stay only as a safety net.
+ * A draw that is not over this long after the patient sat down (the robot's draw takes about 3 min; a V ticket is called within minutes) and
+ * results that are not verified this long after the patient is back in the bay are given up on, so a lab that never completes cannot strand
+ * anybody. The results bound is a fallback only: the lab's target turnaround is well under it (config.lab, docs/W4-DIAGNOSTICS.md).
+ */
+export const DRAW_FALLBACK_SECONDS = CONFIG.blood.drawFallbackSeconds
+export const RESULTS_FALLBACK_SECONDS = CONFIG.blood.resultsFallbackSeconds
+
 export type PathwayState =
   | 'arriving'
   | 'checkIn.queueing'
@@ -71,6 +80,10 @@ export interface PathwayContext {
   resultsSeconds: number
   /** What kind of test this reason gets (from the imaging content): none (never enters the tests branch), blood, imaging. */
   testKind: TestKind
+  /** W4: this patient's bloods go through the draw centre and the lab (DRAW_DONE and REPORT_READY come from them); the timers are a fallback. */
+  liveBlood: boolean
+  /** W4: how much of the usual triage time this patient's assessment takes (0.8 when kiosk vitals are already in the record). */
+  triageScale: () => number
   /** Drawn when the exam starts. */
   needsTests: boolean
   admit: boolean
@@ -90,6 +103,10 @@ export interface PathwayInput {
   patienceSeconds: number
   /** Default 'blood' (the M3 behaviour). */
   testKind?: TestKind
+  /** W4: the draw centre and the lab handle this patient's bloods (default false: the M3 timers). */
+  liveBlood?: boolean
+  /** W4: a factor on the triage assessment time, read when the assessment starts (default 1). */
+  triageScale?: () => number
 }
 
 export type PathwayEvent =
@@ -105,8 +122,10 @@ export type PathwayEvent =
   | { type: 'BACK_IN_BAY' }
   /** Imaging: the scan is finished and the patient may be collected. */
   | { type: 'SCAN_DONE' }
-  /** Imaging: the report is ready. */
+  /** Imaging, and W4 bloods: the report is ready (the lab verified every test of the order). */
   | { type: 'REPORT_READY' }
+  /** W4: the robot (or the nurse) finished the blood draw and the arm is free. */
+  | { type: 'DRAW_DONE' }
   | { type: 'OUT' }
 
 const enter = (state: PathwayState) => ({ type: 'enter' as const, params: { state } })
@@ -116,7 +135,7 @@ export const pathwayMachine = setup({
   actions: {
     enter: ({ context }, params: { state: PathwayState }) => context.host.enter(params.state, context),
     sampleService: assign({ serviceSeconds: ({ context }) => context.rng.between(CONFIG.er.checkInSeconds) }),
-    sampleTriage: assign({ triageSeconds: ({ context }) => context.rng.between(CONFIG.er.triageSeconds) }),
+    sampleTriage: assign({ triageSeconds: ({ context }) => context.rng.between(CONFIG.er.triageSeconds) * context.triageScale() }),
     markReport: assign({ reportReady: () => true }),
     sampleExam: assign({
       examSeconds: ({ context }) => context.rng.between(CONFIG.er.examSeconds),
@@ -132,6 +151,9 @@ export const pathwayMachine = setup({
     needsTests: ({ context }) => context.needsTests,
     admit: ({ context }) => context.admit,
     isBlood: ({ context }) => context.testKind !== 'imaging',
+    /** Blood on the M3 timers (no draw centre and lab behind this patient). */
+    timerBlood: ({ context }) => context.testKind !== 'imaging' && !context.liveBlood,
+    liveBlood: ({ context }) => context.liveBlood,
     reportDone: ({ context }) => context.reportReady,
   },
   delays: {
@@ -140,6 +162,8 @@ export const pathwayMachine = setup({
     examDelay: ({ context }) => context.examSeconds * 1000,
     labDelay: ({ context }) => context.labSeconds * 1000,
     resultsDelay: ({ context }) => context.resultsSeconds * 1000,
+    drawStuckDelay: () => DRAW_FALLBACK_SECONDS * 1000,
+    resultsFallbackDelay: () => RESULTS_FALLBACK_SECONDS * 1000,
     // never less than 30 s, so nobody gives up in the same breath as triage ends
     patienceDelay: ({ context }) => Math.max(30_000, context.deadlineMs - context.clock.now),
   },
@@ -158,6 +182,8 @@ export const pathwayMachine = setup({
     labSeconds: 0,
     resultsSeconds: 0,
     testKind: input.testKind ?? 'blood',
+    liveBlood: input.liveBlood ?? false,
+    triageScale: input.triageScale ?? (() => 1),
     needsTests: false,
     admit: false,
     reportReady: false,
@@ -230,15 +256,26 @@ export const pathwayMachine = setup({
       states: {
         waitingPorter: { entry: enter('tests.waitingPorter'), on: { PICKED_UP: 'toLab' } },
         toLab: { entry: enter('tests.toLab'), on: { AT_LAB: { target: 'testing', actions: 'sampleLab' } } },
-        // blood: a timer; imaging: the scanner says SCAN_DONE
-        testing: { entry: enter('tests.testing'), after: { labDelay: { guard: 'isBlood', target: 'waitingReturn' } }, on: { SCAN_DONE: 'waitingReturn' } },
+        // blood: a timer (M3) or the draw centre says DRAW_DONE (W4, with a fallback timer); imaging: the scanner says SCAN_DONE
+        testing: {
+          entry: enter('tests.testing'),
+          after: {
+            labDelay: { guard: 'timerBlood', target: 'waitingReturn' },
+            drawStuckDelay: { guard: 'liveBlood', target: 'waitingReturn' },
+          },
+          on: { SCAN_DONE: 'waitingReturn', DRAW_DONE: { guard: 'liveBlood', target: 'waitingReturn' } },
+        },
         waitingReturn: { entry: enter('tests.waitingReturn'), on: { PICKED_UP: 'returning' } },
         returning: { entry: enter('tests.returning'), on: { BACK_IN_BAY: { target: 'awaitingResults', actions: 'sampleResults' } } },
-        // blood: a timer; imaging: the report (REPORT_READY, or the flag if it came while the patient was on the way back)
+        // blood: a timer (M3) or the lab's report (W4, with a fallback timer); imaging: the report (REPORT_READY, or the flag if it came
+        // while the patient was on the way back)
         awaitingResults: {
           entry: enter('tests.awaitingResults'),
           always: { guard: 'reportDone', target: '#erPatient.decision' },
-          after: { resultsDelay: { guard: 'isBlood', target: '#erPatient.decision' } },
+          after: {
+            resultsDelay: { guard: 'timerBlood', target: '#erPatient.decision' },
+            resultsFallbackDelay: { guard: 'liveBlood', target: '#erPatient.decision' },
+          },
           on: { REPORT_READY: '#erPatient.decision' },
         },
       },

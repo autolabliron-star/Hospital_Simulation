@@ -22,9 +22,15 @@
  * the result never depends on the order people are stepped in). Each walker then:
  *   - is pushed away from bodies closer than ~0.7 m (static people push with full strength, movers with half each);
  *   - slows down behind a slower walker going the same way (it never passes through them), and stops short of a
- *     standing or seated person who is in its way, stepping round them to the side with more room first;
+ *     standing or seated person who is in its way, stepping round them to the side with more room (judged where it will pass
+ *     them, not where it is now: coming out of a door, the door frame says nothing about the room outside) first;
  *   - gives way at a single-file door (1.7 m or less): the walker who is inside the door, or nearer to it, goes first and the
- *     one coming the other way waits outside the door width (after 5 s it goes anyway, so no door can deadlock);
+ *     one coming the other way waits outside the door width, stepped aside off the door's centre line so the other can come
+ *     out past it (after 5 s it goes anyway, so no door can deadlock);
+ *   - never blocks a single-file doorway: it goes into one only when nobody who is moving is in the door or just beyond it
+ *     (where it would have to stop behind them, in the door); otherwise it waits short of the door, as long as it can still
+ *     stop there (else it carries on through). Somebody coming the other way at that door is left to the rule above, and
+ *     people standing or seated beyond it are stepped round as usual. The same 5 s limit applies;
  *   - is finally clamped: never overlapping a body by more than 1.5 cm, and always back onto walkable ground
  *     (`nearestWalkable`), so nobody is pushed into a wall or furniture.
  * A walker blocked for 4 s ignores the others for 2.5 s (last resort: no jam can last).
@@ -114,6 +120,16 @@ interface Gate {
 
 const GATE_HALF = 0.8
 const GATE_APPROACH = 2.4
+/** The doorway proper, either side of a door's centre line (m): the wall and its frame, where nobody may come to rest. */
+const DOORWAY_HALF = 0.35
+/** How far beyond a door's centre line a mover still blocks it (m): one stopped there would make the next walker stop in the door. */
+const EXIT_CLEAR = 1.3
+/** A walker held short of a busy doorway stops with its centre this far before the door's centre line (m), just outside the gate. */
+const EXIT_HOLD = GATE_HALF + 0.05
+/** The path follower's braking (follower.ts DECEL), to tell whether a walker can still stop short of the doorway. */
+const FOLLOW_DECEL = 1.5
+/** A walker giving way at a single-file door stands this far (m, plus its extra radius) to the side of the door's centre line. */
+const ASIDE = 0.5
 
 const GATES: Gate[] = DOORS.filter((d) => d.width < 1.8 && d.kind !== 'counter').map((d) => {
   const alongZ = d.wallAxis === 'x' // the wall runs along x, so walkers pass along z
@@ -383,6 +399,9 @@ export class CrowdWalker implements Walker {
   private gateSign = 1
   private yieldT = 0
   private ignoreGateUntil = -1
+  /** Giving way at the door this step, and the sideways offset it stands at meanwhile (worked out in `recompute`). */
+  private aside = false
+  private asideLat = 0
 
   constructor(crowd: Crowd, opts: WalkerOptions = {}) {
     this.crowd = crowd
@@ -518,7 +537,7 @@ export class CrowdWalker implements Walker {
 
     // keep right: the offset vector chases its target at a limited rate (so a corner turns it smoothly)
     // (a courtesy sidestep is kept while going round somebody standing: it is what makes room)
-    const target = this.sideStill && !this.courtOn ? 0 : rem < 1.5 ? this.tgtLat * (rem / 1.5) : this.tgtLat
+    const target = this.aside ? this.asideLat : this.sideStill && !this.courtOn ? 0 : rem < 1.5 ? this.tgtLat * (rem / 1.5) : this.tgtLat
     const goalX = -dirZ * target
     const goalZ = dirX * target
     const ex = goalX - this.lx
@@ -688,6 +707,14 @@ export class CrowdWalker implements Walker {
     }
     this.tgtLat = k
     this.findGate()
+    this.asideLat = 0
+    if (this.aside && this.gate >= 0) {
+      // the side with more room where it waits (a tie goes right, where everybody keeps)
+      const want = ASIDE + (this.radius - BODY_RADIUS)
+      const right = this.capAt(px, pz, -this.dirZ, this.dirX, want)
+      const left = this.capAt(px, pz, this.dirZ, -this.dirX, want)
+      this.asideLat = left > right + 0.05 ? -left : right
+    }
     this.courtOn = false
     if (this.courtSide !== 0 && this.gate < 0) this.courtesyTarget(ward, pref)
   }
@@ -877,7 +904,7 @@ export class CrowdWalker implements Walker {
             if (rem > fwd + 0.25) {
               const need = (isStatic ? sumR + 0.18 : sumR + 0.06) - al
               if (need > 0) {
-                const side = this.pickSide(j, lr, al, rX, rZ, need)
+                const side = this.pickSide(j, fwd, lr, al, rX, rZ, need)
                 if (isStatic || svx[j] * svx[j] + svz[j] * svz[j] < 0.0225) this.sideStill = true
                 const k2 = (1 - fwd / LOOK) * need * PUSH_GAIN * 1.5 * side
                 this.pushX += rX * k2
@@ -903,12 +930,15 @@ export class CrowdWalker implements Walker {
    * Which side to step round obstacle `j` on: a side where the body can actually stand once clear of it (walls and furniture),
    * else away from the obstacle. Once chosen it is kept while the obstacle is ahead.
    */
-  private pickSide(j: number, lr: number, al: number, rX: number, rZ: number, need: number): number {
+  private pickSide(j: number, fwd: number, lr: number, al: number, rX: number, rZ: number, need: number): number {
     this.sideSeen = true
     if (this.sideObs === j) return this.sideDir
     const reach = need + 0.05
-    const rightOk = placeOk(this.bx + rX * reach, this.bz + rZ * reach)
-    const leftOk = placeOk(this.bx - rX * reach, this.bz - rZ * reach)
+    // (where it passes them: `fwd` ahead along the direction of travel, which is (rZ, -rX))
+    const qx = this.bx + rZ * fwd
+    const qz = this.bz - rX * fwd
+    const rightOk = placeOk(qx + rX * reach, qz + rZ * reach)
+    const leftOk = placeOk(qx - rX * reach, qz - rZ * reach)
     let side = al < 0.06 ? 1 : lr > 0 ? -1 : 1
     if (rightOk && !leftOk) side = 1
     else if (leftOk && !rightOk) side = -1
@@ -923,6 +953,8 @@ export class CrowdWalker implements Walker {
   /** Single-file doors: the walker inside the door or nearer to it goes first; the one from the other side waits outside. */
   private doorNegotiation(crowd: Crowd, px: number, pz: number): void {
     const slot = this.slot
+    const wasAside = this.aside
+    this.aside = false
     if (this.gate < 0) {
       crowd.gDoor[slot] = -1
       this.yieldT = 0
@@ -938,26 +970,88 @@ export class CrowdWalker implements Walker {
       this.yieldT = 0
       return
     }
-    const inside = ahead <= GATE_HALF
-    const key = (inside ? 0 : 1 + (ahead - GATE_HALF)) + slot * 1e-6
+    // don't block the doorway: wait short of it while somebody moving is in it or just beyond (a walker held there is not yet
+    // in the door, so whoever comes out the other way goes first)
+    const hold = this.clock >= this.ignoreGateUntil && this.exitBlocked(crowd, g, ahead)
+    const inside = ahead <= GATE_HALF && !hold
+    const key = (inside ? 0 : 1 + (ahead > GATE_HALF ? ahead - GATE_HALF : 0)) + slot * 1e-6
     crowd.gDoor[slot] = this.gate
     crowd.gSign[slot] = this.gateSign
     crowd.gKey[slot] = key
+    const opp = this.gateSign > 0 ? crowd.bestNeg[this.gate] : crowd.bestPos[this.gate]
+    if (hold) {
+      const lim = brakeSpeed(ahead - EXIT_HOLD - (this.radius - BODY_RADIUS))
+      if (lim < this.vLim) this.vLim = lim
+      // (somebody coming out goes first: stand aside for them)
+      if (opp < key - 1e-9) this.standAside(wasAside)
+      this.yieldT += 1 / 60
+      if (this.yieldT > YIELD_AFTER) {
+        this.ignoreGateUntil = this.clock + DOOR_GRACE
+        this.yieldT = 0
+      }
+      return
+    }
     if (inside) {
       this.yieldT = 0
       return
     }
-    const opp = this.gateSign > 0 ? crowd.bestNeg[this.gate] : crowd.bestPos[this.gate]
     if (this.clock >= this.ignoreGateUntil && opp < key - 1e-9) {
-      // wait outside the door width: stop 0.35 m before the door's edge
+      // wait outside the door width: stop 0.35 m before the door's edge, stepped aside off the door's centre line
       const lim = brakeSpeed(ahead - GATE_HALF - 0.35)
       if (lim < this.vLim) this.vLim = lim
+      this.standAside(wasAside)
       this.yieldT += 1 / 60
       if (this.yieldT > YIELD_AFTER) {
         this.ignoreGateUntil = this.clock + DOOR_GRACE
         this.yieldT = 0
       }
     } else if (opp === Infinity) this.yieldT = 0
+  }
+
+  /** Give way at the door from the side of it: the offset is worked out at the next step (`recompute`), then kept while it lasts. */
+  private standAside(wasAside: boolean): void {
+    this.aside = true
+    if (!wasAside) this.countdown = 1
+  }
+
+  /**
+   * Is the way out beyond gate `g` taken, so that going in now could leave this walker standing in the door? True when somebody
+   * moving is in the doorway or within EXIT_CLEAR beyond its centre line (in line with the door), and this walker can still stop
+   * before the doorway and its route goes through it. People standing or seated there, and anybody coming through the door the
+   * other way (the give-way rule settles that), do not count.
+   */
+  private exitBlocked(crowd: Crowd, g: Gate, ahead: number): boolean {
+    const f = this.f
+    // too close to stop short of the doorway: carry on through
+    const v = f.speed
+    if (ahead - (v * v) / (2 * FOLLOW_DECEL) < DOORWAY_HALF + 0.05) return false
+    // the route ends before it is through the door
+    if (f.remaining < ahead + DOORWAY_HALF) return false
+    const sign = this.gateSign
+    const ex = g.cx + g.axX * sign * 0.5
+    const ez = g.cz + g.axZ * sign * 0.5
+    const cx = Math.floor((ex - GX0) / CELL)
+    const cz = Math.floor((ez - GZ0) / CELL)
+    const start = crowd.cellStart
+    const items = crowd.items
+    const across = g.hw + 0.35
+    for (let r = cz > 0 ? cz - 1 : 0, r1 = cz < ROWS - 1 ? cz + 1 : ROWS - 1; r <= r1; r++) {
+      for (let c = cx > 0 ? cx - 1 : 0, c1 = cx < COLS - 1 ? cx + 1 : COLS - 1; c <= c1; c++) {
+        const cell = r * COLS + c
+        for (let k = start[cell], end = start[cell + 1]; k < end; k++) {
+          const j = items[k]
+          if (j === this.slot || crowd.act[j] === 0 || crowd.sstat[j] === 1) continue
+          if (crowd.gDoor[j] === this.gate && crowd.gSign[j] !== sign) continue
+          const rx = crowd.sx[j] - g.cx
+          const rz = crowd.sz[j] - g.cz
+          const a = rx * g.acX + rz * g.acZ
+          if (a > across || a < -across) continue
+          const p = (rx * g.axX + rz * g.axZ) * sign
+          if (p >= -DOORWAY_HALF && p <= EXIT_CLEAR + (crowd.rad[j] - BODY_RADIUS)) return true
+        }
+      }
+    }
+    return false
   }
 
   // --- the final position ---------------------------------------------------------------------

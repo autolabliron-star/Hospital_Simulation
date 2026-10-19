@@ -608,6 +608,8 @@ export class Reactions {
       }
       case 'paramedic':
         return { key: e.anim === 'talk' ? 'paramedic.handover' : 'paramedic.idle', fields: none }
+      case 'labScientist':
+        return { key: 'labScientist.working', fields: none }
     }
   }
 

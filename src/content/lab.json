@@ -1,0 +1,138 @@
+{
+  "tubes": {
+    "citrate": { "cap": "lightBlue", "hex": "#6fb7e6", "inversions": 4, "order": 1, "label": "Coagulation (light blue)" },
+    "serum": { "cap": "gold", "hex": "#d9a521", "inversions": 5, "order": 2, "label": "Serum (gold)" },
+    "heparin": { "cap": "green", "hex": "#3a9a5c", "inversions": 8, "order": 3, "label": "Heparin (green)" },
+    "EDTA": { "cap": "lavender", "hex": "#8a5cc7", "inversions": 8, "order": 4, "label": "EDTA (lavender)" },
+    "fluoride": { "cap": "grey", "hex": "#8c9396", "inversions": 8, "order": 5, "label": "Fluoride (grey)" }
+  },
+  "tests": {
+    "cbc": {
+      "name": "Full blood count",
+      "tube": "EDTA",
+      "analyser": "haematology",
+      "analyticSeconds": 75,
+      "analytes": [
+        { "id": "wbc", "name": "White cells", "unit": "10⁹/L", "low": 4.0, "high": 11.0, "mean": 7.0, "sd": 1.8, "decimals": 1 },
+        { "id": "hb", "name": "Haemoglobin", "unit": "g/L", "low": 120, "high": 170, "mean": 140, "sd": 12, "decimals": 0 },
+        { "id": "plt", "name": "Platelets", "unit": "10⁹/L", "low": 150, "high": 400, "mean": 260, "sd": 55, "decimals": 0 }
+      ]
+    },
+    "bmp": {
+      "name": "Kidney and electrolytes",
+      "tube": "heparin",
+      "analyser": "chemistry",
+      "analyticSeconds": 600,
+      "analytes": [
+        { "id": "na", "name": "Sodium", "unit": "mmol/L", "low": 135, "high": 145, "mean": 139, "sd": 2.5, "decimals": 0 },
+        { "id": "k", "name": "Potassium", "unit": "mmol/L", "low": 3.5, "high": 5.1, "mean": 4.2, "sd": 0.35, "decimals": 1 },
+        { "id": "creat", "name": "Creatinine", "unit": "µmol/L", "low": 60, "high": 110, "mean": 82, "sd": 16, "decimals": 0 },
+        { "id": "glu", "name": "Glucose", "unit": "mmol/L", "low": 3.9, "high": 7.8, "mean": 5.6, "sd": 1.0, "decimals": 1 }
+      ]
+    },
+    "crp": {
+      "name": "C-reactive protein",
+      "tube": "heparin",
+      "analyser": "chemistry",
+      "analyticSeconds": 600,
+      "analytes": [{ "id": "crp", "name": "CRP", "unit": "mg/L", "low": 0, "high": 5, "mean": 3, "sd": 2.5, "decimals": 0 }]
+    },
+    "creatinine": {
+      "name": "Creatinine",
+      "tube": "heparin",
+      "analyser": "chemistry",
+      "analyticSeconds": 600,
+      "analytes": [{ "id": "creat", "name": "Creatinine", "unit": "µmol/L", "low": 60, "high": 110, "mean": 82, "sd": 16, "decimals": 0 }]
+    },
+    "troponin": {
+      "name": "High-sensitivity troponin",
+      "tube": "heparin",
+      "analyser": "immunoassay",
+      "analyticSeconds": 540,
+      "analytes": [{ "id": "trop", "name": "hs-Troponin T", "unit": "ng/L", "low": 0, "high": 14, "mean": 7, "sd": 3, "decimals": 0 }]
+    },
+    "coag": {
+      "name": "Clotting screen",
+      "tube": "citrate",
+      "analyser": "coagulation",
+      "analyticSeconds": 240,
+      "analytes": [
+        { "id": "inr", "name": "INR", "unit": "", "low": 0.8, "high": 1.2, "mean": 1.0, "sd": 0.08, "decimals": 2 },
+        { "id": "aptt", "name": "APTT", "unit": "s", "low": 25, "high": 35, "mean": 30, "sd": 3, "decimals": 0 }
+      ]
+    },
+    "lipids": {
+      "name": "Cholesterol",
+      "tube": "serum",
+      "analyser": "chemistry",
+      "analyticSeconds": 600,
+      "analytes": [
+        { "id": "chol", "name": "Total cholesterol", "unit": "mmol/L", "low": 0, "high": 5.2, "mean": 4.9, "sd": 0.8, "decimals": 1 },
+        { "id": "ldl", "name": "LDL cholesterol", "unit": "mmol/L", "low": 0, "high": 3.4, "mean": 2.9, "sd": 0.7, "decimals": 1 }
+      ]
+    },
+    "hba1c": {
+      "name": "HbA1c",
+      "tube": "EDTA",
+      "analyser": "chemistry",
+      "analyticSeconds": 840,
+      "analytes": [{ "id": "a1c", "name": "HbA1c", "unit": "mmol/mol", "low": 20, "high": 42, "mean": 38, "sd": 6, "decimals": 0 }]
+    },
+    "tsh": {
+      "name": "Thyroid (TSH)",
+      "tube": "serum",
+      "analyser": "immunoassay",
+      "analyticSeconds": 1080,
+      "analytes": [{ "id": "tsh", "name": "TSH", "unit": "mIU/L", "low": 0.4, "high": 4.0, "mean": 1.8, "sd": 0.8, "decimals": 2 }]
+    },
+    "glucose": {
+      "name": "Fasting glucose",
+      "tube": "fluoride",
+      "analyser": "chemistry",
+      "analyticSeconds": 600,
+      "analytes": [{ "id": "fglu", "name": "Glucose (fasting)", "unit": "mmol/L", "low": 3.9, "high": 6.1, "mean": 5.2, "sd": 0.7, "decimals": 1 }]
+    }
+  },
+  "panels": {
+    "er-chest": { "name": "Chest pain bloods", "tests": ["cbc", "bmp", "troponin", "coag"] },
+    "er-fever": { "name": "Fever bloods", "tests": ["cbc", "crp", "bmp"] },
+    "er-faint": { "name": "Faint bloods", "tests": ["cbc", "bmp", "glucose"] },
+    "er-confused": { "name": "Confusion bloods", "tests": ["cbc", "bmp", "crp", "glucose"] },
+    "er-dizzy": { "name": "Dizziness bloods", "tests": ["cbc", "bmp"] },
+    "er-urine": { "name": "Urinary bloods", "tests": ["cbc", "crp", "creatinine"] },
+    "op-annual": { "name": "Annual check", "tests": ["cbc", "lipids", "bmp"] },
+    "op-diabetes": { "name": "Diabetes review", "tests": ["hba1c", "glucose", "creatinine"] },
+    "op-thyroid": { "name": "Thyroid check", "tests": ["tsh", "cbc"] },
+    "op-anticoag": { "name": "Anticoagulation check", "tests": ["coag"] },
+    "op-precontrast": { "name": "Before a contrast scan", "tests": ["creatinine"] },
+    "ward-routine": { "name": "Ward morning bloods", "tests": ["cbc", "bmp"] }
+  },
+  "erPanels": {
+    "Chest pain spreading to arm": "er-chest",
+    "Chest pain at rest, sweating": "er-chest",
+    "Confused and very drowsy today": "er-confused",
+    "High fever since yesterday": "er-fever",
+    "Fainted at work this morning": "er-faint",
+    "Dizzy and vomiting since morning": "er-dizzy",
+    "Burning feeling when passing urine": "er-urine"
+  },
+  "outpatientPanels": [
+    { "panel": "op-annual", "weight": 5 },
+    { "panel": "op-diabetes", "weight": 3 },
+    { "panel": "op-thyroid", "weight": 2 },
+    { "panel": "op-anticoag", "weight": 2 }
+  ],
+  "panelShifts": {
+    "er-fever": { "crp": 30, "wbc": 4, "tempC": 1.4, "pulse": 18 },
+    "er-confused": { "crp": 12, "na": -3, "pulse": 8 },
+    "er-chest": { "pulse": 10, "sys": 12 },
+    "er-faint": { "sys": -10, "pulse": 6 },
+    "er-dizzy": { "pulse": 6 },
+    "er-urine": { "crp": 15, "wbc": 2, "tempC": 0.6 }
+  },
+  "vitalsBaselines": [
+    { "maxAge": 39, "sys": [118, 10], "dia": [76, 8], "pulse": [72, 10], "spo2": [98, 1], "tempC": [36.7, 0.25] },
+    { "maxAge": 64, "sys": [128, 12], "dia": [80, 8], "pulse": [74, 10], "spo2": [97, 1.2], "tempC": [36.6, 0.25] },
+    { "maxAge": 130, "sys": [136, 14], "dia": [78, 9], "pulse": [72, 10], "spo2": [96, 1.5], "tempC": [36.5, 0.3] }
+  ]
+}

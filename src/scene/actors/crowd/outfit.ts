@@ -155,6 +155,7 @@ export const OUTFIT_NAMES: Readonly<Record<Role, string>> = {
   radiographer: 'wine-red tunic, navy trousers, dosimeter badge',
   sonographer: 'navy scrubs',
   host: 'soft green polo, apron',
+  labScientist: 'lavender scrubs, lab coat',
   patient: 'pale blue gown',
   visitor: 'everyday clothes',
 }

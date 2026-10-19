@@ -14,6 +14,11 @@
  *   - A body whose CENTRE is inside the shape itself (it was put down on a seat: a chair, a stool, a bench, a bed) walks out the way it
  *     faces, through whichever face that is, when the way out is short (`MAX_ESCAPE`): it is not "deeper in" to cross a bed lengthways.
  *   - A hit always has motion . normal < 0, so a body sliding along a face (motion . normal = 0) is never "hit" by it.
+ *   - CONTACT: a body that touches a shape (its distance is R, give or take float rounding: from `R - OVERLAP_EPS` to `R + CONTACT_EPS`) is
+ *     decided by the nearest feature's outward normal alone, never by the slab test: the motion is a hit (t = 0) only when it goes INTO the
+ *     surface (motion . normal < -INTO_REL |motion|); along it and away from it is free, whatever the rounding. (The slab test sees a start
+ *     on the grown box's boundary as "inside" it and used to pick the FAR face's normal for a motion leaving it, so a body at rest against a
+ *     wall could not back away from it, nor slide along it, while the motion was still held up at t = 0.)
  */
 
 export interface SweepHit {
@@ -34,8 +39,12 @@ export function newSweepHit(): SweepHit {
 
 /** Closer than R by more than this counts as overlapping (below it, the circle is touching). */
 export const OVERLAP_EPS = 1e-9
+/** A body this close to R, or closer, from a shape (metres, outside the grown shape) is ON the surface: touching. */
+export const CONTACT_EPS = 1e-6
 /** A hit needs the motion to go into the surface by more than this (motion . normal, metres). */
 const INTO_EPS = 1e-12
+/** In contact, a hit needs the motion to go into the surface by more than this share of its length (the sine of the angle to the surface). */
+const INTO_REL = 1e-9
 const PARALLEL_EPS = 1e-14
 /** A start this close to a face (metres) is ON it. */
 const FACE_EPS = 1e-9
@@ -163,10 +172,22 @@ export function sweepCircleBox(px: number, pz: number, dx: number, dz: number, R
     const qx = ax > 0 ? ax : 0
     const qz = az > 0 ? az : 0
     const dist = Math.hypot(qx, qz)
-    if (dist < R - OVERLAP_EPS) {
+    if (dist < R + CONTACT_EPS) {
+      // overlapping, or touching (R from it, give or take rounding): the nearest feature's normal decides, and only the motion INTO it counts
       nlx = lx < 0 ? -qx / dist : qx / dist
       nlz = lz < 0 ? -qz / dist : qz / dist
-      depth = R - dist
+      if (dist < R - OVERLAP_EPS) {
+        depth = R - dist
+      } else {
+        const into = ldx * nlx + ldz * nlz
+        if (into >= -INTO_REL * Math.hypot(ldx, ldz) || 0 >= tMax) return false
+        out.t = 0
+        out.nx = nlx * ux - nlz * uz
+        out.nz = nlx * uz + nlz * ux
+        out.overlap = false
+        out.depth = 0
+        return true
+      }
     } else {
       // outside by R or more: the first entry into the grown box
       if (!rectEntry(lx, lz, ldx, ldz, -hu - R, hu + R, -hv - R, hv + R, tMax)) return false
@@ -237,6 +258,20 @@ export function sweepCircleCircle(px: number, pz: number, dx: number, dz: number
     out.nz = nz
     out.overlap = true
     out.depth = rad - dist
+    return true
+  }
+  const reach = rad + CONTACT_EPS
+  if (dist2 < reach * reach) {
+    // touching (rad from it, give or take rounding): the line of centres is the normal, and only the motion INTO it counts
+    const dist = Math.sqrt(dist2)
+    const nx = qx / dist
+    const nz = qz / dist
+    if (dx * nx + dz * nz >= -INTO_REL * Math.hypot(dx, dz) || 0 >= tMax) return false
+    out.t = 0
+    out.nx = nx
+    out.nz = nz
+    out.overlap = false
+    out.depth = 0
     return true
   }
   if (!circleEntry(qx, qz, dx, dz, rad, tMax)) return false

@@ -98,6 +98,9 @@ export class Companion extends Actor {
       if (this.seatTries >= 1) {
         this.seatTries = 0
         const group = p.state === 'waitingTriage' ? 'triage' : 'er'
+        // W4 fix: not seated, so any claim still held is stale (a seat walked away from): give it back before taking another,
+        // or a companion collects several seats and a lobby that looks full empties at once when the party leaves
+        this.world.seats.releaseBy(this.entity.id)
         const seat = this.world.claimWaitingSeat(this.entity.id, group, { x: p.waitSeat.x, z: p.waitSeat.z })
         if (seat) {
           this.sitOn(seat)

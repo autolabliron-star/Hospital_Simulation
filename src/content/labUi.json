@@ -1,0 +1,128 @@
+{
+  "simulated": "Simulated, not real patient data",
+  "intro": "Tubes arrive by the overhead pneumatic tube, ride a one-way track, spin, are measured and end up in the cold archive.",
+  "sections": {
+    "track": "Sample track",
+    "kpis": "Today",
+    "samples": "Samples now",
+    "results": "Results ready",
+    "send": "Try it"
+  },
+  "kpi": {
+    "samplesToday": "Samples today",
+    "onTrack": "On the track now",
+    "turnaround": "Median draw to result",
+    "sends": "Tube sends today"
+  },
+  "units": {
+    "minutes": "{n} min",
+    "seconds": "{n} s",
+    "none": "none yet",
+    "justNow": "just now",
+    "inTube": "in the tube"
+  },
+  "stage": {
+    "ordered": "Ordered",
+    "labelled": "Labelled",
+    "drawn": "Drawn",
+    "inTube": "In the tube",
+    "received": "Received",
+    "onTrack": "On the track",
+    "centrifuge": "Spinning",
+    "decap": "Uncapping",
+    "analysing": "Measuring",
+    "recap": "Recapping",
+    "archived": "In the archive"
+  },
+  "priority": { "stat": "STAT", "routine": "Routine" },
+  "module": {
+    "receive": "Receive and sort",
+    "camera": "Quality camera",
+    "cfg0": "Centrifuge 1",
+    "cfg1": "Centrifuge 2",
+    "decap": "Decapper",
+    "haem": "Blood count analyser",
+    "chem": "Chemistry analyser",
+    "immuno": "Immunoassay analyser",
+    "coag": "Coagulation analyser",
+    "recap": "Recapper",
+    "archive": "Cold archive"
+  },
+  "moduleShort": {
+    "receive": "RX",
+    "camera": "CAM",
+    "cfg0": "C1",
+    "cfg1": "C2",
+    "decap": "DC",
+    "haem": "FBC",
+    "chem": "CHEM",
+    "immuno": "IMM",
+    "coag": "COAG",
+    "recap": "RC",
+    "archive": "4 °C"
+  },
+  "status": {
+    "idle": "Idle",
+    "busy": "Working",
+    "loading": "Loading",
+    "spinning": "Spinning {pct}",
+    "unloading": "Unloading",
+    "queue": "{n} waiting",
+    "full": "Full"
+  },
+  "empty": {
+    "samples": "No tubes in the lab right now.",
+    "results": "No results yet today.",
+    "track": "The track is empty."
+  },
+  "send": {
+    "button": "Send a sample now",
+    "note": "A background sample flies in through the overhead tube."
+  },
+  "row": {
+    "result": "{name}",
+    "resultDetail": "{panel} · {tests} · draw to result {minutes}",
+    "sample": "{tests}",
+    "sampleDetail": "{patient} · {tube}"
+  },
+  "prompt": {
+    "viewpoint": "Look into the lab",
+    "totem": "Open the lab status"
+  },
+  "tiles": {
+    "labStatus": {
+      "title": "LAB",
+      "samples": "Samples today",
+      "onTrack": "On the track",
+      "tat": "Draw to result",
+      "review": "Waiting for review",
+      "archive": "In the archive",
+      "idle": "Waiting for tubes",
+      "flight": "Tube in the pipe"
+    },
+    "centrifuge": {
+      "title": "CENTRIFUGES",
+      "idle": "Idle",
+      "loading": "Loading",
+      "spinning": "Spinning",
+      "unloading": "Unloading",
+      "load": "{n} of {max} tubes",
+      "left": "{mm}:{ss} left",
+      "program": { "stat": "STAT run", "routine": "Routine run" }
+    },
+    "labReceive": {
+      "title": "RECEIVE",
+      "waiting": "{n} tubes waiting",
+      "none": "Nothing waiting",
+      "incoming": "Tube arriving",
+      "last": "Last: {id}",
+      "sent": "{n} sends today"
+    },
+    "archive": {
+      "title": "COLD ARCHIVE",
+      "temp": "4 to 8 °C",
+      "count": "{n} tubes",
+      "racks": "{n} of {max} places used"
+    }
+  }
+}

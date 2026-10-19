@@ -478,6 +478,9 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   c.run = standing ? r.run : 0
   c.brisk = standing ? r.brisk : 0
   c.size = s
+  // W4: the person's own pelvis heights, so hand-reach poses (the seated arm-in at a cuff or robot tunnel) land on the world point
+  c.standPelvis = standP
+  c.seatedPelvis = B.seatedPelvis
   c.gait = gait
   c.speaking = r.speaking
   c.happy = r.happy

@@ -14,8 +14,11 @@
 import { MeshBasicMaterial, MeshStandardMaterial } from 'three'
 import type { ImagingModality } from '@/sim/types'
 import { getLiveTexture } from '../live'
+import { patchMaterialLook } from '@/scene/lighting/palettePatch'
 
 export const MACHINE_BODY = new MeshStandardMaterial({ vertexColors: true, color: '#ffffff', roughness: 0.42, metalness: 0.12 })
+// W3/W4: the machines (imaging, and every W4 machine that shares this material) pick up the baked light volume like the palette
+patchMaterialLook(MACHINE_BODY, 'plain')
 
 export const MACHINE_GLOW = new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })
 

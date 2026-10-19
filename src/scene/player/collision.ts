@@ -11,7 +11,9 @@
  *      static solids, so a door or a person can never push you into a wall);
  *   1. a step that meets something is cut into pieces of at most `SUBSTEP` metres (a curved obstacle is then followed within 0.1 mm; a
  *      clear step is one sweep), each of which is up to `MAX_ITERATIONS` rounds of: sweep a circle of radius r + skin, move to the first contact (a skin-sized gap
- *      exactly), remove the motion INTO the surface and carry on with what is left along it. In a crease (the new direction pushes into
+ *      exactly), remove the motion INTO the surface and carry on with what is left along it. A body that TOUCHES a surface (R from it, give or
+ *      take float rounding) is held by it only when the motion goes INTO it: along it and away from it are free (`sweep.ts`, CONTACT; a body
+ *      pressed against a wall used to be unable to back away from it). In a crease (the new direction pushes into
  *      a surface already met) the motion stops. A body that STARTS overlapping a shape ignores it while the motion goes away from it
  *      (so you can always walk out of a seat or of a leaf that closed on you) and never goes deeper in.
  *   2. the backstop: the people's region test (`isWalkable` at margin 0.18, which never rejects a legal contact: at a convex jamb a

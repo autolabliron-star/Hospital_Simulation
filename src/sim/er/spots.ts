@@ -99,7 +99,8 @@ function inward(seat: SeatSpec): Vec2 {
 
 /**
  * A standing spot beside a seat: `foot` is the approach itself, `doctor` and `nurse` are 0.85 m to either side of it,
- * `companion` is further out in the hall. Falls back to nearer spots when a candidate is not walkable.
+ * `companion` is further out in the hall (1.6 m: clear of the lane along the bay fronts). Falls back to nearer spots when a
+ * candidate is not walkable.
  */
 export function seatSpot(seat: SeatSpec, side: SeatSide): Vec2 {
   const u = inward(seat)
@@ -119,9 +120,12 @@ export function seatSpot(seat: SeatSpec, side: SeatSide): Vec2 {
       push(0, 0.85)
       break
     case 'companion':
+      // out past the lane along the bay fronts, where staff (and a cleaner with a cart, 0.38 m) pass between them and the doctor
+      push(1.6, 0.45)
+      push(1.6, -0.45)
+      push(2.0, 0)
       push(1.1, 0.5)
       push(1.1, -0.5)
-      push(1.6, 0)
       break
     case 'lab':
       push(0.8, 0.2)

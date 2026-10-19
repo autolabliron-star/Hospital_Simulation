@@ -69,6 +69,8 @@ function classify(a: AreaId | null, b: AreaId | null): WallClass {
   if (isObservation(a, b)) return 'glassFull'
   if ((a === 'atrium' && isCorridor(b)) || (b === 'atrium' && isCorridor(a))) return 'glassFull'
   if ((isHub(a) && isCorridor(b)) || (isHub(b) && isCorridor(a))) return 'glassFull'
+  // W4: the automated lab has a glass front onto corridor B: you can see the track run from the corridor (the door stays)
+  if ((a === 'lab' && isCorridor(b)) || (b === 'lab' && isCorridor(a))) return 'glassFull'
   return 'solid'
 }
 

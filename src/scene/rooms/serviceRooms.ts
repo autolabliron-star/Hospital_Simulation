@@ -171,19 +171,20 @@ function shelfUnit(f: Frame, id: string, u: number, v: number, len: number, alon
 function buildSupply(b: LayoutBuilder): void {
   b.area = 'supplyB'
   const f = wardFrame(b, 'B', -40, BANDS.roomWall)
-  // shelving along the outer wall, west and east walls
-  for (let i = 0; i < 4; i++) shelfUnit(f, `supply:shelfN${i}`, 1.8 + i * 3.3, 5.5, 3.0, false)
-  shelfUnit(f, 'supply:shelfW', 0.4, 2.3, 2.6, true)
-  shelfUnit(f, 'supply:shelfE', 14.6, 2.3, 2.6, true)
-  // two linen carts
-  for (const [i, u] of [11.6, 12.6].entries()) {
+  // W4: the clean-supply room shrank to x -40..-31 (u 0..9) to make room for the lab; its shelving and carts stay inside it.
+  // shelving along the outer wall (three units), and a short run on the west and east walls beside the door side
+  for (let i = 0; i < 3; i++) shelfUnit(f, `supply:shelfN${i}`, 1.6 + i * 2.9, 5.5, 2.8, false)
+  shelfUnit(f, 'supply:shelfW', 0.4, 2.8, 2.4, true)
+  shelfUnit(f, 'supply:shelfE', 8.55, 2.8, 2.4, true)
+  // two linen carts and the work bench, in a row along the corridor wall, clear of the door's swing (u 6.4..7.6)
+  for (const [i, u] of [3.0, 3.9].entries()) {
     f.rbox(u, 0.1, 1.2, 0.6, 0.8, 0.9, 'whitePlastic', { r: 0.04 })
     f.box(u, 0.9, 1.2, 0.62, 0.05, 0.92, 'wallMint')
     f.rect(`supply:cart${i}`, u, 1.2, 0.62, 0.92)
   }
-  f.rbox(2.2, 0, 1.2, 1.3, 0.9, 0.6, 'whitePlastic', { r: 0.03 })
-  f.rbox(2.2, 0.9, 1.2, 1.36, 0.04, 0.66, 'woodOak', { r: 0.02 })
-  f.rect('supply:bench', 2.2, 1.2, 1.36, 0.66)
+  f.rbox(1.5, 0, 1.2, 1.3, 0.9, 0.6, 'whitePlastic', { r: 0.03 })
+  f.rbox(1.5, 0.9, 1.2, 1.36, 0.04, 0.66, 'woodOak', { r: 0.02 })
+  f.rect('supply:bench', 1.5, 1.2, 1.36, 0.66)
 }
 
 // ---------------------------------------------------------------------------------------------

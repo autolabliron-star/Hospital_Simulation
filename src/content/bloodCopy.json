@@ -1,0 +1,45 @@
+{
+  "events": {
+    "drawTicket": "{name} checked in for blood tests: ticket {ticket}.",
+    "drawTicketEr": "{name}'s blood tests are ordered: priority ticket {ticket}.",
+    "drawCalled": "Now calling {ticket} to robot {robot}.",
+    "bloodDrawn": "Robot {robot} drew {tubes} {tubeWord} from {name}, first attempt.",
+    "bloodDrawnRetry": "Robot {robot} drew {tubes} {tubeWord} from {name} on attempt {attempt}.",
+    "bloodDrawnByNurse": "{nurse} drew {tubes} {tubeWord} from {name} by hand.",
+    "drawByNurseNoVein": "Robot {robot} found no suitable vein for {name}: {nurse} will draw by hand.",
+    "drawByNurseMissed": "Robot {robot} could not place the needle for {name}: {nurse} will draw by hand.",
+    "drawByNurseMoved": "{name} moved again at robot {robot}: {nurse} will finish the draw by hand.",
+    "armMoved": "{name} moved their arm: robot {robot} pulled the needle out and {nurse} is on the way.",
+    "samplesSent": "Robot {robot} sent {tubes} {tubeWord} from {name} to the lab.",
+    "samplesSentByNurse": "{nurse} sent {tubes} {tubeWord} from {name} to the lab by hand.",
+    "playerTicket": "You took ticket {ticket} at the blood draw centre.",
+    "porterToDraw": "{porter} is taking {name} to the blood draw centre.",
+    "porterFromDraw": "{porter} is bringing {name} back to ER bay {bay}.",
+    "porterToLounge": "{porter} is taking {name} to wait for the results in the Lab and imaging hall."
+  },
+  "tubeWords": { "one": "tube", "other": "tubes" },
+  "phases": {
+    "idle": "Ready",
+    "calling": "Waiting for the patient",
+    "cardScan": "Scanning the card",
+    "armIn": "Arm in the cradle",
+    "cuff": "Cuff tightening",
+    "sanitise": "Cleaning the skin",
+    "veinScan": "Looking for a vein",
+    "needleIn": "Needle going in",
+    "filling": "Filling the tubes",
+    "needleOut": "Needle out",
+    "bandage": "Putting on the bandage",
+    "release": "Arm free",
+    "awaitPorter": "Waiting for the porter",
+    "armMoved": "Arm moved: nurse on the way",
+    "fallbackToNurse": "Nurse drawing by hand",
+    "reset": "Resetting"
+  },
+  "prep": {
+    "idle": "Ready",
+    "picking": "Picking the tubes",
+    "labelling": "Printing the labels",
+    "output": "Tray ready"
+  }
+}

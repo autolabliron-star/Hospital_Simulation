@@ -497,7 +497,7 @@ describe('W3: swing doors are double-acting (the leaf opens away from whoever se
   }
 
   it('a person coming from either side: the leaf swings to the far side of the wall line from them (drawn, and as the solid box)', () => {
-    expect(swingDoors.length).toBe(20)
+    expect(swingDoors.length).toBe(21) // 20 + the W4 lab door
     for (const d of swingDoors) {
       for (const s of [1, -1] as const) {
         const bank = new DoorBank(walk.doors)

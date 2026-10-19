@@ -1,0 +1,88 @@
+{
+  "disclaimer": "Simulated, not real patient data",
+  "footer": "Simulated",
+  "prompt": {
+    "use": "Use health kiosk {n}",
+    "inUse": "Health kiosk {n} is in use",
+    "leave": "Leave health kiosk {n}",
+    "closeReport": "Close the health report",
+    "busyToast": "That health kiosk is busy. Try the other one."
+  },
+  "steps": {
+    "idle": { "title": "Health check", "hint": "Step up to start" },
+    "calling": { "title": "Welcome", "hint": "Step onto the platform" },
+    "login": { "title": "Sign in", "hint": "Scan your card or QR code" },
+    "height": { "title": "Height", "hint": "Stand tall under the sensor" },
+    "weight": { "title": "Weight", "hint": "Stand still on the platform" },
+    "bodyFat": { "title": "Body fat", "hint": "Hold both handles" },
+    "sit": { "title": "Take a seat", "hint": "Sit at the pressure arm" },
+    "spo2": { "title": "Oxygen", "hint": "Rest your finger in the clip" },
+    "bp": { "title": "Blood pressure", "hint": "Keep still, arm relaxed" },
+    "bpRest": { "title": "Short rest", "hint": "Next reading soon" },
+    "temp": { "title": "Temperature", "hint": "Look at the camera" },
+    "report": { "title": "Your report", "hint": "Take your slip" }
+  },
+  "fields": {
+    "height": { "label": "Height", "unit": "cm", "decimals": 0 },
+    "weight": { "label": "Weight", "unit": "kg", "decimals": 1 },
+    "bmi": { "label": "BMI", "unit": "", "decimals": 1 },
+    "bodyFat": { "label": "Body fat", "unit": "%", "decimals": 0 },
+    "spo2": { "label": "SpO₂", "unit": "%", "decimals": 0 },
+    "pulse": { "label": "Pulse", "unit": "bpm", "decimals": 0 },
+    "bp": { "label": "Blood pressure", "unit": "mmHg", "decimals": 0 },
+    "temp": { "label": "Temperature", "unit": "°C", "decimals": 1 }
+  },
+  "pending": "—",
+  "ranges": {
+    "bmi": [18.5, 29.9],
+    "bodyFat": [8, 32],
+    "spo2": [94, 100],
+    "pulse": [50, 100],
+    "sys": [90, 139],
+    "dia": [55, 89],
+    "temp": [35.8, 37.5]
+  },
+  "bpScreen": {
+    "title": "Blood pressure",
+    "reading": "Reading {n}",
+    "sys": "SYS",
+    "dia": "DIA",
+    "pulse": "PULSE",
+    "unit": "mmHg",
+    "cuff": "Cuff",
+    "free": "Pressure arm",
+    "freeHint": "Free",
+    "waiting": "Waiting for the arm"
+  },
+  "triageScreen": {
+    "title": "Kiosk readings",
+    "columns": { "name": "Patient", "bp": "BP", "spo2": "SpO₂", "temp": "Temp" },
+    "empty": "Nobody waiting with kiosk readings",
+    "more": "and {n} more",
+    "footer": "Simulated · waiting for triage"
+  },
+  "card": {
+    "title": "Your health check",
+    "step": "Step: {title}",
+    "close": "Close",
+    "closeTitle": "Close the health report",
+    "doneTitle": "Health report",
+    "sent": "Sent to triage · Simulated",
+    "stopped": "Stopped early · partial report",
+    "bpRound": "Reading {n}",
+    "slipFooter": "Simulated, not real patient data"
+  },
+  "section": {
+    "title": "Health kiosks",
+    "kiosk": "Kiosk {n}",
+    "free": "Free",
+    "using": "{name} · {step}",
+    "last": "Last: {summary}",
+    "noLast": "No sessions yet",
+    "today": "{n} today",
+    "assisted": "with the guide",
+    "bpSummary": "BP {sys}/{dia}",
+    "spo2Summary": "SpO₂ {spo2}%",
+    "tempSummary": "{temp} °C"
+  }
+}
