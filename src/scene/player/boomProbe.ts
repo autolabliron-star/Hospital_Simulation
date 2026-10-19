@@ -47,10 +47,14 @@ export interface WallBox {
 
 const HALF = WALL.thickness / 2
 
-/** Every wall, lintel and cabinet of the building as boxes. Pure maths, so it is checked in node. */
-export function buildWallBoxes(): WallBox[] {
+/**
+ * Every wall, lintel and cabinet of the building as boxes. Pure maths, so it is checked in node. With `sight`, only what you cannot
+ * see through: the glass walls and the hanging signs are left out (`fx/sight.ts`, for what shows over people's heads in walk mode).
+ */
+export function buildWallBoxes(opts: { sight?: boolean } = {}): WallBox[] {
   const boxes: WallBox[] = []
   for (const p of buildWallPieces()) {
+    if (opts.sight && (p.cls === 'glassFull' || p.cls === 'glassCut')) continue
     // a wall end that is not a door or cabinet cut runs on to fill the corner, half a wall thickness
     const a = p.a - (p.cutA ? 0 : HALF)
     const b = p.b + (p.cutB ? 0 : HALF)
@@ -70,6 +74,7 @@ export function buildWallBoxes(): WallBox[] {
     for (const g of list) boxes.push({ x0: x - HALF, x1: x + HALF, y0: WALL.doorHeight, y1: WALL.height, z0: g.a, z1: g.b })
   }
   // the hanging wayfinding signs (walk mode): the camera ducks under a sign instead of passing through it
+  if (opts.sight) return boxes
   for (const b of buildSignage().boxes) {
     if (b.part === 'signBody') boxes.push({ x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1, z0: b.z0, z1: b.z1, sign: true })
   }

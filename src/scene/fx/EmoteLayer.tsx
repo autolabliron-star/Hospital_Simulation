@@ -3,8 +3,10 @@
  *
  * A single instanced quad. Per instance it carries the world position and size of the icon, its atlas rect and its
  * opacity (all filled by `EmoteTracker`, typed arrays only). The vertex shader billboards the quad toward the camera,
- * so no matrix or quaternion is built on the CPU. Icons draw on top of walls (no depth test) so a patient behind a
- * 1.3 m wall still shows their icon, in the last transparent slot of the frame.
+ * so no matrix or quaternion is built on the CPU. In the overview icons draw on top of walls (no depth test) so a patient
+ * behind a 1.3 m wall still shows their icon, in the last transparent slot of the frame. In walk mode the walls are full height
+ * and the depth test is on: a person in the next room is hidden and so is their icon (glass writes no depth, so people seen
+ * through glass keep theirs). Switching it is GL state only: nothing recompiles.
  *
  * The frame callback runs at `FRAME_PRIORITY.labelAnchors`: after every camera write and before the draw, so icons do
  * not trail the camera.
@@ -97,7 +99,8 @@ class EmoteRig {
   }
 
   /** One frame: advance the icons and upload what changed. With nobody emoting the mesh is hidden: no draw call. */
-  frame(dt: number, cx: number, cy: number, cz: number): void {
+  frame(dt: number, cx: number, cy: number, cz: number, walking: boolean): void {
+    this.material.depthTest = walking
     const n = this.tracker.update(dt, cx, cy, cz)
     this.geometry.instanceCount = n
     this.mesh.visible = n > 0
@@ -120,7 +123,9 @@ export function EmoteLayer({ entities }: { entities?: ReadonlyMap<string, Entity
 
   useFrame((state, dt) => {
     const p = state.camera.position
-    rig.frame(dt, p.x, p.y, p.z)
+    // (walk mode as the building sees it, walk/modeSwitch.ts: any mode but the overview, the flights between the two included)
+    const mode = sim.player?.mode
+    rig.frame(dt, p.x, p.y, p.z, mode !== undefined && mode !== 'overview')
   }, FRAME_PRIORITY.labelAnchors)
 
   return <primitive object={rig.mesh} />

@@ -8,6 +8,8 @@
  *  - The projected position is snapped to whole device pixels (labelSnap.ts) so the text does not shimmer.
  *  - Fading, hiding and the card's offset are written straight to the DOM, and only when they change.
  *  - The anchor is the same one the emote icons use (headAnchor.ts); with an emote showing, the bubble sits above it.
+ *  - In walk mode a bubble you cannot see the speaker's head for (a solid wall in between: sight.ts) fades out, and back in when
+ *    you can.
  */
 import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
@@ -20,6 +22,7 @@ import { MAX_BUBBLES, bubbleClock, useBubbles, type Bubble } from './bubbleStore
 import { MAX_RANGE, emoteStackHeight } from './emoteMath'
 import { headAnchor } from './headAnchor'
 import { snappedLabelPosition } from './labelSnap'
+import { sightBlocked } from './sight'
 
 /** Seconds the card takes to fade in, and to fade out before it expires. */
 const FADE_IN_SECONDS = 0.18
@@ -28,6 +31,8 @@ const FADE_OUT_SECONDS = 0.3
 const GAP = 0.04
 /** Height of the tail (CSS pixels). */
 const TAIL = 6
+/** Seconds a bubble takes to fade when a wall comes between you and the speaker, or goes. */
+const SIGHT_FADE_SECONDS = 0.15
 /** How often expired bubbles are swept out of the store. */
 const PRUNE_SECONDS = 0.25
 
@@ -92,8 +97,10 @@ function BubbleAnchor({ bubble, entities }: { bubble: Bubble; entities: Readonly
   const group = useRef<Group>(null)
   const card = useRef<HTMLDivElement>(null)
   const lastOpacity = useRef(-1)
+  /** 1 while you can see the speaker, 0 behind a wall, fading between. */
+  const seen = useRef(1)
 
-  useFrame((state) => {
+  useFrame((state, dt) => {
     const g = group.current
     const el = card.current
     if (!g || !el) return
@@ -113,7 +120,12 @@ function BubbleAnchor({ bubble, entities }: { bubble: Bubble; entities: Readonly
         const fadeIn = (now - bubble.born) / FADE_IN_SECONDS
         const fadeOut = (bubble.until - now) / FADE_OUT_SECONDS
         const person = e.fade === undefined ? 1 : e.fade * 2
-        opacity = Math.min(1, fadeIn, fadeOut, person)
+        // (walk mode, as the building sees it: walk/modeSwitch.ts)
+        const mode = sim.player?.mode
+        const hidden = mode !== undefined && mode !== 'overview' && sightBlocked(cam.x, cam.y, cam.z, anchor.x, anchor.y, anchor.z)
+        const step = dt / SIGHT_FADE_SECONDS
+        seen.current = hidden ? Math.max(0, seen.current - step) : Math.min(1, seen.current + step)
+        opacity = Math.min(1, fadeIn, fadeOut, person, seen.current)
       }
     }
     // 2 % steps: the DOM is written only while the card is actually fading
