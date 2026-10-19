@@ -12,7 +12,21 @@
 import type { Role, ShiftId, WardId } from '@/sim/types'
 
 /** Where a member of staff works. */
-export type StaffPost = 'ward' | 'er' | 'triage' | 'reception' | 'transport' | 'housekeeping' | 'pharmacy' | 'command' | 'imaging' | 'bloodDraw' | 'kiosk' | 'lab'
+export type StaffPost =
+  | 'ward'
+  | 'er'
+  | 'triage'
+  | 'reception'
+  | 'transport'
+  | 'housekeeping'
+  | 'pharmacy'
+  | 'command'
+  | 'imaging'
+  | 'bloodDraw'
+  | 'kiosk'
+  | 'lab'
+  /** R2: the robotic surgery suite on level 2. */
+  | 'theatre'
 
 export interface StaffMember {
   id: string
@@ -100,7 +114,24 @@ export const W4_STAFF: StaffMember[] = [
   { id: 'lab-sci-1', role: 'labScientist', post: 'lab', shift: 'day', name: 'Scientist Arjun' },
 ]
 
-const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF].map((s) => [s.id, s]))
+/**
+ * R2: the theatre team on level 2 (on site CONFIG.surgery.teamFromHour..teamToHour, not on the ward roster). Existing roles with
+ * theatre titles: `title` says what each does in the OR (the surgery sim gives each their part; the crowd dresses them in theatre
+ * scrubs and a cap). Synthetic people only.
+ */
+export const THEATRE_STAFF: (StaffMember & { title: 'surgeon' | 'assistant' | 'anaesthetist' | 'scrub' | 'circulator' | 'preOp' | 'pacu' | 'porter' | 'cleaner' })[] = [
+  { id: 'or-surgeon', role: 'doctor', post: 'theatre', shift: 'day', name: 'Dr. Elena', title: 'surgeon' },
+  { id: 'or-assistant', role: 'doctor', post: 'theatre', shift: 'day', name: 'Dr. Amir', title: 'assistant' },
+  { id: 'or-anaes', role: 'doctor', post: 'theatre', shift: 'day', name: 'Dr. Keiko', title: 'anaesthetist' },
+  { id: 'or-scrub', role: 'nurse', post: 'theatre', shift: 'day', name: 'Nurse Andreas', title: 'scrub' },
+  { id: 'or-circ', role: 'nurse', post: 'theatre', shift: 'day', name: 'Nurse Clara', title: 'circulator' },
+  { id: 'or-preop', role: 'nurse', post: 'theatre', shift: 'day', name: 'Nurse Fatima', title: 'preOp' },
+  { id: 'or-pacu', role: 'nurse', post: 'theatre', shift: 'day', name: 'Nurse Ben', title: 'pacu' },
+  { id: 'or-porter', role: 'porter', post: 'theatre', shift: 'day', name: 'Porter Basil', title: 'porter' },
+  { id: 'or-cleaner', role: 'cleaner', post: 'theatre', shift: 'day', name: 'Cleaner Lina', title: 'cleaner' },
+]
+
+const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF, ...THEATRE_STAFF].map((s) => [s.id, s]))
 
 export function staffName(id: string): string {
   return BY_ID.get(id)?.name ?? id

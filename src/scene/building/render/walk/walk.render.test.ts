@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Vector3, type BufferGeometry } from 'three'
 import { DOORS } from '@/sim/places'
+import { levelOf } from '@/sim/levels'
 import { CONFIG } from '@/sim/config'
 import { BLOCKER_STRIDE } from '@/scene/blockers'
 import { buildWallBoxes } from '@/scene/player/boomProbe'
@@ -497,7 +498,10 @@ describe('W3: swing doors are double-acting (the leaf opens away from whoever se
   }
 
   it('a person coming from either side: the leaf swings to the far side of the wall line from them (drawn, and as the solid box)', () => {
-    expect(swingDoors.length).toBe(21) // 20 + the W4 lab door
+    // level 1 still has 21 (16 patient rooms, the staff room, clean supply, ... and the W4 lab door); R2 level 2 adds the theatre staff room, and its doors are swept the same way
+    expect(swingDoors.filter((d) => levelOf(d.x) === 1).length).toBe(21)
+    expect(swingDoors.filter((d) => levelOf(d.x) === 2).map((d) => d.id)).toEqual(['l2Staff'])
+    expect(swingDoors.length).toBe(22)
     for (const d of swingDoors) {
       for (const s of [1, -1] as const) {
         const bank = new DoorBank(walk.doors)

@@ -97,7 +97,8 @@ const DOOR_GRACE = 3
 const CELL = 1.5
 const GX0 = -66
 const GZ0 = -26
-const COLS = 72
+// (R2: wide enough for the level-2 strip at sim x 88..110, levels.ts)
+const COLS = 120
 const ROWS = 35
 
 const MAX_NEIGHBOURS = 24
@@ -137,7 +138,7 @@ const GATES: Gate[] = DOORS.filter((d) => d.width < 1.8 && d.kind !== 'counter')
 })
 
 /** Areas big enough to keep right in with a wider offset. */
-const HALLS = new Set<string>(['lobby', 'triage', 'er', 'atrium', 'diagnostics', 'spine', 'command'])
+const HALLS = new Set<string>(['lobby', 'triage', 'er', 'atrium', 'diagnostics', 'spine', 'command', 'l2Corridor', 'l2Hall', 'l2PreOp', 'l2Lounge'])
 
 function brakeSpeed(distance: number): number {
   return distance > 0 ? Math.sqrt(2 * BRAKE * distance) : 0

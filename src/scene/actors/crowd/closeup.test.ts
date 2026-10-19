@@ -4,7 +4,7 @@ import type { Entity, Role } from '@/sim/types'
 import { FIXED_COLORS, FX, FEATURE_FIRST, P, PALETTE_SLOTS, PART_COUNT, ROW_FLOATS, SLOT, TEX, fixedSlot } from './constants'
 import { FACE, blinkAt, expressionOf, faceZ, mouthOpenAt } from './face'
 import { buildBodyGeometries } from './geometry'
-import { HAIR_BACK, HAIR_CAP, HAIR_FRONT, HAIR_SHAPES } from './hair'
+import { ALL_HAIR_SHAPES, HAIR_BACK, HAIR_CAP, HAIR_FRONT, HAIR_SHAPES } from './hair'
 import { EYE, LOOK, createHeadLook, updateHeadLook } from './look'
 import { setRotYXZ, transformPoint } from './math'
 import { CrowdModel, hexToLinear, type FrameInput } from './model'
@@ -115,7 +115,8 @@ describe('hair', () => {
       } else if (pt === P.hairCap) cap.push(pts)
     }
     expect(skull.length).toBeGreaterThan(8)
-    for (const style of HAIR_SHAPES) {
+    // (R2: the theatre cap too: a cap over every skull, in front of the skin)
+    for (const style of ALL_HAIR_SHAPES) {
       const h = HAIR_CAP[style]
       // the rig's matrix of the piece: scale first, then roll and pitch, then move (rig.ts hairPiece)
       setRotYXZ(m, 0, 0, h[6], h[7])

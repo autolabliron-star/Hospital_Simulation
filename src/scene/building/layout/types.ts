@@ -44,6 +44,11 @@ export interface Prim {
    * into its own merged meshes, toggled by `visible` only.
    */
   overviewOnly?: true
+  /**
+   * Drawn only while walking (R2): the OR's ceiling booms, pendants and light heads would hide the architect's cut from above. The
+   * mirror of `overviewOnly`: compiled into its own merged meshes, toggled by `visible` only.
+   */
+  walkOnly?: true
 }
 
 /**

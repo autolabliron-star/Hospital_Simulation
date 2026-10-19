@@ -4,6 +4,8 @@
  * patient room is listed.
  */
 import { patientInRoom } from '@/content/catalogue'
+import { SURGERY_UI } from '@/content/surgeryUi'
+import { levelOf } from '@/sim/levels'
 import { AREAS, ROOMS, areaById, type AreaId } from '@/sim/places'
 import type { RoomId, RoomStatus } from '@/sim/types'
 import { L1_COPY } from './l1Copy'
@@ -42,6 +44,15 @@ function wardItems(ward: 'A' | 'B', rooms?: ReadonlyMap<RoomId, RoomStatus>): Go
 }
 
 /**
+ * R2: the robotic surgery suite on level 2, every level-2 area the minimap names, once (pre-op, sterile supply, the robotic OR, recovery and the
+ * family lounge). Read from `AREAS` so a room added to level 2 with a map label joins the menu with no edit here. Choosing one flies there and
+ * switches the overview to Level 2 (roomFocus.ts `focusRoom`).
+ */
+function level2Items(): GoToItem[] {
+  return AREAS.filter((a) => a.mapLabel && levelOf(a.rect.x0) === 2).map((a) => item(a.id))
+}
+
+/**
  * The menu, in reading order. Every `AREAS` entry with `mapLabel` or `kind: 'room'` appears exactly once. Pass the sim's
  * `life.rooms` so the ward names follow the beds as they turn over; without it the menu shows the demo roster.
  */
@@ -60,6 +71,8 @@ export function buildGoToGroups(rooms?: ReadonlyMap<RoomId, RoomStatus>): GoToGr
     },
     // W4: the robot draw centre and the automated lab it sends its tubes to
     { id: 'bloodLab', title: 'Blood & lab', items: [item('diagnostics'), item('lab')] },
+    // R2: level 2, the robotic surgery suite
+    { id: 'level2', title: SURGERY_UI.goTo.group, items: level2Items() },
     { id: 'wardA', title: 'Ward A', items: wardItems('A', rooms) },
     { id: 'wardB', title: 'Ward B', items: wardItems('B', rooms) },
     { id: 'pharmacy', title: 'Pharmacy core', items: [item('core', 'Pharmacy core', 'MedVend wall and MedPods')] },

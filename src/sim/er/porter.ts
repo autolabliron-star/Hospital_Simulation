@@ -124,6 +124,9 @@ export class Porter extends Actor {
         if (!p.mounted) break
         this.timer += dt
         if (this.timer < CONFIG.er.loadSeconds) break
+        // R2: a patient admitted "to a ward upstairs" is faded at a lift lobby: wait (loaded, in the bay) until that lobby's stretcher slot is free,
+        // so a lobby never holds two stretchers or a stretcher and a MealBot (the lifts' LobbyGate)
+        if (this.job!.kind === 'admit' && p.bed === null && !this.claimLift(p)) break
         this.timer = 0
         this.entity.anim = 'push'
         this.cruise = CONFIG.er.wheelSpeed
@@ -440,7 +443,15 @@ export class Porter extends Actor {
     }
   }
 
+  /** R2: hold the stretcher slot of the lift lobby the patient is taken to (true when held, or when there are no lifts). */
+  private claimLift(p: ErPatient): boolean {
+    const lifts = this.world.lifts
+    if (lifts === null) return true
+    return lifts.claimFade(this.world.liftFor(p.pos).z < 0 ? 'A' : 'B', 1, this.staff.id)
+  }
+
   private finishJob(): void {
+    this.world.lifts?.releaseFade(this.staff.id)
     const job = this.job
     // a patient slid onto their ward bed: the bed flow makes them a ward patient on its next step
     if (job && job.kind === 'admit' && this.patient?.bed && !this.patient.handedToBed && this.patient.settled && this.patient.seat !== null) {

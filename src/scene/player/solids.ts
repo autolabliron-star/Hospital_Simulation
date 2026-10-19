@@ -17,7 +17,7 @@
  * axis u = (ux, uz) on the floor and half extents hu along u and hv along v = (-uz, ux), the layout of a blocker. A circle has its
  * radius in hu. `group[i]` says what it is (`GROUP`), for the placement rule that only respects walls.
  *
- * The grid is 1 m cells over x -80..52, z -36..36, each cell listing the solids whose bounds touch it (CSR arrays). A query takes the
+ * The grid is 1 m cells over x -80..116 (level 2 included), z -36..36, each cell listing the solids whose bounds touch it (CSR arrays). A query takes the
  * bounds of a swept circle and fills a preallocated index array; nothing is allocated.
  */
 import { buildWallBoxes } from './boomProbe'
@@ -46,7 +46,8 @@ export interface SolidSet {
   items: Int32Array
 }
 
-export const SOLID_GRID = { x0: -80, z0: -36, cell: 1, cols: 132, rows: 72 } as const
+// (R2: wide enough for the level-2 strip at sim x 88..110, sim/levels.ts)
+export const SOLID_GRID = { x0: -80, z0: -36, cell: 1, cols: 196, rows: 72 } as const
 
 const FENCE = 0.1
 

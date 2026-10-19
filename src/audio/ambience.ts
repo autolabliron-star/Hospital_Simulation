@@ -76,11 +76,14 @@ export function stepVoice(strikeSpeed: number, run: number, out: StepVoice = { p
 
 // Room tone -------------------------------------------------------------------------------------
 
-export type RoomTone = 'airy' | 'corridor' | 'busy' | 'quiet' | 'outdoor'
+export type RoomTone = 'airy' | 'corridor' | 'busy' | 'quiet' | 'outdoor' | 'hum' | 'machine'
 
 /**
  * Each tone is a filtered-noise bed. The low-pass cutoff sets its colour (higher is airier) and the level its loudness,
  * 0..1 before the bed's peak. Patient rooms are the quietest; the ER is a little busier than a corridor.
+ *
+ * R2, level 2 (the robotic surgery suite): `hum` is the quiet clinical air-handling of the suite, darker and softer than a corridor; `machine` is the
+ * robotic OR's, a touch louder and a touch brighter than the hum (the cart's fans, the anaesthesia machine, the room's air), still well under the ER.
  */
 export const ROOM_TONES: Record<RoomTone, { cutoffHz: number; level: number }> = {
   airy: { cutoffHz: 2400, level: 0.6 },
@@ -88,11 +91,14 @@ export const ROOM_TONES: Record<RoomTone, { cutoffHz: number; level: number }> =
   busy: { cutoffHz: 1500, level: 0.8 },
   quiet: { cutoffHz: 420, level: 0.2 },
   outdoor: { cutoffHz: 3000, level: 0.35 },
+  hum: { cutoffHz: 560, level: 0.3 },
+  machine: { cutoffHz: 760, level: 0.42 },
 }
 
 /**
  * The room tone of an area. Named areas first, where the mood matters (lobby and atrium airy, ER and triage busy,
- * the quiet room quiet, the corridors soft); then by kind. Outside the building (null) is `outdoor`.
+ * the quiet room quiet, the corridors soft); then by kind. Outside the building (null) is `outdoor`. Level 2 (R2) has its own: a quiet clinical `hum`
+ * throughout the suite, the robotic OR a little more `machine`, and the family lounge `quiet` (a waiting room, away from the machines).
  */
 export function toneForArea(area: Pick<Area, 'id' | 'kind'> | null): RoomTone {
   if (area === null) return 'outdoor'
@@ -113,6 +119,19 @@ export function toneForArea(area: Pick<Area, 'id' | 'kind'> | null): RoomTone {
     case 'liftA':
     case 'liftB':
       return 'corridor'
+    case 'l2Or':
+      return 'machine'
+    case 'l2Lounge':
+      return 'quiet'
+    case 'l2LiftA':
+    case 'l2LiftB':
+    case 'l2Corridor':
+    case 'l2PreOp':
+    case 'l2Staff':
+    case 'l2Sterile':
+    case 'l2Hall':
+    case 'l2Pacu':
+      return 'hum'
   }
   return toneByKind(area.kind)
 }
@@ -181,6 +200,25 @@ export function stepTrigger(trigger: Trigger, dist: number, now: number, reach: 
 export function podChimeDue(trigger: Trigger, dist: number, speed: number, now: number): boolean {
   const hit = stepTrigger(trigger, dist, now, POD_REACH)
   return hit && speed >= POD_MOVING_SPEED
+}
+
+// UI cues -----------------------------------------------------------------------------------
+
+/**
+ * One-shots that the screen asks for (R2: the soft ding behind your lift ride's cover, src/ui/liftRide.store.ts). A counter, not a call: the engine looks at
+ * it on every tick, plays the ding on its own rig (so the mute, the unlock and the pause rule it like every other sound here), and a cue that arrives
+ * while the engine is silent (muted, hidden, paused) is dropped, never played late.
+ */
+const cues = { ding: 0 }
+
+/** Ask for the lift ding. Allocation-free; safe to call with no engine running. */
+export function cueLiftDing(): void {
+  cues.ding++
+}
+
+/** How many lift dings have been asked for (tests). */
+export function liftDingCues(): number {
+  return cues.ding
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -286,6 +324,8 @@ export class AmbienceEngine {
   private cursor = 0
   /** The count of heel strikes already played (-1 until the first tick of a walk adopts the current one: no burst of steps on starting to walk). */
   private seenSteps = -1
+  /** The count of `cues.ding` already played or dropped. */
+  private seenDing = cues.ding
   private readonly voice: StepVoice = { peak: 0, decayS: 0, band: 1 }
   private lastAudible = Number.NEGATIVE_INFINITY
   private tone: RoomTone | null = null
@@ -322,6 +362,8 @@ export class AmbienceEngine {
     const walking = isWalking(this.inputs.player())
     const hidden = this.inputs.hidden()
     const live = walking && this.inputs.unlocked() && !this.inputs.muted() && !hidden
+    // a ding asked for while nothing can be heard is dropped, so it never plays late when the sound comes back (also before the context exists)
+    if (!live) this.seenDing = cues.ding
     // The AudioContext exists only once audio is unlocked and you are walking.
     if (live && this.rig === null && !this.broken) this.rig = this.createRig()
     const rig = this.rig
@@ -368,8 +410,23 @@ export class AmbienceEngine {
     this.cursor = to
     this.playFootsteps(rig, from)
     this.updateTone(rig, player, now)
+    this.playCues(rig, now)
     this.updateOneShots(rig, player, now)
     this.lastAudible = now
+  }
+
+  /**
+   * The lift ding of your ride (`cueLiftDing`): one soft bell. You arrive standing in the other lobby, so the lobby triggers are used up with it (the
+   * ding for walking into a lobby would otherwise ring a second time on top of it); they come back when you walk clear of the lobby.
+   */
+  private playCues(rig: Rig, now: number): void {
+    if (cues.ding === this.seenDing) return
+    this.seenDing = cues.ding
+    liftDing(rig, now + ONESHOT_DELAY_S)
+    for (const t of this.liftTriggers) {
+      t.armed = false
+      t.lastAt = now
+    }
   }
 
   /** One step for each heel strike of your legs since the last tick (the tick is 50 ms, so a step is heard within 50 ms of the foot landing). */
@@ -433,6 +490,7 @@ export class AmbienceEngine {
     this.masterOn = false
     this.cursor = 0
     this.seenSteps = -1
+    this.seenDing = cues.ding
     this.lastAudible = Number.NEGATIVE_INFINITY
     this.tone = null
     for (const t of this.doorTriggers) resetTrigger(t)

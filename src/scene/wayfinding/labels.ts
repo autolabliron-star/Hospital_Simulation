@@ -3,6 +3,7 @@
  * inside each door). Pure data: the renderer draws them once into one canvas atlas with the system font (no CDN fonts).
  */
 import { AREAS, BANDS, DOORS, ROOMS, areaById, wardSign } from '@/sim/places'
+import { l2 } from '@/sim/levels'
 import type { LayoutBuilder } from '@/scene/building/layout/builder'
 
 const INK = '#4c7b75'
@@ -55,4 +56,27 @@ export function buildLabels(b: LayoutBuilder): void {
   }
 
   b.label({ text: 'AMBULANCE BAY', x: -69, z: 7.5, height: 0.6, maxWidth: 8, color: '#ffffff', weight: 'medium', spacing: 0.2 })
+
+  buildLevel2Labels(b)
+}
+
+/**
+ * R2: the names of level 2's rooms, lying on its floor (visible in the overview's Level 2; walking, the door plates and the hanging signs do it). Authored
+ * in drawn x through `l2` (the labels lie in the level-2 strip of the flat sim and are drawn in the level-2 group), each on open floor clear of the
+ * furniture and of the doorways.
+ */
+export function buildLevel2Labels(b: LayoutBuilder): void {
+  const named: { id: string; text: string; x: number; z: number; height: number; maxWidth: number; soft?: boolean }[] = [
+    { id: 'l2PreOp', text: 'PRE-OP & ADMISSIONS', x: -52.8, z: -14.6, height: 0.5, maxWidth: 8.4 },
+    { id: 'l2Or', text: 'ROBOTIC OR', x: -48.5, z: 9.45, height: 0.38, maxWidth: 2.6 },
+    { id: 'l2Pacu', text: 'RECOVERY', x: -48.5, z: 12.4, height: 0.5, maxWidth: 5.4 },
+    { id: 'l2Lounge', text: 'FAMILY LOUNGE', x: -57.5, z: 4.9, height: 0.34, maxWidth: 3.6, soft: true },
+    { id: 'l2Staff', text: 'THEATRE STAFF', x: -57.5, z: -8.2, height: 0.3, maxWidth: 3.6, soft: true },
+    { id: 'l2Sterile', text: 'STERILE SUPPLY', x: -48.6, z: -4.3, height: 0.3, maxWidth: 4.4, soft: true },
+    { id: 'l2Hall', text: 'THEATRE HALL', x: -53.8, z: 0, height: 0.32, maxWidth: 3.8, soft: true },
+  ]
+  for (const n of named) {
+    if (!AREAS.some((a) => a.id === n.id)) throw new Error(`labels: unknown area ${n.id}`)
+    b.label({ text: n.text, x: l2(n.x), z: n.z, height: n.height, maxWidth: n.maxWidth, color: n.soft ? INK_SOFT : INK, weight: 'light', spacing: n.soft ? 0.2 : 0.22 })
+  }
 }

@@ -17,8 +17,8 @@ import type { WalkBox } from './types'
 
 const T = WALL.thickness
 const FACE = T / 2
-/** Corridors: the two ward corridors and the main corridor. */
-const CORRIDORS: readonly AreaId[] = ['corridorA', 'corridorB', 'spine']
+/** Corridors: the two ward corridors and the main corridor (R2: and the theatre corridor on level 2). */
+const CORRIDORS: readonly AreaId[] = ['corridorA', 'corridorB', 'spine', 'l2Corridor']
 
 export const RAIL = { y0: 0.88, y1: 0.935, standoff: 0.04, depth: 0.05, minLength: 0.4, bracketPitch: 1.4, bracketAlong: 0.03 } as const
 export const GUARD = { y0: 0.05, y1: 1.25, along: 0.06, depth: 0.035 } as const

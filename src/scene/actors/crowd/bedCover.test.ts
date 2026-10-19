@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildLayout } from '@/scene/building/layout'
 import { BACKREST, MADE_BLANKET, MATTRESS, TROLLEY } from '@/scene/rooms/bedParts'
-import { IMAGING } from '@/sim/places'
+import { BED_TOP } from '@/scene/rooms/surgery/shell'
+import { IMAGING, SURGERY } from '@/sim/places'
 import type { Entity } from '@/sim/types'
 import { FX, LIE, LIE_RECLINE_LIFT_MAX, P, PROP, ROW_FLOATS, TEX, VEHICLE, fixedSlot } from './constants'
 import { buildVehicleGeometry } from './gear'
@@ -50,6 +51,12 @@ describe('the surface a lying person is looked up at', () => {
     expect(levelsOf(inBed('e', 'scanTable:ct', { x: 0, z: 0 }), lv).surface).toBe(IMAGING.ct.table.height)
     expect(levelsOf(inBed('e', 'xrayTable:xray', { x: 0, z: 0 }), lv).surface).toBe(IMAGING.xray.table.height)
     expect(levelsOf(inBed('e', 'usCouch:us', { x: 0, z: 0 }), lv).surface).toBe(IMAGING.us.table.height)
+    // R2: the surgery suite's pre-op and recovery trolleys (mattress top 0.8, the seat height shell.ts gives them) and the OR table (0.88, places.ts)
+    expect(levelsOf(inBed('s', 'surgeryBed:preop:0', { x: 100, z: 0 }), lv)).toMatchObject({ posture: 'lie', floorY: 0, surface: BED_TOP })
+    expect(levelsOf(inBed('s', 'surgeryBed:pacu:2', { x: 100, z: 0 }), lv).surface).toBe(BED_TOP)
+    expect(levelsOf(inBed('t', 'orTable:0', { x: 100, z: 0 }), lv).surface).toBe(SURGERY.table.height)
+    expect(LIE.surgeryBed).toBe(BED_TOP)
+    expect(LIE.orTable).toBe(0.88)
     expect(levelsOf(ent({ id: 'g', anim: 'lie' }), lv).surface).toBe(LIE.bed)
     expect(levelsOf(ent({ id: 'f', anim: 'lie', position: { x: 0, y: 0.7, z: 0 } }), lv).surface).toBe(0.7)
   })
@@ -85,6 +92,10 @@ describe('who is covered', () => {
     expect(inBlanketBed(inBed('e', 'scanTable:ct', { x: 0, z: 0 }))).toBe(false)
     expect(inBlanketBed(inBed('f', 'xrayTable:xray', { x: 0, z: 0 }))).toBe(false)
     expect(inBlanketBed(inBed('g', 'usCouch:us', { x: 0, z: 0 }))).toBe(false)
+    // R2: a pre-op or recovery trolley is covered like a ward bed; the OR table is bare (a surgical drape is the theatre's own)
+    expect(inBlanketBed(inBed('p', 'surgeryBed:preop:1', { x: 100, z: 0 }))).toBe(true)
+    expect(inBlanketBed(inBed('q', 'surgeryBed:pacu:0', { x: 100, z: 0 }))).toBe(true)
+    expect(inBlanketBed(inBed('r', 'orTable:0', { x: 100, z: 0 }))).toBe(false)
     expect(inBlanketBed(ent({ id: 'h', anim: 'sit', seated: { seatId: 'waiting:er:S1:2', pose: 'sit' } }))).toBe(false)
     expect(inBlanketBed(ent({ id: 'i', anim: 'idle', riding: true, vehicle: 'wheelchair' }))).toBe(false)
     expect(inBlanketBed(ent({ id: 'j' }))).toBe(false)

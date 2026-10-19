@@ -163,6 +163,12 @@ const EVERYDAY_M = ['male_adult_08', 'male_adult_12', 'male_adult_13'] as const
 export const GOWN: Wardrobe = Object.freeze({ female: ['business_female_02', 'female_adult_15'], male: ['male_adult_13', 'male_adult_12'], tint: TINT.both })
 /** Patients in everyday clothes and visitors: the six adults in their own clothes. */
 export const EVERYDAY: Wardrobe = Object.freeze({ female: EVERYDAY_F, male: EVERYDAY_M, tint: TINT.none })
+/**
+ * R2: everybody in the 'theatre' outfit (level 2's clinical side, and you behind the lift cover): the surgical-scrubs avatars, top and trousers both taking the
+ * theatre blue or teal of the person's palette (outfit.ts). The converter dropped these avatars' own surgical caps and masks (AvatarEntry.dropped), so the cap
+ * of the procedural body (hair.ts theatreCap) has no counterpart here.
+ */
+export const THEATRE: Wardrobe = Object.freeze({ female: ['medical_female_01'], male: ['medical_male_04'], tint: TINT.both })
 
 /**
  * Staff uniforms by role (the clothing class 'uniform'). The tints keep the design rule of outfit.ts (the colour of the scrubs is the role, read
@@ -191,6 +197,7 @@ export const UNIFORM: Readonly<Record<Role, Wardrobe>> = Object.freeze({
 /** The wardrobe of a person: their clothing class decides (outfit.ts clothesOf), then the role for a uniform. */
 export function wardrobeFor(role: Role, outfit: Outfit | undefined): Wardrobe {
   const clothes = clothesOf(role, outfit)
+  if (clothes === 'theatre') return THEATRE
   if (clothes === 'gown') return GOWN
   if (clothes === 'everyday') return EVERYDAY
   return UNIFORM[role]
@@ -246,13 +253,16 @@ export function drawnFemale(key: Pick<AvatarKey, 'seed' | 'height' | 'presentati
  * The avatar a person wears, deterministic in the key. The player wears PLAYER_AVATAR; everybody else draws from their wardrobe: gender by the given
  * name (`presentation`), or by height (femaleShare) when the name reads either way, then one of that gender's candidates. A candidate that is not
  * loaded is skipped; with none left, a person whose name decided keeps their gender (any loaded avatar of it, but the player's) before the other
- * gender's wardrobe is tried, and a person drawn by chance tries the other gender's wardrobe first. Nobody but the player ever wears PLAYER_AVATAR.
+ * gender's wardrobe is tried, and a person drawn by chance tries the other gender's wardrobe first. Nobody but the player ever wears PLAYER_AVATAR (and the
+ * player wears it in every outfit but 'theatre').
  */
 export function avatarFor(key: AvatarKey, avatars: readonly Pick<AvatarEntry, 'id' | 'gender' | 'tintRef'>[], out: AvatarChoice = { index: -1, tint: 0 }): AvatarChoice {
   out.index = -1
   out.tint = 0
   if (avatars.length === 0) return out
-  if (key.id === PLAYER_ID) {
+  const isPlayer = key.id === PLAYER_ID
+  // you wear the all-white coat, except behind the lift cover on level 2: then the theatre scrubs (a man's, as your coat is)
+  if (isPlayer && key.outfit !== 'theatre') {
     const i = avatars.findIndex((a) => a.id === PLAYER_AVATAR)
     if (i >= 0) {
       out.index = i
@@ -260,7 +270,7 @@ export function avatarFor(key: AvatarKey, avatars: readonly Pick<AvatarEntry, 'i
     }
   }
   const w = wardrobeFor(key.role, key.outfit)
-  const female = drawnFemale(key)
+  const female = isPlayer ? false : drawnFemale(key)
   const named = key.presentation === 'female' || key.presentation === 'male'
   const pick = (ids: readonly string[]): number => {
     let n = 0

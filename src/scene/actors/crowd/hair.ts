@@ -15,8 +15,12 @@
  */
 import type { Builder } from './geometry'
 
-export type HairStyle = 'crop' | 'swept' | 'bob' | 'long' | 'ponytail' | 'curly'
+/** R2: `theatreCap` is the surgical cap of everybody in the 'theatre' outfit (outfit.ts): never drawn from the seeded draw, the six everyday shapes are. */
+export type HairStyle = 'crop' | 'swept' | 'bob' | 'long' | 'ponytail' | 'curly' | 'theatreCap'
+/** The six everyday shapes the seeded draw picks from (the theatre cap is chosen by the outfit, not drawn). */
 export const HAIR_SHAPES: readonly HairStyle[] = ['crop', 'swept', 'bob', 'long', 'ponytail', 'curly']
+/** Every shape the rig can draw, the cap included. */
+export const ALL_HAIR_SHAPES: readonly HairStyle[] = [...HAIR_SHAPES, 'theatreCap']
 
 export type HairPiece = readonly [number, number, number, number, number, number, number, number]
 
@@ -29,6 +33,8 @@ export const HAIR_CAP: Record<HairStyle, HairPiece> = {
   long: [0.11, 0.122, 0.126, 0, 0.19, 0.002, 0.24, 0],
   ponytail: [0.106, 0.112, 0.124, 0, 0.198, 0.004, 0, 0],
   curly: [0.125, 0.133, 0.131, 0, 0.2, 0, -0.1, 0],
+  // R2: a bouffant cap: a dome a little larger than the skull, tipped forward so its edge runs along the brows and the back edge covers the nape, over a gathered back
+  theatreCap: [0.117, 0.127, 0.132, 0, 0.19, 0.0, 0.3, 0],
 }
 
 export const HAIR_BACK: Record<HairStyle, HairPiece | null> = {
@@ -38,6 +44,7 @@ export const HAIR_BACK: Record<HairStyle, HairPiece | null> = {
   long: [0.12, 0.19, 0.09, 0, 0.04, -0.045, 0, 0],
   ponytail: [0.034, 0.11, 0.034, 0, 0.18, -0.115, 0.55, 0],
   curly: [0.125, 0.12, 0.11, 0, 0.15, -0.045, 0, 0],
+  theatreCap: [0.105, 0.085, 0.088, 0, 0.13, -0.055, 0, 0],
 }
 
 export const HAIR_FRONT: Record<HairStyle, HairPiece | null> = {
@@ -47,6 +54,7 @@ export const HAIR_FRONT: Record<HairStyle, HairPiece | null> = {
   long: null,
   ponytail: [0.06, 0.018, 0.018, 0.02, 0.262, 0.094, 0.2, -0.25],
   curly: [0.09, 0.028, 0.03, 0, 0.262, 0.09, 0.15, 0],
+  theatreCap: null,
 }
 
 /**

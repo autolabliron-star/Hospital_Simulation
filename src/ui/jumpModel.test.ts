@@ -20,8 +20,8 @@ describe('jump menu model', () => {
     expect(at(7.5).findIndex((i) => i.isNow)).toBe(0)
     expect(at(7.75).findIndex((i) => i.isNow)).toBe(1)
     const noon = at(12)
-    expect(noon.find((i) => i.isNow)?.label).toBe(DAY_MOMENTS[4].label)
-    expect(noon.filter((i) => i.isPast).map((i) => i.hour)).toEqual([7.0, 7.75, 9.0, 10.5])
+    expect(noon.find((i) => i.isNow)?.label).toBe(DAY_MOMENTS[5].label)
+    expect(noon.filter((i) => i.isPast).map((i) => i.hour)).toEqual([7.0, 7.75, 8.75, 9.0, 10.5])
     expect(at(14.2).find((i) => i.isNow)?.hour).toBe(12.0)
     expect(at(18).filter((i) => i.isNow)).toHaveLength(1)
   })
@@ -40,7 +40,7 @@ describe('jump menu model', () => {
   })
 
   it('starts the keyboard on the current moment', () => {
-    expect(startIndex(buildJumpItems(12))).toBe(4)
+    expect(startIndex(buildJumpItems(12))).toBe(5)
   })
 
   it('reads the HUD clock text', () => {

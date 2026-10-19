@@ -16,6 +16,10 @@
  *         the drawn part. For a seated avatar's hand to land there the rig must tell the pose its skeleton: see `seatedReachY` in pose.ts.
  * GRIP    The two body-fat handles on the sides of the kiosk tower ('grip'): each hand at x = +-side, `up` above the floor, `ahead` in front of the person.
  * FINGER  The right hand held out to the tower's QR reader, SpO2 clip and printer ('finger'): x is to the left (negative: the right hand).
+ * CONSOLE R2: the seated surgeon console ('sitConsole', the anim 'console'): both hands on the hand controllers, forearms forward and about level (the
+ *         elbows near the body at elbow height), the head tipped into the viewer. `side` is each hand's offset from the seat centre line (the left hand
+ *         is +x), `ahead` the middle of the hand in front of the seat centre, `up` above the seat surface; like ARM_IN these are fixed points of the
+ *         world, so a tall and a short surgeon reach the same controllers. The console model (scene/surgery, agent O) puts its controllers here.
  */
 
 /** Seat surface height of the BP stool (the crowd draws every plain seat at 0.45 m), and so of the robot chairs. */
@@ -33,6 +37,8 @@ export const ARM_IN = {
 export const GRIP = { side: 0.31, up: 1.04, ahead: 0.33 } as const
 
 export const FINGER = { x: -0.1, up: 1.1, ahead: 0.19 } as const
+
+export const CONSOLE_HANDS = { side: 0.2, ahead: 0.4, up: 0.34 } as const
 
 /** A point of the world seen from a seated person: their seat centre (x, z) and heading, the seat surface height. Heading 0 faces +z, +x is then the left. */
 export interface SeatFrame {

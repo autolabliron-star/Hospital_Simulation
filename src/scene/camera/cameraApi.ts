@@ -12,12 +12,18 @@
  *
  * The maths (fit, shift, tween) is pure and exported so it is tested in node without a renderer.
  *
+ * LEVELS (R2, docs/R2-SURGERY.md): level 2 is stacked over the west block, 4.2 m up, and every pose here is DRAWN (what the camera sees), like every
+ * other camera pose. An area's rectangle is in SIM coordinates, so a level-2 area is moved by `levelDx` and `LEVEL_Y` before it is framed: its shot
+ * looks at y = 4.2 and more, over the drawn footprint (x -62..-40). Which level the overview shows is `useOverviewLevel`, set by the room focus
+ * (roomFocus.ts) before it flies, never here: a pose is only a pose.
+ *
  * WALK HAND-OVER (W1): while you are walking, or flying in or out of walk mode, the camera belongs to the player system
  * (src/scene/player), not to these flights. The player registers a `WalkBridge`; a `flyTo` made in that time (a room focus from the
  * "Go to..." menu, `G`, Esc) first takes you out to the overview and the flight to the room starts from there: the player's own
  * flight out goes straight to the room's pose, so it is one swoop. `isWalkMode()` is what the room picker asks before it picks.
  */
 import { Vector3 } from 'three'
+import { LEVEL_Y, levelDx, rectLevel, type LevelId } from '@/sim/levels'
 import { areaById, VIEW, type AreaId, type Rect } from '@/sim/places'
 import type { Vec3 } from '@/sim/types'
 
@@ -197,9 +203,24 @@ interface Shot {
   box: Box
 }
 
-function rectBox(r: Rect, y1: number): Box {
-  return { x0: r.x0, x1: r.x1, y0: 0, y1, z0: r.z0, z1: r.z1 }
+/** The level an area is on (a level-2 area lies in the strip of sim x 88..110). */
+export function areaLevel(area: AreaId): LevelId {
+  return rectLevel(areaById(area).rect)
 }
+
+/** An area's rectangle as drawn: level 2 moves west by `levelDx`; z is unchanged. */
+export function drawnRect(r: Rect): Rect {
+  const dx = levelDx(rectLevel(r))
+  return { x0: r.x0 + dx, x1: r.x1 + dx, z0: r.z0, z1: r.z1 }
+}
+
+/** A box over a drawn rectangle: from the floor of `level` to `height` above it. */
+function rectBox(r: Rect, height: number, level: LevelId = 1): Box {
+  return { x0: r.x0, x1: r.x1, y0: LEVEL_Y[level], y1: LEVEL_Y[level] + height, z0: r.z0, z1: r.z1 }
+}
+
+/** The floor of level 2 as drawn, for the shots below (their target heights and boxes sit on it). */
+const UP = LEVEL_Y[2]
 
 /**
  * Hand-tuned shots for the imaging suite (anchors in `IMAGING`, places.ts). North is up the screen at yaw 0.
@@ -220,6 +241,14 @@ const SHOTS: Partial<Record<AreaId, Shot>> = {
   // W4: both look south from the north side, at the machines' fronts
   diagnostics: { target: { x: -25, y: 0.9, z: 9.6 }, pitchDeg: 40, yawDeg: 180, box: { x0: -28, x1: -22, y0: 0, y1: 2.4, z0: 5, z1: 12 } },
   lab: { target: { x: -28, y: 0.9, z: 19.5 }, pitchDeg: 44, yawDeg: 180, box: { x0: -31, x1: -25, y0: 0, y1: 2.0, z0: 16, z1: 22 } },
+  // R2, level 2 (DRAWN coordinates, on the floor at y = 4.2; sim x = drawn x + 150)
+  //   Robotic OR: from the south, so the table (head north), the cart docked from the west, the vision cart and the two consoles on the east side all show,
+  //     with the cart's boom (2.5 m up) in frame.
+  //   Pre-op: from the south, down the four curtained bays on the north windows to the admissions desk by the corridor door.
+  //   Recovery: from the north (the OR side), at the three bays against the south wall and the nurse island in front of them.
+  l2Or: { target: { x: -48.6, y: UP + 0.9, z: 6.2 }, pitchDeg: 48, yawDeg: 0, box: { x0: -53, x1: -44, y0: UP, y1: UP + 2.6, z0: 2, z1: 10 } },
+  l2PreOp: { target: { x: -52.5, y: UP + 0.7, z: -16 }, pitchDeg: 50, yawDeg: 0, box: { x0: -62, x1: -44, y0: UP, y1: UP + 2.2, z0: -22, z1: -10 } },
+  l2Pacu: { target: { x: -48.5, y: UP + 0.7, z: 16 }, pitchDeg: 50, yawDeg: 180, box: { x0: -53, x1: -44, y0: UP, y1: UP + 2.2, z0: 10, z1: 22 } },
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -228,8 +257,9 @@ function clamp(v: number, lo: number, hi: number): number {
 
 /**
  * Where the camera stands to look into `area`, before the room panel's sideways shift (so the target is inside the area).
- * Imaging rooms have hand-tuned shots; every other area looks at the centre of its rectangle at about 52°, from far enough
- * to fit it (long corridors stop at the maximum distance and show their middle part).
+ * Imaging rooms and the level-2 suite have hand-tuned shots; every other area looks at the centre of its rectangle at about 52°,
+ * from far enough to fit it (long corridors stop at the maximum distance and show their middle part). The pose is DRAWN: a
+ * level-2 area is looked at where it stands, 4.2 m up over the west block.
  */
 export function presetFor(area: AreaId, view: ViewSpec = DEFAULT_VIEW): CameraPose {
   const shot = SHOTS[area]
@@ -237,15 +267,18 @@ export function presetFor(area: AreaId, view: ViewSpec = DEFAULT_VIEW): CameraPo
     const distance = clamp(fitDistance(shot.target, shot.pitchDeg, shot.yawDeg, shot.box, view), SHOT_DISTANCE.min, SHOT_DISTANCE.max)
     return { target: { ...shot.target }, distance, pitchDeg: shot.pitchDeg, yawDeg: shot.yawDeg }
   }
-  const rect = areaById(area).rect
-  const target: Vec3 = { x: (rect.x0 + rect.x1) / 2, y: 0.6, z: (rect.z0 + rect.z1) / 2 }
-  const distance = clamp(fitDistance(target, GENERIC_PITCH_DEG, 0, rectBox(rect, GENERIC_HEIGHT), view), GENERIC_DISTANCE.min, GENERIC_DISTANCE.max)
+  const sim = areaById(area).rect
+  const level = rectLevel(sim)
+  const rect = drawnRect(sim)
+  const target: Vec3 = { x: (rect.x0 + rect.x1) / 2, y: LEVEL_Y[level] + 0.6, z: (rect.z0 + rect.z1) / 2 }
+  const distance = clamp(fitDistance(target, GENERIC_PITCH_DEG, 0, rectBox(rect, GENERIC_HEIGHT, level), view), GENERIC_DISTANCE.min, GENERIC_DISTANCE.max)
   return { target, distance, pitchDeg: GENERIC_PITCH_DEG, yawDeg: 0 }
 }
 
-/** The box a preset is meant to keep in frame (for tests and tools). */
+/** The box (drawn) a preset is meant to keep in frame (for tests and tools). */
 export function presetBox(area: AreaId): Box {
-  return SHOTS[area]?.box ?? rectBox(areaById(area).rect, GENERIC_HEIGHT)
+  const sim = areaById(area).rect
+  return SHOTS[area]?.box ?? rectBox(drawnRect(sim), GENERIC_HEIGHT, rectLevel(sim))
 }
 
 // ---------------------------------------------------------------------------------------------

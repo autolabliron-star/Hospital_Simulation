@@ -9,6 +9,8 @@
  * `update` writes the icons that are visible this frame, compacted to the front of `posSize` / `uvRect` / `alphaOut`,
  * which the layer uploads as instanced attributes: one draw call for all of them.
  */
+import { shownAt } from '@/scene/levels/levelView'
+import { toDisplayInto } from '@/sim/levels'
 import type { Entity, Vec3 } from '@/sim/types'
 import { EMOTE_CODE, UV_TABLE } from './emoteAtlas'
 import {
@@ -158,8 +160,12 @@ export class EmoteTracker {
       }
       const vis = e.fade === undefined ? 1 : e.fade
       if (vis < MIN_VISIBLE_FADE) continue
+      // R2: nobody the screen does not show (the other level, or under the slab in the overview's Level 2) gets an icon
+      if (!shownAt(e.position.x, e.position.z)) continue
 
+      // the anchor is a SIM point; the camera and the quads are drawn coordinates (level 2 is up at 4.2 m over the west block): map it once, here
       headAnchor(e, anchor)
+      toDisplayInto(anchor, anchor)
       const dx = anchor.x - cx
       const dy = anchor.y + 0.35 - cy
       const dz = anchor.z - cz

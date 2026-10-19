@@ -32,22 +32,23 @@ export const ATLAS_PAD = 4
 export function packAtlas(tiles: readonly Tile[], width: number = ATLAS_WIDTH): PackedAtlas {
   const order = [...tiles].sort((p, q) => q.h - p.h || q.w - p.w || (p.key < q.key ? -1 : p.key > q.key ? 1 : 0))
   const cells = new Map<string, AtlasCell>()
-  let cx = 0
-  let cy = 0
-  let rowH = 0
+  // first-fit shelves: a tile goes into the first shelf with room for it (tallest first, so a shelf is as tall as its first tile and every later
+  // tile of that shelf is no taller), or opens a new one. R2: the wide sign tiles leave a gap at the end of their shelves that the small plates fill.
+  const shelves: { y: number; h: number; x: number }[] = []
+  let bottom = 0
   for (const t of order) {
     const cw = t.w + ATLAS_PAD * 2
     const ch = t.h + ATLAS_PAD * 2
-    if (cx + cw > width) {
-      cx = 0
-      cy += rowH
-      rowH = 0
+    let shelf = shelves.find((sh) => sh.h >= ch && sh.x + cw <= width)
+    if (!shelf) {
+      shelf = { y: bottom, h: ch, x: 0 }
+      shelves.push(shelf)
+      bottom += ch
     }
-    cells.set(t.key, { x: cx + ATLAS_PAD, y: cy + ATLAS_PAD, w: t.w, h: t.h })
-    cx += cw
-    rowH = Math.max(rowH, ch)
+    cells.set(t.key, { x: shelf.x + ATLAS_PAD, y: shelf.y + ATLAS_PAD, w: t.w, h: t.h })
+    shelf.x += cw
   }
-  return { width, height: cy + rowH, cells }
+  return { width, height: bottom, cells }
 }
 
 // ---------------------------------------------------------------------------------------------

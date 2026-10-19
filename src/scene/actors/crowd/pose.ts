@@ -23,7 +23,7 @@
  */
 import { noise1, TAU, clamp } from './math'
 import { MODES, type Mode } from './blend'
-import { ARM_IN, FINGER, GRIP } from './armIn'
+import { ARM_IN, CONSOLE_HANDS, FINGER, GRIP } from './armIn'
 import { BODY, STAND_PELVIS } from './constants'
 import { reclineAngle } from '@/scene/rooms/bedPose'
 
@@ -477,6 +477,34 @@ function evalSitArmIn(c: PoseCtx, o: Out): void {
   o[U.headRoll] = 0.03 * noise1(c.t * 0.22, c.seed + 17)
 }
 
+/**
+ * R2: seated at a surgeon console. The head is tipped forward into the viewer, the chest leans in a little, and both forearms point forward and about level
+ * to the hand controllers (armIn.ts CONSOLE_HANDS, fixed points above the seat). The hands make small, slow movements (a few millimetres, seeded per person:
+ * the surgeon working the instruments), the head nods a hair. The right hand takes the controller on the person's right.
+ */
+function evalSitConsole(c: PoseCtx, o: Out): void {
+  const breath = Math.sin(TAU * c.breathHz * c.t + c.seed)
+  const k = 1 / c.size
+  const mx = 0.008 * noise1(c.t * 0.9, c.seed + 40)
+  const my = 0.006 * noise1(c.t * 0.8, c.seed + 41)
+  const mz = 0.01 * noise1(c.t * 0.7, c.seed + 42)
+  const nx = 0.008 * noise1(c.t * 0.85, c.seed + 43)
+  const ny = 0.006 * noise1(c.t * 0.95, c.seed + 44)
+  const nz = 0.01 * noise1(c.t * 0.75, c.seed + 45)
+  const y = seatedReachY(c, CONSOLE_HANDS.up) + 0.003 * breath * k
+  // the angles that would reach about this far without the solve (a blend that starts from another mode begins near them)
+  arm(o, ARM_L, 0.75, 0.05, 0, 1.0, -0.1, 1.3)
+  arm(o, ARM_R, 0.75, 0.05, 0, 1.0, -0.1, 1.3)
+  reach(o, REACH_L, (CONSOLE_HANDS.side + mx) * k, y + my * k, (CONSOLE_HANDS.ahead + mz) * k)
+  reach(o, REACH_R, -(CONSOLE_HANDS.side + nx) * k, y + ny * k, (CONSOLE_HANDS.ahead + nz) * k)
+  o[U.chestPitch] = 0.08 + 0.012 * breath
+  o[U.chestRoll] = 0.012 * noise1(c.t * 0.25, c.seed + 46)
+  // looking into the viewer, a little down
+  o[U.headPitch] = 0.3 + 0.02 * breath + 0.02 * noise1(c.t * 0.5, c.seed + 47)
+  o[U.headYaw] = 0.02 * noise1(c.t * 0.3, c.seed + 48)
+  o[U.headRoll] = 0.015 * noise1(c.t * 0.22, c.seed + 49)
+}
+
 /** Fill `o` (UP_COUNT floats) with the pose of `mode` at the context's time. Every entry is written. */
 export function evalMode(mode: Mode, c: PoseCtx, o: Out): void {
   o.fill(0)
@@ -513,6 +541,8 @@ export function evalMode(mode: Mode, c: PoseCtx, o: Out): void {
       return evalFinger(c, o)
     case 'sitArmIn':
       return evalSitArmIn(c, o)
+    case 'sitConsole':
+      return evalSitConsole(c, o)
   }
 }
 

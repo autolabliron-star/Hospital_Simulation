@@ -798,7 +798,10 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
     else this.dismount(this.walker.x, this.walker.z, this.walker.heading, null)
   }
 
-  /** At the lift: the stretcher goes up to the ward, and the patient fades out with it. */
+  /**
+   * At the lift: the stretcher goes up to the ward, and the patient fades out with it. (R2: the porter holds the lobby's stretcher slot for this
+   * fade - `world.lifts.claimFade`, porter.ts - so a lobby never holds two stretchers, or a stretcher and a MealBot, at once.)
+   */
   fadeAtLift(): void {
     this.fadeOut()
   }

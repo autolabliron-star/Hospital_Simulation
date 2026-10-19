@@ -43,14 +43,15 @@ describe('moments match CONFIG.day.moments one to one', () => {
     expect(new Set(labels).size).toBe(labels.length)
   })
 
-  it('names the handover, breakfast, rounds, discharges, lunch, visiting, dinner and night moments', () => {
+  it('names the handover, breakfast, robotic surgery (R2), rounds, discharges, lunch, visiting, dinner and night moments', () => {
     expect(DAY_MOMENTS[0].label).toBe('Shift handover')
     expect(DAY_MOMENTS[1].label).toBe('Breakfast')
-    expect(DAY_MOMENTS[2].label).toBe('Ward rounds')
-    expect(DAY_MOMENTS[3].label).toBe('Discharges')
-    expect(DAY_MOMENTS[5].label).toBe('Visiting')
-    expect(DAY_MOMENTS[6].label).toBe('Dinner')
-    expect(DAY_MOMENTS[8].label).toBe('Night')
+    expect(DAY_MOMENTS[2].label).toBe('Robotic surgery')
+    expect(DAY_MOMENTS[3].label).toBe('Ward rounds')
+    expect(DAY_MOMENTS[4].label).toBe('Discharges')
+    expect(DAY_MOMENTS[6].label).toBe('Visiting')
+    expect(DAY_MOMENTS[7].label).toBe('Dinner')
+    expect(DAY_MOMENTS[9].label).toBe('Night')
   })
 })
 

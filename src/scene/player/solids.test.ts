@@ -3,7 +3,8 @@ import { getLayout } from '@/scene/building/layout'
 import { DESKS, ISLAND } from '@/scene/pharmacy/layout'
 import { CONFIG } from '@/sim/config'
 import { PHARMACIST_ZONES, SOLIDS } from '@/sim/nav/layout'
-import { DOORS, PLAYER_PLAZA, PLAYER_SPAWN, ROOMS } from '@/sim/places'
+import { LEVEL2_STRIP, levelOf, type LevelId } from '@/sim/levels'
+import { DOORS, LIFTS, PLAYER_PLAZA, PLAYER_SPAWN, ROOMS } from '@/sim/places'
 import { buildWallBoxes } from './boomProbe'
 import { boxDistance, staticClearance } from './bodyTestKit'
 import { inRegion } from './collision'
@@ -170,78 +171,90 @@ describe('the static solid set', () => {
 })
 
 describe('the solids and the people\'s region agree about where you may be (no leaks, no false walls)', () => {
-  // flood fill over the floor at 10 cm from the spawn, for a body of radius r + skin: a cell is free when no solid is within the body's reach
+  // flood fill over the floor at 10 cm from where you arrive, for a body of radius r + skin: a cell is free when no solid is within the body's reach.
+  // R2: per level. The levels are separate strips of the sim: level 1 floods from the spawn (the plaza), level 2 from its lift lobby (as you arrive by lift).
   const step = 0.1
-  const x0 = PLAYER_PLAZA.x0 - 4
-  const x1 = 44
   const z0 = -26
   const z1 = 26
-  const W = Math.round((x1 - x0) / step) + 1
-  const H = Math.round((z1 - z0) / step) + 1
-  const free = new Uint8Array(W * H)
-  const reach = new Uint8Array(W * H)
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) free[j * W + i] = staticClearance(x0 + i * step, z0 + j * step).d >= R - 1e-9 ? 1 : 0
-  const sx = Math.round((PLAYER_SPAWN.at.x - x0) / step)
-  const sz = Math.round((PLAYER_SPAWN.at.z - z0) / step)
-  const queue: number[] = [sz * W + sx]
-  reach[sz * W + sx] = 1
-  while (queue.length) {
-    const c = queue.pop()!
-    const ci = c % W
-    const cj = (c / W) | 0
-    for (let dj = -1; dj <= 1; dj++) {
-      for (let di = -1; di <= 1; di++) {
-        if (!di && !dj) continue
-        const ni = ci + di
-        const nj = cj + dj
-        if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue
-        const n = nj * W + ni
-        if (reach[n] || !free[n]) continue
-        reach[n] = 1
-        queue.push(n)
-      }
-    }
-  }
-  const reachable = (x: number, z: number, within = 0.15): boolean => {
-    for (let dj = -2; dj <= 2; dj++) {
-      for (let di = -2; di <= 2; di++) {
-        const i = Math.round((x - x0) / step) + di
-        const j = Math.round((z - z0) / step) + dj
-        if (i < 0 || j < 0 || i >= W || j >= H) continue
-        if (reach[j * W + i] && Math.hypot(x0 + i * step - x, z0 + j * step - z) <= within + step) return true
-      }
-    }
-    return false
-  }
+  const LEVELS: { level: LevelId; x0: number; x1: number; start: { x: number; z: number }; cells: number }[] = [
+    { level: 1, x0: PLAYER_PLAZA.x0 - 4, x1: 44, start: PLAYER_SPAWN.at, cells: 100000 },
+    { level: 2, x0: LEVEL2_STRIP.x0 - 4, x1: LEVEL2_STRIP.x1 + 4, start: LIFTS.A[2].stretcher.at, cells: 40000 },
+  ]
 
-  it('everywhere the solids let you reach is inside the region backstop (the fences and walls seal everything the people\'s floor does not include)', () => {
-    let cells = 0
-    const leaks: string[] = []
-    for (let j = 0; j < H; j++) {
-      for (let i = 0; i < W; i++) {
-        if (!reach[j * W + i]) continue
-        cells++
-        const x = x0 + i * step
-        const z = z0 + j * step
-        if (!inRegion(x, z)) leaks.push(`(${x.toFixed(2)}, ${z.toFixed(2)})`)
+  for (const L of LEVELS) {
+    const { x0, x1 } = L
+    const W = Math.round((x1 - x0) / step) + 1
+    const H = Math.round((z1 - z0) / step) + 1
+    const free = new Uint8Array(W * H)
+    const reach = new Uint8Array(W * H)
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) free[j * W + i] = staticClearance(x0 + i * step, z0 + j * step).d >= R - 1e-9 ? 1 : 0
+    const sx = Math.round((L.start.x - x0) / step)
+    const sz = Math.round((L.start.z - z0) / step)
+    const queue: number[] = [sz * W + sx]
+    reach[sz * W + sx] = 1
+    while (queue.length) {
+      const c = queue.pop()!
+      const ci = c % W
+      const cj = (c / W) | 0
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          if (!di && !dj) continue
+          const ni = ci + di
+          const nj = cj + dj
+          if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue
+          const n = nj * W + ni
+          if (reach[n] || !free[n]) continue
+          reach[n] = 1
+          queue.push(n)
+        }
       }
     }
-    expect(cells).toBeGreaterThan(100000)
-    expect(leaks.slice(0, 5)).toEqual([])
-  })
+    const reachable = (x: number, z: number, within = 0.15): boolean => {
+      for (let dj = -2; dj <= 2; dj++) {
+        for (let di = -2; di <= 2; di++) {
+          const i = Math.round((x - x0) / step) + di
+          const j = Math.round((z - z0) / step) + dj
+          if (i < 0 || j < 0 || i >= W || j >= H) continue
+          if (reach[j * W + i] && Math.hypot(x0 + i * step - x, z0 + j * step - z) <= within + step) return true
+        }
+      }
+      return false
+    }
 
-  it('every doorway of the building (but the ambulance door\'s bay) can be reached from the spawn, as can every bedside', () => {
-    const unreachable: string[] = []
-    for (const d of DOORS) {
-      if (d.id === 'ambulance') continue
-      if (!reachable(d.center.x, d.center.z)) unreachable.push(`door ${d.id}`)
-    }
-    for (const r of ROOMS) {
-      // the bedside is where a person stands: for you, the nearest place you can
-      let best = false
-      for (let a = 0; a < 360 && !best; a += 30) for (const rad of [0, 0.15, 0.3, 0.45]) if (reachable(r.bedside.x + Math.sin(a) * rad, r.bedside.z + Math.cos(a) * rad, 0)) best = true
-      if (!best) unreachable.push(`bedside ${r.id}`)
-    }
-    expect(unreachable).toEqual([])
-  })
+    it(`level ${L.level}: everywhere the solids let you reach is inside the region backstop (the fences and walls seal everything the people's floor does not include)`, () => {
+      let cells = 0
+      const leaks: string[] = []
+      for (let j = 0; j < H; j++) {
+        for (let i = 0; i < W; i++) {
+          if (!reach[j * W + i]) continue
+          cells++
+          const x = x0 + i * step
+          const z = z0 + j * step
+          if (!inRegion(x, z)) leaks.push(`(${x.toFixed(2)}, ${z.toFixed(2)})`)
+        }
+      }
+      expect(cells).toBeGreaterThan(L.cells)
+      expect(leaks.slice(0, 5)).toEqual([])
+    })
+
+    it(`level ${L.level}: every doorway of the building (but the ambulance door's bay) can be reached from ${L.level === 1 ? 'the spawn' : 'the lift lobby'}${L.level === 1 ? ', as can every bedside' : ''}`, () => {
+      const unreachable: string[] = []
+      let doors = 0
+      for (const d of DOORS) {
+        if (d.id === 'ambulance' || levelOf(d.center.x) !== L.level) continue
+        doors++
+        if (!reachable(d.center.x, d.center.z)) unreachable.push(`door ${d.id}`)
+      }
+      expect(doors).toBe(L.level === 1 ? DOORS.filter((d) => d.id !== 'ambulance' && levelOf(d.center.x) === 1).length : 9)
+      if (L.level === 1) {
+        for (const r of ROOMS) {
+          // the bedside is where a person stands: for you, the nearest place you can
+          let best = false
+          for (let a = 0; a < 360 && !best; a += 30) for (const rad of [0, 0.15, 0.3, 0.45]) if (reachable(r.bedside.x + Math.sin(a) * rad, r.bedside.z + Math.cos(a) * rad, 0)) best = true
+          if (!best) unreachable.push(`bedside ${r.id}`)
+        }
+      }
+      expect(unreachable).toEqual([])
+    })
+  }
 })

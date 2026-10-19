@@ -57,6 +57,8 @@ export type AnimState = 'idle' | 'walk' | 'run' | 'talk' | 'sit' | 'lie' | 'tabl
   | 'finger'
   /** W4: seated with the left arm forward into a cuff or robot tunnel (the crowd's ARM_IN line). */
   | 'armIn'
+  /** R2: seated at a surgeon console: head in the viewer, both hands forward on the hand controllers. */
+  | 'console'
 
 /** Something small held in the hand (drawn by the crowd renderer). */
 export type PropKind = 'none' | 'tablet' | 'folder' | 'tray' | 'coffee' | 'bag' | 'flowers'
@@ -69,7 +71,12 @@ export type PropKind = 'none' | 'tablet' | 'folder' | 'tray' | 'coffee' | 'bag' 
 export type VehicleKind = 'none' | 'wheelchair' | 'stretcher' | 'cleaningCart' | 'linenCart'
 
 /** Clothing: ward inpatients wear gowns; ER arrivals and visitors wear everyday clothes; staff dress by role. */
-export type Outfit = 'role' | 'gown' | 'everyday'
+export type Outfit =
+  | 'role'
+  | 'gown'
+  | 'everyday'
+  /** R2: theatre scrubs and a cap (everyone on level 2's clinical side; you, behind the lift cover). */
+  | 'theatre'
 
 /** `recline` (L1): lying in a ward bed with the bed head raised (meals, visitors); see RoomStatus.recline. */
 export type SeatPose = 'sit' | 'lie' | 'recline'
@@ -89,7 +96,9 @@ export type SeatKind =
   | 'usCouch' // ultrasound couch (pose 'lie')
   | 'drawChair' // blood-draw chair (pose 'sit'); W4: the robot chairs are 'drawChair:robot:<i>'
   | 'kioskBp' // W4: the stool at a health kiosk's blood-pressure wing (pose 'sit')
-  | 'console' // radiographer / sonographer seat (pose 'sit')
+  | 'console' // radiographer / sonographer seat (pose 'sit'); R2: the surgeon and teaching consoles are 'console:or:<surgeon|teach>'
+  | 'orTable' // R2: the OR table (pose 'lie', head north): 'orTable:0'
+  | 'surgeryBed' // R2: a pre-op or recovery trolley bed (pose 'lie'): 'surgeryBed:preop:<i>', 'surgeryBed:pacu:<i>'
 
 /** A place to sit or lie, exported by the building layout (src/scene/building/layout) and used by the sim. */
 export interface SeatSpec {
@@ -335,6 +344,17 @@ export type SimEventType =
   | 'samplesSent'
   | 'samplesReceived'
   | 'labResults'
+  // robotic surgery on level 2 (R2)
+  | 'surgeryArrived'
+  | 'preOpReady'
+  | 'theatreIn'
+  | 'robotDocked'
+  | 'consoleStart'
+  | 'instrumentExchange'
+  | 'robotUndocked'
+  | 'theatreOut'
+  | 'pacuOut'
+  | 'turnoverDone'
 
 export interface SimEvent {
   /** Sequential, stable across replays with the same seed. */
@@ -387,6 +407,8 @@ export interface KeyMap {
   mute: string
   /** Open the "Jump to…" moments-of-the-day menu (L1). */
   jump: string
+  /** R2: switch the overview between Level 1 and Level 2 (the robotic surgery suite). */
+  level: string
   // walk-in (W1)
   /** Switch between walking and the overview. */
   walk: string
@@ -417,6 +439,7 @@ export const DEFAULT_KEYMAP: KeyMap = {
   goTo: 'KeyG',
   mute: 'KeyM',
   jump: 'KeyJ',
+  level: 'KeyL',
   walk: 'Tab',
   firstPerson: 'KeyV',
   interact: 'KeyE',
@@ -840,5 +863,159 @@ export interface LabState {
   reviewQueue: number
   archived: number
   kpis: { samplesToday: number; onTrack: number; medianTatMin: number | null; autoVerifiedPct: number | null }
+  version: number
+}
+
+// ---------------------------------------------------------------------------------------------
+// Robotic surgery on level 2 (R2): a da Vinci 5 suite and the lifts. See docs/R2-SURGERY.md. Synthetic and display-only: the sim
+// follows a seeded plan per case (no clinical decisions); the scene reads these every frame, mutated in place, `version` bumped on change.
+// ---------------------------------------------------------------------------------------------
+
+export type SurgeryProcedure = 'cholecystectomy' | 'hysterectomy' | 'prostatectomy'
+
+/** A case from the day list to going home (or up to the surgical ward). The theatre phases are `in` .. `out`. */
+export type CasePhase =
+  | 'scheduled'
+  | 'arrived' // at the entrance, reception, the lift
+  | 'preOp' // in a pre-op bay: gown, checks
+  | 'toTheatre' // on the stretcher to the OR
+  | 'in' // wheels in, onto the table
+  | 'induction'
+  | 'positioning' // positioning, prep and draping the patient
+  | 'ports'
+  | 'docking' // deploy for docking, drive with the laser, dock the endoscope arm, targeting
+  | 'console'
+  | 'undocking'
+  | 'closing'
+  | 'emergence'
+  | 'out' // wheels out, onto the stretcher
+  | 'pacu'
+  | 'phase2' // day cases: the lounge recliner before going home
+  | 'leaving'
+  | 'done'
+
+export interface SurgeryCaseView {
+  id: string
+  /** The patient's entity id once they have arrived. */
+  patientId: string | null
+  name: string
+  procedure: SurgeryProcedure
+  phase: CasePhase
+  /** Planned wheels-in (sim seconds). */
+  plannedIn: number
+  wheelsIn: number | null
+  dockedAt: number | null
+  consoleStart: number | null
+  consoleEnd: number | null
+  wheelsOut: number | null
+  /** Where they go after recovery, from the seeded plan. */
+  outcome: 'home' | 'ward'
+  /** The pre-op or recovery bay seat they are in, if any. */
+  bay: string | null
+}
+
+export type RobotPhase =
+  | 'stowed'
+  | 'draping'
+  | 'draped'
+  | 'deploying' // "deploy for docking": arms fold to the docking pose
+  | 'driving' // the cart drives in, the laser crosshair on
+  | 'docking' // the endoscope arm docks to its port
+  | 'targeting' // the boom turns and the other arms swing onto their ports
+  | 'docked'
+  | 'undocking'
+  | 'returning'
+  | 'cleaning'
+
+/** One of the four arms (1 holds the endoscope in the classic layout; here arm index 1 is the camera). */
+export interface RobotArmState {
+  index: 0 | 1 | 2 | 3
+  /** The instrument fitted (a display name from content), '' when none. */
+  instrument: string
+  /** The port it pivots about (sim coordinates, y above the floor), or null when free. */
+  port: Vec3 | null
+  /** Sterile drape on 0..1, and how far it has swung onto its port 0..1. */
+  drape: number
+  engage: number
+  /** Force-feedback reading for the console display 0..1 (synthetic, display only). */
+  force: number
+  exchanges: number
+}
+
+export interface RobotState {
+  phase: RobotPhase
+  /** The patient cart's base on the floor (sim coordinates) and heading. */
+  cart: { x: number; z: number; heading: number }
+  /** Boom yaw relative to the cart (rad), boom height above the floor (m) and how far it reaches out 0..1. */
+  boomYaw: number
+  boomHeight: number
+  boomExtend: number
+  laser: boolean
+  arms: RobotArmState[]
+  /** Seed of the console-phase tip motion (shared by the arms and the endoscope view). */
+  motionSeed: number
+  /** Sim time the current robot phase began. */
+  phaseSince: number
+  version: number
+}
+
+export interface TheatreKpis {
+  casesToday: number
+  firstCaseOnTime: boolean | null
+  /** Minutes, the latest completed values (null before the first). */
+  dockingMin: number | null
+  consoleMin: number | null
+  turnoverMin: number | null
+  pacuMin: number | null
+  /** Share of the session the room had a patient in it, 0..1. */
+  utilisation: number | null
+}
+
+export interface TheatreState {
+  caseId: string | null
+  phase: CasePhase | 'idle' | 'turnover'
+  phaseSince: number
+  phaseEnds: number | null
+  /** The surgical lights on (from induction to emergence). */
+  lights: boolean
+  surgeonAtConsole: boolean
+  /** You (or the overview viewer) at the teaching console. */
+  teachingInUse: boolean
+  cases: SurgeryCaseView[]
+  kpis: TheatreKpis
+  version: number
+}
+
+export interface SurgeryBayState {
+  seatId: string
+  kind: 'preOp' | 'pacu'
+  patientId: string | null
+  since: number
+  curtain: boolean
+}
+
+export interface SurgeryState {
+  theatre: TheatreState
+  robot: RobotState
+  bays: SurgeryBayState[]
+  version: number
+}
+
+export type LiftCarPhase = 'idle' | 'opening' | 'open' | 'closing' | 'moving'
+
+export interface LiftCarState {
+  shaft: 'A' | 'B'
+  index: 0 | 1
+  /** The level it is at (or left from, while moving), and where it is going. */
+  level: 1 | 2
+  target: 1 | 2 | null
+  phase: LiftCarPhase
+  /** Doors open 0..1 and travel progress 0..1 while moving. */
+  doors: number
+  travel: number
+}
+
+export interface LiftsState {
+  cars: LiftCarState[]
   version: number
 }

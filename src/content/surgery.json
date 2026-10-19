@@ -1,0 +1,76 @@
+{
+  "procedures": {
+    "cholecystectomy": {
+      "name": "Robotic cholecystectomy (gallbladder removal)",
+      "short": "Gallbladder",
+      "portLayout": "oblique",
+      "instruments": ["Fenestrated bipolar forceps", "Endoscope 30°", "Monopolar curved scissors", "Prograsp forceps"],
+      "exchanges": ["Clip applier", "Suction irrigator", "Hook electrode"]
+    },
+    "hysterectomy": {
+      "name": "Robotic hysterectomy (uterus removal)",
+      "short": "Hysterectomy",
+      "portLayout": "transverse",
+      "instruments": ["Cadiere forceps", "Endoscope 30°", "Monopolar curved scissors", "Large needle driver"],
+      "exchanges": ["Vessel sealing forceps", "Suction irrigator"]
+    },
+    "prostatectomy": {
+      "name": "Robotic prostatectomy (prostate removal)",
+      "short": "Prostate",
+      "portLayout": "transverse",
+      "instruments": ["Prograsp forceps", "Endoscope 30°", "Fenestrated bipolar forceps", "Large needle driver"],
+      "exchanges": ["Clip applier", "Suction irrigator"]
+    }
+  },
+  "phases": {
+    "scheduled": "Scheduled",
+    "arrived": "Arrived on Level 2",
+    "preOp": "Pre-op checks",
+    "toTheatre": "On the way to theatre",
+    "in": "Wheeled in",
+    "induction": "Anaesthesia induction",
+    "positioning": "Positioning and draping",
+    "ports": "Placing the ports",
+    "docking": "Docking the robot",
+    "console": "Console time",
+    "undocking": "Undocking the robot",
+    "closing": "Closing up",
+    "emergence": "Waking up",
+    "out": "Wheeled out",
+    "pacu": "In recovery",
+    "phase2": "Resting in the lounge",
+    "leaving": "Leaving",
+    "done": "Done",
+    "idle": "Theatre free",
+    "turnover": "Turnover: cleaning the room"
+  },
+  "robotPhases": {
+    "stowed": "Stowed, waiting for the next case",
+    "draping": "Draping the arms",
+    "draped": "Arms draped and ready",
+    "deploying": "Deploying for docking: arms folding",
+    "driving": "Driving in on the laser crosshair",
+    "docking": "Docking the endoscope arm",
+    "targeting": "Targeting: arms swinging into place",
+    "docked": "Docked and ready",
+    "undocking": "Undocking the arms",
+    "returning": "Driving back to park",
+    "cleaning": "Cleaning the arms"
+  },
+  "events": {
+    "surgeryArrived": "{patient} arrived on Level 2 for surgery ({procedure}).",
+    "preOpReady": "{patient} is gowned and ready in {bay}.",
+    "theatreIn": "{patient} is wheeled into the robotic theatre.",
+    "robotDocked": "The da Vinci 5 (simulated) is docked for {patient} ({procedure}). Docking took {minutes} min.",
+    "consoleStart": "{surgeon} started console time for {patient}.",
+    "instrumentExchange": "{surgeon} changed arm {arm} to {instrument}.",
+    "robotUndocked": "The da Vinci 5 (simulated) is undocked from {patient}. Console time was {minutes} min.",
+    "theatreOut": "{patient} is wheeled out after {minutes} min in the robotic theatre.",
+    "pacuOut": "{patient} left recovery after {minutes} min.",
+    "turnoverDone": "The robotic theatre is clean and ready after {minutes} min."
+  },
+  "outcomes": {
+    "home": "Day case: home today",
+    "ward": "To the surgical ward upstairs"
+  }
+}

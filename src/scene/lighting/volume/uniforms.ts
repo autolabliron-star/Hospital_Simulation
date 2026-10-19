@@ -13,11 +13,22 @@
  *   uLvSky        the same for the sky through windows (and the open air): the sky's colour x gain x the daylight
  *   uLvReflect    strength of the ceiling-panel reflection on the floors (0 = off); uLvPanelRad the panels' radiance for it
  *   uLvCeil...    the ceiling map (RG8, 0.1 m texels): the texture, its plan placement (x0, z0, 1/width, 1/depth), the ceiling height, texels/m
+ *   uLvCeil2...   (R2) the second page, level 2's: the same four numbers for the level-2 footprint, and the ceiling height as drawn (4.2 + 3.0 m); a floor above
+ *                 3.9 m reads page 2
  *   uLvGlass      how far glass climbs toward opaque at grazing angles
  */
 import { Color, DataTexture, Data3DTexture, LinearFilter, ClampToEdgeWrapping, RGBAFormat, UnsignedByteType, Vector3, Vector4, type Texture } from 'three'
 import { BUILDING, WALL } from '@/sim/places'
-import { CEILING_MAP_HEIGHT, CEILING_MAP_WIDTH, CEILING_TEXELS_PER_METRE, createCeilingTexture } from '../ceilingMap'
+import { LEVEL2_FOOTPRINT, LEVEL_Y } from '@/sim/levels'
+import {
+  CEILING_MAP2_HEIGHT,
+  CEILING_MAP2_WIDTH,
+  CEILING_MAP_HEIGHT,
+  CEILING_MAP_WIDTH,
+  CEILING_TEXELS_PER_METRE,
+  createCeilingTexture,
+  createCeilingTexture2,
+} from '../ceilingMap'
 import { VOLUME_GRID, gridSize } from './input'
 
 /** One uniform: three's own shape, written here so this module does not need the type. */
@@ -73,6 +84,9 @@ export const lvUniforms = {
   uLvCeilGeom: u(new Vector4(BUILDING.x0, BUILDING.z0, 1 / (CEILING_MAP_WIDTH / CEILING_TEXELS_PER_METRE), 1 / (CEILING_MAP_HEIGHT / CEILING_TEXELS_PER_METRE))),
   uLvCeilY: u(WALL.height),
   uLvCeilTexels: u(CEILING_TEXELS_PER_METRE),
+  uLvCeil2: u<Texture>(createCeilingTexture2() as DataTexture),
+  uLvCeilGeom2: u(new Vector4(LEVEL2_FOOTPRINT.x0, LEVEL2_FOOTPRINT.z0, 1 / (CEILING_MAP2_WIDTH / CEILING_TEXELS_PER_METRE), 1 / (CEILING_MAP2_HEIGHT / CEILING_TEXELS_PER_METRE))),
+  uLvCeilY2: u(LEVEL_Y[2] + WALL.height),
   uLvGlass: u(0),
 }
 

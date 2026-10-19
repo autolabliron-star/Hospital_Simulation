@@ -29,6 +29,8 @@ export interface PrimOpts {
   tile?: number
   /** Overview only: hidden in walk mode (see `Prim.overviewOnly`). */
   overviewOnly?: boolean
+  /** Walk only: hidden in the overview (see `Prim.walkOnly`). */
+  walkOnly?: boolean
 }
 
 export interface FootprintOpts {
@@ -169,6 +171,7 @@ export class Frame {
     if (o.color !== undefined) prim.color = o.color
     if (o.tile !== undefined) prim.tile = o.tile
     if (o.overviewOnly) prim.overviewOnly = true
+    if (o.walkOnly) prim.walkOnly = true
     this.b.prims.push(prim)
     return this
   }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { patientInRoom } from '@/content/catalogue'
+import { SURGERY_UI } from '@/content/surgeryUi'
+import { levelOf } from '@/sim/levels'
 import type { RoomId, RoomStatus } from '@/sim/types'
 import { AREAS } from '@/sim/places'
 import { buildGoToGroups, filterGoToGroups, flattenItems, menuAreaIds } from './goToModel'
@@ -55,3 +57,51 @@ describe('Go to… menu model', () => {
     expect(blood).toContain('diagnostics')
   })
 })
+
+describe('Go to… menu: Level 2 · Surgery (R2)', () => {
+  const l2Map = AREAS.filter((a) => a.mapLabel && levelOf(a.rect.x0) === 2).map((a) => a.id)
+
+  it('has a "Level 2 · Surgery" group, titled from the copy, with every level-2 area the map names, once', () => {
+    const group = buildGoToGroups().find((g) => g.id === 'level2')!
+    expect(group.title).toBe('Level 2 · Surgery')
+    expect(group.title).toBe(SURGERY_UI.goTo.group)
+    expect(l2Map).toEqual(['l2PreOp', 'l2Sterile', 'l2Or', 'l2Pacu', 'l2Lounge'])
+    expect(group.items.map((i) => i.area)).toEqual(l2Map)
+    expect(group.items.every((i) => i.label.length > 0 && i.detail.length > 0)).toBe(true)
+  })
+
+  it('names the robotic OR and recovery for what they are', () => {
+    const items = buildGoToGroups().find((g) => g.id === 'level2')!.items
+    expect(items.find((i) => i.area === 'l2Or')).toMatchObject({ label: 'Robotic OR', detail: 'da Vinci 5 surgical system' })
+    expect(items.find((i) => i.area === 'l2Pacu')!.label).toBe('Recovery')
+  })
+
+  it('lists no level-2 area anywhere else, and no ground-floor area in the group', () => {
+    const groups = buildGoToGroups()
+    for (const g of groups) {
+      for (const i of g.items) expect(levelOf(AREAS.find((a) => a.id === i.area)!.rect.x0) === 2, `${g.id}/${i.area}`).toBe(g.id === 'level2')
+    }
+  })
+
+  it('is part of "every area exactly once": every level-2 map area is a menu area, and the menu has no duplicates', () => {
+    const areas = flattenItems(buildGoToGroups()).map((i) => i.area)
+    expect(new Set(areas).size).toBe(areas.length)
+    for (const id of l2Map) expect(menuAreaIds(), id).toContain(id)
+    for (const id of menuAreaIds()) expect(areas, id).toContain(id)
+  })
+
+  it('is found by typing "surgery", "level 2" or "robotic", and by the room names', () => {
+    const find = (q: string) => flattenItems(filterGoToGroups(buildGoToGroups(), q)).map((i) => i.area)
+    expect(find('surgery')).toEqual(expect.arrayContaining(l2Map))
+    expect(find('level 2')).toEqual(expect.arrayContaining(l2Map))
+    expect(find('robotic')).toContain('l2Or')
+    expect(find('recovery')).toContain('l2Pacu')
+    expect(find('pre-op')).toContain('l2PreOp')
+  })
+
+  it('keeps the ground-floor groups and their order (Imaging, Blood & lab, then the new group, then the wards)', () => {
+    const ids = buildGoToGroups().map((g) => g.id)
+    expect(ids.slice(0, 4)).toEqual(['imaging', 'bloodLab', 'level2', 'wardA'])
+  })
+})
+

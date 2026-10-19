@@ -1,0 +1,86 @@
+{
+  "level": {
+    "one": "Level 1",
+    "two": "Level 2 · Surgery",
+    "oneCaption": "Entrance, ER and wards",
+    "twoCaption": "Robotic surgery suite",
+    "aria": "Choose a level"
+  },
+  "lift": {
+    "toTwo": "Take the lift to Level 2 · Surgery",
+    "toOne": "Take the lift to Level 1",
+    "coverTwo": "Level 2 · Surgery",
+    "coverOne": "Level 1 · Entrance and wards",
+    "noLevel3": "There is no Level 3 in this demo."
+  },
+  "console": {
+    "title": "Teaching console",
+    "subtitle": "view only · Simulated",
+    "prompt": "E · Sit at the teaching console",
+    "endoscope": "Endoscope view",
+    "procedure": "Procedure",
+    "phase": "Phase",
+    "clock": "Console clock",
+    "arms": "Arms and instruments",
+    "arm": "Arm {arm}",
+    "force": "Force feedback",
+    "insufflation": "Insufflation",
+    "mmHg": "mmHg",
+    "standby": "The robot is not docked yet. Next: {procedure} at {time}.",
+    "standbyNone": "The robot is not docked yet. No more cases today.",
+    "leave": "E, Esc or a move key to stand up"
+  },
+  "panel": {
+    "tag": "Simulated",
+    "note": "Simulated, not real patient data.",
+    "room": "Robotic theatre",
+    "list": "Today's list",
+    "phase": "Phase",
+    "robot": "Robot",
+    "team": "Team",
+    "watch": "Watch the endoscope view",
+    "kpi": {
+      "firstOnTime": "First case on time",
+      "docking": "Docking",
+      "console": "Console",
+      "turnover": "Turnover",
+      "recovery": "Recovery",
+      "utilisation": "Utilisation"
+    },
+    "kpiValue": {
+      "yes": "On time",
+      "no": "Late",
+      "notYet": "Not yet",
+      "minutes": "{n} min",
+      "percent": "{n}%"
+    },
+    "empty": {
+      "list": "No cases on today's list.",
+      "room": "The robotic theatre is free right now."
+    },
+    "pacu": {
+      "title": "Recovery (PACU)",
+      "empty": "Nobody is in recovery right now.",
+      "bay": "Bay {n}"
+    },
+    "preOp": {
+      "title": "Pre-op bays",
+      "empty": "Nobody is in the pre-op bays right now.",
+      "bay": "Bay {n}"
+    }
+  },
+  "prompts": {
+    "viewingWindow": "E · Watch the OR through the window",
+    "preOpDesk": "E · Open the pre-op desk",
+    "pacuIsland": "E · Open the recovery island"
+  },
+  "goTo": {
+    "group": "Level 2 · Surgery"
+  },
+  "monitor": {
+    "hr": "HR",
+    "spo2": "SpO2",
+    "rr": "RR",
+    "bp": "NIBP"
+  }
+}

@@ -35,7 +35,7 @@ export interface Levels {
 /**
  * Read the posture and heights of an entity. The sim puts a seated or lying person at the seat or bed; `position.y` may be the floor
  * (then the seat height defaults: 0.45 chair, 0.5 wheelchair; lying 0.49 ward bed, 0.44 ER trolley, 0.79 stretcher, the imaging tables at their own
- * heights: the real mattress and table tops, see LIE and `lieSurfaceOf`)
+ * heights, the surgery suite's trolleys (0.8) and OR table (0.88): the real mattress and table tops, see LIE and `lieSurfaceOf`)
  * or already the surface (then the floor is `groundHeightAt`, and the surface is the difference). A seat is never drawn lower than 0.45 m.
  */
 export function levelsOf(e: Entity, out: Levels): Levels {
@@ -75,6 +75,9 @@ const _lv: Levels = { posture: 'stand', floorY: 0, surface: 0 }
 /** Seat ids of the trolley beds of the ER bays (`erBay:bay:3`) and of the ward beds (`bed:A3`). */
 const ER_BED_SEAT = 'erBay:'
 const WARD_BED_SEAT = 'bed:'
+/** R2: the pre-op and recovery trolleys of level 2 (`surgeryBed:preop:0`, `surgeryBed:pacu:2`) and the OR table (`orTable:0`). */
+const SURGERY_BED_SEAT = 'surgeryBed:'
+const OR_TABLE_SEAT = 'orTable:'
 
 /** The top of each imaging table or couch a patient lies on, by seat id (rooms/imaging.ts: the seat's height is the table's `IMAGING[...].table.height`). */
 const IMAGING_SEAT_SURFACE: ReadonlyMap<string, number> = new Map([
@@ -91,17 +94,21 @@ const IMAGING_SEAT_SURFACE: ReadonlyMap<string, number> = new Map([
 export function lieSurfaceOf(seatId: string | undefined): number {
   if (seatId === undefined) return LIE.bed
   if (seatId.startsWith(ER_BED_SEAT)) return LIE.trolley
+  if (seatId.startsWith(SURGERY_BED_SEAT)) return LIE.surgeryBed
+  // (the OR table's own top: places.ts SURGERY.table.height, which the layout builds the table to)
+  if (seatId.startsWith(OR_TABLE_SEAT)) return LIE.orTable
   return IMAGING_SEAT_SURFACE.get(seatId) ?? LIE.bed
 }
 
 /**
- * Whether a lying person is in a bed that has a blanket for them: a ward bed, an ER bay trolley or a stretcher (a porter pushes it or it stands where it
- * was left). Somebody on a scanner table, an X-ray table or an ultrasound couch lies bare.
+ * Whether a lying person is in a bed that has a blanket for them: a ward bed, an ER bay trolley, a pre-op or recovery trolley of level 2 or a stretcher (a porter
+ * pushes it or it stands where it was left). Somebody on a scanner table, an X-ray table, an ultrasound couch or the OR table lies bare (the OR table's
+ * surgical drape is the theatre's own: scene/surgery).
  */
 export function inBlanketBed(e: Pick<Entity, 'seated' | 'riding' | 'vehicle'>): boolean {
   if (e.riding === true && e.vehicle === 'stretcher') return true
   const id = e.seated?.seatId
-  return id !== undefined && (id.startsWith(WARD_BED_SEAT) || id.startsWith(ER_BED_SEAT))
+  return id !== undefined && (id.startsWith(WARD_BED_SEAT) || id.startsWith(ER_BED_SEAT) || id.startsWith(SURGERY_BED_SEAT))
 }
 
 /** Size factor of a person relative to the nominal body. */

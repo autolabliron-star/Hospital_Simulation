@@ -304,10 +304,21 @@ export class Meals implements RunServices {
     const lift = liftBotSpot(g.ward).at
     const hostAt = liftHostSpot(g.ward).at
     if (u.spotBusy(lift.x, lift.z, LIFT_CLEAR) || u.spotBusy(hostAt.x, hostAt.z, 0.6)) return false
+    // R2: ... and so is the lobby's stretcher slot (the lifts' LobbyGate): the run keeps it while the bot and its host are in the lobby
+    if (!this.claimLobby(g.ward)) return false
     g.run = new Run(this, g.ward, mode, g.window.meal, u, g.windowEnd)
     g.run.startAtLift()
     g.state = mode === 'serve' ? 'serving' : 'collecting'
     return true
+  }
+
+  claimLobby(ward: WardId): boolean {
+    const lifts = this.deps.world.lifts
+    return lifts === null || lifts.claimFade(ward, 1, `meals:${ward}`)
+  }
+
+  releaseLobby(ward: WardId): void {
+    this.deps.world.lifts?.releaseFade(`meals:${ward}`)
   }
 
   private stepGroup(g: Group, t: number, dt: number): void {

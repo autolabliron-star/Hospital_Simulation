@@ -1,4 +1,5 @@
-/** Walk mode's floating pieces: the drawer card, the health card (W4), the toast, the prompt, the objective line and the key hint. Positions are in walk.css. */
+/** Walk mode's floating pieces: the drawer card, the health card (W4), the teaching-console card (R2), the toast, the prompt, the objective line and the key hint. Positions are in walk.css. */
+import { ConsoleCard } from './ConsoleCard'
 import { DrawerCard } from './DrawerCard'
 import { HealthCard } from './HealthCard'
 import { InteractPrompt } from './InteractPrompt'
@@ -13,6 +14,7 @@ export function WalkOverlay({ parts }: { parts: HudParts }) {
     <>
       {parts.drawerCard && <DrawerCard />}
       {parts.drawerCard && <HealthCard />}
+      {parts.drawerCard && <ConsoleCard />}
       {parts.toast && <WalkToast />}
       {parts.prompt && <InteractPrompt />}
       {parts.objective && <ObjectiveLine />}

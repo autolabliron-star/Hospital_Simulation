@@ -8,6 +8,7 @@ import { setFollowedPerson, setHoveredPerson, setSelectedPerson } from '@/scene/
 import { useBubbles } from '@/scene/fx/bubbleStore'
 import { jumpTo, simGeneration } from '@/sim'
 import { createJumpState, type JumpState } from './jumpFlow'
+import { useLiftRide } from './liftRide.store'
 
 export { FADE_IN_MS, FADE_OUT_MS, SETTLE_MS, type JumpPhase, type JumpState, type JumpTarget } from './jumpFlow'
 
@@ -44,5 +45,7 @@ export const useJump = create<JumpState>(
     },
     frames: afterFrames,
     onError: (error) => console.error('Jump failed; the hospital stays as it was.', error),
+    // R2: never during your lift ride (two covers would overlap)
+    busy: () => useLiftRide.getState().phase !== 'idle',
   }),
 )

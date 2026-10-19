@@ -37,6 +37,8 @@ import {
   NURSE_HUB,
   PHARMACY,
   ROOMS,
+  SURGERY,
+  THEATRE_BASE,
   WALL,
   areaAt,
   areaById,
@@ -44,6 +46,7 @@ import {
   type AreaId,
   type DoorSpec,
 } from '../places'
+import { l2, levelOf } from '../levels'
 import type { Vec2, WardId } from '../types'
 import { roomNodeId, seatNodeId, type RoomNodePart } from './ids'
 import {
@@ -574,6 +577,69 @@ function buildGraph(): NavGraph {
     if (linkNearest(n, 2, 8) === 0) NAV_WARNINGS.push(`departure:lift:${i} is not linked`)
   })
 
+  // --- R2: level 2, the robotic surgery suite (its own strip of the flat sim: sim x = drawn + 150, levels.ts) -----------------
+  // It joins level 1 only through the lifts (src/sim/lifts), never by an edge: a route across the 40 m gap would make walkers glide.
+  const l2Root = (() => {
+    const cx = l2(-42)
+    const zs = [-14, -13, -6, 0, 4.3, 6, 12.5, 14]
+    const corridor = new Map<number, number>()
+    for (const z of zs) corridor.set(z, g.add(`l2:corridor:${z}`, cx, z, 'spine', 'l2Corridor'))
+    chain(zs.map((z) => corridor.get(z)!))
+    // the lift lobbies, as on level 1
+    let root = -1
+    for (const w of wards) {
+      const d = doorSpec(`l2Lift${w}`)
+      const s = wardSign(w)
+      const door = g.add(`l2:lift:${w}:door`, d.center.x, d.center.z, 'door')
+      const inside = g.add(`l2:lift:${w}:in`, d.center.x, d.center.z + s * 2.5, 'inside', `l2lift:${w}`)
+      must(corridor.get(s * 14)!, door)
+      must(door, inside)
+      if (w === 'A') root = inside
+    }
+    // the viewing window onto the OR
+    const view = g.add('l2:viewing', SURGERY.viewing.at.x, SURGERY.viewing.at.z, 'anchor', 'l2Corridor')
+    must(view, corridor.get(4.3)!)
+    // pre-op and recovery open off the corridor's west wall
+    for (const [doorId, areaId, z] of [
+      ['l2PreOp', 'l2PreOp', -13],
+      ['l2Pacu', 'l2Pacu', 12.5],
+    ] as const) {
+      const d = doorSpec(doorId)
+      const door = g.add(`${doorId}:door`, d.center.x, d.center.z, 'door')
+      const inside = g.add(`${doorId}:in`, d.center.x - 1.6, d.center.z, 'inside', areaId)
+      must(corridor.get(z)!, door)
+      must(door, inside)
+      lattice(areaId, areaId)
+      linkGroup(areaId, 12)
+    }
+    // the theatre hall: a centre line along z = 0 from the corridor opening, with a spur at every door off it
+    const hallDoor = doorSpec('l2Hall')
+    const hallOpening = g.add('l2Hall:door', hallDoor.center.x, hallDoor.center.z, 'door')
+    must(corridor.get(0)!, hallOpening)
+    const offHall: [string, AreaId, number][] = [
+      ['l2Or', 'l2Or', 1],
+      ['l2Sterile', 'l2Sterile', -1],
+      ['l2Staff', 'l2Staff', -1],
+      ['l2Lounge', 'l2Lounge', 1],
+    ]
+    const hallXs = [...new Set([-46, ...offHall.map(([id]) => doorSpec(id).center.x - l2(0)), -60.5])].sort((a, b) => b - a)
+    const hall = new Map<number, number>()
+    for (const x of hallXs) hall.set(x, g.add(`l2:hall:${x}`, l2(x), 0, 'inside', 'l2Hall'))
+    chain([hallOpening, ...hallXs.map((x) => hall.get(x)!)])
+    for (const [doorId, areaId, side] of offHall) {
+      const d = doorSpec(doorId)
+      const door = g.add(`${doorId}:door`, d.center.x, d.center.z, 'door')
+      const inside = g.add(`${doorId}:in`, d.center.x, d.center.z + side * 1.6, 'inside', areaId)
+      must(hall.get(d.center.x - l2(0))!, door)
+      must(door, inside)
+      lattice(areaId, areaId, areaId === 'l2Or' ? 3 : 6)
+      linkGroup(areaId, 12)
+    }
+    g.add('l2:theatreBase', THEATRE_BASE.at.x, THEATRE_BASE.at.z, 'anchor', 'l2Staff')
+    linkGroup('l2Staff', 12)
+    return root
+  })()
+
   // --- seats: a node at every approach spot, linked into the graph --------------------------------
   const seatNodes: number[] = []
   const seats = getLayout().seats
@@ -606,9 +672,11 @@ function buildGraph(): NavGraph {
   for (const n of g.nodes) {
     if (!isWalkable(n.x, n.z, NAV_MARGIN)) NAV_WARNINGS.push(`node off walkable ground: ${n.id} (${n.x}, ${n.z})`)
   }
+  // every node is reachable from the entrance (level 1) or from level 2's lift-A lobby (level 2: the lifts join the two)
   const seen = new Uint8Array(g.nodes.length)
-  const stack = [entrance]
+  const stack = [entrance, l2Root]
   seen[entrance] = 1
+  seen[l2Root] = 1
   while (stack.length > 0) {
     const i = stack.pop()!
     for (const l of g.adj[i]) {
@@ -901,6 +969,8 @@ function dropCollinear(pts: RoutePoint[]): RoutePoint[] {
  */
 export function tryPlanRoute(from: Vec2, to: Vec2): Vec2[] | null {
   if (Math.hypot(from.x - to.x, from.z - to.z) < 1e-6) return [{ x: to.x, z: to.z }]
+  // R2: the two levels join only through the lifts (src/sim/lifts LiftTrip), never by a walked route
+  if (levelOf(from.x) !== levelOf(to.x)) return null
   const starts = anchorsFor(from)
   const goals = anchorsFor(to)
   if (starts.length === 0 || goals.length === 0) return null
@@ -929,8 +999,12 @@ export function tryPlanRoute(from: Vec2, to: Vec2): Vec2[] | null {
   return out
 }
 
-/** Like `tryPlanRoute`, but when no route exists it falls back to the straight line `[from, to]`. */
+/**
+ * Like `tryPlanRoute`, but when no route exists it falls back to the straight line `[from, to]`. R2: across levels there is no
+ * straight line either (it would cross the 40 m gap): the walker stays where it is (`[from]`), and the lifts must be used instead.
+ */
 export function planRoute(from: Vec2, to: Vec2): Vec2[] {
+  if (levelOf(from.x) !== levelOf(to.x)) return [{ x: from.x, z: from.z }]
   return tryPlanRoute(from, to) ?? [{ x: from.x, z: from.z }, { x: to.x, z: to.z }]
 }
 

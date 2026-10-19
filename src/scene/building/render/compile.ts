@@ -24,8 +24,9 @@ import {
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '@/sim/rng'
+import { levelOf, type LevelId } from '@/sim/levels'
 import { ATLAS_COLS, ATLAS_ROWS } from '../layout/screenTiles'
-import type { BuildingLayout, CommandWallPanel, MatKey, Prim, TreeSpec } from '../layout/types'
+import type { BuildingLayout, CommandWallPanel, LabelSpec, MatKey, Prim, TreeSpec } from '../layout/types'
 
 export interface MergedMesh {
   key: string
@@ -35,6 +36,8 @@ export interface MergedMesh {
   receiveShadow: boolean
   /** Hidden while walking (the walk-mode building replaces it). */
   overviewOnly?: boolean
+  /** Hidden in the overview (R2: the OR's ceiling booms and light heads). */
+  walkOnly?: boolean
 }
 
 export interface InstancedSpec {
@@ -266,34 +269,57 @@ function treeInstances(trees: TreeSpec[]): TreeInstances {
   }
 }
 
-/** Compile the layout. Deterministic: same layout, same geometry. */
-export function compileLayout(layout: BuildingLayout): CompiledBuilding {
-  const groups = new Map<string, { mat: MatKey; cast: boolean; recv: boolean; overview: boolean; parts: BufferGeometry[] }>()
+/** The labels of one level (a label's x says which: level 2 lies in its own strip of the flat sim). */
+export function labelsOfLevel(labels: readonly LabelSpec[], level: LevelId): LabelSpec[] {
+  return labels.filter((l) => levelOf(l.x) === level)
+}
+
+/**
+ * Compile the layout. Deterministic: same layout, same geometry.
+ *
+ * R2: one level at a time (`level`, default 1: the hospital as it was). Level 2's prims lie in its own strip of the flat sim (sim x 88..110) and are
+ * drawn in one group 4.2 m up and 150 m west (src/scene/building/render/Level2Building.tsx), so they compile apart from level 1's. Level 2 never
+ * casts into the baked sun shadow, so its meshes are merged per material and receive flag only (no cast flag in the key: fewer, bigger meshes);
+ * walk-only prims (booms, light heads) are their own meshes, shown only while walking, as the overview-only ones are shown only in the overview.
+ * Trees and the command wall belong to level 1.
+ */
+export function compileLayout(layout: BuildingLayout, level: LevelId = 1): CompiledBuilding {
+  const groups = new Map<string, { mat: MatKey; cast: boolean; recv: boolean; overview: boolean; walk: boolean; parts: BufferGeometry[] }>()
   const inst = new Map<string, { mat: MatKey; geometry: BufferGeometry; cast: boolean; recv: boolean; prims: Prim[] }>()
   const quads: Prim[] = []
+  const castOf = (p: Prim): boolean => (level === 1 ? p.castShadow : false)
 
   for (const p of layout.prims) {
+    if (levelOf(p.position[0]) !== level) continue
     if (p.shape === 'quad') {
       quads.push(p)
       continue
     }
     if (isTinted(p)) {
       const { geometry } = baseOf(p, true)
-      const key = `${p.mat}|${p.shape}|${geometry.uuid}|${p.castShadow ? 1 : 0}${p.receiveShadow ? 1 : 0}`
-      const g = inst.get(key) ?? { mat: p.mat, geometry, cast: p.castShadow, recv: p.receiveShadow, prims: [] }
+      const key = `${p.mat}|${p.shape}|${geometry.uuid}|${castOf(p) ? 1 : 0}${p.receiveShadow ? 1 : 0}`
+      const g = inst.get(key) ?? { mat: p.mat, geometry, cast: castOf(p), recv: p.receiveShadow, prims: [] }
       g.prims.push(p)
       inst.set(key, g)
       continue
     }
-    const key = `${p.mat}|${p.castShadow ? 1 : 0}${p.receiveShadow ? 1 : 0}${p.overviewOnly ? '|overview' : ''}`
-    const g = groups.get(key) ?? { mat: p.mat, cast: p.castShadow, recv: p.receiveShadow, overview: p.overviewOnly === true, parts: [] }
+    const key = `${p.mat}|${castOf(p) ? 1 : 0}${p.receiveShadow ? 1 : 0}${p.overviewOnly ? '|overview' : ''}${p.walkOnly ? '|walk' : ''}`
+    const g = groups.get(key) ?? { mat: p.mat, cast: castOf(p), recv: p.receiveShadow, overview: p.overviewOnly === true, walk: p.walkOnly === true, parts: [] }
     g.parts.push(bake(p))
     groups.set(key, g)
   }
 
   const merged: MergedMesh[] = [...groups.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([key, g]) => ({ key, mat: g.mat, geometry: mergeAll(g.parts, key), castShadow: g.cast, receiveShadow: g.recv, ...(g.overview ? { overviewOnly: true } : {}) }))
+    .map(([key, g]) => ({
+      key,
+      mat: g.mat,
+      geometry: mergeAll(g.parts, key),
+      castShadow: g.cast,
+      receiveShadow: g.recv,
+      ...(g.overview ? { overviewOnly: true } : {}),
+      ...(g.walk ? { walkOnly: true } : {}),
+    }))
 
   const instanced: InstancedSpec[] = [...inst.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
@@ -312,7 +338,7 @@ export function compileLayout(layout: BuildingLayout): CompiledBuilding {
       return { key, mat: g.mat, geometry: g.geometry, count: g.prims.length, matrices, colors, castShadow: g.cast, receiveShadow: g.recv }
     })
 
-  const trees = treeInstances(layout.trees)
+  const trees = treeInstances(level === 1 ? layout.trees : [])
   if (trees.trunks) instanced.push(trees.trunks)
   if (trees.canopies) instanced.push(trees.canopies)
 
@@ -320,8 +346,8 @@ export function compileLayout(layout: BuildingLayout): CompiledBuilding {
     merged,
     instanced,
     screens: screenGeometry(quads),
-    commandWall: commandWallGeometry(layout.commandWall),
-    labelQuads: layout.labels.length,
+    commandWall: commandWallGeometry(level === 1 ? layout.commandWall : []),
+    labelQuads: labelsOfLevel(layout.labels, level).length,
   }
 }
 

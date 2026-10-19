@@ -44,6 +44,9 @@ export interface RunServices {
   beginRecline(roomId: RoomId): void
   abortRecline(roomId: RoomId): void
   spawnHost(ward: WardId, at: { at: Vec2; heading: number }, fadeIn: boolean): WardHost
+  /** R2: hold the lift lobby's stretcher slot (the MealBot and its host stand in the lobby); false when a stretcher party has it. */
+  claimLobby(ward: WardId): boolean
+  releaseLobby(ward: WardId): void
 }
 
 const PICK_SECONDS = 1.5
@@ -58,6 +61,8 @@ const STALL_GIVE_UP = 240
 const MAX_PASSES = 2
 /** No catch-up pass starts within this long of the window's end. */
 const CATCH_UP_MARGIN = 300
+/** R2: a bot back at the lift waits this long for the lobby's stretcher slot before it fades out anyway (s). */
+const LOBBY_PATIENCE = 90
 
 function dist(ax: number, az: number, bx: number, bz: number): number {
   return Math.hypot(ax - bx, az - bz)
@@ -81,6 +86,9 @@ export class Run {
   private tray = false
   private timer = 0
   private phaseT = 0
+  /** R2: this run holds the lift lobby's stretcher slot (from the lift to the first stop, and again from the lift back to the fade-out). */
+  private lobbyHeld = false
+  private lobbyWait = 0
   private nextReplan = STALL_REPLAN * 2
   private readonly failed = new Set<RoomId>()
   private readonly spot: Vec2 = { x: 0, z: 0 }
@@ -106,6 +114,8 @@ export class Run {
     b.trays = this.mode === 'serve' ? Math.min(CONFIG.meals.shelves, this.svc.countServable(this.ward)) : 0
     this.phase = 'lift'
     this.timer = CONFIG.fade.seconds + LIFT_PAUSE
+    // (the meal service claimed the lobby before it started this run)
+    this.lobbyHeld = true
   }
 
   /** A warm start: already at stop `k`, the cabinet about to open. */
@@ -127,6 +137,12 @@ export class Run {
 
   private linkHost(): void {
     this.unit.hostSlot = (this.host.walker as unknown as { slot?: number }).slot ?? -1
+  }
+
+  private releaseLobby(): void {
+    if (!this.lobbyHeld) return
+    this.lobbyHeld = false
+    this.svc.releaseLobby(this.ward)
   }
 
   private eligible(id: RoomId): boolean {
@@ -253,7 +269,10 @@ export class Run {
     switch (this.phase) {
       case 'lift':
         this.timer -= dt
-        if (this.timer <= 0) this.nextStop(t)
+        if (this.timer <= 0) {
+          this.releaseLobby()
+          this.nextStop(t)
+        }
         break
 
       case 'drive': {
@@ -375,6 +394,12 @@ export class Run {
       case 'home':
         this.follow()
         if (unit.arrived && host.done) {
+          // R2: back in the lobby, wait for its stretcher slot (a porter fading a patient "upstairs" has it), but not for ever
+          if (!this.lobbyHeld) {
+            this.lobbyWait += dt
+            if (this.svc.claimLobby(this.ward)) this.lobbyHeld = true
+            else if (this.lobbyWait < LOBBY_PATIENCE) break
+          }
           unit.fadeOut()
           host.fadeOut()
           this.phase = 'fadeOut'
@@ -384,6 +409,7 @@ export class Run {
 
       case 'fadeOut':
         if (unit.fadedOut) {
+          this.releaseLobby()
           unit.undeploy()
           this.phase = 'done'
           this.done = true

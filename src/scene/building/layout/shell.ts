@@ -41,6 +41,22 @@ export function floorMaterial(a: Area): MatKey | null {
     case 'loungeA':
     case 'quietB':
       return 'floorOak'
+    // R2 level 2: the theatre side is clean surgical vinyl (cool blue-grey), pre-op and recovery a soft mint like triage and the ER,
+    // the lifts and the theatre corridor terrazzo, and the family lounge warm oak
+    case 'l2Hall':
+    case 'l2Or':
+    case 'l2Sterile':
+      return 'floorBlue'
+    case 'l2PreOp':
+    case 'l2Pacu':
+    case 'l2Staff':
+      return 'floorMint'
+    case 'l2Lounge':
+      return 'floorOak'
+    case 'l2Corridor':
+    case 'l2LiftA':
+    case 'l2LiftB':
+      return 'floorTerrazzo'
     default:
       return a.kind === 'room' ? 'floorOak' : 'floorTerrazzo'
   }

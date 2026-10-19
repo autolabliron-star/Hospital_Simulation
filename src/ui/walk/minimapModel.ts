@@ -6,11 +6,30 @@
  *
  * Map pixels: x runs east (right), y runs south (down). World heading is atan2(dx, dz): 0 faces +z (south, down the map).
  */
+import { levelOf, type LevelId } from '@/sim/levels'
 import { AREAS, areaById, type AreaId } from '@/sim/places'
 import type { PodLight } from '@/sim/types'
 
 /** What the map shows: the whole building (x -62..40, z -22..22) plus the paved apron you start on (x from -74). */
 export const MAP_BOUNDS = { x0: -76, x1: 42, z0: -24, z1: 24 } as const
+
+/**
+ * R2: what the map shows on level 2: the surgery suite's strip of the sim (sim x 88..110, which is drawn over x -62..-40), with 2 m of air each side.
+ * It is a portrait plan (26 x 48 m), so the card narrows to fit it (minimapLevel.css: 46% of the HUD column) instead of growing tall.
+ */
+export const MAP_BOUNDS_L2 = { x0: 86, x1: 112, z0: -24, z1: 24 } as const
+
+export type MapBounds = { readonly x0: number; readonly x1: number; readonly z0: number; readonly z1: number }
+
+/** The bounds of the plan of `level`. */
+export function mapBounds(level: LevelId): MapBounds {
+  return level === 2 ? MAP_BOUNDS_L2 : MAP_BOUNDS
+}
+
+/** The level whose plan the map shows: the one you are on (`levelOf(sim.player.x)`); level 1 when you are not in the hospital. */
+export function minimapLevel(player: { readonly x: number } | null | undefined): LevelId {
+  return player ? levelOf(player.x) : 1
+}
 
 export interface MapFrame {
   x0: number
@@ -22,7 +41,7 @@ export interface MapFrame {
 }
 
 /** A frame `widthPx` wide that holds the bounds, with its height following the plan's shape. */
-export function mapFrame(widthPx: number, b: { x0: number; x1: number; z0: number; z1: number } = MAP_BOUNDS): MapFrame {
+export function mapFrame(widthPx: number, b: MapBounds = MAP_BOUNDS): MapFrame {
   const scale = widthPx / (b.x1 - b.x0)
   return { x0: b.x0, z0: b.z0, scale, width: widthPx, height: (b.z1 - b.z0) * scale }
 }
@@ -67,7 +86,20 @@ export const MAP_LABELS: readonly { area: AreaId; text: string }[] = [
   { area: 'corridorB', text: 'Ward B' },
   { area: 'hubA', text: 'Hub A' },
   { area: 'hubB', text: 'Hub B' },
+  // R2: level 2, the robotic surgery suite (the level-2 plan draws these; the ground-floor plan draws the ones above)
+  { area: 'l2PreOp', text: 'Pre-op' },
+  { area: 'l2Staff', text: 'Staff' },
+  { area: 'l2Sterile', text: 'Sterile' },
+  { area: 'l2Hall', text: 'Scrub' },
+  { area: 'l2Or', text: 'OR' },
+  { area: 'l2Pacu', text: 'PACU' },
+  { area: 'l2Lounge', text: 'Lounge' },
 ]
+
+/** The labels of the plan of `level` (the level-2 areas lie in their own strip of the sim, so a label belongs to exactly one plan). */
+export function labelsFor(level: LevelId): readonly { area: AreaId; text: string }[] {
+  return MAP_LABELS.filter((l) => levelOf(areaById(l.area).rect.x0) === level)
+}
 
 export interface LabelBox {
   /** Centre of the label, map pixels. */
@@ -106,9 +138,9 @@ export const AREA_FILL: Record<string, string> = {
   service: '#e3e6e5',
 }
 
-/** Every area the fallback plan draws, big ones first so the rooms sit on top of the bands they are in. */
-export function fallbackAreas(): { id: AreaId; kind: string; rect: { x0: number; x1: number; z0: number; z1: number } }[] {
-  return AREAS.slice()
+/** Every area the fallback plan draws, big ones first so the rooms sit on top of the bands they are in. With `level`: only that level's areas. */
+export function fallbackAreas(level?: LevelId): { id: AreaId; kind: string; rect: { x0: number; x1: number; z0: number; z1: number } }[] {
+  return AREAS.filter((a) => level === undefined || levelOf(a.rect.x0) === level)
     .sort((a, b) => (b.rect.x1 - b.rect.x0) * (b.rect.z1 - b.rect.z0) - (a.rect.x1 - a.rect.x0) * (a.rect.z1 - a.rect.z0))
     .map((a) => ({ id: a.id, kind: a.kind, rect: a.rect }))
 }

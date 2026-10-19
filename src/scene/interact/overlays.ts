@@ -6,16 +6,18 @@
  */
 import { useWarmup } from '@/scene/warmup'
 import { useFocus } from '@/scene/camera/focus.store'
+import { useConsoleCard } from '@/ui/walk/consoleCard.store'
 import { useDrawerCard } from '@/ui/walk/drawerCard.store'
 import { useHealthCard } from '@/ui/walk/healthCard.store'
 import { useGoTo } from '@/ui/goTo.store'
 import { useJump } from '@/ui/jump.store'
+import { useLiftRide } from '@/ui/liftRide.store'
 import { useRx } from '@/ui/walk/rx.store'
 
-/** A menu is open, or a Jump is running: they have their own Esc and their own keys. */
+/** A menu is open, or a Jump or your lift ride (R2) is running: they have their own Esc and their own keys. */
 function menuOpen(): boolean {
   const j = useJump.getState()
-  return useGoTo.getState().open || j.open || j.phase !== 'idle'
+  return useGoTo.getState().open || j.open || j.phase !== 'idle' || useLiftRide.getState().phase !== 'idle'
 }
 
 export function overlayOpen(): boolean {
@@ -24,15 +26,22 @@ export function overlayOpen(): boolean {
   return useRx.getState().open || useFocus.getState().area !== null || menuOpen()
 }
 
+/** R2: the teaching-console card opened by sitting at the console (the OR panel's own card closes with its panel). A closed card stands you up (teaching.ts). */
+function seatedConsoleCardOpen(): boolean {
+  const c = useConsoleCard.getState()
+  return c.open && c.source === 'seat'
+}
+
 /** Esc would close something of ours, and no menu has a claim on it. */
 export function closableOverlayOpen(): boolean {
   if (menuOpen()) return false
-  return useRx.getState().open || useFocus.getState().area !== null || useDrawerCard.getState().roomId !== null || useHealthCard.getState().open
+  return useRx.getState().open || useFocus.getState().area !== null || useDrawerCard.getState().roomId !== null || useHealthCard.getState().open || seatedConsoleCardOpen()
 }
 
 export function closeOverlays(): void {
   useRx.getState().close()
   useDrawerCard.getState().close()
   useHealthCard.getState().close()
+  if (seatedConsoleCardOpen()) useConsoleCard.getState().close()
   if (useFocus.getState().area !== null) useFocus.getState().setArea(null)
 }

@@ -7,7 +7,7 @@
  *   console:<modality> the MRI, CT, X-ray and ultrasound consoles: the room panel with the Scan viewer (priority 1)
  *   command:<n>        along the command wall: the command-center room panel (priority 1)
  *   kiosk:<n>          the lobby kiosks: a short toast (priority 1)
- *   lift:<ward>        the lift lobbies: a short toast, the wards upstairs are not built (priority 1)
+ *   lift:<shaft>[:2]   the four lift lobbies (shaft A or B, level 1 or 2): E takes the lift to the other level (R2, lift.ts; priority 1)
  *
  * People and seats are not registered: the interaction system scans the entities and the seat registry (picker.ts).
  * All words come from src/content/walk.json. The sim is read at use time through `host.sim()`, so a Jump needs nothing here.
@@ -16,7 +16,6 @@ import { WALK, fillWalk } from '@/content/walk'
 import { useInteract, type Interactable } from '@/scene/interact.store'
 import {
   COMMAND_WALL,
-  DEPARTURES,
   IMAGING,
   LOBBY,
   ROOMS,
@@ -26,9 +25,11 @@ import {
 } from '@/sim/places'
 import type { Vec3 } from '@/sim/types'
 import type { WalkActions } from './actions'
+import { LIFT_RADIUS, buildLiftInteractables, type LiftHost } from './lift'
 import { buildDrawInteractables } from './w4/drawRegs'
 import { buildKioskInteractables } from './w4/kioskRegs'
 import { buildLabInteractables } from './w4/labRegs'
+import { buildSurgeryInteractables } from './surgery/surgeryRegs'
 
 /** The part of the sim the labels read: who lies in the bed (the bed board's answer, the one a prescription is checked against). */
 export interface RegSim {
@@ -38,6 +39,8 @@ export interface RegSim {
 export interface RegHost {
   sim(): RegSim
   actions: WalkActions
+  /** R2: what the lift prompts do (default: the real cover and sim, lift.ts `realLiftHost`); tests pass fakes. */
+  lift?: LiftHost
 }
 
 /** Where the prompt for a bedside is measured from: the bed, so you face the patient from the door side. */
@@ -65,7 +68,7 @@ export function commandPoints(): Vec3[] {
   return Array.from({ length: n }, (_, i) => ({ x: w.x + 0.6, y: 0, z: w.z0 + ((i + 0.5) * (w.z1 - w.z0)) / n }))
 }
 
-export const REGISTRATION_RADIUS = { bedside: 2.2, console: 2.2, command: 2.6, kiosk: 1.8, lift: 2.2 } as const
+export const REGISTRATION_RADIUS = { bedside: 2.2, console: 2.2, command: 2.6, kiosk: 1.8, lift: LIFT_RADIUS } as const
 
 /** Who lies in the bed, or null (an empty, being-cleaned or reserved bed has nobody to prescribe for). */
 export function patientIn(sim: RegSim, roomId: string): string | null {
@@ -131,16 +134,8 @@ export function buildWalkInteractables(host: RegHost): Interactable[] {
     })
   })
 
-  DEPARTURES.lifts.forEach((l, i) => {
-    out.push({
-      id: `lift:${i === 0 ? 'A' : 'B'}`,
-      kind: 'door',
-      position: { x: l.x, y: 0, z: l.z },
-      radius: REGISTRATION_RADIUS.lift,
-      label: WALK.prompt.lift,
-      onInteract: () => actions.toast(WALK.toast.lift),
-    })
-  })
+  // R2: the lift lobbies of both levels (the ride to the other level: lift.ts)
+  out.push(...buildLiftInteractables(host.lift))
 
   return out
 }
@@ -148,7 +143,14 @@ export function buildWalkInteractables(host: RegHost): Interactable[] {
 /** Register everything; returns the function that takes it all out again. */
 export function registerWalkInteractables(host: RegHost): () => void {
   // W4: the health kiosks, the robot draw centre and the lab add their own (src/scene/interact/w4)
-  const all = [...buildWalkInteractables(host), ...buildKioskInteractables(host), ...buildDrawInteractables(host), ...buildLabInteractables(host)]
+  // R2: the robotic surgery suite on level 2 (src/scene/interact/surgery)
+  const all = [
+    ...buildWalkInteractables(host),
+    ...buildKioskInteractables(host),
+    ...buildDrawInteractables(host),
+    ...buildLabInteractables(host),
+    ...buildSurgeryInteractables(host),
+  ]
   const undo = all.map((item) => useInteract.getState().register(item))
   return () => {
     for (const u of undo) u()

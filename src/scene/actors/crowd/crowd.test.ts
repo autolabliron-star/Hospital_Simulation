@@ -919,7 +919,7 @@ describe('crowd model', () => {
   it('writes finite data, puts rows in the right LOD lists and never exceeds the texture', () => {
     const m = new CrowdModel()
     const es = new Map<string, Entity>()
-    for (let i = 0; i < 150; i++) es.set(`ped-${i}`, ent({ id: `ped-${i}`, position: { x: (i % 15) * 20 - 150, y: 0, z: Math.floor(i / 15) * 20 - 80 }, speed: 1.4, anim: 'walk' }))
+    for (let i = 0; i < 150; i++) es.set(`ped-${i}`, ent({ id: `ped-${i}`, position: { x: (i % 15) * 20 - 220, y: 0, z: Math.floor(i / 15) * 20 - 80 }, speed: 1.4, anim: 'walk' }))
     for (let f = 0; f < 5; f++) m.update(world(es))
     expect(m.stats.people).toBe(150)
     expect(m.stats.high + m.stats.mid + m.stats.far).toBeGreaterThanOrEqual(150)
@@ -934,7 +934,7 @@ describe('crowd model', () => {
   it('survives more people than the texture holds', () => {
     const m = new CrowdModel()
     const es = new Map<string, Entity>()
-    for (let i = 0; i < MAX_PEOPLE + 20; i++) es.set(`p${i}`, ent({ id: `p${i}`, position: { x: i, y: 0, z: 0 } }))
+    for (let i = 0; i < MAX_PEOPLE + 20; i++) es.set(`p${i}`, ent({ id: `p${i}`, position: { x: -i, y: 0, z: 0 } }))
     m.update(world(es))
     expect(m.stats.people).toBe(MAX_PEOPLE)
     expect(m.stats.overflow).toBe(20)

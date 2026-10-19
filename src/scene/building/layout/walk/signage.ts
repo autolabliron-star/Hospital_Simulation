@@ -12,6 +12,7 @@
  */
 import { DOORS, ROOMS, SIGNS, WALL, areaAt, areaById, ceilingHeight, type AreaId, type DoorSpec } from '@/sim/places'
 import { ROOM_PLATE_CAPTION, destinationCopy, doorPlateCopy, signTitle } from '@/content/signs'
+import { allSigns } from '@/scene/wayfinding/signsL2'
 import { buildWallPieces } from '../walls'
 import type { WallPiece } from '../types'
 import type { ArrowKind, HangingSign, Plate, QuadPlacement, SignRow, Tile, WalkBox } from './types'
@@ -114,7 +115,8 @@ interface Signage {
 }
 
 function buildSigns(out: Signage, addTile: (t: Tile) => string): void {
-  for (const s of SIGNS) {
+  // R2: level 1's signs (the contract) and level 2's (src/scene/wayfinding/signsL2.ts)
+  for (const s of allSigns(SIGNS)) {
     const area = areaAt(s.at.x, s.at.z)
     if (!area) throw new Error(`sign ${s.id} hangs outside the building`)
     const title = signTitle(s.id) ?? area.label

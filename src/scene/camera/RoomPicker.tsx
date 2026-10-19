@@ -1,22 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3, type Mesh } from 'three'
+import { useOverviewLevel } from '@/scene/levels/levelView'
 import type { Area } from '@/sim/places'
 import { cancelFlight, isWalkMode, tickFlight } from './cameraApi'
 import { FRAME_PRIORITY } from './frameOrder'
 import { useFocus } from './focus.store'
-import { areaUnder, classifyPress, intersectFloor, type FloorHit } from './pick'
+import { classifyPress, pickArea, tintBox, type LevelHit, type TintBox } from './pick'
 import { focusRoom } from './roomFocus'
 import { useWalk } from '@/scene/player/state'
 
-/** Just above the floor decals (0.012) and under the floor labels (0.03). */
+/** Just above the floor decals (0.012) and under the floor labels (0.03); on level 2 it is lifted by that floor's height (the same offsets, 4.2 m up). */
 const TINT_Y = 0.022
 
 // Scratch objects for the pointer maths: made once, never per event.
 const _ndc = new Vector3()
 const _origin = new Vector3()
 const _dir = new Vector3()
-const _hit: FloorHit = { x: 0, z: 0 }
+const _hit: LevelHit = { x: 0, z: 0, level: 1 }
+const _tint: TintBox = { x: 0, y: 0, z: 0, w: 1, d: 1 }
 
 const noRaycast = () => {}
 
@@ -33,7 +35,7 @@ interface Press {
  * Click a room to fly into it; hover to see which room is under the cursor.
  *
  * Plain DOM listeners on the canvas, not R3F's event system: the floor is not a mesh, the pointer ray is intersected with
- * y = 0 and handed to `areaAt`. A click means under 6 px of movement and under 350 ms (a drag orbits as before). The HUD
+ * the floor (R2: level 2's floor at y = 4.2 first when it is shown, then y = 0: pick.ts `pickArea`) and handed to `areaAt`. A click means under 6 px of movement and under 350 ms (a drag orbits as before). The HUD
  * cards sit above the canvas, so presses on them never arrive here. Also drives the camera flight each frame.
  *
  * While you are walking (W1) the view is yours: no hover tint, no click-to-fly, and the wheel and drags belong to the player.
@@ -60,7 +62,8 @@ export function RoomPicker() {
       _origin.setFromMatrixPosition(camera.matrixWorld)
       _ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1, 0.5).unproject(camera)
       _dir.copy(_ndc).sub(_origin)
-      return intersectFloor(_origin.x, _origin.y, _origin.z, _dir.x, _dir.y, _dir.z, _hit) ? areaUnder(_hit.x, _hit.z) : null
+      // only the overview picks, so the level on screen is the overview's Level switch
+      return pickArea(_origin.x, _origin.y, _origin.z, _dir.x, _dir.y, _dir.z, useOverviewLevel.getState().level, _hit)
     }
 
     /** Show the tint on the hovered room, unless it is the room we are already in. */
@@ -73,9 +76,10 @@ export function RoomPicker() {
         mesh.visible = false
         return
       }
-      const r = hovered.rect
-      mesh.position.set((r.x0 + r.x1) / 2, TINT_Y, (r.z0 + r.z1) / 2)
-      mesh.scale.set(r.x1 - r.x0, r.z1 - r.z0, 1)
+      // a level-2 area is in the sim strip: draw its tint where the room stands (west by 150, up by 4.2)
+      const t = tintBox(hovered.rect, TINT_Y, _tint)
+      mesh.position.set(t.x, t.y, t.z)
+      mesh.scale.set(t.w, t.d, 1)
       mesh.visible = true
     }
 
@@ -132,12 +136,17 @@ export function RoomPicker() {
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
     const unsubscribe = useFocus.subscribe(showHover)
+    // the Level switch changes what is under the cursor: the old room's tint goes, the next pointer move picks again
+    const unsubscribeLevel = useOverviewLevel.subscribe((s, prev) => {
+      if (s.level !== prev.level) setHover(null)
+    })
     // Tab to walk mode while a room is under the cursor: the hover tint goes with the overview
     const unsubscribeWalk = useWalk.subscribe((s) => {
       if (s.mode !== 'overview') setHover(null)
     })
     return () => {
       unsubscribeWalk()
+      unsubscribeLevel()
       el.removeEventListener('pointerdown', onDown)
       el.removeEventListener('pointermove', onMove)
       el.removeEventListener('pointerleave', onLeave)

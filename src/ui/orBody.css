@@ -1,0 +1,360 @@
+/*
+ * The robotic surgery panels (src/ui/OrBody.tsx, PacuBody.tsx, PreOpBody.tsx). Same frosted language as the room panel (roomPanel.css has the shared
+ * .rp-* pieces, the .sv-bar bar and hud.css the chips and metrics); only what is specific to the OR, recovery and pre-op is here.
+ */
+
+.or {
+  display: flex;
+  flex-direction: column;
+}
+
+.or-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.or-tag {
+  color: var(--hud-muted);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.or-note {
+  margin: 4px 0 2px;
+  font-size: 11.5px;
+}
+
+.or-caption {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--hud-muted);
+}
+
+.or-kpis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.or-watch {
+  width: 100%;
+}
+
+/* ---------- today's list ---------- */
+
+.or-cases {
+  gap: 4px;
+}
+
+.or-case {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.or-case[data-current='true'] {
+  border-color: color-mix(in srgb, var(--teal) 45%, transparent);
+  background: color-mix(in srgb, var(--mint) 22%, transparent);
+}
+
+.or-case__time {
+  flex: none;
+  min-width: 40px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-muted);
+  padding-top: 1px;
+}
+
+.or-case__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.or-case__outcome {
+  font-size: 11.5px;
+  color: #2c7a45;
+}
+
+.or-case__phase {
+  flex: none;
+  max-width: 42%;
+  text-align: right;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--hud-muted);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.or-case__phase[data-current='true'] {
+  color: var(--teal);
+  background: color-mix(in srgb, var(--mint) 35%, transparent);
+}
+
+/* ---------- the phase timeline ---------- */
+
+.or-now {
+  margin-bottom: 2px;
+}
+
+.or-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.or-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  font-size: 12.5px;
+  color: color-mix(in srgb, var(--ink) 42%, transparent);
+}
+
+/* the rail between the dots */
+.or-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 50%;
+  width: 1.5px;
+  height: 100%;
+  background: var(--hud-faint);
+}
+
+.or-step[data-state='done']:not(:last-child)::before {
+  background: color-mix(in srgb, var(--teal) 55%, transparent);
+}
+
+.or-step__dot {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-faint);
+  background: var(--hud-card, #fff);
+}
+
+.or-step[data-state='done'] {
+  color: var(--hud-muted);
+}
+
+.or-step[data-state='done'] .or-step__dot {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+
+.or-step[data-state='current'] {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.or-step[data-state='current'] .or-step__dot {
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--mint) 60%, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 22%, transparent);
+}
+
+.or-step__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.or-step__left {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--teal);
+}
+
+/* ---------- the robot and its arms ---------- */
+
+.or-robot {
+  font-weight: 600;
+}
+
+.or-arms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.or-arm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  border: 1px solid var(--hud-faint);
+}
+
+.or-arm[data-endoscope='true'] {
+  border-color: color-mix(in srgb, var(--teal) 40%, transparent);
+}
+
+.or-arm__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.or-arm__engage {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-muted);
+}
+
+/* the drape: a small sleeve mark, lit when the sterile drape is on */
+.or-arm__drape {
+  flex: none;
+  width: 8px;
+  height: 12px;
+  border-radius: 3px 3px 5px 5px;
+  border: 1.5px solid var(--hud-faint);
+}
+
+.or-arm[data-drape='on'] .or-arm__drape {
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--mint) 55%, transparent);
+}
+
+.or-arm__tool {
+  min-height: 1.35em;
+  font-size: 11.5px;
+  color: var(--hud-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.or-force .sv-bar__fill {
+  background: var(--amber);
+  transition: width 0.2s linear;
+}
+
+/* ---------- the team ---------- */
+
+.or-team {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+}
+
+.or-member {
+  gap: 8px;
+  min-width: 0;
+  color: var(--hud-muted);
+}
+
+.or-member[data-in='true'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.or-member__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.or-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-faint);
+}
+
+.or-member[data-in='true'] .or-dot {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+
+/* ---------- recovery and pre-op bays ---------- */
+
+.or-bays {
+  gap: 6px;
+}
+
+.or-bay {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-faint);
+}
+
+.or-bay[data-occupied='true'] {
+  background: color-mix(in srgb, var(--mint) 16%, transparent);
+  border-color: color-mix(in srgb, var(--teal) 30%, transparent);
+}
+
+.or-bay__label {
+  flex: none;
+  min-width: 44px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+  padding-top: 2px;
+}
+
+.or-bay__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.or-bay__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.or-bay__since,
+.or-bay__time {
+  flex: none;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--hud-muted);
+}
+
+/* the pre-op curtain: a pleated bar, drawn (filled) or open (outline) */
+.or-curtain {
+  flex: none;
+  align-self: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1.5px solid var(--hud-faint);
+  background: repeating-linear-gradient(90deg, transparent 0 2px, color-mix(in srgb, var(--ink) 10%, transparent) 2px 3px);
+  opacity: 0.6;
+}
+
+.or-bay[data-curtain='drawn'] .or-curtain {
+  opacity: 1;
+  border-color: var(--teal);
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--mint) 55%, transparent) 0 2px, color-mix(in srgb, var(--teal) 40%, transparent) 2px 3px);
+}

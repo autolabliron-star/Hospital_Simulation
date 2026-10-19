@@ -12,7 +12,15 @@
     "hubB": { "label": "Nurse hub B", "detail": "Ward B station", "accent": "wardB" },
     "core": { "label": "Pharmacy core", "detail": "MedVend and MedPods", "accent": "neutral" },
     "command": { "label": "Command center", "detail": "Every pod, room and order", "accent": "neutral" },
-    "atrium": { "label": "Healing atrium", "detail": "Garden and café", "accent": "atrium" }
+    "atrium": { "label": "Healing atrium", "detail": "Garden and café", "accent": "atrium" },
+    "l2PreOp": { "label": "Pre-op", "detail": "Admissions and four bays", "accent": "neutral" },
+    "l2Or": { "label": "Robotic OR", "detail": "da Vinci 5 suite", "accent": "diagnostics" },
+    "l2Pacu": { "label": "Recovery", "detail": "Three monitored bays", "accent": "wardB" },
+    "l2Lounge": { "label": "Family lounge", "detail": "Waiting and day-case discharge", "accent": "atrium" },
+    "l2Sterile": { "label": "Sterile supply", "detail": "Instrument trays and drapes", "accent": "neutral" },
+    "l2Staff": { "label": "Theatre staff", "detail": "Staff only", "accent": "neutral" },
+    "l2LiftA": { "label": "Lifts", "detail": "Back to Level 1", "accent": "neutral" },
+    "l2LiftB": { "label": "Lifts", "detail": "Back to Level 1", "accent": "neutral" }
   },
   "signs": {
     "lobby-east": { "title": "Main corridor" },
@@ -21,7 +29,10 @@
     "wardA-west": { "title": "Ward A corridor" },
     "wardB-west": { "title": "Ward B corridor" },
     "wardA-east": { "title": "Ward A corridor" },
-    "wardB-east": { "title": "Ward B corridor" }
+    "wardB-east": { "title": "Ward B corridor" },
+    "l2-corridor-north": { "title": "Theatre corridor" },
+    "l2-corridor-south": { "title": "Theatre corridor" },
+    "l2-hall": { "title": "Theatre hall" }
   },
   "plates": {
     "room": { "caption": "Room" },
@@ -45,7 +56,16 @@
       "staffA": { "label": "Staff room" },
       "supplyB": { "label": "Clean supply" },
       "loungeA": { "label": "Family lounge" },
-      "quietB": { "label": "Quiet room" }
+      "quietB": { "label": "Quiet room" },
+      "l2LiftA": { "label": "Lifts" },
+      "l2LiftB": { "label": "Lifts" },
+      "l2PreOp": { "label": "Pre-op" },
+      "l2Hall": { "label": "Theatre hall" },
+      "l2Sterile": { "label": "Sterile supply" },
+      "l2Staff": { "label": "Theatre staff" },
+      "l2Or": { "label": "Robotic OR" },
+      "l2Lounge": { "label": "Family lounge" },
+      "l2Pacu": { "label": "Recovery" }
     }
   }
 }

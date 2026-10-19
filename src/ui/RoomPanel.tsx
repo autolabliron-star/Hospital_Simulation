@@ -21,6 +21,9 @@ import './roomPanel.css'
 import { DrawCentreBody } from './DrawCentreBody'
 import { KioskSection } from './KioskSection'
 import { LabBody } from './LabBody'
+import { OrBody } from './OrBody'
+import { PacuBody } from './PacuBody'
+import { PreOpBody } from './PreOpBody'
 
 /** How long the panel stays mounted after Esc so it can slide out. Matches `rp-out` in roomPanel.css. */
 const EXIT_MS = 240
@@ -253,6 +256,10 @@ function RoomBody({ area }: { area: AreaId }) {
   // W4: the robot draw centre, the lab, and the lobby's health kiosks
   if (area === 'diagnostics') return <DrawCentreBody />
   if (area === 'lab') return <LabBody />
+  // R2: the robotic surgery suite on level 2
+  if (area === 'l2Or') return <OrBody />
+  if (area === 'l2Pacu') return <PacuBody />
+  if (area === 'l2PreOp') return <PreOpBody />
   if (area === 'lobby')
     return (
       <>

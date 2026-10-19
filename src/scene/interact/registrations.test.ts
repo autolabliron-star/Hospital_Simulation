@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useInteract, labelOf, type Interactable } from '@/scene/interact.store'
 import { isWalkable } from '@/sim/nav/layout'
-import { COMMAND_WALL, DEPARTURES, IMAGING, LOBBY, ROOMS, areaAt, roomById } from '@/sim/places'
+import { COMMAND_WALL, IMAGING, LIFTS, LOBBY, ROOMS, areaAt, roomById } from '@/sim/places'
 import type { WalkActions } from './actions'
+import type { LiftHost } from './lift'
 import { REGISTRATION_RADIUS, bedsidePoint, buildWalkInteractables, commandPoints, drawerPoint, registerWalkInteractables, type RegSim } from './registrations'
 import { PRIORITY, priorityOf } from './picker'
 
@@ -23,9 +24,14 @@ function fakeActions() {
   return { calls, actions }
 }
 
+/** The lift prompts' ride, recorded in `calls` too. */
+function fakeLift(calls: string[]): LiftHost {
+  return { ride: (shaft, from) => calls.push(`ride:${shaft}:${from}`), busy: () => false }
+}
+
 function build() {
   const { calls, actions } = fakeActions()
-  const items = buildWalkInteractables({ sim: fakeSim, actions })
+  const items = buildWalkInteractables({ sim: fakeSim, actions, lift: fakeLift(calls) })
   const byId = new Map(items.map((i) => [i.id, i]))
   return { calls, items, byId }
 }
@@ -48,8 +54,9 @@ describe('what is registered', () => {
     for (const m of ['mri', 'ct', 'xray', 'us']) expect(byId.has(`console:${m}`), m).toBe(true)
     expect(items.filter((i) => i.id.startsWith('command:')).length).toBe(commandPoints().length)
     expect(items.filter((i) => i.id.startsWith('kiosk:')).length).toBe(LOBBY.kiosks.length)
-    expect(['lift:A', 'lift:B'].every((id) => byId.has(id))).toBe(true)
-    expect(items.length).toBe(16 * 2 + 4 + commandPoints().length + LOBBY.kiosks.length + DEPARTURES.lifts.length)
+    // R2: the four lift lobbies (shaft A and B, level 1 and level 2)
+    expect(['lift:A', 'lift:B', 'lift:A:2', 'lift:B:2'].every((id) => byId.has(id))).toBe(true)
+    expect(items.length).toBe(16 * 2 + 4 + commandPoints().length + LOBBY.kiosks.length + 4)
   })
 
   it('has unique ids and the contract kinds and priorities', () => {
@@ -81,6 +88,8 @@ describe('what is registered', () => {
     for (const k of LOBBY.kiosks) expect(areaAt(k.x, k.z)?.id).toBe('lobby')
     expect(areaAt(get(byId, 'lift:A').position.x, get(byId, 'lift:A').position.z)?.id).toBe('liftA')
     expect(areaAt(get(byId, 'lift:B').position.x, get(byId, 'lift:B').position.z)?.id).toBe('liftB')
+    expect(areaAt(get(byId, 'lift:A:2').position.x, get(byId, 'lift:A:2').position.z)?.id).toBe(LIFTS.A[2].area)
+    expect(areaAt(get(byId, 'lift:B:2').position.x, get(byId, 'lift:B:2').position.z)?.id).toBe(LIFTS.B[2].area)
   })
 
   it('can be reached: somewhere within reach of every prompt is ground you can stand on', () => {
@@ -149,12 +158,16 @@ describe('the other places', () => {
     expect(labelOf(get(byId, 'console:us'), false)).toBe('Open the ultrasound console')
   })
 
-  it('a kiosk and a lift only show a short message', () => {
+  it('a kiosk only shows a short message, and a lift takes you to the other level (R2: lift.test.ts has the lobbies)', () => {
     const { byId, calls } = build()
     get(byId, 'kiosk:0').onInteract()
     get(byId, 'lift:A').onInteract()
-    expect(calls.length).toBe(2)
-    expect(calls[1]).toBe("toast:The wards upstairs aren't open in this demo.")
+    get(byId, 'lift:B:2').onInteract()
+    expect(calls.length).toBe(3)
+    expect(calls[0].startsWith('toast:')).toBe(true)
+    expect(calls.slice(1)).toEqual(['ride:A:1', 'ride:B:2'])
+    expect(labelOf(get(byId, 'lift:A'), false)).toBe('Take the lift to Level 2 · Surgery')
+    expect(labelOf(get(byId, 'lift:A:2'), false)).toBe('Take the lift to Level 1')
   })
 
   it('measures the drawer from the corridor side of its wall', () => {

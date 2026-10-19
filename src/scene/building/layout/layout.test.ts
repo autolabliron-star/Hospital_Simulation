@@ -255,7 +255,8 @@ describe('no door is blocked', () => {
   })
 
   it('no wall, glass or frame prim sits in a door or drawer opening', () => {
-    const wallish = (p: Prim) => p.mat === 'wall' || p.mat === 'wallCap' || p.mat === 'glass'
+    // (R2: the floor slab level 2 stands on lies wholly below its floor, under every doorway: it is not a wall in the way)
+    const wallish = (p: Prim) => (p.mat === 'wall' || p.mat === 'wallCap' || p.mat === 'glass') && p.position[1] + p.size[1] / 2 > 0
     const probes: { id: string; x: number; z: number }[] = []
     for (const d of DOORS) probes.push({ id: d.id, x: d.center.x, z: d.center.z })
     for (const r of ROOMS) probes.push({ id: `${r.id}:drawer`, x: r.drawer.x, z: r.drawer.z })

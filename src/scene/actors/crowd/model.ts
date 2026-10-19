@@ -17,12 +17,19 @@
  * Nobody pops: a new person fades in over 0.35 s, a person the sim removes keeps standing where they were and fades out, and the
  * sim's own `fade` (0..1) multiplies in on top. Rows of the texture are allocated once per person and stay stable.
  *
+ * R2 levels (docs/R2-SURGERY.md): the sim is flat and level 2 lives in its own strip of it (sim x = drawn x + 150, y floor-relative). `visit` is the ONE
+ * place an entity's sim position becomes a drawn one (`levelDx`, `LEVEL_Y`): the slot's x, y, z, the pose row's root, the LOD distance, the blob, the pick
+ * capsule, the look-at target and the player's driven rest pose are all drawn coordinates from there on. Anybody the screen does not show (`shownAt`: the
+ * other level, or a level-1 person under the slab in the overview's Level 2) stays tracked but is not drawn, solved or pickable (presence 0).
+ *
  * Riders: a person with `riding` set sits or lies on the vehicle of the person pushing it. Only the pusher's slot draws the vehicle;
  * the rider is drawn ON the vehicle, snapped to the vehicle's place in front of the pusher, so the two can never drift apart. A
  * rider with no pusher nearby (a parked wheelchair) draws its own vehicle under itself.
  */
 import { presentationOf, type Presentation } from '@/content/roster'
+import { LEVEL_Y, levelDx, levelOf, type LevelId } from '@/sim/levels'
 import type { Entity, Outfit, PropKind, Role, VehicleKind } from '@/sim/types'
+import { shownAt } from '@/scene/levels/levelView'
 import { BADGE_FRAME, MAX_PEOPLE, NOMINAL_BODY, P, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
 import { inBlanketBed, levelsOf, type Levels } from './head'
 import { AVATAR_LOD, LOD, lodBounds, lodWeights, type LodWeights } from './lod'
@@ -76,6 +83,12 @@ export interface PersonSlot {
   /** How the person's given name reads (content/roster.ts presentationOf): a woman's body, a man's, or the seeded draw. Fixed for the person's life. */
   presentation: Presentation
   entity: Entity | null
+  /** R2: the level the person is on (sim x), and where they stand in the SIM (x, z) as of the last frame the entity was seen. */
+  level: LevelId
+  simX: number
+  simZ: number
+  /** R2: the screen shows this person's level (levelView.ts `shownAt`). A person it does not show is tracked but not drawn. */
+  shown: boolean
   seen: number
   /** Fade-in ramp 0..1 (and the fade-out of a person the sim removed). */
   ramp: number
@@ -90,7 +103,7 @@ export interface PersonSlot {
   vx: number
   vz: number
   speed: number
-  // last state, for picking, rings and ghosts
+  // last state, for picking, rings and ghosts: DRAWN coordinates (the level mapping is applied in `visit`)
   x: number
   y: number
   z: number
@@ -152,6 +165,7 @@ const PLAYER_ID = 'player'
 export interface FrameInput {
   dt: number
   time: number
+  /** The camera as DRAWN (three.js coordinates: level 2 is up at 4.2 m over the west block), which is what every slot's x, y, z is too. */
   camX: number
   camY: number
   camZ: number
@@ -159,7 +173,7 @@ export interface FrameInput {
   followId: string | null
   selectedId: string | null
   hoverId: string | null
-  /** W3: the player's body (see `DrivenBody`), or null/absent: the player is then measured like everybody else. */
+  /** W3: the player's body (see `DrivenBody`, in SIM coordinates), or null/absent: the player is then measured like everybody else. */
   driven?: DrivenBody | null
 }
 
@@ -353,6 +367,10 @@ export class CrowdModel {
       tint: 0,
       presentation,
       entity: null,
+      level: levelOf(e.position.x),
+      simX: e.position.x,
+      simZ: e.position.z,
+      shown: true,
       seen: 0,
       ramp: warm ? 1 : 0,
       simFade: 1,
@@ -364,8 +382,8 @@ export class CrowdModel {
       vx: 0,
       vz: 0,
       speed: 0,
-      x: e.position.x,
-      y: e.position.y,
+      x: e.position.x + levelDx(levelOf(e.position.x)),
+      y: e.position.y + LEVEL_Y[levelOf(e.position.x)],
       z: e.position.z,
       heading: e.heading,
       dist: 0,
@@ -400,6 +418,16 @@ export class CrowdModel {
     this.free.push(slot.row)
   }
 
+  /** A person's role or clothing class changed (rare: a gown on admission, theatre scrubs on level 2): rebuild their look and re-dress them. */
+  private redress(p: PersonSlot, e: Entity): void {
+    p.lookRole = e.role
+    p.lookOutfit = e.outfit
+    p.look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant, presentation: p.presentation })
+    p.rig.look = p.look
+    this.writeLook(p.row, p.look)
+    if (this.avatarList.length) this.dress(p)
+  }
+
   /** Pass A, once per entity: find or make the slot, read where the body is. */
   private visit(e: Entity): void {
     let p = this.people.get(e.id)
@@ -418,21 +446,19 @@ export class CrowdModel {
     p.vKind = 0
     p.vOff = 0
     p.rideKind = 0
-    // a patient who is admitted changes into a gown: the clothes follow the role and outfit class
-    if (e.role !== p.lookRole || e.outfit !== p.lookOutfit) {
-      p.lookRole = e.role
-      p.lookOutfit = e.outfit
-      p.look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant, presentation: p.presentation })
-      p.rig.look = p.look
-      this.writeLook(p.row, p.look)
-      if (this.avatarList.length) this.dress(p)
-    }
+    // a patient who is admitted changes into a gown, you change into theatre scrubs in the lift: the clothes follow the role and outfit class
+    if (e.role !== p.lookRole || e.outfit !== p.lookOutfit) this.redress(p, e)
     const lv = levelsOf(e, this.lv)
     p.posture = lv.posture
     p.seatHeight = lv.surface
-    p.x = e.position.x
+    // R2: sim -> drawn, once (level 2 moves west by LEVEL2_DX and up by 4.2 m; `toDisplayInto` says the same, inlined to stay allocation-free)
+    const level = levelOf(e.position.x)
+    p.level = level
+    p.simX = e.position.x
+    p.simZ = e.position.z
+    p.x = e.position.x + levelDx(level)
     p.z = e.position.z
-    p.y = lv.floorY
+    p.y = lv.floorY + LEVEL_Y[level]
     p.heading = e.heading
     const vk = e.vehicle ? VEHICLE_OF[e.vehicle] : VEHICLE.none
     if (vk !== VEHICLE.none) {
@@ -455,7 +481,8 @@ export class CrowdModel {
       let bestD = RIDER_SNAP * RIDER_SNAP
       for (let j = 0; j < this.nPushers; j++) {
         const p = this.pushers[j]
-        if (p.rider || p.rideKind !== r.rideKind) continue
+        // (the drawn plans of the two levels overlap: a pusher on the other level is never the one)
+        if (p.rider || p.rideKind !== r.rideKind || p.level !== r.level) continue
         const ahead = VEHICLE_AHEAD[p.rideKind]
         const sx = p.x + Math.sin(p.heading) * ahead
         const sz = p.z + Math.cos(p.heading) * ahead
@@ -530,7 +557,9 @@ export class CrowdModel {
     if (e) p.simFade = e.fade === undefined ? 1 : clamp(e.fade, 0, 1)
     const rampTarget = p.ghost ? 0 : 1
     p.ramp += clamp(rampTarget - p.ramp, -dt / FADE_SECONDS, dt / FADE_SECONDS)
-    p.presence = p.ramp * p.simFade
+    // R2: the screen shows one level (or the ground floor around level 2): everybody else is tracked but not drawn. It switches at once, with the building
+    p.shown = shownAt(p.simX, p.simZ)
+    p.presence = p.shown ? p.ramp * p.simFade : 0
     const o = p.row * ROW_FLOATS
     if (p.ghost && p.ramp <= 0.001) {
       this.release(p)
@@ -542,9 +571,11 @@ export class CrowdModel {
       // read them, and in first person your avatar is invisible
       d[o + TEX.lod * 4 + 2] = 0
       if (e) {
-        if (p.key === PLAYER_ID) this.legsOnly(p, e, f, dt, o)
+        if (p.key === PLAYER_ID && p.shown) this.legsOnly(p, e, f, dt, o)
         else this.trackMotion(p, dt)
       }
+      // (out of sight on the other level: the feet are planted again where the person is when they come back into view)
+      if (!p.shown) p.rig.planter.initialised = false
       return
     }
     st.people++
@@ -670,7 +701,9 @@ export class CrowdModel {
     const dv = f.driven ?? null
     const posture = p.posture
     // W3: the player's legs are planned from the body's true velocity and what its keys ask for (the contract `walkBody`), everybody else from the measured one
-    const driven = dv !== null && p.key === PLAYER_ID && dv.live && posture === 'stand' && Math.abs(dv.x - p.x) < DRIVEN_NEAR && Math.abs(dv.z - p.z) < DRIVEN_NEAR && !this.staleBody(p, dv, dt)
+    // (the body is in sim coordinates: this slot's drawn ones are shifted by its level)
+    const ox = levelDx(p.level)
+    const driven = dv !== null && p.key === PLAYER_ID && dv.live && posture === 'stand' && Math.abs(dv.x + ox - p.x) < DRIVEN_NEAR && Math.abs(dv.z - p.z) < DRIVEN_NEAR && !this.staleBody(p, dv, dt)
     if (driven) this.takeDriven(p, dv)
     else this.trackMotion(p, dt)
     // what is in the right hand
@@ -708,8 +741,10 @@ export class CrowdModel {
     const target = e.lookAt
     inp.hasLook = !!target
     if (target) {
-      inp.lookX = target.x
-      inp.lookY = target.y
+      // a look-at target is a sim point too: drawn where it is drawn (its own level)
+      const tl = levelOf(target.x)
+      inp.lookX = target.x + levelDx(tl)
+      inp.lookY = target.y + LEVEL_Y[tl]
       inp.lookZ = target.z
     }
     inp.driven = driven
@@ -720,7 +755,7 @@ export class CrowdModel {
       inp.wishX = dv.wishX
       inp.wishZ = dv.wishZ
       inp.stopping = dv.stopping
-      inp.restX = dv.restX
+      inp.restX = dv.restX + ox
       inp.restZ = dv.restZ
     }
   }

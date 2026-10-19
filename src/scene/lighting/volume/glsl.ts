@@ -48,7 +48,7 @@ uniform vec3 uLvSky;
  *
  * Outside the volume (the plaza, the grounds, a point above the storey) the sample fades out over half a metre to "open sky": no panels, no AO,
  * the sky term at full, which is what keeps the open air as bright as the overview while the walk look turns the sun and environment down.
- * The overview (uLvOn = 0) skips all of it.
+ * R2: the band between the storeys (3.05 to 4.2 m) reads as open sky the same way. The overview (uLvOn = 0) skips all of it.
  */
 export const FRAG_LV = /* glsl */ `
 #if defined( RE_IndirectDiffuse )
@@ -58,6 +58,10 @@ if ( uLvOn > 0.5 ) {
 	float lvOut = max( max( -lvUvw.x, lvUvw.x - 1.0 ) * uLvSize.x, max( -lvUvw.z, lvUvw.z - 1.0 ) * uLvSize.z );
 	lvOut = max( lvOut, ( lvUvw.y - 1.0 ) * uLvSize.y );
 	float lvIn = 1.0 - smoothstep( 0.0, 0.5, lvOut );
+	// R2: the slab between the storeys (above level 1's ceilings and under level 2's floor: the roof cap, the floor plate's edge) is open air, not a blend of
+	// the rooms the layers on either side of it hold
+	float lvY = vLvPos.y + lvN.y * 0.2;
+	lvIn *= 1.0 - smoothstep( 3.05, 3.25, lvY ) * ( 1.0 - smoothstep( 4.0, 4.2, lvY ) );
 	// the texture is (x across, z down the rows, y up the layers): swizzle the world (x, y, z) into it
 	vec4 lvS = mix( vec4( 0.0, 1.0, 1.0, 1.0 ), texture( uLvTex, lvUvw.xzy ), lvIn );
 	float lvOcc = mix( 1.0, mix( lvS.a, lvS.b, uLvIndoor ), uLvAo );
@@ -70,7 +74,7 @@ if ( uLvOn > 0.5 ) {
 #endif
 `
 
-/** Floors: declarations (after `#include <common>` in the fragment shader). */
+/** Floors: declarations (after `#include <common>` in the fragment shader). R2: two pages of the ceiling map, level 1's and level 2's. */
 export const FLOOR_PARS = /* glsl */ `
 uniform float uLvReflect;
 uniform vec3 uLvPanelRad;
@@ -78,6 +82,9 @@ uniform highp sampler2D uLvCeil;
 uniform vec4 uLvCeilGeom;
 uniform float uLvCeilY;
 uniform float uLvCeilTexels;
+uniform highp sampler2D uLvCeil2;
+uniform vec4 uLvCeilGeom2;
+uniform float uLvCeilY2;
 `
 
 /**
@@ -94,12 +101,16 @@ if ( uLvReflect > 0.001 ) {
 	vec3 lvFN = transformNormalByInverseViewMatrix( geometryNormal, viewMatrix );
 	vec3 lvFR = reflect( lvFV, lvFN );
 	if ( lvFR.y > 0.02 ) {
-		float lvFT = ( uLvCeilY - vLvPos.y ) / lvFR.y;
-		vec2 lvFUv = ( vLvPos.xz + lvFR.xz * lvFT - uLvCeilGeom.xy ) * uLvCeilGeom.zw;
+		// R2: a floor above 3.9 m is level 2's: its ceiling plane and its page of the ceiling map
+		bool lvUp = vLvPos.y > 3.9;
+		float lvCy = lvUp ? uLvCeilY2 : uLvCeilY;
+		vec4 lvCg = lvUp ? uLvCeilGeom2 : uLvCeilGeom;
+		float lvFT = ( lvCy - vLvPos.y ) / lvFR.y;
+		vec2 lvFUv = ( vLvPos.xz + lvFR.xz * lvFT - lvCg.xy ) * lvCg.zw;
 		if ( lvFUv.x > 0.0 && lvFUv.x < 1.0 && lvFUv.y > 0.0 && lvFUv.y < 1.0 ) {
 			float lvFRough = material.roughness * material.roughness;
 			float lvFLod = log2( max( 1.0, lvFT * ( 0.03 + 1.2 * lvFRough ) * uLvCeilTexels ) );
-			float lvFMask = textureLod( uLvCeil, lvFUv, lvFLod ).r;
+			float lvFMask = lvUp ? textureLod( uLvCeil2, lvFUv, lvFLod ).r : textureLod( uLvCeil, lvFUv, lvFLod ).r;
 			radiance += uLvPanelRad * ( lvFMask * uLvReflect );
 		}
 	}

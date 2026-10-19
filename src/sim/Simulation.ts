@@ -34,6 +34,8 @@ import type { Entity, OrderItem, PlayerView, RoomId } from './types'
 import { makeWalker, type Walker } from './walker'
 import { DrawCentre } from './blood'
 import { Lab } from './lab'
+import { LiftBank } from './lifts'
+import { Surgery } from './surgery'
 import { VitalsService } from './vitals'
 
 function lerpAngle(a: number, b: number, t: number): number {
@@ -80,6 +82,9 @@ export class Simulation {
   readonly vitals: VitalsService
   readonly blood: DrawCentre
   readonly lab: Lab
+  /** R2: the lifts (now real between level 1 and level 2) and the robotic surgery suite on level 2. */
+  readonly lifts: LiftBank
+  readonly surgery: Surgery
   /** Beds, meals and MealBots for the renderers and the HUD (L1). */
   readonly life: LivingDay
   /** L1 services (src/sim/beds, src/sim/day, src/sim/meals); stepped after the director. */
@@ -147,6 +152,11 @@ export class Simulation {
     this.world.vitals = this.vitals
     this.blood = new DrawCentre(this.world, root.fork('blood'), walkerFor)
     this.world.blood = this.blood
+    // R2: the lifts, then the surgery suite (its patients ride them)
+    this.lifts = new LiftBank(this.world, root.fork('lifts'))
+    this.world.lifts = this.lifts
+    this.surgery = new Surgery(this.world, root.fork('surgery'), walkerFor)
+    this.world.surgery = this.surgery
     this.ctx = {
       t: t0,
       meds: this.meds,
@@ -166,6 +176,7 @@ export class Simulation {
     } else {
       for (const p of createErStaff(this.world, root.fork('staff'), walkerFor)) this.addPerson(p)
       this.imaging.startOutpatients(t0)
+      this.surgery.startDay(t0)
       this.director = new Director(this.world, root.fork('director'), walkerFor, (p) => this.addPerson(p), t0)
       // visitors go to whoever lies in the bed now (L1 bed flow), not the morning's catalogue patient
       this.director.occupantName = (r) => this.beds.occupantName(r)
@@ -191,6 +202,8 @@ export class Simulation {
       this.lab.warmStart(startHour)
       this.vitals.warmStart(startHour)
       this.blood.warmStart(startHour)
+      this.lifts.warmStart(startHour)
+      this.surgery.warmStart(startHour)
     }
     this.sync(1)
   }
@@ -224,6 +237,8 @@ export class Simulation {
     this.vitals.step(this.t, dt)
     this.blood.step(this.t, dt)
     this.lab.step(this.t, dt)
+    this.lifts.step(this.t, dt)
+    this.surgery.step(this.t, dt)
     this.director?.step(this.t, dt)
     this.beds.step(this.t, dt)
     this.day.step(this.t, dt)
@@ -255,6 +270,8 @@ export class Simulation {
     this.vitals.sync(alpha)
     this.blood.sync(alpha)
     this.lab.sync(alpha)
+    this.lifts.sync(alpha)
+    this.surgery.sync(alpha)
     const people = this.people
     for (let i = 0; i < people.length; i++) {
       const p = people[i]

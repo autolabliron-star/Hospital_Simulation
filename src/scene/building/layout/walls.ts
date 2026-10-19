@@ -9,7 +9,8 @@
  *   glassCut   floor-to-cut glazing in the outer shell (patient rooms, lounges, the atrium);
  *   skip       the pharmacy core's perimeter: builder S2 draws those glass walls.
  */
-import { AREAS, BUILDING, DOORS, ROOMS, areaAt, type AreaId, type Rect } from '@/sim/places'
+import { AREAS, BUILDING, DOORS, ROOMS, VIEW_WINDOWS, areaAt, type AreaId, type Rect } from '@/sim/places'
+import { LEVEL2_STRIP, levelOf } from '@/sim/levels'
 import type { WallClass, WallPiece } from './types'
 
 /** Width of the gap left in the room/corridor wall for S2's MedDrawer cabinet (x +/- 0.4 m around `room.drawer`). */
@@ -46,8 +47,24 @@ export function wallGaps(): { alongX: Map<number, Interval[]>; alongZ: Map<numbe
   return { alongX, alongZ }
 }
 
+/**
+ * Areas whose outer wall is a window wall. R2: on level 2 the pre-op bays, the family lounge, recovery, the theatre staff room and the
+ * theatre corridor look out through floor-to-ceiling glazing (the OR, the sterile store and the hall have no outer wall of their own).
+ */
 const GLAZED_SHELL = (id: AreaId): boolean =>
-  id.startsWith('room:') || id === 'loungeA' || id === 'quietB' || id === 'staffA' || id === 'triage' || id === 'er' || id === 'lobby' || id === 'atrium'
+  id.startsWith('room:') ||
+  id === 'loungeA' ||
+  id === 'quietB' ||
+  id === 'staffA' ||
+  id === 'triage' ||
+  id === 'er' ||
+  id === 'lobby' ||
+  id === 'atrium' ||
+  id === 'l2PreOp' ||
+  id === 'l2Lounge' ||
+  id === 'l2Pacu' ||
+  id === 'l2Staff' ||
+  id === 'l2Corridor'
 
 /** The observation windows: the wall between a scanner's control room and its scan room is full-height glass. */
 const OBSERVATION_PAIRS: readonly (readonly [AreaId, AreaId])[] = [
@@ -77,6 +94,28 @@ function classify(a: AreaId | null, b: AreaId | null): WallClass {
 /** Probe distance either side of a wall line when asking "which areas does this wall separate?". */
 const PROBE = 0.3
 
+/**
+ * Is a wall piece on the outline of its level's footprint? Level 1's outline is `BUILDING`; level 2 (its own strip of the flat sim,
+ * sim/levels.ts) has `LEVEL2_STRIP`. `along` is a coordinate on the piece, for the level of a line that runs along x.
+ */
+export function onOutline(alongX: boolean, c: number, along: number): boolean {
+  if (alongX) {
+    // both strips span z -22..22
+    const r = levelOf(along) === 2 ? LEVEL2_STRIP : BUILDING
+    return c === r.z0 || c === r.z1
+  }
+  const r = levelOf(c) === 2 ? LEVEL2_STRIP : BUILDING
+  return c === r.x0 || c === r.x1
+}
+
+/** The view windows (places.ts `VIEW_WINDOWS`): glass set into a solid wall, as intervals per line, keyed like the other line maps. */
+function viewWindowMaps(): { alongX: Map<number, Interval[]>; alongZ: Map<number, Interval[]> } {
+  const alongX = new Map<number, Interval[]>()
+  const alongZ = new Map<number, Interval[]>()
+  for (const w of VIEW_WINDOWS) addTo(w.alongX ? alongX : alongZ, w.c, w.a, w.b)
+  return { alongX, alongZ }
+}
+
 /** Wall pieces of the whole building. Pure maths, so it can be checked in node. */
 export function buildWallPieces(): WallPiece[] {
   const lineX = new Map<number, Interval[]>() // key = z, intervals in x
@@ -89,21 +128,26 @@ export function buildWallPieces(): WallPiece[] {
   }
   for (const a of AREAS) edges(a.rect)
   const gaps = wallGaps()
+  const windows = viewWindowMaps()
 
   const out: WallPiece[] = []
-  const emit = (lines: Map<number, Interval[]>, gapMap: Map<number, Interval[]>, alongX: boolean) => {
+  const emit = (lines: Map<number, Interval[]>, gapMap: Map<number, Interval[]>, windowMap: Map<number, Interval[]>, alongX: boolean) => {
     const keys = [...lines.keys()].sort((p, q) => p - q)
     for (const c of keys) {
       const covers = lines.get(c) ?? []
       const cuts = gapMap.get(c) ?? []
-      const outline = alongX ? c === BUILDING.z0 || c === BUILDING.z1 : c === BUILDING.x0 || c === BUILDING.x1
-      // breakpoints: every interval end and every gap end
+      const glass = windowMap.get(c) ?? []
+      // breakpoints: every interval end, every gap end and every view window end (a window is a span of glass in a solid wall)
       const pts = new Set<number>()
       for (const iv of covers) {
         pts.add(key(iv.a))
         pts.add(key(iv.b))
       }
       for (const g of cuts) {
+        pts.add(key(g.a))
+        pts.add(key(g.b))
+      }
+      for (const g of glass) {
         pts.add(key(g.a))
         pts.add(key(g.b))
       }
@@ -121,20 +165,22 @@ export function buildWallPieces(): WallPiece[] {
         }
         const sideA = alongX ? areaAt(mid, c - PROBE) : areaAt(c - PROBE, mid)
         const sideB = alongX ? areaAt(mid, c + PROBE) : areaAt(c + PROBE, mid)
-        const cls = classify(sideA?.id ?? null, sideB?.id ?? null)
+        let cls = classify(sideA?.id ?? null, sideB?.id ?? null)
+        // R2: a view window is glass where the wall would be solid (the OR's window onto the theatre corridor)
+        if (cls === 'solid' && glass.some((g) => g.a < mid && mid < g.b)) cls = 'glassFull'
         const cutA = cuts.some((g) => Math.abs(g.b - p) < EPS)
         const cutB = cuts.some((g) => Math.abs(g.a - q) < EPS)
         if (prev && prev.cls === cls && Math.abs(prev.b - p) < EPS && !prev.cutB && !cutA) {
           prev.b = q
           prev.cutB = cutB
         } else {
-          prev = { alongX, c, a: p, b: q, outline, cutA, cutB, cls }
+          prev = { alongX, c, a: p, b: q, outline: onOutline(alongX, c, mid), cutA, cutB, cls }
           out.push(prev)
         }
       }
     }
   }
-  emit(lineX, gaps.alongX, true)
-  emit(lineZ, gaps.alongZ, false)
+  emit(lineX, gaps.alongX, windows.alongX, true)
+  emit(lineZ, gaps.alongZ, windows.alongZ, false)
   return out.filter((p) => p.b - p.a > 0.05)
 }

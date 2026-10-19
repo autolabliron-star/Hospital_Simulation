@@ -13,12 +13,16 @@
  *    -11  doors               walk and pharmacist doors sense people and you, step their openings, src/scene/building/render/walk,
  *                             publish their leaves as blockers (W3: before you move)            src/scene/pharmacy/PharmacistDoors.tsx
  *    -10  Player             you move, the avatar is placed, then THE CHASE CAMERA (W1 walk-in)   src/scene/player/index.tsx
+ *   -9.5  levels              R2: which level is shown (your level, the overview switch), set     src/scene/levels
+ *                             once you have moved and before anything draws or picks by level
  *     -9  tour director       scripted camera shots; the room-focus flights (tickFlight)         src/scene/tour/index.tsx
  *     -8  interaction         pick what you face, the E prompt, the objective, the seated pose    src/scene/interact/index.tsx
  *     -5  celebration         closing-day effects                                                src/scene/celebration/index.tsx
  *     -1  CameraControls      the overview camera rig (RigControls.update; a no-op in walk)       drei, fixed at -1
  *   -0.5  label anchors       name tag lift and visibility, speech bubble positions (THIS FILE)   NameTag.tsx, SpeechBubbles.tsx
  *   -0.3  imaging images      live scan canvases (10 Hz in the focused room, 1 Hz elsewhere)       src/scene/imaging/index.tsx
+ *  -0.28  surgery robot       R2: patient cart, boom and the four arms from robot state; lights   src/scene/surgery
+ *  -0.27  surgery screens     R2: the theatre atlas and the shared endoscope live texture         src/scene/surgery
  *  -0.25  imaging machines    MRI table, CT rotor, X-ray tube, ultrasound probe from scanner state src/scene/imaging/machines
  *  -0.24  health kiosks       W4: height arm, cuff, LEDs, paper slip from kiosk state            src/scene/kiosks
  *  -0.23  draw centre         W4: robot heads, needles, tourniquets, prep gripper, live strip     src/scene/drawCentre
@@ -44,12 +48,17 @@ export const FRAME_PRIORITY = {
   /** W3: doors open and publish their leaves (src/scene/blockers.ts) before the player moves against them. */
   doors: -11,
   player: -10,
+  /** R2: the shown level (docs/R2-SURGERY.md), after you move and before anything is drawn or picked by level. */
+  levels: -9.5,
   tour: -9,
   interact: -8,
   celebration: -5,
   cameraRig: -1,
   labelAnchors: -0.5,
   imagingImages: -0.3,
+  /** R2 robotic surgery on level 2. */
+  surgeryRig: -0.28,
+  surgeryScreens: -0.27,
   imagingMachines: -0.25,
   /** W4 smart diagnostics (docs/W4-DIAGNOSTICS.md). */
   kiosks: -0.24,

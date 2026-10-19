@@ -7,9 +7,13 @@
  *   seated    1.45 m  (the crown is at about 1.4 m on a chair; a wheelchair rider counts as seated)
  *   lying     1.20 m  (head on the pillow, about 0.8 m up), shifted along the body to the pillow end
  *   reclined  (L1) the bed head is raised by phi: the head is TORSO sin(phi) higher and TORSO (1 - cos(phi)) nearer the hips
- * Heights are metres above `entity.position.y`, which the sim keeps at ground level.
+ * Heights are metres above `entity.position.y`, which the sim keeps at ground level (floor-relative on level 2 too: the anchor is a SIM point, and
+ * whoever draws it maps it with `toDisplayInto`, src/sim/levels.ts). R2: a lying patient on a surgery trolley (mattress 0.8 m) or the OR table (0.88 m)
+ * is higher than one in a ward bed (0.49 m): the anchor rides up by the difference, as it does for a stretcher.
  */
 import type { Entity, Vec3 } from '@/sim/types'
+import { LIE } from '@/scene/actors/crowd/constants'
+import { lieSurfaceOf } from '@/scene/actors/crowd/head'
 import { reclineAngle, reclineOfEntity } from '@/scene/rooms/bedPose'
 
 export type HeadPose = 'stand' | 'sit' | 'lie'
@@ -41,6 +45,11 @@ export function headPose(e: Pick<Entity, 'anim'> & Partial<Pick<Entity, 'seated'
   return 'stand'
 }
 
+/** R2: the pre-op and recovery trolleys and the OR table of level 2 (`surgeryBed:preop:0`, `orTable:0`). */
+function isSurgerySeat(seatId: string): boolean {
+  return seatId.startsWith('surgeryBed:') || seatId.startsWith('orTable:')
+}
+
 /** Writes the world position of the anchor into `out` (no allocation) and returns the pose. */
 export function headAnchor(e: AnchorSource, out: Vec3): HeadPose {
   const pose = headPose(e)
@@ -54,6 +63,7 @@ export function headAnchor(e: AnchorSource, out: Vec3): HeadPose {
     z -= Math.cos(e.heading) * offset
     y += LIE_TORSO * Math.sin(phi)
     if (e.riding && e.vehicle === 'stretcher') y += STRETCHER_LIFT
+    else if (e.seated !== undefined && isSurgerySeat(e.seated.seatId)) y += lieSurfaceOf(e.seated.seatId) - LIE.bed
   }
   out.x = x
   out.y = y

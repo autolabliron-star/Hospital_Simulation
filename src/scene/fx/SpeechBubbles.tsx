@@ -10,29 +10,24 @@
  *  - The anchor is the same one the emote icons use (headAnchor.ts); with an emote showing, the bubble sits above it.
  *  - In walk mode a bubble you cannot see the speaker's head for (a solid wall in between: sight.ts) fades out, and back in when
  *    you can.
+ *  - R2 levels: the anchor is a SIM point (headAnchor.ts), so the sight test runs in sim space against the camera's sim position (`walkCam.camera`, written by
+ *    the player system every frame), and only the card's group is moved to drawn coordinates (`toDisplayInto`: level 2 is up at 4.2 m over the west
+ *    block). A speaker the screen does not show (the other level, `shownAt`) gets no card.
  */
 import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useLayoutEffect, useRef, type CSSProperties, type RefObject } from 'react'
 import type { Group } from 'three'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { walkCam } from '@/scene/player/state'
 import { sim } from '@/sim'
-import type { Entity, Vec3 } from '@/sim/types'
+import type { Entity } from '@/sim/types'
 import { MAX_BUBBLES, bubbleClock, useBubbles, type Bubble } from './bubbleStore'
-import { MAX_RANGE, emoteStackHeight } from './emoteMath'
-import { headAnchor } from './headAnchor'
+import { placeBubble, type BubblePlacement, type SightState } from './bubblePlacement'
 import { snappedLabelPosition } from './labelSnap'
-import { sightBlocked } from './sight'
 
-/** Seconds the card takes to fade in, and to fade out before it expires. */
-const FADE_IN_SECONDS = 0.18
-const FADE_OUT_SECONDS = 0.3
-/** Gap between the anchor and the tail tip (metres). */
-const GAP = 0.04
 /** Height of the tail (CSS pixels). */
 const TAIL = 6
-/** Seconds a bubble takes to fade when a wall comes between you and the speaker, or goes. */
-const SIGHT_FADE_SECONDS = 0.15
 /** How often expired bubbles are swept out of the store. */
 const PRUNE_SECONDS = 0.25
 
@@ -68,7 +63,8 @@ const TAIL_STYLE: CSSProperties = {
   filter: 'drop-shadow(0 2px 1px rgba(28, 43, 42, 0.1))',
 }
 
-const anchor: Vec3 = { x: 0, y: 0, z: 0 }
+/** Where the bubble being placed goes (written by `placeBubble`, read at once: one frame callback at a time). */
+const placement: BubblePlacement = { x: 0, y: 0, z: 0, opacity: 0, moved: false }
 
 /** Mount once inside the canvas, next to <EmoteLayer />. `entities` defaults to the running hospital's people. */
 export function SpeechBubbles({ entities }: { entities?: ReadonlyMap<string, Entity> }) {
@@ -98,36 +94,17 @@ function BubbleAnchor({ bubble, entities }: { bubble: Bubble; entities: Readonly
   const card = useRef<HTMLDivElement>(null)
   const lastOpacity = useRef(-1)
   /** 1 while you can see the speaker, 0 behind a wall, fading between. */
-  const seen = useRef(1)
+  const sight = useRef<SightState>({ seen: 1 })
 
   useFrame((state, dt) => {
     const g = group.current
     const el = card.current
     if (!g || !el) return
-    const e = entities.get(bubble.entityId)
-    let opacity = 0
-    if (e !== undefined) {
-      headAnchor(e, anchor)
-      const cam = state.camera.position
-      const dx = anchor.x - cam.x
-      const dy = anchor.y - cam.y
-      const dz = anchor.z - cam.z
-      const d = Math.sqrt(dx * dx + dy * dy + dz * dz)
-      const lift = e.emote === 'none' ? GAP : GAP + emoteStackHeight(d)
-      g.position.set(anchor.x, anchor.y + lift, anchor.z)
-      if (d < MAX_RANGE) {
-        const now = bubbleClock()
-        const fadeIn = (now - bubble.born) / FADE_IN_SECONDS
-        const fadeOut = (bubble.until - now) / FADE_OUT_SECONDS
-        const person = e.fade === undefined ? 1 : e.fade * 2
-        // (walk mode, as the building sees it: walk/modeSwitch.ts)
-        const mode = sim.player?.mode
-        const hidden = mode !== undefined && mode !== 'overview' && sightBlocked(cam.x, cam.y, cam.z, anchor.x, anchor.y, anchor.z)
-        const step = dt / SIGHT_FADE_SECONDS
-        seen.current = hidden ? Math.max(0, seen.current - step) : Math.min(1, seen.current + step)
-        opacity = Math.min(1, fadeIn, fadeOut, person, seen.current)
-      }
-    }
+    // (walk mode, as the building sees it: walk/modeSwitch.ts) `walkCam.camera` is the camera in SIM coordinates, for the sight test; `state.camera` is drawn
+    const mode = sim.player?.mode
+    placeBubble(entities.get(bubble.entityId), bubble.born, bubble.until, bubbleClock(), state.camera.position, walkCam.camera, mode !== undefined && mode !== 'overview', dt, sight.current, placement)
+    if (placement.moved) g.position.set(placement.x, placement.y, placement.z)
+    const opacity = placement.opacity
     // 2 % steps: the DOM is written only while the card is actually fading
     const q = opacity <= 0 ? 0 : Math.round(opacity * 50) / 50
     if (q === lastOpacity.current) return

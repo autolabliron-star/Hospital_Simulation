@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera } from 'three'
 import { buildWallPieces } from '@/scene/building/layout/walls'
-import { AREAS, BUILDING, DOORS, PLAYER_PLAZA, ROOMS, WALL, areaAt, ceilingHeight } from '@/sim/places'
+import { allSigns } from '@/scene/wayfinding/signsL2'
+import { LEVEL2_STRIP, l2, levelOf } from '@/sim/levels'
+import { AREAS, BUILDING, DOORS, PLAYER_PLAZA, ROOMS, SIGNS, VIEW_WINDOWS, WALL, areaAt, ceilingHeight } from '@/sim/places'
 import { OPEN_PROBE, WallBoxProbe, buildWallBoxes, insideWallBox } from './boomProbe'
 import { ChaseCamera } from './chaseCamera'
 import { walkableAt } from './collision'
@@ -39,12 +41,13 @@ describe('the wall boxes', () => {
       const cabinet = boxes.find((b) => b.y0 === 0 && Math.abs((b.z0 + b.z1) / 2 - r.drawer.z) < 1e-6 && b.x0 <= r.drawer.x - 0.39 && b.x1 >= r.drawer.x + 0.39 && b.x1 - b.x0 < 1)
       expect(cabinet, `cabinet of ${r.id}`).toBeDefined()
     }
-    // every box is inside (or on) the building
+    // every box is inside (or on) the outline of its level: the building, or (R2) the level-2 strip of the flat sim
     for (const b of boxes) {
-      expect(b.x0).toBeGreaterThanOrEqual(BUILDING.x0 - WALL.thickness)
-      expect(b.x1).toBeLessThanOrEqual(BUILDING.x1 + WALL.thickness)
-      expect(b.z0).toBeGreaterThanOrEqual(BUILDING.z0 - WALL.thickness)
-      expect(b.z1).toBeLessThanOrEqual(BUILDING.z1 + WALL.thickness)
+      const r = levelOf((b.x0 + b.x1) / 2) === 2 ? LEVEL2_STRIP : BUILDING
+      expect(b.x0).toBeGreaterThanOrEqual(r.x0 - WALL.thickness)
+      expect(b.x1).toBeLessThanOrEqual(r.x1 + WALL.thickness)
+      expect(b.z0).toBeGreaterThanOrEqual(r.z0 - WALL.thickness)
+      expect(b.z1).toBeLessThanOrEqual(r.z1 + WALL.thickness)
     }
   })
 })
@@ -124,7 +127,7 @@ describe('W3: hanging signs are swept at the sign radius only', () => {
 
   it('the real signs carry the flag, and no floor-standing box does (the body\'s solids are built from y0 === 0 boxes)', () => {
     const signs = boxes.filter((b) => b.sign)
-    expect(signs.length).toBe(7)
+    expect(signs.length).toBe(allSigns(SIGNS).length) // the 7 of level 1 and the 3 of level 2
     for (const b of signs) expect(b.y0).toBeGreaterThan(2.1)
     for (const b of boxes.filter((q) => q.y0 === 0)) expect(b.sign).toBeUndefined()
   })
@@ -231,5 +234,60 @@ describe('the camera over the whole floor plan', () => {
     expect(PLAYER_PLAZA.x1).toBe(-62)
     // standing at the door looking in: the camera is behind you, outside, never through the façade
     for (const z of [-1, 0, 1]) run(-62.6, z, Math.PI / 2, 8 * DEG, 3.0, 30, `door z ${z}`)
+  })
+})
+
+describe('R2: the boom probe over level 2 (sim coordinates, the strip at sim x 88..110)', () => {
+  const ahead = (x: number, z: number) => ({ x, y: 1.62, z })
+  const west = { x: -1, y: 0, z: 0 }
+  const window = VIEW_WINDOWS[0]
+
+  it('the camera ball stops short of level 2\'s walls like level 1\'s: the theatre corridor\'s east glazing, and the pre-op door lintel', () => {
+    // from the corridor centre looking east: the glazed outer wall at drawn x = -40 (the sim x 110), face at 109.9
+    const east = { x: 1, y: 0, z: 0 }
+    const hit = probe.cast(ahead(l2(-42), 0), east, 6, 0.2)
+    expect(hit).not.toBeNull()
+    expect(hit!).toBeCloseTo(l2(-40) - WALL.thickness / 2 - 0.2 - l2(-42), 1)
+    // under the door header of the pre-op door (drawn x -44, z -13) a ball of the camera's size passes at 1.6 m; at the lintel's height it does not
+    expect(probe.cast(ahead(l2(-42), -13), west, 3, 0.2)).toBeNull()
+    expect(probe.cast({ x: l2(-42), y: WALL.doorHeight + 0.1, z: -13 }, west, 3, 0.05)).not.toBeNull()
+  })
+
+  it('a view window is glass: the camera ball is stopped by it, and what shows over people\'s heads (the sight boxes) sees through it into the OR', () => {
+    expect(window.alongX).toBe(false)
+    const z = (window.a + window.b) / 2
+    const from = ahead(l2(-42.8), z)
+    const solid = probe.cast(from, west, 14, 0.1)
+    expect(solid).not.toBeNull()
+    expect(solid!).toBeCloseTo(from.x - (window.c + WALL.thickness / 2 + 0.1), 1) // stopped by the glass at the OR's east wall line
+    const sight = new WallBoxProbe(buildWallBoxes({ sight: true }))
+    const through = sight.cast(from, west, 14, 0.1)
+    // the ray passes the glass and ends at the OR's far (west) wall, 9 m on
+    expect(through).not.toBeNull()
+    expect(through!).toBeGreaterThan(solid! + 7)
+    // a point on the same line beside the window (the solid part of the wall) stops both
+    const beside = ahead(l2(-42.8), 8)
+    expect(sight.cast(beside, west, 14, 0.1)).not.toBeNull()
+    expect(sight.cast(beside, west, 14, 0.1)!).toBeLessThan(3)
+  })
+
+  it('has a ceiling at 3 m in every level-2 area, and none outdoors beside the strip', () => {
+    for (const a of AREAS.filter((q) => levelOf((q.rect.x0 + q.rect.x1) / 2) === 2)) {
+      const cx = (a.rect.x0 + a.rect.x1) / 2
+      const cz = (a.rect.z0 + a.rect.z1) / 2
+      expect(probe.ceilingAt(cx, cz), a.id).toBe(3)
+    }
+    expect(probe.ceilingAt(l2(-30), 0)).toBeNull() // east of the strip: nothing
+    expect(probe.ceilingAt(l2(-70), 0)).toBeNull()
+  })
+
+  it('no level-2 box overlaps a level-1 one, and none of level 2\'s lies in the level-1 plan', () => {
+    const upper = boxes.filter((b) => levelOf((b.x0 + b.x1) / 2) === 2)
+    expect(upper.length).toBeGreaterThan(40)
+    for (const b of upper) {
+      expect(b.x0).toBeGreaterThanOrEqual(LEVEL2_STRIP.x0 - WALL.thickness)
+      expect(b.x1).toBeLessThanOrEqual(LEVEL2_STRIP.x1 + WALL.thickness)
+    }
+    for (const b of boxes.filter((q) => levelOf((q.x0 + q.x1) / 2) === 1)) expect(b.x1).toBeLessThanOrEqual(BUILDING.x1 + WALL.thickness)
   })
 })

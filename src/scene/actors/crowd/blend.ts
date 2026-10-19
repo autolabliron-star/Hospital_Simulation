@@ -30,6 +30,8 @@ export const MODES = [
   'grip', // standing, both hands on the body-fat handles
   'finger', // standing, the right hand out to a reader, clip or printer
   'sitArmIn', // seated, the left arm forward in a cuff or robot tunnel (armIn.ts)
+  // R2 robotic surgery (level 2)
+  'sitConsole', // seated at a surgeon console: head in the viewer, both forearms forward and level on the hand controllers (armIn.ts CONSOLE_HANDS)
 ] as const
 export type Mode = (typeof MODES)[number]
 export const MODE_COUNT = MODES.length
@@ -131,6 +133,9 @@ export function modeFor(anim: AnimState, posture: Posture, prop: PropKind): Mode
       case 'armIn':
       case 'finger':
         return 'sitArmIn'
+      // R2: the operating surgeon (and the teaching console's visitor): head in the viewer, hands on the controllers
+      case 'console':
+        return 'sitConsole'
       default:
         return prop === 'tablet' ? 'sitTablet' : 'sit'
     }
@@ -153,9 +158,9 @@ export function modeFor(anim: AnimState, posture: Posture, prop: PropKind): Mode
     case 'finger':
       return 'finger'
     default:
-      // (a standing person whose station has not put the anim back yet, 'armIn' included, simply stands and walks)
+      // (a standing person whose station has not put the anim back yet, 'armIn' and 'console' included, simply stands and walks)
       return 'relaxed'
   }
 }
 
-export const isSeatedMode = (m: Mode): boolean => m === 'sit' || m === 'typing' || m === 'sitTalk' || m === 'sitTablet' || m === 'sitListen' || m === 'sitArmIn'
+export const isSeatedMode = (m: Mode): boolean => m === 'sit' || m === 'typing' || m === 'sitTalk' || m === 'sitTablet' || m === 'sitListen' || m === 'sitArmIn' || m === 'sitConsole'

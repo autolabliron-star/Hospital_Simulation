@@ -16,29 +16,38 @@
  *                         swing doors are double-acting: a shut one swings away from whoever sets it off (`DoorBank.swing`), and
  *                         the drawn leaf and the solid box are both written from that one direction;
  *   -0.1                  the visibility, the one-off warm-up, and the leaf matrices (only when an opening changed).
+ *
+ * R2: one `WalkBuilding` per level. `<WalkBuilding />` is level 1, at the scene root, shown while walking on level 1; `<WalkBuilding level={2} />` is
+ * level 2's upper walls, lintels, ceilings, signs and door leaves, in sim coordinates, mounted inside the level-2 group (`Level2Building`, translated
+ * by (-150, +4.2, 0)), shown while walking on level 2. The two share one set of materials and one sign atlas (the first to mount makes them, the last to
+ * unmount disposes them) and each has its own door bank: only the bank of the level you are on steps, senses and publishes blockers (the people and you
+ * are sensed in sim coordinates, which is where level 2's doors are too; nothing is ever mapped here).
  */
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { BoxGeometry, Color, DynamicDrawUsage, Group, InstancedMesh, Mesh, PlaneGeometry, type BufferGeometry, type Material, type Texture } from 'three'
+import { BoxGeometry, Color, DynamicDrawUsage, Group, InstancedMesh, Mesh, PlaneGeometry, type BufferGeometry, type Material } from 'three'
 import { registerBlockers, type BlockerSource } from '@/scene/blockers'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { levelView } from '@/scene/levels/levelView'
 import { MAT } from '@/scene/materials'
 import { registerDimmable } from '@/scene/daylight/dim'
 import { walkBody } from '@/scene/player/state'
 import { loop, sim } from '@/sim'
 import { CONFIG } from '@/sim/config'
+import { levelOf, type LevelId } from '@/sim/levels'
 import { getLayout } from '../../layout'
-import { buildWalkLayout } from '../../layout/walk'
+import { buildWalkLayout, walkLayoutOfLevel, type WalkLayout } from '../../layout/walk'
+import { BUILDING_VISIBILITY_PRIORITY, level1WalkVisible, level2WalkVisible } from '../levelVisibility'
 import { BARS_PER_AUTO_LEAF, compileWalk, disposeWalk } from './walkGeometry'
 import { DoorBank, newLead, setLead } from './doorBank'
 import { leafBlockerCount, writeAutoDoor, writeLeafBlockers, writeSwingDoor } from './doorMatrices'
 import { isWalkMode, modeSwitch } from './modeSwitch'
-import { packAtlas } from './signAtlas'
+import { packAtlas, type PackedAtlas } from './signAtlas'
 import { warmWalk, WARM_AFTER_FRAMES } from './warm'
-import { CEILING_EMISSIVE, createWalkMaterials } from './walkMaterials'
+import { CEILING_EMISSIVE, createWalkMaterials, type WalkMaterials } from './walkMaterials'
 
-/** After the camera and the sim, before the labels (0) and the draw: nothing here depends on either, it only reads them. */
-const WALK_PRIORITY = -0.1
+/** After the camera and the sim (and the levels frame), before the labels (0) and the draw: nothing here depends on either, it only reads them. */
+const WALK_PRIORITY = BUILDING_VISIBILITY_PRIORITY
 
 const unitPlane = new PlaneGeometry(1, 1)
 const unitBox = new BoxGeometry(1, 1, 1)
@@ -64,14 +73,44 @@ function instanced(geometry: BufferGeometry, material: Material, count: number, 
   return m
 }
 
-function buildWalkScene() {
-  const layout = buildWalkLayout(getLayout())
-  const packed = packAtlas(layout.tiles)
-  const compiled = compileWalk(layout, packed)
-  const mats = createWalkMaterials(packed, layout.tiles)
+/** What both levels share: the whole walk layout, the sign atlas and the two materials (ceiling and signs), made once. */
+interface WalkShared {
+  layout: WalkLayout
+  packed: PackedAtlas
+  mats: WalkMaterials
+  warm: { frames: number; done: boolean }
+  users: number
+}
+
+let shared: WalkShared | null = null
+
+function acquireShared(): WalkShared {
+  if (!shared) {
+    const layout = buildWalkLayout(getLayout())
+    const packed = packAtlas(layout.tiles)
+    shared = { layout, packed, mats: createWalkMaterials(packed, layout.tiles), warm: { frames: 0, done: false }, users: 0 }
+  }
+  shared.users++
+  return shared
+}
+
+function releaseShared(): void {
+  if (!shared) return
+  shared.users = Math.max(0, shared.users - 1)
+  if (shared.users === 0) {
+    shared.mats.dispose()
+    shared = null
+  }
+}
+
+function buildWalkScene(level: LevelId) {
+  const sh = acquireShared()
+  const layout = walkLayoutOfLevel(sh.layout, level)
+  const compiled = compileWalk(layout, sh.packed)
+  const mats = sh.mats
 
   const group = new Group()
-  group.name = 'walk-building'
+  group.name = level === 1 ? 'walk-building' : 'walk-building-l2'
   group.visible = false
 
   for (const ch of compiled.chunks) {
@@ -117,59 +156,63 @@ function buildWalkScene() {
   }
   writeDoors()
 
-  const textures: Texture[] = mats.textures
   const dispose = (): void => {
     disposeWalk(compiled)
-    mats.dispose()
     glassLeaves.dispose()
     bars.dispose()
     leaves.dispose()
+    releaseShared()
   }
   // the leaves as solid boxes for your body (rewritten every frame in walk mode, count 0 in the overview)
-  const blockers: BlockerSource = { name: 'walk doors', count: 0, data: new Float64Array(leafBlockerCount(doors) * 6) }
-  return { group, bank, doors, blockers, lead: newLead(), writeDoors, textures, mats, dispose, warm: { frames: 0, done: false }, pendingWrite: false, wasWalking: false }
+  const blockers: BlockerSource = { name: level === 1 ? 'walk doors' : 'walk doors (level 2)', count: 0, data: new Float64Array(leafBlockerCount(doors) * 6) }
+  return { level, group, bank, doors, blockers, lead: newLead(), writeDoors, shared: sh, mats, dispose, pendingWrite: false, wasWalking: false }
 }
 
-export function WalkBuilding() {
-  const built = useMemo(buildWalkScene, [])
+export function WalkBuilding({ level = 1 }: { level?: LevelId }) {
+  const built = useMemo(() => buildWalkScene(level), [level])
 
   useEffect(() => {
-    modeSwitch.walk = built.group
-    // the ceiling panels and the lit signs ease down with the rest of the room lights at night (src/scene/daylight/dim.ts)
-    const ceiling = built.mats.ceiling
-    const offCeiling = registerDimmable(
-      {
-        setScalar: (s: number) => {
-          ceiling.emissiveIntensity = CEILING_EMISSIVE * s
-        },
-      },
-      1,
-      1,
-    )
-    const offSigns = registerDimmable(built.mats.signs.color, 1, 0.7)
+    if (level === 1) modeSwitch.walk = built.group
+    // the ceiling panels and the lit signs ease down with the rest of the room lights at night (src/scene/daylight/dim.ts); they are shared, so level 1 registers them
+    const offs: (() => void)[] = []
+    if (level === 1) {
+      const ceiling = built.mats.ceiling
+      offs.push(
+        registerDimmable(
+          {
+            setScalar: (s: number) => {
+              ceiling.emissiveIntensity = CEILING_EMISSIVE * s
+            },
+          },
+          1,
+          1,
+        ),
+        registerDimmable(built.mats.signs.color, 1, 0.7),
+      )
+    }
     const offBlockers = registerBlockers(built.blockers)
     return () => {
       if (modeSwitch.walk === built.group) modeSwitch.walk = null
-      offCeiling()
-      offSigns()
+      for (const off of offs) off()
       offBlockers()
       built.blockers.count = 0
       built.dispose()
     }
-  }, [built])
+  }, [built, level])
 
   // Before you move (after the sim, which moves the people the doors sense): the doors open for whoever is coming, step, and publish
   // their leaves. Walk mode only: the overview publishes no blockers.
   useFrame((_, dt) => {
-    if (!isWalkMode(sim.player?.mode)) {
-      built.blockers.count = 0
-      built.wasWalking = false
-      return
-    }
     // sim time, so the doors keep up with the crowd at 2x and 4x; real time while paused, so the doors still open for YOU
     // (you are the `player` entity of the sim, or its view: the entrance slides open as you come up from the plaza)
     const step = Math.min(dt, 0.1) * (loop.paused ? 1 : Math.max(1, loop.speed))
     const you = sim.entities.get('player')?.position ?? sim.player ?? null
+    // R2: only the doors of the level you are walking on step (and publish blockers): your level is the one your sim position is in
+    if (!isWalkMode(sim.player?.mode) || levelOf(you?.x ?? 0) !== built.level) {
+      built.blockers.count = 0
+      built.wasWalking = false
+      return
+    }
     // you sense the doors along the way your body is going (CONFIG.player.doorLeadSeconds ahead): an auto door opens about 5 m out at a
     // run, so its leaves, which are solid, are open when you get there. Until the player has written `walkBody` there is no lead.
     const lead = walkBody.live ? setLead(built.lead, walkBody.vx, walkBody.vz, walkBody.wishX, walkBody.wishZ, CONFIG.player.doorLeadSeconds) : null
@@ -182,15 +225,18 @@ export function WalkBuilding() {
 
   useFrame((state) => {
     const walking = isWalkMode(sim.player?.mode)
-    built.group.visible = walking
-    if (modeSwitch.overview) modeSwitch.overview.visible = !walking
-    // a few frames in, compile every walk-only program and upload the textures (once)
-    if (!built.warm.done && ++built.warm.frames >= WARM_AFTER_FRAMES) {
-      built.warm.done = true
-      warmWalk(state.gl, state.scene, state.camera, built.textures)
+    const visible = built.level === 1 ? level1WalkVisible(walking, levelView.shown) : level2WalkVisible(walking, levelView.shown)
+    built.group.visible = visible
+    if (built.level === 1 && modeSwitch.overview) modeSwitch.overview.visible = !walking
+    // a few frames in (level 1 counts them), compile every walk-only program and upload the textures (once, for both levels: level 2's group is in the
+    // scene too, hidden, and the warm-up walks the whole tree)
+    const warm = built.shared.warm
+    if (built.level === 1 && !warm.done && ++warm.frames >= WARM_AFTER_FRAMES) {
+      warm.done = true
+      warmWalk(state.gl, state.scene, state.camera, built.mats.textures)
     }
     // the leaves move only when an opening did (the doors stepped at FRAME_PRIORITY.doors, a few callbacks earlier)
-    if (walking && built.pendingWrite) {
+    if (visible && built.pendingWrite) {
       built.pendingWrite = false
       built.writeDoors()
     }

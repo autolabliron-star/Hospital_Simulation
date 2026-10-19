@@ -10,8 +10,13 @@
  *
  * The cell is chosen so the texel CENTRES sit 0.25 m off the 0.5 m lattice the walls' x and z lines mostly lie on: a texel never lands inside a
  * 0.2 m wall, and the 0.2 m normal offset the shader samples with keeps a wall's lit side on its own side of the line.
+ *
+ * R2: the volume is 13 layers tall (0..7.8 m), 204 x 88 x 13 texels, 4 bytes each = 933 KB. Layers 0..5 are level 1 as before, 6 a buffer, 7..11 level 2 (its floor
+ * at 4.2 m: `VolumeStorey`, baked from the level-2 areas, walls, windows and panels shifted into DRAWN coordinates, -150 in x, since the shader samples world positions),
+ * 12 a buffer (bake.ts). Level 1's lists exclude the level-2 strip of the flat sim; level 2's own lists are in `VolumeInput.upper`.
  */
 import { AREAS, BUILDING, WALL, areaAt, ceilingHeight, type Area } from '@/sim/places'
+import { LEVEL2_DX, LEVEL_Y, levelOf } from '@/sim/levels'
 import { buildWallPieces } from '@/scene/building/layout/walls'
 import { cellCounts } from '@/scene/building/layout/walk/ceilings'
 import { CEILING_CELL } from '@/scene/building/render/walk/ceilingTexture'
@@ -33,7 +38,11 @@ export interface VolumeGrid {
 
 const CELL = 0.5
 const LAYER = 0.6
-const LAYERS = 6
+/** Layers: level 1 (0..5), a buffer (6), level 2 (7..11), a buffer (12). */
+export const LOWER_LAYERS = 6
+export const UPPER_FIRST_LAYER = 7
+export const UPPER_LAYERS = 5
+const LAYERS = 13
 
 export const VOLUME_GRID: Readonly<VolumeGrid> = {
   x0: BUILDING.x0,
@@ -96,6 +105,16 @@ export interface WindowRun {
   strength: number
 }
 
+/** A second storey's slice of the volume (R2): its own areas, walls and windows (in drawn coordinates), the layers it owns and its floor height (metres). */
+export interface VolumeStorey {
+  areas: VolumeArea[]
+  walls: WallBox[]
+  windows: WindowRun[]
+  firstLayer: number
+  layers: number
+  floorY: number
+}
+
 export interface VolumeInput {
   grid: VolumeGrid
   areas: VolumeArea[]
@@ -103,6 +122,10 @@ export interface VolumeInput {
   windows: WindowRun[]
   /** The height the architect's section cut stops the walls at (the overview AO ignores a wall above it). */
   cutHeight: number
+  /** How many layers (from layer 0) belong to `areas` (the lower storey). Default: all of them. */
+  lowerLayers?: number
+  /** R2: level 2, over the lower storey. Layers between and above are buffers (bake.ts). */
+  upper?: VolumeStorey
 }
 
 /** Occlusion weight of a wall class. */
@@ -117,9 +140,12 @@ function panelShare(): { w: number; h: number } {
   return { w: (panel.w * tilePx - 8) / size, h: (panel.h * tilePx - 8) / size }
 }
 
-/** The emitting rectangles of an area's panels as the ceiling texture lays them out: one per cell of `cellCounts`, in the middle of it. */
-export function panelRectsOf(a: Area): { x0: number; x1: number; z0: number; z1: number }[] {
-  const r = a.rect
+/**
+ * The emitting rectangles of an area's panels as the ceiling texture lays them out: one per cell of `cellCounts`, in the middle of it. `dx` shifts them
+ * in x (R2: level 2's panels, drawn 150 m west of where the sim keeps them).
+ */
+export function panelRectsOf(a: Area, dx = 0): { x0: number; x1: number; z0: number; z1: number }[] {
+  const r = { x0: a.rect.x0 + dx, x1: a.rect.x1 + dx, z0: a.rect.z0, z1: a.rect.z1 }
   const { nx, nz } = cellCounts(a)
   const cw = (r.x1 - r.x0) / nx
   const ch = (r.z1 - r.z0) / nz
@@ -137,17 +163,23 @@ export function panelRectsOf(a: Area): { x0: number; x1: number; z0: number; z1:
   return out
 }
 
-/** The panels of an area as light sources: the centre and the emitting area of each rectangle. */
-export function panelsOf(a: Area): PanelLight[] {
-  return panelRectsOf(a).map((p) => ({ x: (p.x0 + p.x1) / 2, z: (p.z0 + p.z1) / 2, area: (p.x1 - p.x0) * (p.z1 - p.z0) }))
+/** The panels of an area as light sources: the centre and the emitting area of each rectangle (`dx`: see `panelRectsOf`). */
+export function panelsOf(a: Area, dx = 0): PanelLight[] {
+  return panelRectsOf(a, dx).map((p) => ({ x: (p.x0 + p.x1) / 2, z: (p.z0 + p.z1) / 2, area: (p.x1 - p.x0) * (p.z1 - p.z0) }))
 }
 
-function wallBox(p: WallPiece, thick: number): WallBox {
+/** The footprint of a wall piece, `dx` shifted in x (R2: level 2's walls, in drawn coordinates). */
+function wallBox(p: WallPiece, thick: number, dx = 0): WallBox {
   const a = p.a - (p.cutA ? 0 : thick / 2)
   const b = p.b + (p.cutB ? 0 : thick / 2)
   const w = WALL_WEIGHT[p.cls]
-  return p.alongX ? { x0: a, x1: b, z0: p.c - thick / 2, z1: p.c + thick / 2, weight: w } : { x0: p.c - thick / 2, x1: p.c + thick / 2, z0: a, z1: b, weight: w }
+  return p.alongX
+    ? { x0: a + dx, x1: b + dx, z0: p.c - thick / 2, z1: p.c + thick / 2, weight: w }
+    : { x0: p.c - thick / 2 + dx, x1: p.c + thick / 2 + dx, z0: a, z1: b, weight: w }
 }
+
+/** The level a wall piece is on (a line along x has its level in where along it the piece is, one along z in where the line is). */
+export const pieceLevel = (p: WallPiece): 1 | 2 => levelOf(p.alongX ? (p.a + p.b) / 2 : p.c)
 
 const PROBE = 0.3
 const isSky = (a: Area | null): boolean => a === null || a.id === 'atrium'
@@ -197,28 +229,52 @@ export function buildWindows(pieces: readonly WallPiece[], areaIndex: ReadonlyMa
   return out
 }
 
-/** The real hospital, as the bake reads it. Deterministic and pure. */
-export function buildVolumeInput(): VolumeInput {
-  const areas: VolumeArea[] = AREAS.map((a) => {
+/** The volume areas of one level (R2): level 1's as always; level 2's with every x shifted by `dx` into drawn coordinates. */
+function volumeAreas(level: 1 | 2, dx: number): VolumeArea[] {
+  return AREAS.filter((a) => levelOf((a.rect.x0 + a.rect.x1) / 2) === level).map((a) => {
     const ceiling = ceilingHeight(a.id)
     return {
       id: a.id,
-      x0: a.rect.x0,
-      x1: a.rect.x1,
+      x0: a.rect.x0 + dx,
+      x1: a.rect.x1 + dx,
       z0: a.rect.z0,
       z1: a.rect.z1,
       ceiling,
       nested: a.kind === 'room',
-      panels: ceiling === null ? [] : panelsOf(a),
+      panels: ceiling === null ? [] : panelsOf(a, dx),
     }
   })
+}
+
+/** The glazing of one level's walls (level 2's shifted into drawn coordinates). */
+function volumeWindows(pieces: readonly WallPiece[], areas: readonly VolumeArea[], dx: number): WindowRun[] {
   const index = new Map(areas.map((a, i) => [a.id, i]))
-  const pieces = buildWallPieces()
+  const runs = buildWindows(pieces, index)
+  if (dx === 0) return runs
+  return runs.map((w) => (w.alongX ? { ...w, a: w.a + dx, b: w.b + dx } : { ...w, c: w.c + dx }))
+}
+
+/** The real hospital, as the bake reads it. Deterministic and pure. */
+export function buildVolumeInput(): VolumeInput {
+  const areas = volumeAreas(1, 0)
+  const all = buildWallPieces()
+  const lowerPieces = all.filter((p) => pieceLevel(p) === 1)
+  const upperPieces = all.filter((p) => pieceLevel(p) === 2)
+  const upperAreas = volumeAreas(2, -LEVEL2_DX)
   return {
     grid: { ...VOLUME_GRID },
     areas,
-    walls: pieces.map((p) => wallBox(p, WALL.thickness)),
-    windows: buildWindows(pieces, index),
+    walls: lowerPieces.map((p) => wallBox(p, WALL.thickness)),
+    windows: volumeWindows(lowerPieces, areas, 0),
     cutHeight: WALL.cutHeight,
+    lowerLayers: LOWER_LAYERS,
+    upper: {
+      areas: upperAreas,
+      walls: upperPieces.map((p) => wallBox(p, WALL.thickness, -LEVEL2_DX)),
+      windows: volumeWindows(upperPieces, upperAreas.map((a) => ({ ...a })), -LEVEL2_DX),
+      firstLayer: UPPER_FIRST_LAYER,
+      layers: UPPER_LAYERS,
+      floorY: LEVEL_Y[2],
+    },
   }
 }

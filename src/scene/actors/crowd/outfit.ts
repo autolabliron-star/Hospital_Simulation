@@ -140,6 +140,10 @@ export const TONE = {
   badgeSonographer: '#243b63',
   badgeHost: '#f2a07c',
   youGold: '#ffc83d',
+  /** R2 theatre scrubs: a cool surgical blue and a blue-teal (a little lighter than the doctors' scrubTeal, and not the nurses' bright blue), with a pale cap. */
+  theatreBlue: '#2a8fb0',
+  theatreTeal: '#2f9d9e',
+  theatreCap: '#8fcfdc',
 } as const
 
 /** What each role wears, in words (the labels the inspect card and the tests can use). */
@@ -161,6 +165,8 @@ export const OUTFIT_NAMES: Readonly<Record<Role, string>> = {
 }
 export const GOWN_NAME = 'pale blue gown'
 export const EVERYDAY_NAME = 'everyday clothes'
+/** R2: what everybody on level 2's clinical side wears (the 'theatre' outfit), whatever their role. */
+export const THEATRE_NAME = 'theatre scrubs and a cap'
 
 const SKIN = ['#f4d6c1', '#ebc2a1', '#dba883', '#c48b60', '#a76b42', '#8b5332', '#6b3d26', '#4b2a1a'] as const
 const SKIN_WEIGHTS = [0.12, 0.2, 0.2, 0.17, 0.12, 0.08, 0.07, 0.04] as const
@@ -218,8 +224,12 @@ export function heightFor(id: string, variant: number): number {
   return STAND_CROWN * scaleFor(id, variant)
 }
 
-/** The clothing class a person wears: an explicit class wins, otherwise patients wear gowns and visitors everyday clothes. */
-export function clothesOf(role: Role, outfit: Outfit | undefined): 'gown' | 'everyday' | 'uniform' {
+/**
+ * The clothing class a person wears: an explicit class wins, otherwise patients wear gowns and visitors everyday clothes. R2: the 'theatre' outfit is scrubs
+ * and a cap for anybody, the surgeon (a doctor, who otherwise wears a white coat) and you included.
+ */
+export function clothesOf(role: Role, outfit: Outfit | undefined): 'gown' | 'everyday' | 'uniform' | 'theatre' {
+  if (outfit === 'theatre') return 'theatre'
   if (outfit === 'gown') return 'gown'
   if (outfit === 'everyday') return 'everyday'
   if (role === 'patient') return 'gown'
@@ -234,8 +244,8 @@ export function lookFor(key: LookKey): Look {
   const old = key.role === 'patient' || (key.role === 'visitor' && rnd(h, 24) < 0.4)
 
   const skin = pickWeighted(SKIN, SKIN_WEIGHTS, h, 21)
-  const hair = pickWeighted(HAIR, old ? HAIR_WEIGHTS_OLD : HAIR_WEIGHTS, h, 22)
-  const hairStyle = pick(key.presentation === 'female' ? HAIR_STYLES_FEMALE : key.presentation === 'male' ? HAIR_STYLES_MALE : HAIR_STYLES, h, 23)
+  let hair: string = pickWeighted(HAIR, old ? HAIR_WEIGHTS_OLD : HAIR_WEIGHTS, h, 22)
+  let hairStyle: HairStyle = pick(key.presentation === 'female' ? HAIR_STYLES_FEMALE : key.presentation === 'male' ? HAIR_STYLES_MALE : HAIR_STYLES, h, 23)
   // a man's everyday and smart clothes have trousers or shorts, never a skirt (the draw `r` is the same: only what it picks changes)
   const noSkirt = key.presentation === 'male'
 
@@ -250,7 +260,7 @@ export function lookFor(key: LookKey): Look {
   let shoes: string = pick(SHOES_EVERYDAY, h, 33)
   let lanyardOn = false
   let lanyard: string = TONE.badgeStrap
-  let glasses = rnd(h, 34) < 0.22 && clothes !== 'uniform'
+  let glasses = rnd(h, 34) < 0.22 && clothes !== 'uniform' && clothes !== 'theatre'
   const r = rnd(h, 35)
   // W1 close-up details
   let badge: string | null = null
@@ -265,6 +275,16 @@ export function lookFor(key: LookKey): Look {
     overlay = 'gown'
     coat = TONE.gown
     shoes = TONE.slipper
+  } else if (clothes === 'theatre') {
+    // R2: matching scrub top and trousers (a cool blue or a blue-teal), short sleeves, clean shoes, a cap over the hair; no coat, lanyard, stethoscope or badge in theatre
+    const scrub = rnd(h, 36) < 0.62 ? TONE.theatreBlue : TONE.theatreTeal
+    top = scrub
+    pants = scrub
+    sleeves = 'short'
+    shoes = rnd(h, 38) < 0.6 ? TONE.white2 : TONE.dark
+    glasses = rnd(h, 34) < 0.2
+    hairStyle = 'theatreCap'
+    hair = TONE.theatreCap
   } else if (clothes === 'everyday') {
     // shirt and trousers, shorts, or a skirt
     const bottom = r < 0.52 ? 'long' : r < 0.7 ? 'shorts' : noSkirt ? 'long' : 'skirt'

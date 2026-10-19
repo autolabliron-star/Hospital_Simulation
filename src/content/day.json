@@ -2,6 +2,7 @@
   "moments": [
     { "hour": 7.0, "label": "Shift handover", "caption": "Night and day nurses swap notes at the nurse hub, then at each bedside." },
     { "hour": 7.75, "label": "Breakfast", "caption": "Trays go out by MealBot, and the host takes each one into the room." },
+    { "hour": 8.75, "label": "Robotic surgery", "caption": "On level 2 the da Vinci robot is docked and the surgeon is at the console for the first case." },
     { "hour": 9.0, "label": "Ward rounds", "caption": "Doctors see each patient and plan today's medicines and discharges." },
     { "hour": 10.5, "label": "Discharges", "caption": "Patients go home with their families, and their rooms are cleaned for the next person." },
     { "hour": 12.0, "label": "Lunch and the midday dose wave", "caption": "Lunch goes out, and the midday medicines follow close behind." },

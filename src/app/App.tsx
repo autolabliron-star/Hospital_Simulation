@@ -20,6 +20,7 @@ import { World } from '@/scene/World'
 import { GoToMenu } from '@/ui/GoToMenu'
 import { Hud } from '@/ui/Hud'
 import { JumpFade, JumpMenu } from '@/ui/JumpMenu'
+import { LiftCover } from '@/ui/LiftCover'
 import { LoadingScreen } from '@/ui/loading'
 import { RoomKeys } from '@/ui/RoomKeys'
 import { RoomPanel } from '@/ui/RoomPanel'
@@ -135,6 +136,8 @@ export function App() {
       <RoomKeys />
       <JumpMenu />
       <JumpFade />
+      {/* R2: the cover of your lift ride between Level 1 and Level 2 */}
+      <LiftCover />
       <ProbeOverlay />
       {/* M5: above everything; holds the sim paused until the presenter presses Enter */}
       <LoadingScreen />

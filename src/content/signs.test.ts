@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AREAS, DOORS, SIGNS } from '@/sim/places'
+import { allSigns } from '@/scene/wayfinding/signsL2'
 import signsJson from './signs.json'
 import { MAX_DETAIL, MAX_LABEL, MAX_TITLE, ROOM_PLATE_CAPTION, SIGNS_CONTENT, SIGN_ACCENTS, SignsSchema, destinationCopy, doorPlateCopy, signTitle } from './signs'
 
@@ -13,7 +14,7 @@ describe('wayfinding copy (src/content/signs.json)', () => {
   })
 
   it('has words for every place a hanging sign points to and a title for every sign', () => {
-    for (const s of SIGNS) {
+    for (const s of allSigns(SIGNS)) {
       expect(signTitle(s.id), `title of ${s.id}`).toBeDefined()
       for (const p of s.points) expect(destinationCopy(p), `${s.id} points to ${p}`).toBeDefined()
     }
@@ -22,7 +23,7 @@ describe('wayfinding copy (src/content/signs.json)', () => {
   it('only names areas, signs and doors that exist', () => {
     const areaIds = new Set<string>(AREAS.map((a) => a.id))
     for (const id of Object.keys(SIGNS_CONTENT.destinations)) expect(areaIds.has(id), `destination ${id}`).toBe(true)
-    const signIds = new Set(SIGNS.map((s) => s.id))
+    const signIds = new Set(allSigns(SIGNS).map((s) => s.id))
     for (const id of Object.keys(SIGNS_CONTENT.signs)) expect(signIds.has(id), `sign ${id}`).toBe(true)
     const doorIds = new Set(DOORS.map((d) => d.id))
     for (const id of Object.keys(SIGNS_CONTENT.plates.doors)) expect(doorIds.has(id), `door ${id}`).toBe(true)

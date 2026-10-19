@@ -5,7 +5,7 @@ import { CONFIG } from '@/sim/config'
 import { createJumpState, FADE_IN_MS, FADE_OUT_MS, SETTLE_MS, targetOf, type JumpDeps, type JumpState } from './jumpFlow'
 
 /** A hand-cranked clock: the flow only ever has one callback waiting, and `next()` runs it. */
-function harness(options: { failRebuild?: boolean } = {}) {
+function harness(options: { failRebuild?: boolean; busy?: () => boolean } = {}) {
   const calls: string[] = []
   let pending: { label: string; fn: () => void } | null = null
   let generation = 0
@@ -24,6 +24,7 @@ function harness(options: { failRebuild?: boolean } = {}) {
     after: (ms, fn) => schedule(`after:${ms}`, fn),
     frames: (n, fn) => schedule(`frames:${n}`, fn),
     onError: () => calls.push('error'),
+    busy: options.busy,
   }
   const store = createStore<JumpState>(createJumpState(deps))
   const next = (): string => {
@@ -134,5 +135,19 @@ describe('jump flow', () => {
     expect(FADE_OUT_MS).toBeLessThanOrEqual(500)
     expect(SETTLE_MS).toBeGreaterThanOrEqual(400) // people fade in over 0.35 s
     expect(FADE_OUT_MS + SETTLE_MS + FADE_IN_MS).toBeLessThanOrEqual(2000)
+  })
+
+  it('neither opens nor starts while something else owns the screen (R2: your lift ride)', () => {
+    let riding = true
+    const { store, isWaiting } = harness({ busy: () => riding })
+    store.getState().setOpen(true)
+    expect(store.getState().open).toBe(false)
+    expect(store.getState().jump(10.5)).toBe(false)
+    expect(store.getState().phase).toBe('idle')
+    expect(isWaiting()).toBe(false)
+    riding = false
+    store.getState().setOpen(true)
+    expect(store.getState().open).toBe(true)
+    expect(store.getState().jump(10.5)).toBe(true)
   })
 })

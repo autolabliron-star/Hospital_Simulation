@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { AREAS, BUILDING, ceilingHeight } from '@/sim/places'
-import { AO_RADIUS, VolumeBaker, bakeLightVolume, sampleVolume, texel } from './bake'
-import { VOLUME_GRID, buildVolumeInput, gridSize, panelsOf, type PanelLight, type VolumeArea, type VolumeGrid, type VolumeInput } from './input'
+import { LEVEL2_DX, LEVEL_Y, levelOf } from '@/sim/levels'
+import { AO_RADIUS, SKY_TEXEL, VolumeBaker, bakeLightVolume, sampleVolume, texel } from './bake'
+import { FLOOR_MAIN, FRAG_LV } from './glsl'
+import { LOWER_LAYERS, UPPER_FIRST_LAYER, UPPER_LAYERS, VOLUME_GRID, buildVolumeInput, gridSize, panelsOf, type PanelLight, type VolumeArea, type VolumeGrid, type VolumeInput } from './input'
 
 const REAL: VolumeInput = buildVolumeInput()
 const out = new Float32Array(4)
@@ -37,17 +39,22 @@ function tiny(): VolumeInput {
 describe('the light volume bake', () => {
   const real = bakeLightVolume(REAL)
 
-  it('is 204 x 88 x 6 RGBA8 texels, about 430 KB', () => {
+  it('is 204 x 88 x 13 RGBA8 texels, about 930 KB (R2: level 1, a buffer, level 2, a buffer: 0..7.8 m)', () => {
     expect(VOLUME_GRID.nx).toBe(204)
     expect(VOLUME_GRID.nz).toBe(88)
-    expect(VOLUME_GRID.ny).toBe(6)
-    expect(real.length).toBe(204 * 88 * 6 * 4)
-    expect(real.byteLength).toBeGreaterThan(420_000)
-    expect(real.byteLength).toBeLessThan(440_000)
+    expect(VOLUME_GRID.ny).toBe(13)
+    expect(LOWER_LAYERS).toBe(6)
+    expect(UPPER_FIRST_LAYER).toBe(7)
+    expect(UPPER_LAYERS).toBe(5)
+    expect(real.length).toBe(204 * 88 * 13 * 4)
+    expect(real.byteLength).toBeGreaterThan(920_000)
+    expect(real.byteLength).toBeLessThan(940_000)
     const size = gridSize(VOLUME_GRID)
     expect(size.x).toBeCloseTo(BUILDING.x1 - BUILDING.x0, 9)
     expect(size.z).toBeCloseTo(BUILDING.z1 - BUILDING.z0, 9)
-    expect(size.y).toBeGreaterThanOrEqual(3.3)
+    expect(size.y).toBeCloseTo(7.8, 9)
+    // level 2's floor is a layer boundary: its first layer is 0.3 m above the floor, as level 1's first is
+    expect((UPPER_FIRST_LAYER + 0.5) * VOLUME_GRID.layer - LEVEL_Y[2]).toBeCloseTo((0 + 0.5) * VOLUME_GRID.layer, 9)
   })
 
   it('is deterministic: two bakes are byte for byte the same', () => {
@@ -185,17 +192,20 @@ describe('the light volume bake', () => {
     expect(at(tinyData, tinyIn, 25, 1.5, 5, 1)).toBe(1)
   })
 
-  it('every panel of every roofed area sits inside its area, and open areas have none', () => {
+  it('every panel of every roofed area sits inside its area, and open areas have none (level 2\'s in drawn coordinates)', () => {
     for (const a of AREAS) {
-      const v = REAL.areas.find((x) => x.id === a.id)!
+      const upper = levelOf((a.rect.x0 + a.rect.x1) / 2) === 2
+      const v = (upper ? REAL.upper!.areas : REAL.areas).find((x) => x.id === a.id)!
+      expect(v, a.id).toBeDefined()
+      const dx = upper ? -LEVEL2_DX : 0
       if (ceilingHeight(a.id) === null) {
         expect(v.panels).toEqual([])
         continue
       }
       expect(v.panels.length).toBeGreaterThan(0)
-      for (const p of panelsOf(a)) {
-        expect(p.x).toBeGreaterThan(a.rect.x0)
-        expect(p.x).toBeLessThan(a.rect.x1)
+      for (const p of panelsOf(a, dx)) {
+        expect(p.x).toBeGreaterThan(a.rect.x0 + dx)
+        expect(p.x).toBeLessThan(a.rect.x1 + dx)
         expect(p.z).toBeGreaterThan(a.rect.z0)
         expect(p.z).toBeLessThan(a.rect.z1)
         expect(p.area).toBeGreaterThan(0.1)
@@ -220,6 +230,160 @@ describe('the light volume bake', () => {
     expect(steps).toBeGreaterThan(5)
     expect(baker.done).toBe(true)
     expect(baker.progress).toBe(1)
+    expect(Buffer.compare(Buffer.from(baker.data), Buffer.from(real))).toBe(0)
+  })
+})
+
+describe('R2: the light volume of level 2 (layers 7..11), and the buffers (6 and 12)', () => {
+  const real = bakeLightVolume(REAL)
+  const g = VOLUME_GRID
+  const upper = REAL.upper!
+  const t = [0, 0, 0, 0]
+  /** The layer containing height y (the layers are 0.6 m). */
+  const layerOf = (y: number): number => Math.floor((y - g.y0) / g.layer)
+
+  it('level 1 is exactly as it was: layers 0..5 are byte for byte a bake of level 1 on its own', () => {
+    const only: VolumeInput = { grid: { ...REAL.grid, ny: 6 }, areas: REAL.areas, walls: REAL.walls, windows: REAL.windows, cutHeight: REAL.cutHeight }
+    const alone = bakeLightVolume(only)
+    const prefix = real.subarray(0, 6 * g.nz * g.nx * 4)
+    expect(Buffer.compare(Buffer.from(prefix), Buffer.from(alone))).toBe(0)
+    // and level 1's lists hold no level-2 area, wall or window
+    for (const a of REAL.areas) expect(a.x1, a.id).toBeLessThanOrEqual(BUILDING.x1)
+    expect(REAL.areas.some((a) => a.id.startsWith('l2'))).toBe(false)
+    expect(upper.areas.every((a) => a.id.startsWith('l2'))).toBe(true)
+  })
+
+  it('level 2 is baked from its own areas in drawn coordinates, over the level-2 footprint (drawn x -62..-40), 4.2 m up', () => {
+    expect(upper.floorY).toBe(4.2)
+    expect(upper.firstLayer).toBe(7)
+    expect(upper.layers).toBe(5)
+    expect(upper.areas.length).toBe(10)
+    for (const a of upper.areas) {
+      expect(a.x0, a.id).toBeGreaterThanOrEqual(-62)
+      expect(a.x1, a.id).toBeLessThanOrEqual(-40)
+      expect(a.ceiling, a.id).toBe(3)
+    }
+    for (const w of upper.walls) {
+      expect(w.x0).toBeGreaterThanOrEqual(-62 - 0.2)
+      expect(w.x1).toBeLessThanOrEqual(-40 + 0.2)
+    }
+    for (const w of upper.windows) {
+      const across = w.alongX ? w.a : w.c
+      expect(across).toBeGreaterThanOrEqual(-62 - 0.2)
+      expect(across).toBeLessThanOrEqual(-40 + 0.2)
+    }
+  })
+
+  it('panel light on level 2: under a panel of the pre-op more than between panels, at every layer of the storey', () => {
+    const pre = upper.areas.find((a) => a.id === 'l2PreOp')!
+    expect(pre.panels.length).toBeGreaterThanOrEqual(4)
+    const row = pre.panels.filter((p) => Math.abs(p.z - pre.panels[1].z) < 0.01).sort((a, b) => a.x - b.x)
+    const p = row[1]
+    const q = row[2]
+    const midX = (p.x + q.x) / 2
+    for (const rel of [1.5, 2.1]) {
+      const y = LEVEL_Y[2] + rel
+      expect(layerOf(y)).toBeGreaterThanOrEqual(7)
+      expect(layerOf(y)).toBeLessThanOrEqual(11)
+      const under = at(real, REAL, p.x, y, p.z, 0)
+      const between = at(real, REAL, midX, y, p.z, 0)
+      expect(under, `under a panel at ${rel} m`).toBeGreaterThan(between + 0.05)
+      expect(between, `between panels at ${rel} m`).toBeGreaterThan(0.3)
+    }
+  })
+
+  it('level 2\'s light is its own: the pre-op over triage reads its own panels, not the lit ceiling below it', () => {
+    // the pre-op (12 m deep) lies over the triage hall (16 m deep): the same x range, different panel rows, so the two storeys' panel light differs along z
+    const pre = upper.areas.find((a) => a.id === 'l2PreOp')!
+    const tri = REAL.areas.find((a) => a.id === 'triage')!
+    expect(pre.panels.length).toBeGreaterThan(0)
+    expect(tri.panels.length).toBeGreaterThan(0)
+    const x = -53
+    const sampleAt = (y: number): number[] => Array.from({ length: 36 }, (_, i) => at(real, REAL, x, y, -20.5 + i * 0.25, 0))
+    const lowRow = sampleAt(1.5)
+    const upRow = sampleAt(LEVEL_Y[2] + 1.5)
+    expect(Math.max(...lowRow)).toBeGreaterThan(0.2)
+    expect(Math.max(...upRow)).toBeGreaterThan(0.2)
+    expect(upRow.some((v, i) => Math.abs(v - lowRow[i]) > 0.02)).toBe(true)
+  })
+
+  it('window light on level 2: bright beside the pre-op\'s north glazing, faint across the room', () => {
+    const near = at(real, REAL, -57, LEVEL_Y[2] + 1.5, -21.4, 1)
+    const far = at(real, REAL, -53, LEVEL_Y[2] + 1.5, -12.5, 1)
+    expect(near).toBeGreaterThan(0.5)
+    expect(far).toBeLessThan(near * 0.6)
+    // the sterile store has no outer wall: no window light (it is not glazed)
+    expect(at(real, REAL, -48.5, LEVEL_Y[2] + 1.5, -6, 1)).toBeLessThan(0.05)
+  })
+
+  it('the OR\'s viewing window lets the corridor\'s light in (glass occludes little) while its wall stops the panels of the other side', () => {
+    const win = { x: -44, z: 4.3 }
+    const solid = { x: -44, z: 8.5 }
+    const aoAt = (p: { x: number; z: number }) => at(real, REAL, p.x + 0.6, LEVEL_Y[2] + 1.5, p.z, 2)
+    // the walk AO beside the glass is higher (less occluded) than beside the solid part of the same wall
+    expect(aoAt(win)).toBeGreaterThan(aoAt(solid))
+  })
+
+  it('occlusion on level 2: darker in a corner under the ceiling than in the middle of a room', () => {
+    const or = upper.areas.find((a) => a.id === 'l2Or')!
+    const corner = at(real, REAL, or.x0 + 0.3, LEVEL_Y[2] + 2.7, or.z0 + 0.3, 2)
+    const middle = at(real, REAL, (or.x0 + or.x1) / 2, LEVEL_Y[2] + 1.5, (or.z0 + or.z1) / 2, 2)
+    expect(corner).toBeLessThan(0.85)
+    expect(middle).toBeGreaterThan(corner)
+  })
+
+  it('the buffers: open sky outside the level-2 footprint, and a repeat of the level-2 layer next to them inside it', () => {
+    const sky = [SKY_TEXEL[0] / 255, SKY_TEXEL[1] / 255, SKY_TEXEL[2] / 255, SKY_TEXEL[3] / 255]
+    // over the pharmacy core (x 0): open sky in both buffers and over level 1
+    const ix = Math.floor((0 - g.x0) / g.cell)
+    const iz = Math.floor((0 - g.z0) / g.cell)
+    for (const iy of [6, 12]) {
+      texel(real, REAL, ix, iz, iy, t)
+      expect([...t]).toEqual(sky)
+    }
+    // inside the pre-op's footprint the buffers repeat the neighbouring layer of level 2
+    const jx = Math.floor((-55 - g.x0) / g.cell)
+    const jz = Math.floor((-15 - g.z0) / g.cell)
+    const first = [0, 0, 0, 0]
+    texel(real, REAL, jx, jz, 7, first)
+    texel(real, REAL, jx, jz, 6, t)
+    expect([...t]).toEqual([...first])
+    const last = [0, 0, 0, 0]
+    texel(real, REAL, jx, jz, 11, last)
+    texel(real, REAL, jx, jz, 12, t)
+    expect([...t]).toEqual([...last])
+    // a floor of level 2 (sampled 0.2 m above it, at 4.4 m) reads its own room: no sky leaks into it from the buffer below
+    sampleVolume(real, REAL, -55, LEVEL_Y[2] + 0.2, -15, t)
+    expect(t[1]).toBeLessThan(0.3)
+  })
+
+  it('level 2 outside its areas (the rest of the plan, 7..11) is open air, and the lower storey outside its areas keeps its old "no light" texel', () => {
+    // x = 20: the atrium (open, no ceiling) on level 1; on level 2 nothing stands there
+    const ix = Math.floor((20 - g.x0) / g.cell)
+    const iz = Math.floor((0 - g.z0) / g.cell)
+    for (let iy = 7; iy <= 11; iy++) {
+      texel(real, REAL, ix, iz, iy, t)
+      expect([...t]).toEqual([0, 1, 1, 1])
+    }
+  })
+
+  it('the shader reads the band between the storeys as open sky, and the floors read their own page of the ceiling map', () => {
+    expect(FRAG_LV).toContain('lvIn *= 1.0 - smoothstep( 3.05, 3.25, lvY )')
+    expect(FLOOR_MAIN).toContain('bool lvUp = vLvPos.y > 3.9;')
+    expect(FLOOR_MAIN).toContain('uLvCeil2')
+    expect(FLOOR_MAIN).toContain('uLvCeilY2')
+  })
+
+  it('bakes in well under 250 ms with both storeys, and the slices give the same bytes', () => {
+    const t0 = performance.now()
+    bakeLightVolume(buildVolumeInput())
+    expect(performance.now() - t0).toBeLessThan(250)
+    const baker = new VolumeBaker(REAL)
+    let clock = 0
+    const now = () => (clock += 0.1)
+    while (!baker.step(2, now)) {
+      /* slices */
+    }
     expect(Buffer.compare(Buffer.from(baker.data), Buffer.from(real))).toBe(0)
   })
 })

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AREAS, ROOMS, areaAt } from '@/sim/places'
+import { LEVEL2_FOOTPRINT } from '@/sim/levels'
+import { AREAS, ROOMS, areaAt, areaById } from '@/sim/places'
 import {
   AMBIENCE_MASTER,
   AmbienceEngine,
@@ -90,6 +91,50 @@ describe('room tone per area', () => {
     for (const t of Object.keys(ROOM_TONES) as RoomTone[]) {
       if (t !== 'quiet') expect(ROOM_TONES[t].level).toBeGreaterThan(ROOM_TONES.quiet.level)
     }
+  })
+})
+
+describe('room tone on level 2 (the robotic surgery suite)', () => {
+  const l2 = AREAS.filter((a) => a.id.startsWith('l2'))
+
+  it('hums quietly all through the suite, a little more machine in the robotic OR, and the family lounge stays quiet', () => {
+    expect(l2.length).toBe(10)
+    expect(toneForArea(areaById('l2Or'))).toBe('machine')
+    expect(toneForArea(areaById('l2Lounge'))).toBe('quiet')
+    for (const id of ['l2Corridor', 'l2PreOp', 'l2Staff', 'l2Sterile', 'l2Hall', 'l2Pacu', 'l2LiftA', 'l2LiftB'] as const) expect(toneForArea(areaById(id)), id).toBe('hum')
+  })
+
+  it('names every level-2 area by id (none falls through to the kind: a clinical room there is not the ER\'s "busy")', () => {
+    for (const a of l2) expect(['hum', 'machine', 'quiet'], a.id).toContain(toneForArea(a))
+  })
+
+  it('finds the level-2 tone from a sim position in the strip (you walk in sim coordinates), not from where the level is drawn', () => {
+    const at = (drawnX: number, z: number) => toneForArea(areaAt(drawnX + 150, z))
+    expect(at(-48.6, 5.9)).toBe('machine') // by the OR's table
+    expect(at(-48.5, 16)).toBe('hum') // the recovery island
+    expect(at(-57.5, 12)).toBe('quiet') // the lounge
+    // the same x, z DRAWN (as if the drawn camera were the listener) is a ground-floor room of level 1: the lobby is airy, the ER busy
+    expect(toneForArea(areaAt(-53, 0))).toBe('airy')
+    expect(toneForArea(areaAt(-48.6, 12))).toBe('busy')
+    expect(LEVEL2_FOOTPRINT.x0).toBe(-62)
+  })
+
+  it('is a clinical hum: softer and darker than a corridor, louder than a patient room, the OR a touch brighter and louder, and under the ER', () => {
+    expect(ROOM_TONES.hum.level).toBeGreaterThan(ROOM_TONES.quiet.level)
+    expect(ROOM_TONES.hum.level).toBeLessThan(ROOM_TONES.corridor.level)
+    expect(ROOM_TONES.hum.cutoffHz).toBeLessThan(ROOM_TONES.corridor.cutoffHz)
+    expect(ROOM_TONES.hum.cutoffHz).toBeGreaterThan(ROOM_TONES.quiet.cutoffHz)
+    expect(ROOM_TONES.machine.level).toBeGreaterThan(ROOM_TONES.hum.level)
+    expect(ROOM_TONES.machine.cutoffHz).toBeGreaterThan(ROOM_TONES.hum.cutoffHz)
+    expect(ROOM_TONES.machine.level).toBeLessThan(ROOM_TONES.busy.level)
+  })
+
+  it('leaves the level-1 tones as they were', () => {
+    expect(toneForArea(areaById('lobby'))).toBe('airy')
+    expect(toneForArea(areaById('er'))).toBe('busy')
+    expect(toneForArea(areaById('liftA'))).toBe('corridor')
+    expect(ROOM_TONES.airy).toEqual({ cutoffHz: 2400, level: 0.6 })
+    expect(ROOM_TONES.corridor).toEqual({ cutoffHz: 900, level: 0.45 })
   })
 })
 

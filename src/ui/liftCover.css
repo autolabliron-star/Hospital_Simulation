@@ -1,0 +1,48 @@
+/* The cover of a lift ride (R2): the Jump cover's look (jumpMenu.css) with the ride's own timings, which liftFlow.ts keeps in step:
+   400 ms in (LIFT_FADE_OUT_MS), the hold of about 700 ms (LIFT_HOLD_MS), 500 ms out (LIFT_FADE_IN_MS). */
+
+.lc-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: #e9eeed;
+  color: var(--ink);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  /* the cover goes away over FADE_IN */
+  transition:
+    opacity 0.5s ease,
+    visibility 0s linear 0.5s;
+}
+
+.lc-cover[data-covered='true'] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  /* the cover comes in over FADE_OUT */
+  transition:
+    opacity 0.4s ease,
+    visibility 0s;
+}
+
+.lc-cover__text {
+  text-align: center;
+  padding: 0 24px;
+}
+
+.lc-cover__caption {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-cover,
+  .lc-cover[data-covered='true'] {
+    transition-duration: 0.01s;
+  }
+}

@@ -371,6 +371,86 @@ export const CONFIG = {
   },
 
   // ---------------------------------------------------------------------------------------------
+  // R2: robotic surgery on level 2 (docs/R2-SURGERY.md): one da Vinci 5 OR with pre-op, recovery and the lifts. Sources:
+  //  - Intuitive, FDA 510(k) clearance of da Vinci 5 (14 March 2024): Xi-style patient cart, force feedback, integrated insufflation.
+  //  - Xi system readiness guide (PN 1004943 rev G): patient cart 0.98 x 1.49 m, 1.74-2.47 m, 821 kg; console 0.97 x 0.86 m.
+  //  - Draping and docking on the Xi, 65 cases: draping 5.6 min, docking 7.8 min, about 5 and 7 after the learning curve (PMC7674320).
+  //  - Console times: robotic cholecystectomy 15.1 min, set-up 11.9 (World J Gastroenterol 2013;19:3077); simple hysterectomy 125 min,
+  //    docking 7 (Int J Womens Health 2011, PMC3150207); prostatectomy 180-198 min console, 222-295 operative (IBJU, 177 patients) and
+  //    51 % of 500 men at 121-180 min.
+  //  - OR size 600-650 sq ft clear floor (FGI 2014, as reported for hybrid and robotic rooms): the OR here is 72 m^2.
+  // ---------------------------------------------------------------------------------------------
+
+  surgery: {
+    /** The theatre list: the first patient is wheeled in at this hour; no case starts after lastStartHour. */
+    firstInHour: 8.0,
+    lastStartHour: 15.5,
+    /** The day's list, one template picked by the seed. */
+    templates: [
+      ['cholecystectomy', 'hysterectomy', 'cholecystectomy'],
+      ['prostatectomy', 'cholecystectomy'],
+      ['cholecystectomy', 'cholecystectomy', 'hysterectomy'],
+      ['hysterectomy', 'cholecystectomy'],
+    ] as readonly (readonly ('cholecystectomy' | 'hysterectomy' | 'prostatectomy')[])[],
+    /** A patient arrives this long before their planned wheels-in (minutes, uniform). */
+    arriveBeforeMinutes: [60, 90] as readonly [number, number],
+    /** Room time, wheels-in to wheels-out (minutes), and the console time inside it, per procedure. */
+    roomMinutes: { cholecystectomy: [60, 90], hysterectomy: [120, 180], prostatectomy: [120, 180] } as Readonly<
+      Record<'cholecystectomy' | 'hysterectomy' | 'prostatectomy', readonly [number, number]>
+    >,
+    consoleMinutes: { cholecystectomy: [15, 30], hysterectomy: [75, 110], prostatectomy: [95, 130] } as Readonly<
+      Record<'cholecystectomy' | 'hysterectomy' | 'prostatectomy', readonly [number, number]>
+    >,
+    /** The other theatre phases (minutes): drawn, then scaled together so the room time comes out as drawn. */
+    phaseMinutes: {
+      in: [3, 5],
+      induction: [8, 12],
+      positioning: [6, 12],
+      ports: [5, 8],
+      docking: [5, 8],
+      undocking: [2, 3],
+      closing: [6, 12],
+      emergence: [6, 10],
+      out: [3, 5],
+    } as Readonly<Record<'in' | 'induction' | 'positioning' | 'ports' | 'docking' | 'undocking' | 'closing' | 'emergence' | 'out', readonly [number, number]>>,
+    /** Draping the four arms of the parked cart before the patient comes in (minutes). */
+    drapeMinutes: [5, 6] as readonly [number, number],
+    /** Cleaning and resetting the room between cases (minutes). */
+    turnoverMinutes: [25, 35] as readonly [number, number],
+    /** Pre-op in the bay: gown, nurse checks, the anaesthetist's and the surgeon's visits (minutes each). */
+    preOpMinutes: { gown: [5, 8], nurse: [8, 12], anaesthetist: [5, 8], surgeon: [3, 6] } as Readonly<
+      Record<'gown' | 'nurse' | 'anaesthetist' | 'surgeon', readonly [number, number]>
+    >,
+    /** Recovery in PACU, then (day cases) the second stage in a lounge recliner before going home (minutes). */
+    pacuMinutes: [45, 90] as readonly [number, number],
+    phase2Minutes: [30, 60] as readonly [number, number],
+    /** Share of each procedure's patients who go home the same day; the rest go up to the surgical ward. Seeded per case. */
+    homeShare: { cholecystectomy: 0.9, hysterectomy: 0.5, prostatectomy: 0 } as Readonly<Record<'cholecystectomy' | 'hysterectomy' | 'prostatectomy', number>>,
+    /** Instrument exchanges at the bedside during the console phase (per hour, uniform). */
+    exchangesPerHour: [6, 12] as readonly [number, number],
+    /** The insufflation pressure shown at the console (mmHg; display only). */
+    insufflationMmHg: 12,
+    /** The theatre team is on level 2 from teamFromHour to teamToHour. */
+    teamFromHour: 7.0,
+    teamToHour: 18.5,
+  },
+
+  /** R2: the lifts, now real for level 2 (level 3+ is still "upstairs": the ER and ward fades are unchanged). */
+  lifts: {
+    /** Cars per shaft (A north, B south). */
+    carsPerShaft: 2,
+    doorSeconds: 3,
+    /** Doors stay open this long for a boarding or leaving party. */
+    dwellSeconds: 4,
+    /** Seconds per floor: a bed lift at about 1 m/s over the 4.2 m storey, with starting and stopping. */
+    travelSeconds: 6,
+    /** One party per car per trip: a stretcher (or wheelchair) party, or up to this many walkers. */
+    walkersPerCar: 6,
+    /** A lobby holds at most one stretcher party and this many waiting walkers. */
+    lobbyWalkers: 4,
+  },
+
+  // ---------------------------------------------------------------------------------------------
   // L1: living day & bed flow (docs/L1-LIVING-DAY.md). Nothing reads these yet: the L1 builders switch the sim over
   // to them, each with its tests. Until then the M3 and R1 tables above run unchanged.
   // ---------------------------------------------------------------------------------------------
@@ -406,7 +486,7 @@ export const CONFIG = {
     /** A Jump rebuilds the sim at the new hour, then runs this many hidden sim seconds before fading in. */
     jumpPreRollSeconds: 60,
     /** The Jump menu moments (clock hours); their labels live in src/content/day.json. */
-    moments: [7.0, 7.75, 9.0, 10.5, 12.0, 15.0, 18.0, 19.0, 22.5] as readonly number[],
+    moments: [7.0, 7.75, 8.75, 9.0, 10.5, 12.0, 15.0, 18.0, 19.0, 22.5] as readonly number[],
     /** Full-day replacements for er.arrivalsPerHour, visitors.partiesPerHour and ambient.* (an evening ER peak; a dip in the quiet hour). */
     erArrivalsPerHour: [
       [6.5, 10], [7.5, 16], [8.5, 26], [9.5, 38], [10.5, 48], [11.5, 42], [12.5, 34], [14.0, 30], [16.0, 30], [18.0, 40], [20.0, 44], [22.0, 30], [23.5, 14],

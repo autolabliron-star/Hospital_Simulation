@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { planRoute } from '@/sim/nav/graph'
 import { isWalkable } from '@/sim/nav/layout'
 import { CONFIG } from '@/sim/config'
-import { BUILDING, DOORS, IMAGING, PLAYER_PLAZA, PLAYER_SPAWN, ROOMS, STAFF_ROOM } from '@/sim/places'
+import { levelOf } from '@/sim/levels'
+import { BUILDING, DOORS, IMAGING, LIFTS, PLAYER_PLAZA, PLAYER_SPAWN, ROOMS, STAFF_ROOM } from '@/sim/places'
 import { collisionStats, inPlaza, moveBody, newBodyMove, settle, walkableAt } from './collision'
 import { BODY, MOVE } from './tuning'
 
@@ -194,13 +195,21 @@ describe('you can walk everywhere the people can: from the plaza through the doo
     expect(Math.abs(r.x + 44)).toBeLessThan(0.1)
   })
 
-  it('to every door of the building, standing in it, along the people\'s own routes', () => {
+  it('to every door of the building, standing in it, along the people\'s own routes (R2: per level; level 2 from its lift lobby, as you arrive by the lift)', () => {
+    const doors = { 1: 0, 2: 0 }
     for (const d of DOORS) {
-      const route = planRoute({ x: -50, z: 0 }, d.center)
-      const r = follow(route, { x: -50, z: 0 })
+      const level = levelOf(d.center.x)
+      doors[level]++
+      // the levels are separate strips of the sim and a route never crosses between them: you start each from where you arrive
+      const from = level === 2 ? LIFTS.A[2].stretcher.at : { x: -50, z: 0 }
+      const route = planRoute(from, d.center)
+      const r = follow(route, from)
       expect(r.ok, `door ${d.id}`).toBe(true)
       expect(Math.hypot(r.x - d.center.x, r.z - d.center.z), `door ${d.id}`).toBeLessThan(0.2)
     }
+    // both levels were walked (level 2 has its nine doors)
+    expect(doors[1]).toBeGreaterThan(20)
+    expect(doors[2]).toBe(9)
   })
 
   it('to every patient room\'s bedside, the imaging consoles and the staff room', () => {

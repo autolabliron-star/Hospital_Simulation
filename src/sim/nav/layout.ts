@@ -361,7 +361,8 @@ function solidBlocksSegment(s: Solid, ax: number, az: number, dx: number, dz: nu
 // Spatial index (a uniform grid of 2 m cells: a query looks at a handful of zones and solids, not hundreds)
 // ---------------------------------------------------------------------------------------------
 
-const GRID = { x0: -66, z0: -26, cell: 2, cols: 56, rows: 26 } as const
+// (R2: wide enough for the level-2 strip at sim x 88..110, levels.ts)
+const GRID = { x0: -66, z0: -26, cell: 2, cols: 90, rows: 26 } as const
 /** Items are filed under every cell their bounds, grown by this much, touch: queries with a margin up to it are exact. */
 const GRID_REACH = 1.2
 

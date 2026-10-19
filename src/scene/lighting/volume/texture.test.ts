@@ -68,7 +68,7 @@ describe('baking behind the loading screen', () => {
   it('has a texture of the right shape and filtering', () => {
     expect(volumeTexture.image.width).toBe(204)
     expect(volumeTexture.image.height).toBe(88)
-    expect(volumeTexture.image.depth).toBe(6)
+    expect(volumeTexture.image.depth).toBe(13) // R2: level 1 (6 layers), a buffer, level 2 (5), a buffer
     expect(volumeTexture.generateMipmaps).toBe(false)
     expect(volumeTexture.name).toBe('light-volume')
   })

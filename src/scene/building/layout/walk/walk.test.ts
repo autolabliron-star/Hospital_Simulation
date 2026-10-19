@@ -9,14 +9,16 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CIRCUITS, pointAt, type PathPoint } from '@/sim/meds/circuit'
-import { AREAS, DOORS, ROOMS, SIGNS, WALL, ceilingHeight, areaById } from '@/sim/places'
+import { AREAS, BUILDING, DOORS, ROOMS, SIGNS, WALL, ceilingHeight, areaById } from '@/sim/places'
+import { LEVEL2_STRIP, levelOf } from '@/sim/levels'
 import { destinationCopy, doorPlateCopy, signTitle } from '@/content/signs'
+import { allSigns, L2_SIGNS } from '@/scene/wayfinding/signsL2'
 import { buildLayout } from '../index'
 import { DRAWER_GAP, buildWallPieces } from '../walls'
 import { compileWalk, estimateWalkBudget } from '../../render/walk/walkGeometry'
 import { packAtlas } from '../../render/walk/signAtlas'
-import { CHUNK_COUNT } from './chunks'
-import { buildWalkLayout } from './index'
+import { CHUNK_COUNT, CHUNK_EDGES } from './chunks'
+import { buildWalkLayout, walkLayoutOfLevel } from './index'
 import { sweepIsClear } from './doors'
 import { NAME_PLATE, PLATE_Y, ROOM_PLATE, SIGN, arrowFor, orientedAabb } from './signage'
 import { isWalkDoor } from './upperWalls'
@@ -133,13 +135,23 @@ describe('upper walls', () => {
     }
   })
 
-  it('stay inside the building outline (a wall thickness of slack)', () => {
+  it('stay inside the outline of their level (a wall thickness of slack): the building for level 1, the level-2 strip for level 2', () => {
     for (const b of walk.boxes) {
-      expect(b.x0).toBeGreaterThanOrEqual(-62 - T)
-      expect(b.x1).toBeLessThanOrEqual(40 + T)
-      expect(b.z0).toBeGreaterThanOrEqual(-22 - T)
-      expect(b.z1).toBeLessThanOrEqual(22 + T)
+      const r = levelOf((b.x0 + b.x1) / 2) === 2 ? LEVEL2_STRIP : BUILDING
+      expect(b.x0).toBeGreaterThanOrEqual(r.x0 - T)
+      expect(b.x1).toBeLessThanOrEqual(r.x1 + T)
+      expect(b.z0).toBeGreaterThanOrEqual(r.z0 - T)
+      expect(b.z1).toBeLessThanOrEqual(r.z1 + T)
     }
+  })
+
+  it('level 2 has its own upper walls, a lintel over each of its doors, and glazing on its window walls', () => {
+    const upper = walkLayoutOfLevel(walk, 2).boxes
+    expect(upper.filter((b) => b.part === 'upperWall').length).toBeGreaterThan(15)
+    expect(upper.filter((b) => b.part === 'glazing').length).toBeGreaterThan(20)
+    for (const d of DOORS.filter((q) => q.id.startsWith('l2'))) expect(anyBox(upper.filter((b) => b.part === 'lintel'), d.center.x, (WALL.doorHeight + H) / 2, d.center.z), d.id).toBeDefined()
+    // the OR's viewing window is full-height glass: no upper wall above it, and none in it
+    expect(anyBox(upper, 106, 2.0, 4.3)).toBeUndefined()
   })
 })
 
@@ -206,8 +218,9 @@ describe('hanging signs', () => {
   // (W2) no crossing zones any more: the doorway rects below are the only floor openings a sign must avoid
   const zones: { x0: number; x1: number; z0: number; z1: number }[] = []
 
-  it('there is one per SIGNS anchor, two-sided, with the panel at head-clear height under the ceiling', () => {
-    expect(walk.signs.map((s) => s.id)).toEqual(SIGNS.map((s) => s.id))
+  it('there is one per SIGNS anchor (level 1) and per L2_SIGNS anchor (level 2), two-sided, with the panel at head-clear height under the ceiling', () => {
+    expect(walk.signs.map((s) => s.id)).toEqual(allSigns(SIGNS).map((s) => s.id))
+    expect(walk.signs.filter((s) => levelOf(s.x) === 2).map((s) => s.id)).toEqual(L2_SIGNS.map((s) => s.id))
     for (const s of walk.signs) {
       expect(s.y0, s.id).toBeGreaterThanOrEqual(2.1)
       expect(s.y1, s.id).toBeLessThan(ceilingHeight(s.area) ?? H)
@@ -245,7 +258,7 @@ describe('hanging signs', () => {
   })
 
   it('every word comes from the content: each place a sign points to has copy, and each sign has a title', () => {
-    for (const s of SIGNS) {
+    for (const s of allSigns(SIGNS)) {
       expect(signTitle(s.id), s.id).toBeDefined()
       expect(s.points.length, s.id).toBeLessThanOrEqual(SIGN.maxRows)
       for (const p of s.points) expect(destinationCopy(p), `${s.id} -> ${p}`).toBeDefined()
@@ -394,7 +407,12 @@ describe('door leaves', () => {
     const want = DOORS.filter((d) => isWalkDoor(d) && (d.kind === 'auto' || d.kind === 'swing')).map((d) => d.id)
     expect(walk.doors.map((d) => d.id)).toEqual(want)
     expect(walk.doors.some((d) => d.id.startsWith('pharmacist'))).toBe(false)
-    expect(walk.doors.filter((d) => d.kind === 'swing').length).toBe(21) // 20 + the W4 lab door
+    // swing doors: 16 patient rooms, the staff room, clean supply, the lab (W4), ... on level 1: 21 in all; level 2 adds the theatre staff room
+    expect(walk.doors.filter((d) => d.kind === 'swing' && levelOf(d.x) === 1).length).toBe(21)
+    expect(walk.doors.filter((d) => d.kind === 'swing' && levelOf(d.x) === 2).map((d) => d.id)).toEqual(['l2Staff'])
+    expect(walk.doors.filter((d) => d.kind === 'swing').length).toBe(22)
+    // level 2's sliding doors: both lifts, pre-op, sterile supply, the OR and recovery (the hall and the lounge are open passages)
+    expect(walk.doors.filter((d) => d.kind === 'auto' && levelOf(d.x) === 2).map((d) => d.id).sort()).toEqual(['l2LiftA', 'l2LiftB', 'l2Or', 'l2Pacu', 'l2PreOp', 'l2Sterile'])
   })
 
   it('a swing leaf swings into the room beyond and its whole sweep clears every footprint of the layout', () => {
@@ -451,33 +469,52 @@ describe('walk layout', () => {
   })
 })
 
-describe('walk-mode budget (W1: <= 25 draw calls and <= 150 k triangles on top of the building)', () => {
+describe('walk-mode budget (W1: <= 25 draw calls and <= 150 k triangles on top of the building; R2: level 2 has its own, the same size)', () => {
   const atlas = packAtlas(walk.tiles)
-  const compiled = compileWalk(walk, atlas)
+  const level1 = walkLayoutOfLevel(walk, 1)
+  const level2 = walkLayoutOfLevel(walk, 2)
+  const compiled = compileWalk(level1, atlas)
+  const compiled2 = compileWalk(level2, atlas)
   const budget = estimateWalkBudget(compiled)
+  const budget2 = estimateWalkBudget(compiled2)
 
   it('reports the estimate', () => {
     // eslint-disable-next-line no-console
     console.log(
-      `walk-mode additions: ${budget.drawCalls} draw calls (${budget.chunkMeshes} chunk meshes of ${CHUNK_COUNT} chunks, glass, signs, 3 door meshes), ${budget.triangles} triangles, ${walk.boxes.length} boxes, ${walk.ceilings.length} ceiling pieces, ${walk.quads.length} sign and plate pictures; atlas ${atlas.width} x ${atlas.height}`,
+      `walk-mode additions: level 1 ${budget.drawCalls} draw calls (${budget.chunkMeshes} chunk meshes of ${CHUNK_COUNT} chunks, glass, signs, 3 door meshes), ${budget.triangles} triangles; level 2 ${budget2.drawCalls} draw calls, ${budget2.triangles} triangles; ${walk.boxes.length} boxes, ${walk.ceilings.length} ceiling pieces, ${walk.quads.length} sign and plate pictures; atlas ${atlas.width} x ${atlas.height}`,
     )
     expect(budget.drawCalls).toBeGreaterThan(5)
   })
 
-  it('is within 25 draw calls', () => {
+  it('is within 25 draw calls (each level)', () => {
     expect(budget.drawCalls).toBeLessThanOrEqual(25)
+    expect(budget2.drawCalls).toBeLessThanOrEqual(25)
   })
 
-  it('is within 150 k triangles', () => {
+  it('is within 150 k triangles (each level)', () => {
     expect(budget.triangles).toBeLessThanOrEqual(150_000)
+    expect(budget2.triangles).toBeLessThanOrEqual(150_000)
+  })
+
+  it('level 2 is its own chunk (never the atrium chunk next to it in x): one wall, one frame and one ceiling mesh, all east of the split', () => {
+    expect(CHUNK_EDGES[CHUNK_EDGES.length - 1]).toBe(70)
+    const chunk = compiled2.chunks.filter((c) => c.wall || c.frame || c.ceiling)
+    expect(chunk.map((c) => c.index)).toEqual([CHUNK_COUNT - 1])
+    for (const c of compiled.chunks) for (const g of [c.wall, c.frame, c.ceiling]) if (g?.boundingBox) expect(g.boundingBox.max.x).toBeLessThan(70)
+    // level 1 holds no level-2 piece
+    expect(level1.boxes.every((b) => levelOf((b.x0 + b.x1) / 2) === 1)).toBe(true)
+    expect(level2.boxes.every((b) => levelOf((b.x0 + b.x1) / 2) === 2)).toBe(true)
   })
 
   it('compiles deterministically', () => {
-    expect(estimateWalkBudget(compileWalk(buildWalkLayout(buildLayout()), packAtlas(buildWalkLayout(buildLayout()).tiles)))).toEqual(budget)
+    const again = buildWalkLayout(buildLayout())
+    const a2 = packAtlas(again.tiles)
+    expect(estimateWalkBudget(compileWalk(walkLayoutOfLevel(again, 1), a2))).toEqual(budget)
+    expect(estimateWalkBudget(compileWalk(walkLayoutOfLevel(again, 2), a2))).toEqual(budget2)
   })
 
   it('merges per chunk: no mesh of a chunk reaches into another (long walls are cut at the chunk edges)', () => {
-    const edges = [-40, -12, 12]
+    const edges = CHUNK_EDGES
     compiled.chunks.forEach((ch) => {
       const lo = ch.index === 0 ? -Infinity : edges[ch.index - 1]
       const hi = ch.index === edges.length ? Infinity : edges[ch.index]
@@ -506,7 +543,8 @@ describe('walk-mode budget (W1: <= 25 draw calls and <= 150 k triangles on top o
         expect(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y).toBe(true)
       }
     }
-    expect(atlas.width * atlas.height).toBeLessThanOrEqual(2048 * 1536)
+    // (R2: level 2's three signs and eight plates took it from 1536 rows to 1792)
+    expect(atlas.width * atlas.height).toBeLessThanOrEqual(2048 * 1792)
   })
 })
 

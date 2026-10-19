@@ -19,6 +19,7 @@
  */
 import { getLayout } from '@/scene/building/layout'
 import type { SeatKind, SeatSpec, Vec2 } from './types'
+import { levelOf } from './levels'
 
 /** Which seats a query is about. Every field narrows the set; an empty filter matches every seat. */
 export interface SeatFilter {
@@ -86,8 +87,11 @@ export class SeatRegistry {
   claim(occupantId: string, filter: SeatFilter, near?: Vec2): SeatSpec | null {
     let best = -1
     let bestD = Infinity
+    // R2: a filter that names no area or ids stays on the level of `near` (level 1 without one), so nobody is sent to a bench upstairs
+    const level = filter.area === undefined && filter.ids === undefined ? levelOf(near?.x ?? 0) : 0
     for (let i = 0; i < this.all.length; i++) {
       if (this.taken[i] !== null || !matches(this.all[i], filter)) continue
+      if (level !== 0 && levelOf(this.all[i].x) !== level) continue
       if (near === undefined) {
         best = i
         break

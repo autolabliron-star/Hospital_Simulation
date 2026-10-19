@@ -29,7 +29,11 @@ export const walkCam = {
   firstPerson: 0,
   /** 0..1: how visible your avatar is (it fades out as the camera comes close, and in first person). */
   avatarFade: 1,
-  /** Where the camera is right now. */
+  /**
+   * Where the camera is right now, in SIM coordinates (R2: level 2 lives in its own strip of the flat sim, sim x = drawn x + 150, y floor-relative). The three.js
+   * camera is where it is DRAWN: the player system adds your level's offset to it once a frame (`present`, system.ts). Written every frame, in a flight and in
+   * the overview too (taken back from the drawn camera), for the sight tests of the speech bubbles and emotes, which run against the sim's walls.
+   */
   camera: { x: 0, y: 0, z: 0 },
 }
 

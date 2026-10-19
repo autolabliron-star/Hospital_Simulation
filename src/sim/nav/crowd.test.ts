@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { BANDS, ROOMS, roomById } from '../places'
+import { levelOf } from '../levels'
 import { mulberry32 } from '../rng'
 import { defaultSeats } from '../seats'
 import type { Vec2 } from '../types'
@@ -299,7 +300,8 @@ interface Outcome {
 /** `n` walkers, each sent from one random seat's approach spot to another's. */
 function crossBuilding(n: number, seed: number, maxSeconds = 420): Outcome {
   const rnd = mulberry32(seed)
-  const seats = defaultSeats().filter((s) => s.kind !== 'bed')
+  // (level 1: the levels join only through the lifts, R2)
+  const seats = defaultSeats().filter((s) => s.kind !== 'bed' && levelOf(s.x) === 1)
   // every walker starts at its own seat's approach spot and goes to another walker's-free one (starts and goals are each unique)
   const pickFrom = (taken: Set<number>): Vec2 => {
     for (;;) {
@@ -535,7 +537,7 @@ describe('courtesy sidestep', () => {
 describe('cost', () => {
   it('120 walkers cost at most 0.3 ms per 60 Hz step (and the step does not allocate)', () => {
     const rnd = mulberry32(5)
-    const seats = defaultSeats()
+    const seats = defaultSeats().filter((s) => levelOf(s.x) === 1)
     const r = rig()
     for (let i = 0; i < 120; i++) {
       const a = seats[Math.floor(rnd() * seats.length)].approach

@@ -11,7 +11,7 @@
  *   seated     head centre 0.82    crown 0.94      (above the seat surface)
  */
 import { MATTRESS, TROLLEY } from '@/scene/rooms/bedParts'
-import { VEHICLE_AHEAD as VEHICLE_AHEAD_BY_KIND } from '@/sim/places'
+import { SURGERY, VEHICLE_AHEAD as VEHICLE_AHEAD_BY_KIND } from '@/sim/places'
 
 /** Nominal body, metres. A relaxed standing adult is 1.745 m to the crown. */
 export const BODY = {
@@ -64,8 +64,10 @@ export const MIN_SEAT_HEIGHT = 0.45
  * body's pelvis centre rides `LIE.pelvisAbove` above it (its back sinks about 7 cm into the linen: pelvis half thickness 0.095 minus the sink), a realistic
  * avatar's rides its own `BodyDims.liePelvis` (back sunk 2 to 3 cm). The imaging tables are looked up at their own heights (places.ts IMAGING; their patients
  * are not covered by a blanket). `bed` is also the default for a lying entity that says nothing about where, `wheelchairSeat` the seat of a wheelchair rider.
+ * R2 (level 2): the pre-op and recovery trolleys (`surgeryBed:*`, mattress top 0.8 m, rooms/surgery/shell.ts BED_TOP: a test pins the two together) are covered
+ * like a ward bed; the OR table (`orTable:*`, top 0.88 m, places.ts SURGERY.table.height) is bare: the surgical drape over the patient is the OR's (agent O).
  */
-export const LIE = { pelvisAbove: 0.025, bed: MATTRESS.top, trolley: TROLLEY.top, stretcher: 0.79, wheelchairSeat: 0.5 } as const
+export const LIE = { pelvisAbove: 0.025, bed: MATTRESS.top, trolley: TROLLEY.top, stretcher: 0.79, wheelchairSeat: 0.5, surgeryBed: 0.8, orTable: SURGERY.table.height } as const
 
 /**
  * Lying: how straight the legs are (the chord between hip and ankle over the leg length). A standing person's are LEG_RELAXED; lying they bend a little

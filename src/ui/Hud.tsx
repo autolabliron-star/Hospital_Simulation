@@ -21,6 +21,9 @@ import { useWorld } from '@/sim/world.store'
 import { dayStatsTracker } from './dayStats'
 import { useJump } from './jump.store'
 import { fillCopy, L1_COPY } from './l1Copy'
+import { installLevelKey } from './levelKey'
+import { LevelSwitch } from './LevelSwitch'
+import { switchShown } from './levelSwitchModel'
 import { usePoll } from './usePoll'
 import { useHudPrefs } from './walk/hudPrefs.store'
 import { Minimap } from './walk/Minimap'
@@ -447,6 +450,8 @@ export function HudView({ mode, hidden, rxOpen, rxRoom, rxRequest, onToggleRx, o
       {parts.titleCard && (
         <div className="hud-tl">
           <TitleCard />
+          {/* R2: the overview's Level switch (Level 1 / Level 2 · Surgery), under the clock card: the overview only */}
+          {switchShown(mode) && <LevelSwitch />}
         </div>
       )}
       {parts.walkClock && (
@@ -486,6 +491,8 @@ export function Hud() {
   const toggleRx = useCallback(() => useRx.getState().toggle(), [])
   const closeRx = useCallback(() => useRx.getState().close(), [])
   useHotkeys(toggleRx)
+  // R2: the L key switches the overview's level (a listener of its own, so it works with the HUD hidden by H)
+  useEffect(() => installLevelKey(window), [])
   // The store starts at 07:30: publish once before the first paint, so `?start=` shows its own hour straight away.
   useLayoutEffect(() => {
     loop.publishNow()

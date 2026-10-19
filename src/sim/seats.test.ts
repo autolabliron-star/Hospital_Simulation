@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { tryPlanRoute } from './nav/graph'
 import { isWalkable } from './nav/layout'
-import { LOBBY, ROOMS } from './places'
+import { levelOf } from './levels'
+import { LIFTS, LOBBY, ROOMS } from './places'
 import { SeatRegistry, defaultSeats, seatGroup } from './seats'
 
 const SEATS = defaultSeats()
@@ -35,13 +36,14 @@ describe('the building\'s seats', () => {
     }
   })
 
-  it('gives every seat a sensible height and a walkable approach that is reachable from the entrance', () => {
+  it('gives every seat a sensible height and a walkable approach that is reachable from the entrance (level 2: from its lift lobby)', () => {
     for (const s of SEATS) {
       expect(s.height, s.id).toBeGreaterThanOrEqual(0.35) // low lobby seats are 0.37
       expect(s.height, s.id).toBeLessThanOrEqual(1.0)
       expect(isWalkable(s.approach.x, s.approach.z, 0.2), `${s.id} approach`).toBe(true)
       expect(Math.hypot(s.approach.x - s.x, s.approach.z - s.z), `${s.id} approach distance`).toBeLessThan(1.6)
-      expect(tryPlanRoute(LOBBY.entrance, s.approach), `${s.id} reachable`).not.toBeNull()
+      const from = levelOf(s.x) === 1 ? LOBBY.entrance : LIFTS.A[2].stretcher.at
+      expect(tryPlanRoute(from, s.approach), `${s.id} reachable`).not.toBeNull()
     }
   })
 })
@@ -57,8 +59,9 @@ describe('SeatRegistry', () => {
     for (const s of reg.free({ kind: 'waiting' })) expect(Math.hypot(s.x - near.x, s.z - near.z)).toBeGreaterThanOrEqual(dA - 1e-9)
     expect(reg.occupant(a.id)).toBe('p1')
     expect(reg.seatOf('p2')!.id).toBe(b.id)
-    // all of them, then none left
-    const total = reg.occupancy({ kind: 'waiting' }).total
+    // all of them on this level, then none left (R2: a claim without an area stays on the level of `near`)
+    const total = SEATS.filter((s) => s.kind === 'waiting' && levelOf(s.x) === 1).length
+    expect(reg.occupancy({ kind: 'waiting' }).total).toBeGreaterThan(total)
     const got = new Set([a.id, b.id])
     for (let i = 0; i < total; i++) {
       const s = reg.claim(`q${i}`, { kind: 'waiting' }, near)
@@ -69,7 +72,9 @@ describe('SeatRegistry', () => {
     }
     expect(got.size).toBe(total)
     expect(reg.claim('late', { kind: 'waiting' }, near)).toBeNull()
-    expect(reg.occupancy({ kind: 'waiting' })).toEqual({ taken: total, total })
+    expect(reg.occupancy({ kind: 'waiting' }).taken).toBe(total)
+    // level 2's waiting chairs are still free, for whoever asks for them by area
+    expect(levelOf(reg.claim('upstairs', { kind: 'waiting', area: 'l2PreOp' })!.x)).toBe(2)
   })
 
   it('claimId refuses a taken seat; release and releaseBy free them', () => {

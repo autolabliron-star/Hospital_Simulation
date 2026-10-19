@@ -15,12 +15,18 @@
  *   A  ambient occlusion in the overview: the floor and the walls only up to the architect's section cut, no ceiling.
  *      In an area with no ceiling B equals A (walking in the atrium looks like the overview).
  *
+ * R2: two storeys. The volume is 13 layers tall (0..7.8 m): layers 0..5 are level 1 as before; 6 is a buffer (the plenum under level 2's floor); 7..11 are level 2
+ * (its floor at 4.2 m, so a layer is the same 0.6 m step, 0.3 m above its floor for the first, as level 1's layers 0..4), baked from level 2's own areas, walls, windows and
+ * panels in DRAWN coordinates (shifted by -150 in x, since the shader samples world positions); 12 is a buffer above its ceiling. A buffer layer is open sky, except in the
+ * columns of a level-2 area, where it repeats its neighbour on the level-2 side (a floor or a ceiling of level 2 samples 0.2 m off its surface, which for the first and the
+ * last layer reaches into the buffer: it must read its own room, not the sky). The two storeys never share a column's data: each has its own area map and wall index.
+ *
  * The AO is a distance-limited analytic one: each occluding plane within RADIUS blocks K * (1 - smoothstep(0, RADIUS, distance)) of the light
  * (a wall is a box, so it stops at a door opening), the planes combine as a product, and the strongest one is divided out. The strongest plane
  * is the one the sampled surface lies on (the shader samples 0.2 m in front of it), and a surface is not occluded by its own plane: what is
  * left is the corner term, how much the OTHER planes close in (a floor beside a wall, a wall under a ceiling). Glass occludes little.
  */
-import type { VolumeInput } from './input'
+import type { VolumeArea, VolumeInput, WallBox, WindowRun } from './input'
 
 /** The panel sum that reads as 1. Tuned so a floor in the middle of a 3 m panel grid reads about 0.65 and the air just under a panel reaches 1. */
 export const PANEL_REF = 0.65
@@ -46,6 +52,26 @@ const WINDOW_ROWS = 3
 const MAX_WALLS_PER_COLUMN = 48
 const BUCKET = 4
 
+/** What a buffer layer holds over open air: no panel light, the sky at full, no occlusion (what the shader reads outside the volume). */
+export const SKY_TEXEL = [0, 255, 255, 255] as const
+
+/** One storey's slice of the volume: its own areas, walls and windows, the layers it owns and its floor height. */
+interface Storey {
+  areas: readonly VolumeArea[]
+  walls: readonly WallBox[]
+  windows: readonly WindowRun[]
+  /** First layer and how many. */
+  first: number
+  count: number
+  /** Floor height (m): the heights the maths reads are relative to it. */
+  floorY: number
+  /** The area of every column's centre (-1 = none). */
+  areaOf: Int16Array
+  buckets: number[][]
+  /** Columns outside every area read as: the lower storey keeps its old "no light, no occlusion"; an upper one is open air. */
+  outside: readonly [number, number, number, number]
+}
+
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
 const smooth = (e0: number, e1: number, x: number): number => {
   const t = clamp01((x - e0) / (e1 - e0))
@@ -61,10 +87,10 @@ export class VolumeBaker {
   private readonly nz: number
   private readonly ny: number
   private readonly total: number
-  private readonly areaOf: Int16Array
+  private readonly lower: Storey
+  private readonly upper: Storey | null
   private readonly bucketsX: number
   private readonly bucketsZ: number
-  private readonly buckets: number[][]
   private readonly wallD = new Float64Array(MAX_WALLS_PER_COLUMN)
   private readonly wallW = new Float64Array(MAX_WALLS_PER_COLUMN)
   /** How many of the wallD / wallW entries belong to the column being baked. */
@@ -77,12 +103,11 @@ export class VolumeBaker {
     this.ny = g.ny
     this.total = g.nx * g.nz
     this.data = new Uint8Array(g.nx * g.nz * g.ny * 4)
-    this.areaOf = new Int16Array(this.total).fill(-1)
     this.bucketsX = Math.ceil((g.nx * g.cell) / BUCKET)
     this.bucketsZ = Math.ceil((g.nz * g.cell) / BUCKET)
-    this.buckets = Array.from({ length: this.bucketsX * this.bucketsZ }, () => [])
-    this.indexAreas()
-    this.indexWalls()
+    this.lower = this.makeStorey(input.areas, input.walls, input.windows, 0, input.lowerLayers ?? g.ny, 0, [0, 0, 255, 255])
+    const u = input.upper
+    this.upper = u ? this.makeStorey(u.areas, u.walls, u.windows, u.firstLayer, u.layers, u.floorY, SKY_TEXEL) : null
   }
 
   /** 0..1. */
@@ -112,16 +137,41 @@ export class VolumeBaker {
 
   // --- set-up ----------------------------------------------------------------------------------------
 
+  private makeStorey(
+    areas: readonly VolumeArea[],
+    walls: readonly WallBox[],
+    windows: readonly WindowRun[],
+    first: number,
+    count: number,
+    floorY: number,
+    outside: readonly [number, number, number, number],
+  ): Storey {
+    const storey: Storey = {
+      areas,
+      walls,
+      windows,
+      first,
+      count,
+      floorY,
+      areaOf: new Int16Array(this.total).fill(-1),
+      buckets: Array.from({ length: this.bucketsX * this.bucketsZ }, () => []),
+      outside,
+    }
+    this.indexAreas(storey)
+    this.indexWalls(storey)
+    return storey
+  }
+
   /** The area of every column's centre: the first nested area that holds it, else the first area that does (`areaAt`'s rule). */
-  private indexAreas(): void {
-    const { grid: g, areas } = this.input
+  private indexAreas(st: Storey): void {
+    const g = this.input.grid
     for (let iz = 0; iz < this.nz; iz++) {
       const z = g.z0 + (iz + 0.5) * g.cell
       for (let ix = 0; ix < this.nx; ix++) {
         const x = g.x0 + (ix + 0.5) * g.cell
         let best = -1
-        for (let i = 0; i < areas.length; i++) {
-          const a = areas[i]
+        for (let i = 0; i < st.areas.length; i++) {
+          const a = st.areas[i]
           if (x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1) {
             if (a.nested) {
               best = i
@@ -130,46 +180,55 @@ export class VolumeBaker {
             if (best < 0) best = i
           }
         }
-        this.areaOf[iz * this.nx + ix] = best
+        st.areaOf[iz * this.nx + ix] = best
       }
     }
   }
 
   /** Walls into 4 m buckets, a wall in every bucket within AO_RADIUS of it. */
-  private indexWalls(): void {
-    const { grid: g, walls } = this.input
-    for (let i = 0; i < walls.length; i++) {
-      const w = walls[i]
+  private indexWalls(st: Storey): void {
+    const g = this.input.grid
+    for (let i = 0; i < st.walls.length; i++) {
+      const w = st.walls[i]
       const bx0 = Math.max(0, Math.floor((w.x0 - AO_RADIUS - g.x0) / BUCKET))
       const bx1 = Math.min(this.bucketsX - 1, Math.floor((w.x1 + AO_RADIUS - g.x0) / BUCKET))
       const bz0 = Math.max(0, Math.floor((w.z0 - AO_RADIUS - g.z0) / BUCKET))
       const bz1 = Math.min(this.bucketsZ - 1, Math.floor((w.z1 + AO_RADIUS - g.z0) / BUCKET))
-      for (let bz = bz0; bz <= bz1; bz++) for (let bx = bx0; bx <= bx1; bx++) this.buckets[bz * this.bucketsX + bx].push(i)
+      for (let bz = bz0; bz <= bz1; bz++) for (let bx = bx0; bx <= bx1; bx++) st.buckets[bz * this.bucketsX + bx].push(i)
     }
   }
 
   // --- one column ------------------------------------------------------------------------------------
 
   private bakeColumn(index: number): void {
-    const { grid: g, areas, walls, windows, cutHeight } = this.input
+    this.bakeStorey(this.lower, index)
+    if (this.upper) this.bakeStorey(this.upper, index)
+    this.fillBuffers(index)
+  }
+
+  /** One storey's layers of column `index`. */
+  private bakeStorey(st: Storey, index: number): void {
+    const g = this.input.grid
+    const cutHeight = this.input.cutHeight
     const ix = index % this.nx
     const iz = (index - ix) / this.nx
     const x = g.x0 + (ix + 0.5) * g.cell
     const z = g.z0 + (iz + 0.5) * g.cell
-    const ai = this.areaOf[index]
+    const ai = st.areaOf[index]
     const data = this.data
+    const last = st.first + st.count
     if (ai < 0) {
-      // outside every area: no panel light, no window light, no occlusion
-      for (let iy = 0; iy < this.ny; iy++) {
+      // outside every area: no panel light, no window light, no occlusion (an upper storey: open air)
+      for (let iy = st.first; iy < last; iy++) {
         const o = ((iy * this.nz + iz) * this.nx + ix) * 4
-        data[o] = 0
-        data[o + 1] = 0
-        data[o + 2] = 255
-        data[o + 3] = 255
+        data[o] = st.outside[0]
+        data[o + 1] = st.outside[1]
+        data[o + 2] = st.outside[2]
+        data[o + 3] = st.outside[3]
       }
       return
     }
-    const area = areas[ai]
+    const area = st.areas[ai]
     const roofed = area.ceiling !== null
     const ceil = area.ceiling ?? 0
 
@@ -177,9 +236,9 @@ export class VolumeBaker {
     let n = 0
     const bx = Math.min(this.bucketsX - 1, Math.max(0, Math.floor((x - g.x0) / BUCKET)))
     const bz = Math.min(this.bucketsZ - 1, Math.max(0, Math.floor((z - g.z0) / BUCKET)))
-    const list = this.buckets[bz * this.bucketsX + bx]
+    const list = st.buckets[bz * this.bucketsX + bx]
     for (let k = 0; k < list.length && n < MAX_WALLS_PER_COLUMN; k++) {
-      const w = walls[list[k]]
+      const w = st.walls[list[k]]
       const dx = x < w.x0 ? w.x0 - x : x > w.x1 ? x - w.x1 : 0
       const dz = z < w.z0 ? w.z0 - z : z > w.z1 ? z - w.z1 : 0
       const d = Math.sqrt(dx * dx + dz * dz)
@@ -190,8 +249,9 @@ export class VolumeBaker {
     }
     this.near = n
 
-    for (let iy = 0; iy < this.ny; iy++) {
-      const y = g.y0 + (iy + 0.5) * g.layer
+    for (let iy = st.first; iy < last; iy++) {
+      // heights are relative to the storey's floor
+      const y = g.y0 + (iy + 0.5) * g.layer - st.floorY
       // above the ceiling (the top layer's centre is over a 3 m storey) the light of the highest point under it carries on, so the filtered
       // value at the ceiling's own height does not fade toward a layer that holds nothing
       const yc = roofed ? Math.min(y, ceil - 0.1) : y
@@ -210,7 +270,7 @@ export class VolumeBaker {
         }
         r = s / PANEL_REF
       }
-      const sky = roofed ? this.windowLight(windows, ai, x, z, yc) : 1
+      const sky = roofed ? this.windowLight(st.windows, ai, x, z, yc) : 1
       const aoOverview = this.occlusion(y, cutHeight, false, 0)
       const aoWalk = roofed ? this.occlusion(yc, 0, true, ceil) : aoOverview
       const o = ((iy * this.nz + iz) * this.nx + ix) * 4
@@ -221,8 +281,40 @@ export class VolumeBaker {
     }
   }
 
+  /**
+   * The layers no storey owns (R2: the buffer under level 2's floor and the one above its ceiling): open sky, except in the columns of a level-2
+   * area, where each repeats its neighbour on the level-2 side.
+   */
+  private fillBuffers(index: number): void {
+    const up = this.upper
+    const ix = index % this.nx
+    const iz = (index - ix) / this.nx
+    const data = this.data
+    const lowerEnd = this.lower.first + this.lower.count
+    const upperFirst = up ? up.first : this.ny
+    const upperLast = up ? up.first + up.count : this.ny
+    const own = up !== null && up.areaOf[index] >= 0
+    for (let iy = lowerEnd; iy < this.ny; iy++) {
+      if (iy >= upperFirst && iy < upperLast) continue
+      const o = ((iy * this.nz + iz) * this.nx + ix) * 4
+      if (own) {
+        const from = iy < upperFirst ? upperFirst : upperLast - 1
+        const f = ((from * this.nz + iz) * this.nx + ix) * 4
+        data[o] = data[f]
+        data[o + 1] = data[f + 1]
+        data[o + 2] = data[f + 2]
+        data[o + 3] = data[f + 3]
+      } else {
+        data[o] = SKY_TEXEL[0]
+        data[o + 1] = SKY_TEXEL[1]
+        data[o + 2] = SKY_TEXEL[2]
+        data[o + 3] = SKY_TEXEL[3]
+      }
+    }
+  }
+
   /** The sky through the area's glazing at a point, 0..1. */
-  private windowLight(windows: VolumeInput['windows'], area: number, x: number, z: number, y: number): number {
+  private windowLight(windows: readonly WindowRun[], area: number, x: number, z: number, y: number): number {
     let s = 0
     let any = false
     for (let i = 0; i < windows.length; i++) {

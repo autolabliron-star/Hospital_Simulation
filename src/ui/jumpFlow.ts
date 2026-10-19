@@ -56,6 +56,8 @@ export interface JumpDeps {
   frames(n: number, fn: () => void): void
   /** Report a failed rebuild. */
   onError?(error: unknown): void
+  /** R2: something else owns the screen right now (your lift ride): the menu does not open and no jump starts. */
+  busy?(): boolean
 }
 
 export function targetOf(hour: number): JumpTarget {
@@ -90,12 +92,12 @@ export function createJumpState(deps: JumpDeps): StateCreator<JumpState> {
       target: null,
       generation: deps.generation(),
       setOpen: (open) => {
-        if (open && get().phase !== 'idle') return
+        if (open && (get().phase !== 'idle' || deps.busy?.())) return
         set({ open })
       },
       toggle: () => get().setOpen(!get().open),
       jump: (hour) => {
-        if (get().phase !== 'idle') return false
+        if (get().phase !== 'idle' || deps.busy?.()) return false
         set({ open: false, phase: 'fadingOut', target: targetOf(hour) })
         deps.after(FADE_OUT_MS, () => deps.frames(2, () => swap(hour)))
         return true

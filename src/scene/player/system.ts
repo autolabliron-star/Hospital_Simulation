@@ -19,11 +19,20 @@
  * `toWalk` (our flight down to the shoulder pose). The rig is suspended for everything except `overview`; on the way back the
  * camera's pose is adopted into it (`setLookAt(pos, target, false)`) before it wakes, so nothing jumps.
  *
+ * R2 LEVELS (docs/R2-SURGERY.md). The sim is flat and level 2 lives in its own strip of it (sim x = drawn x + 150, y floor-relative), so EVERYTHING here works in
+ * SIM coordinates: the body, the collision, the boom probe, `chase`, `walkCam.camera` (the camera's sim position, for the sight tests of the bubbles and
+ * emotes). The three.js camera is DRAWN: `present()` adds the level's offset (`levelDx`, `LEVEL_Y`: level 2 is shifted by (-150, +4.2, 0), the rotation is
+ * untouched) to its position once, right after `chase.update` writes it (and after the settle of the resting pose). So the flights (`flight.ts`),
+ * `cameraState()`, `lookingAt` and the rest pose all agree in drawn coordinates, and `placeAt` to the other level snaps the chase camera behind you there (no
+ * flight across the map).
+ *
  * `sim` is a live binding (a Jump swaps it and carries you over): every frame reads it through `deps.getSim()` and never caches.
  */
 import { PerspectiveCamera, Vector3 } from 'three'
 import { cancelFlight, getRig, overviewPose, poseToLookAt, registerWalkBridge, OVERVIEW_FOV_DEG, type CameraPose, type RigHandle, type WalkBridge } from '@/scene/camera/cameraApi'
 import { useFocus } from '@/scene/camera/focus.store'
+import { useOverviewLevel } from '@/scene/levels/levelView'
+import { LEVEL_Y, levelDx, levelOf } from '@/sim/levels'
 import { BOT_RADIUS } from '@/sim/meals/bot'
 import { groundHeightAt, PLAYER_SPAWN, VEHICLE_AHEAD, VEHICLE_HALF } from '@/sim/places'
 import type { Simulation } from '@/sim/Simulation'
@@ -110,8 +119,10 @@ export class PlayerSystem {
   /** Scratch: the body's velocity, for the classic scheme's facing. */
   private readonly vel = { x: 0, z: 0 }
 
-  // the camera
+  // the camera. `lookTarget` is DRAWN (the flights are in drawn coordinates); `offX`/`offY` are the offset of your level (see `present`)
   private readonly lookTarget = { x: 0, y: 0, z: 0 }
+  private offX = 0
+  private offY = 0
   private avatarFadeNow = 1
   /** How visible you are at the chase camera's resting pose (the flight down to you lands on it). */
   private restFade = 1
@@ -241,11 +252,13 @@ export class PlayerSystem {
         this.publishBody(dt)
         this.flightStep(dt)
         this.finishBody(dt)
+        this.publishSimCamera()
         break
       default:
         this.standStill(dt)
         this.publishBody(dt)
         this.finishBody(dt)
+        this.publishSimCamera()
         break
     }
     this.syncSim(sim)
@@ -372,9 +385,6 @@ export class PlayerSystem {
     // easy, through your own eyes: the mouse turns the body (the view does not move: the look offset becomes heading)
     if (this.scheme === 'easy' && this.viewKind === 'first') this.heading = turnedHeading(this.heading, this.chase.absorbLook(dt))
     if (report.wantsFirstPerson) this.toggleFirstPerson()
-    this.lookTarget.x = report.target.x
-    this.lookTarget.y = report.target.y
-    this.lookTarget.z = report.target.z
     this.avatarFadeNow = report.avatarFade
     walkCam.yaw = wrapAngle(this.chase.facing - this.heading)
     walkCam.facing = this.chase.facing
@@ -382,9 +392,41 @@ export class PlayerSystem {
     walkCam.boom = report.boom
     walkCam.firstPerson = this.chase.firstPersonBlend
     walkCam.avatarFade = report.avatarFade
+    // the camera in SIM coordinates (the sight tests of the bubbles and emotes read it), then the one translation to where it is drawn
     walkCam.camera.x = camera.position.x
     walkCam.camera.y = camera.position.y
     walkCam.camera.z = camera.position.z
+    this.present(camera, report.target)
+  }
+
+  /**
+   * R2: the chase camera has just written `camera` in SIM coordinates; move it to where it is DRAWN, by the offset of the level you stand on (zero on level 1,
+   * (-150, +4.2, 0) on level 2). One rigid translation: the rotation is unchanged, and the look target (`lookTarget`, drawn, for the flights) moves with it.
+   * Call it exactly once per write of the camera: it adds, it does not set.
+   */
+  private present(camera: PerspectiveCamera, simTarget: { x: number; y: number; z: number }): void {
+    this.syncLevel()
+    camera.position.x += this.offX
+    camera.position.y += this.offY
+    this.lookTarget.x = simTarget.x + this.offX
+    this.lookTarget.y = simTarget.y + this.offY
+    this.lookTarget.z = simTarget.z
+  }
+
+  /** The offset that draws your level: what to add to a sim position on it. */
+  private syncLevel(): void {
+    const level = levelOf(this.x)
+    this.offX = levelDx(level)
+    this.offY = LEVEL_Y[level]
+  }
+
+  /** Not walking (a flight, the overview): the camera is drawn already, so its sim position is the drawn one taken back by your level's offset. */
+  private publishSimCamera(): void {
+    this.syncLevel()
+    const c = this.deps.camera.position
+    walkCam.camera.x = c.x - this.offX
+    walkCam.camera.y = c.y - this.offY
+    walkCam.camera.z = c.z
   }
 
   /** The walk-mode lens is the chase camera's; the rig must not touch the camera while we own it. */
@@ -456,9 +498,8 @@ export class PlayerSystem {
     this.chase.reset(this.feet, this.heading)
     const report = this.chase.settle(this.subject, { firstPerson: false, floorY: this.feet.y }, this.probe, camera)
     camera.updateProjectionMatrix()
-    this.lookTarget.x = report.target.x
-    this.lookTarget.y = report.target.y
-    this.lookTarget.z = report.target.z
+    // (drawn, like every other camera pose: the flight down to you lands on it)
+    this.present(camera, report.target)
     this.avatarFadeNow = report.avatarFade
     this.restFade = report.avatarFade
   }
@@ -497,6 +538,11 @@ export class PlayerSystem {
       poseToLookAt(whole, this.flightTo)
     }
     this.flightTo.fov = FLIGHT.overviewFov
+    // R2: Tab opens the overview on the level you stand on (a room's shot, `pose`, has its own: the room focus sets the level it needs before it flies)
+    if (!pose) {
+      const level = levelOf(this.x)
+      if (useOverviewLevel.getState().level !== level) useOverviewLevel.getState().set(level)
+    }
     this.phase = 'toOverview'
     this.flightEnd = 'overview'
     this.primeRig()
@@ -669,8 +715,13 @@ export class PlayerSystem {
   // For other systems and for tests
   // ------------------------------------------------------------------------------------------
 
-  /** Put you down at (x, z), on the nearest walkable spot, facing `heading` (a seat, a bedside, a debug jump). The view is kept. */
+  /**
+   * Put you down at (x, z), on the nearest walkable spot, facing `heading` (a seat, a bedside, a debug jump, a lift). The view is kept; but when the spot is on
+   * the OTHER LEVEL (R2: a lift ride) the chase camera is put at rest behind you there at once, in the same call: it follows the body in sim coordinates and
+   * `present()` draws it, so there is no flight across the map, and nothing of the old level's camera state (yaw lag, shoulder room, boom) is carried over.
+   */
   placeAt(x: number, z: number, heading?: number): void {
+    const was = levelOf(this.x)
     // only the walls and the region count: a seat is INSIDE its chair, and from there you can only walk out of it
     settle(x, z, this.settled, BODY.radius, false)
     this.body.place(this.settled.x, this.settled.z, heading)
@@ -678,7 +729,15 @@ export class PlayerSystem {
     this.feet.x = this.x
     this.feet.y = groundHeightAt(this.x, this.z)
     this.feet.z = this.z
-    this.chase.snap(this.feet)
+    if (levelOf(this.x) === was) {
+      this.chase.snap(this.feet)
+      return
+    }
+    if (this.phase === 'walk') {
+      // the settle writes the resting pose into the camera (drawn on the new level), exactly where the chase camera will be next frame
+      this.restPose(this.deps.camera)
+      this.publishSimCamera()
+    } else this.chase.snap(this.feet)
   }
 
   get mode(): PlayerMode {

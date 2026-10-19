@@ -1,5 +1,7 @@
 /**
- * Layout contract: where everything is. One floor, roof off, metres, x east, z south (north = -z).
+ * Layout contract: where everything is. Roof off, metres, x east, z south (north = -z). R2: a second storey (the robotic surgery
+ * suite) stands over the west block; it lives in its own strip of the flat sim (sim x = drawn x + 150, see levels.ts), so every
+ * level-2 rect and anchor below is written with `l2(drawnX)`.
  * Every module that needs "where things are" derives from here: the people nav graph, the robot circuits,
  * walls and colliders, decor, the minimap, the tour shots. Change numbers here and everything follows.
  * Owned by the orchestrator.
@@ -18,6 +20,7 @@
  *
  * Ward B is ward A mirrored in z. `wardSign(w)` is -1 for A and +1 for B: multiply a ward-A z by -1 * sign.
  */
+import { l2 } from './levels'
 import type { RoomId, TubeKind, VehicleKind, Vec2, Vec3, WardId } from './types'
 
 export interface Rect {
@@ -41,7 +44,10 @@ export const VIEW = {
   halfExtent: { x: 51, z: 22 } as Vec2,
 } as const
 
-/** Single floor: everything stands on y = 0. Kept as a seam for ramps or a second floor later. */
+/**
+ * Everything stands on y = 0 in the sim, on both levels: heights are floor-relative and level 2 is lifted only when it is drawn
+ * (levels.ts `toDisplayInto`). Kept as a seam for ramps.
+ */
 export function groundHeightAt(_x: number, _z: number): number {
   return 0
 }
@@ -93,6 +99,17 @@ export type AreaId =
   | 'lab'
   | 'quietB'
   | 'hubB'
+  // R2: level 2, the robotic surgery suite (sim strip x 88..110; drawn over x -62..-40)
+  | 'l2LiftA'
+  | 'l2LiftB'
+  | 'l2Corridor'
+  | 'l2PreOp'
+  | 'l2Staff'
+  | 'l2Sterile'
+  | 'l2Hall'
+  | 'l2Or'
+  | 'l2Pacu'
+  | 'l2Lounge'
   | `room:${string}`
 
 export type AreaKind = 'public' | 'clinical' | 'staff' | 'robot' | 'room' | 'service'
@@ -317,6 +334,17 @@ export const AREAS: Area[] = [
   { id: 'lab', label: 'Lab', subtitle: 'Automated sample track and analysers', rect: wardRect('B', -31, -25), kind: 'clinical', ward: 'B', mapLabel: true },
   { id: 'hubB', label: 'Nurse hub B', subtitle: '', rect: wardRect('B', -5, 5), kind: 'staff', ward: 'B', mapLabel: true },
   { id: 'quietB', label: 'Quiet room', subtitle: '', rect: wardRect('B', 25, 40), kind: 'public', ward: 'B', mapLabel: false },
+  // R2: level 2, the robotic surgery suite over the west block (drawn x -62..-40; sim x = drawn + 150)
+  { id: 'l2LiftA', label: 'Lifts', subtitle: 'Level 2', rect: { x0: l2(-44), x1: l2(-40), z0: -22, z1: -16 }, kind: 'service', mapLabel: false },
+  { id: 'l2LiftB', label: 'Lifts', subtitle: 'Level 2', rect: { x0: l2(-44), x1: l2(-40), z0: 16, z1: 22 }, kind: 'service', mapLabel: false },
+  { id: 'l2Corridor', label: 'Theatre corridor', subtitle: 'Level 2', rect: { x0: l2(-44), x1: l2(-40), z0: -16, z1: 16 }, kind: 'public', mapLabel: false },
+  { id: 'l2PreOp', label: 'Pre-op', subtitle: 'Admissions and four pre-op bays', rect: { x0: l2(-62), x1: l2(-44), z0: -22, z1: -10 }, kind: 'clinical', mapLabel: true },
+  { id: 'l2Staff', label: 'Theatre staff room', subtitle: '', rect: { x0: l2(-62), x1: l2(-53), z0: -10, z1: -2 }, kind: 'staff', mapLabel: false },
+  { id: 'l2Sterile', label: 'Sterile supply', subtitle: 'Instrument trays and drapes', rect: { x0: l2(-53), x1: l2(-44), z0: -10, z1: -2 }, kind: 'service', mapLabel: true },
+  { id: 'l2Hall', label: 'Theatre hall', subtitle: 'Scrub sinks', rect: { x0: l2(-62), x1: l2(-44), z0: -2, z1: 2 }, kind: 'staff', mapLabel: false },
+  { id: 'l2Or', label: 'Robotic OR', subtitle: 'da Vinci 5 surgical system', rect: { x0: l2(-53), x1: l2(-44), z0: 2, z1: 10 }, kind: 'clinical', mapLabel: true },
+  { id: 'l2Pacu', label: 'Recovery', subtitle: 'Post-anaesthesia care (PACU), three bays', rect: { x0: l2(-53), x1: l2(-44), z0: 10, z1: 22 }, kind: 'clinical', mapLabel: true },
+  { id: 'l2Lounge', label: 'Family lounge', subtitle: 'Level 2: waiting and day-case discharge', rect: { x0: l2(-62), x1: l2(-53), z0: 2, z1: 22 }, kind: 'public', mapLabel: true },
   ...ROOMS.map(
     (r): Area => ({ id: `room:${r.id}`, label: `Room ${r.id}`, subtitle: '', rect: r.rect, kind: 'room', ward: r.ward, mapLabel: false }),
   ),
@@ -374,6 +402,16 @@ export const DOORS: DoorSpec[] = [
   { id: 'supplyB', center: { x: -33, z: 16 }, width: 1.2, wallAxis: 'x', a: 'corridorB', b: 'supplyB', kind: 'swing' },
   { id: 'lab', center: { x: -26.3, z: 16 }, width: 1.4, wallAxis: 'x', a: 'corridorB', b: 'lab', kind: 'swing' },
   { id: 'quietB', center: { x: 33, z: 16 }, width: 2, wallAxis: 'x', a: 'corridorB', b: 'quietB', kind: 'opening' },
+  // R2: level 2 (sim x = drawn + 150)
+  { id: 'l2LiftA', center: { x: l2(-42), z: -16 }, width: 1.6, wallAxis: 'x', a: 'l2Corridor', b: 'l2LiftA', kind: 'auto' },
+  { id: 'l2LiftB', center: { x: l2(-42), z: 16 }, width: 1.6, wallAxis: 'x', a: 'l2Corridor', b: 'l2LiftB', kind: 'auto' },
+  { id: 'l2PreOp', center: { x: l2(-44), z: -13 }, width: 1.8, wallAxis: 'z', a: 'l2Corridor', b: 'l2PreOp', kind: 'auto' },
+  { id: 'l2Hall', center: { x: l2(-44), z: 0 }, width: 4, wallAxis: 'z', a: 'l2Corridor', b: 'l2Hall', kind: 'opening' },
+  { id: 'l2Sterile', center: { x: l2(-48.6), z: -2 }, width: 1.4, wallAxis: 'x', a: 'l2Hall', b: 'l2Sterile', kind: 'auto' },
+  { id: 'l2Staff', center: { x: l2(-57.5), z: -2 }, width: 1.2, wallAxis: 'x', a: 'l2Hall', b: 'l2Staff', kind: 'swing' },
+  { id: 'l2Or', center: { x: l2(-47), z: 2 }, width: 1.8, wallAxis: 'x', a: 'l2Hall', b: 'l2Or', kind: 'auto' },
+  { id: 'l2Lounge', center: { x: l2(-57.5), z: 2 }, width: 2, wallAxis: 'x', a: 'l2Hall', b: 'l2Lounge', kind: 'opening' },
+  { id: 'l2Pacu', center: { x: l2(-44), z: 12.5 }, width: 1.8, wallAxis: 'z', a: 'l2Corridor', b: 'l2Pacu', kind: 'auto' },
   { id: 'hubA', center: { x: 0, z: -16 }, width: 2, wallAxis: 'x', a: 'corridorA', b: 'hubA', kind: 'counter' },
   { id: 'hubB', center: { x: 0, z: 16 }, width: 2, wallAxis: 'x', a: 'corridorB', b: 'hubB', kind: 'counter' },
   ...ROOMS.map(
@@ -828,3 +866,139 @@ export const LAB = {
   /** Where you stand in corridor B to look in (E). */
   viewpoint: { x: -28.0, z: 15.4 } as Vec2,
 } as const
+
+// ---------------------------------------------------------------------------------------------
+// R2: level 2, the robotic surgery suite (docs/R2-SURGERY.md). Sim coordinates: x = drawn x + 150 (`l2`), z as drawn.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Glass set into a solid wall over part of its length (`walls.ts` cuts the wall there and classes that span `glassFull`, so the
+ * walls, the camera boom, sight lines and the light volume all see glass). On the line `c` (z when `alongX`, x otherwise) from `a`
+ * to `b`, floor to ceiling.
+ */
+export interface ViewWindow {
+  id: string
+  alongX: boolean
+  c: number
+  a: number
+  b: number
+}
+
+/** The OR's viewing window onto the theatre corridor: you watch the table from the corridor without going in. */
+export const VIEW_WINDOWS: ViewWindow[] = [{ id: 'l2Or', alongX: false, c: l2(-44), a: 2.8, b: 5.8 }]
+
+export type ShaftId = 'A' | 'B'
+
+/** One lift lobby (a shaft on a level): its area, door, and the spots people wait and ride from. */
+export interface LiftLobbyAnchors {
+  area: AreaId
+  /** The lobby door onto the main corridor (level 1) or the theatre corridor (level 2). */
+  door: Vec2
+  /** Where a stretcher (or wheelchair) party's pusher stands to wait for and leave a car, facing the cars. */
+  stretcher: Spot
+  /** Where walkers wait, in order (clear of the stretcher's swept path and the MealBot spot). */
+  walkers: Vec2[]
+  /** In front of the two cars on the outer wall: riders fade out and in here, facing into the car. */
+  cars: [Spot, Spot]
+}
+
+function liftLobby(shaft: ShaftId, level: 1 | 2): LiftLobbyAnchors {
+  const s = shaft === 'A' ? -1 : 1
+  const x = (drawn: number) => (level === 2 ? l2(drawn) : drawn)
+  const intoCars = shaft === 'A' ? Math.PI : 0
+  return {
+    area: level === 2 ? (shaft === 'A' ? 'l2LiftA' : 'l2LiftB') : shaft === 'A' ? 'liftA' : 'liftB',
+    door: { x: x(-42), z: s * 16 },
+    stretcher: { at: { x: x(-42), z: s * 19 }, heading: intoCars },
+    walkers: [17.5, 18.7, 19.9, 21.0].map((z) => ({ x: x(-40.8), z: s * z })),
+    cars: [
+      { at: { x: x(-42.9), z: s * 21.1 }, heading: intoCars },
+      { at: { x: x(-41.1), z: s * 21.1 }, heading: intoCars },
+    ],
+  }
+}
+
+/** The two lift shafts (A north, B south) on both levels. The cars sit in the outer wall (scene/rooms/serviceRooms.ts buildLifts). */
+export const LIFTS: Record<ShaftId, Record<1 | 2, LiftLobbyAnchors>> = {
+  A: { 1: liftLobby('A', 1), 2: liftLobby('A', 2) },
+  B: { 1: liftLobby('B', 1), 2: liftLobby('B', 2) },
+}
+
+/** A da Vinci 5 instrument port on the patient (the remote centre of motion the arm pivots about). */
+export type PortLayout = 'oblique' | 'transverse'
+
+/**
+ * The robotic OR (`l2Or`, drawn x -53..-44, z 2..10, 72 m^2). The table runs north-south with the head north (the anaesthetist's end);
+ * the patient cart docks from the west with its boom over the table; the two consoles (operating surgeon, teaching) stand on the east
+ * side, south of the viewing window; the vision cart sits north-west where the bedside assistant sees it. Every spot is a Spot (heading
+ * atan2(dx, dz): 0 faces +z, pi/2 faces +x).
+ */
+export const SURGERY = {
+  /** The OR table: centre, top height (m), the approach spot on its east side. Seat `orTable:0`, pose 'lie', head north. */
+  table: { at: { x: l2(-49.2), z: 5.9 } as Vec2, heading: 0, height: 0.88, length: 2.05, width: 0.55, approach: { x: l2(-48.2), z: 5.9 } as Vec2 },
+  /** Ports as drawn on the patient (y is the abdominal wall above the floor): arm 1..4, west to east. */
+  ports: {
+    // a straight transverse line across the lower abdomen (hysterectomy, prostatectomy), about 8 cm apart
+    transverse: [-49.32, -49.24, -49.16, -49.08].map((x) => ({ x: l2(x), y: 1.0, z: 6.15 })) as Vec3[],
+    // an oblique line toward the right upper abdomen (cholecystectomy)
+    oblique: [0, 1, 2, 3].map((i) => ({ x: l2(-49.32 + i * 0.07), y: 1.0, z: 5.75 + i * 0.05 })) as Vec3[],
+  } as Record<PortLayout, Vec3[]>,
+  /** The patient cart (da Vinci 5 / Xi style, about 0.98 x 1.49 m): parked and draped by the west wall, docked from the west. */
+  cart: {
+    park: { at: { x: l2(-51.8), z: 8.7 }, heading: Math.PI / 2 } as Spot,
+    dock: { at: { x: l2(-51.05), z: 5.9 }, heading: Math.PI / 2 } as Spot,
+    size: { w: 0.98, l: 1.49, stowedHeight: 1.74, maxHeight: 2.47 },
+  },
+  /** The operating surgeon's console and the teaching (second) console: the viewer faces west, the seat is behind it. */
+  consoles: {
+    surgeon: { centre: { x: l2(-45.55), z: 8.6 } as Vec2, seat: { at: { x: l2(-44.65), z: 8.6 }, heading: -Math.PI / 2 } as Spot },
+    teach: { centre: { x: l2(-45.55), z: 6.9 } as Vec2, seat: { at: { x: l2(-44.65), z: 6.9 }, heading: -Math.PI / 2 } as Spot },
+    size: { w: 0.97, d: 0.86, h: 1.6 },
+  },
+  /** The vision cart (tower, insufflator, the team's screen), turned toward the bedside assistant at staff.assistant. */
+  visionCart: { at: { x: l2(-51.3), z: 3.6 }, heading: Math.atan2(2.85, 2.5) } as Spot,
+  /** The anaesthesia machine at the head end; the anaesthetist stands at the head, and sits on the stool during the console phase. */
+  anaesthesia: {
+    // (facing south into the room, its monitor swivelled toward the anaesthetist's spot: the scene draws it so)
+    machine: { at: { x: l2(-48.6), z: 3.1 }, heading: 0 } as Spot,
+    stand: { at: { x: l2(-49.2), z: 4.3 }, heading: 0 } as Spot,
+    stool: { at: { x: l2(-48.5), z: 4.4 }, heading: -Math.PI / 4 } as Spot,
+  },
+  backTable: { at: { x: l2(-47.2), z: 7.3 }, heading: 0, w: 0.75, l: 1.5 },
+  mayo: { at: { x: l2(-49.2), z: 7.7 } as Vec2 },
+  circulatorDesk: { at: { x: l2(-45.0), z: 2.35 }, heading: Math.PI } as Spot,
+  /** Where each of the team stands while scrubbed in (bedside assistant and scrub nurse face the table from the east). */
+  staff: {
+    circulator: { at: { x: l2(-45.0), z: 2.9 }, heading: Math.PI } as Spot,
+    assistant: { at: { x: l2(-48.45), z: 6.1 }, heading: -Math.PI / 2 } as Spot,
+    scrub: { at: { x: l2(-48.45), z: 7.1 }, heading: -Math.PI / 2 } as Spot,
+    /** Draping the arms of the parked cart. */
+    drape: { at: { x: l2(-51.8), z: 7.6 }, heading: 0 } as Spot,
+    /** Behind the cart while it drives in (the bedside assistant steers it). */
+    drive: { at: { x: l2(-52.5), z: 8.7 }, heading: Math.PI / 2 } as Spot,
+  },
+  /** The scrub sinks in the theatre hall, against the OR's north wall: two scrubbing spots facing the sink. */
+  scrubSink: { at: { x: l2(-49.4), z: 1.6 } as Vec2, w: 2.0, d: 0.6, spots: [{ at: { x: l2(-50.0), z: 0.9 }, heading: 0 }, { at: { x: l2(-48.8), z: 0.9 }, heading: 0 }] as Spot[] },
+  /** In the theatre corridor, looking west through the viewing window at the table. */
+  viewing: { at: { x: l2(-42.8), z: 4.3 }, heading: -Math.PI / 2 } as Spot,
+} as const
+
+/** Pre-op and admissions (`l2PreOp`): four curtained bays on the north windows, the admissions desk by the door, waiting chairs. */
+export const PREOP = {
+  /** Bay bed centres (head north against the outer wall); seats `surgeryBed:preop:<i>`, pose 'lie'. */
+  bays: [-60.4, -57.6, -54.8, -52.0].map((x) => ({ at: { x: l2(x), z: -20.4 }, heading: 0 })) as Spot[],
+  desk: { at: { x: l2(-45.6), z: -15 }, heading: -Math.PI / 2 } as Spot,
+  /** The pre-op nurse's spot behind the desk. */
+  nurse: { at: { x: l2(-46.6), z: -15 }, heading: Math.PI / 2 } as Spot,
+} as const
+
+/** Recovery (`l2Pacu`): three bays against the south wall (head south), and the nurse island. */
+export const PACU = {
+  /** Seats `surgeryBed:pacu:<i>`, pose 'lie'. */
+  bays: [-51.3, -48.5, -45.7].map((x) => ({ at: { x: l2(x), z: 20.5 }, heading: Math.PI })) as Spot[],
+  island: { at: { x: l2(-48.5), z: 15 } as Vec2 },
+  nurse: { at: { x: l2(-48.5), z: 16.2 }, heading: 0 } as Spot,
+} as const
+
+/** Where the theatre team starts its day and waits between cases (the theatre staff room). */
+export const THEATRE_BASE: Spot = { at: { x: l2(-57.5), z: -6 }, heading: 0 }

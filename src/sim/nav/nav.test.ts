@@ -17,6 +17,7 @@ import {
   ROOMS,
   WALL,
 } from '../places'
+import { l2, levelOf } from '../levels'
 import { mulberry32 } from '../rng'
 import type { Vec2 } from '../types'
 import { PathFollower } from './follower'
@@ -363,18 +364,32 @@ describe('nav graph', () => {
     expect(new Set(NAV.nodes.map((n) => n.id)).size).toBe(NAV.nodes.length)
   })
 
-  it('is one connected component', () => {
-    const seen = new Set<number>([0])
-    const stack = [0]
-    while (stack.length) {
-      for (const l of NAV.adj[stack.pop()!]) {
-        if (!seen.has(l.to)) {
-          seen.add(l.to)
-          stack.push(l.to)
+  it('is one connected component per level, and no edge crosses between the levels (R2: only the lifts join them)', () => {
+    for (const level of [1, 2] as const) {
+      const nodes = NAV.nodes.filter((n) => levelOf(n.x) === level)
+      expect(nodes.length).toBeGreaterThan(level === 1 ? 300 : 40)
+      const seen = new Set<number>([nodes[0].index])
+      const stack = [nodes[0].index]
+      while (stack.length) {
+        for (const l of NAV.adj[stack.pop()!]) {
+          expect(levelOf(NAV.nodes[l.to].x)).toBe(level)
+          if (!seen.has(l.to)) {
+            seen.add(l.to)
+            stack.push(l.to)
+          }
         }
       }
+      expect(seen.size, `level ${level}`).toBe(nodes.length)
     }
-    expect(seen.size).toBe(NAV.nodes.length)
+  })
+
+  it('never plans a walked route between the levels (R2): no route, and planRoute leaves the walker where it is', () => {
+    const down = { x: -42, z: -19 }
+    const up = { x: l2(-42), z: -19 }
+    expect(tryPlanRoute(down, up)).toBeNull()
+    expect(planRoute(up, down)).toEqual([up])
+    // within level 2 there is a route from the lift lobby to the OR door
+    expect(tryPlanRoute(up, { x: l2(-47), z: 3.6 })).not.toBeNull()
   })
 
   it('has corridor centre-line nodes at |z| = 14 at every door x, every 4 m, plus the spine junction', () => {

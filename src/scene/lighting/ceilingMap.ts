@@ -1,6 +1,11 @@
 /**
  * The ceiling map (W3): the walk-mode ceilings seen from above, as a texture the floor shader reads to reflect the light panels.
  *
+ * R2: two pages, one texture each. Page 1 is level 1 over the building's footprint, as before; page 2 is level 2 over the level-2 footprint
+ * (drawn x -62..-40, z -22..22: 220 x 440 texels), baked from level 2's areas shifted into drawn coordinates (-150 in x). The floor shader picks the
+ * page by height (a floor above 3.9 m is on level 2: `FLOOR_MAIN`). Separate textures, not one tall one, so the mip chain never blends one page's
+ * edge into the other's, and level 2's page is the size of level 2.
+ *
  *   one texel = 0.1 m on the plan, over the building's footprint (1020 x 440 texels for the 102 x 44 m plan), two 8-bit channels:
  *   R  the emitting share of the texel covered by a light panel (the panel rectangles of volume/input.ts, which are the ones the ceiling
  *      texture paints: 3 x 1 tiles of the 5 x 5 tile cell, less the 4 px frame), anti-aliased by exact coverage;
@@ -14,12 +19,16 @@
  */
 import { DataTexture, LinearFilter, LinearMipmapLinearFilter, RGFormat, UnsignedByteType, ClampToEdgeWrapping } from 'three'
 import { AREAS, BUILDING, ceilingHeight } from '@/sim/places'
+import { LEVEL2_DX, LEVEL2_FOOTPRINT, levelOf, type LevelId } from '@/sim/levels'
 import { panelRectsOf } from './volume/input'
 
 /** Texels per metre. */
 export const CEILING_TEXELS_PER_METRE = 10
 export const CEILING_MAP_WIDTH = Math.round((BUILDING.x1 - BUILDING.x0) * CEILING_TEXELS_PER_METRE)
 export const CEILING_MAP_HEIGHT = Math.round((BUILDING.z1 - BUILDING.z0) * CEILING_TEXELS_PER_METRE)
+/** Page 2 (level 2): the level-2 footprint, in drawn coordinates. */
+export const CEILING_MAP2_WIDTH = Math.round((LEVEL2_FOOTPRINT.x1 - LEVEL2_FOOTPRINT.x0) * CEILING_TEXELS_PER_METRE)
+export const CEILING_MAP2_HEIGHT = Math.round((LEVEL2_FOOTPRINT.z1 - LEVEL2_FOOTPRINT.z0) * CEILING_TEXELS_PER_METRE)
 /** The ceiling height the G channel is relative to. */
 export const CEILING_HEIGHT_SCALE = 4
 
@@ -30,27 +39,39 @@ function overlap(t: number, a: number, b: number): number {
   return hi > lo ? hi - lo : 0
 }
 
-/** The map's bytes: row = z (from BUILDING.z0), column = x (from BUILDING.x0), two bytes per texel. Pure and deterministic. */
-export function buildCeilingMapData(): Uint8Array {
-  const w = CEILING_MAP_WIDTH
-  const h = CEILING_MAP_HEIGHT
+/** Where a page's plan starts and how big it is (texels), drawn coordinates. */
+function pageOf(level: LevelId): { x0: number; z0: number; w: number; h: number; dx: number } {
+  return level === 1
+    ? { x0: BUILDING.x0, z0: BUILDING.z0, w: CEILING_MAP_WIDTH, h: CEILING_MAP_HEIGHT, dx: 0 }
+    : { x0: LEVEL2_FOOTPRINT.x0, z0: LEVEL2_FOOTPRINT.z0, w: CEILING_MAP2_WIDTH, h: CEILING_MAP2_HEIGHT, dx: -LEVEL2_DX }
+}
+
+/**
+ * A page's bytes: row = z (from the page's z0), column = x (from its x0), two bytes per texel. Pure and deterministic. `level` 1 (the default) is page 1 over
+ * the building, level 2 is page 2 over the level-2 footprint (the level-2 areas, drawn).
+ */
+export function buildCeilingMapData(level: LevelId = 1): Uint8Array {
+  const page = pageOf(level)
+  const w = page.w
+  const h = page.h
   const k = CEILING_TEXELS_PER_METRE
   const data = new Uint8Array(w * h * 2)
   for (const area of AREAS) {
+    if (levelOf((area.rect.x0 + area.rect.x1) / 2) !== level) continue
     const y = ceilingHeight(area.id)
     if (y === null) continue
-    const r = area.rect
+    const r = { x0: area.rect.x0 + page.dx, x1: area.rect.x1 + page.dx, z0: area.rect.z0, z1: area.rect.z1 }
     const g = Math.round((y / CEILING_HEIGHT_SCALE) * 255)
-    const x0 = Math.max(0, Math.floor((r.x0 - BUILDING.x0) * k + 0.5))
-    const x1 = Math.min(w, Math.floor((r.x1 - BUILDING.x0) * k + 0.5))
-    const z0 = Math.max(0, Math.floor((r.z0 - BUILDING.z0) * k + 0.5))
-    const z1 = Math.min(h, Math.floor((r.z1 - BUILDING.z0) * k + 0.5))
+    const x0 = Math.max(0, Math.floor((r.x0 - page.x0) * k + 0.5))
+    const x1 = Math.min(w, Math.floor((r.x1 - page.x0) * k + 0.5))
+    const z0 = Math.max(0, Math.floor((r.z0 - page.z0) * k + 0.5))
+    const z1 = Math.min(h, Math.floor((r.z1 - page.z0) * k + 0.5))
     for (let z = z0; z < z1; z++) for (let x = x0; x < x1; x++) data[(z * w + x) * 2 + 1] = g
-    for (const p of panelRectsOf(area)) {
-      const px0 = (p.x0 - BUILDING.x0) * k
-      const px1 = (p.x1 - BUILDING.x0) * k
-      const pz0 = (p.z0 - BUILDING.z0) * k
-      const pz1 = (p.z1 - BUILDING.z0) * k
+    for (const p of panelRectsOf(area, page.dx)) {
+      const px0 = (p.x0 - page.x0) * k
+      const px1 = (p.x1 - page.x0) * k
+      const pz0 = (p.z0 - page.z0) * k
+      const pz1 = (p.z1 - page.z0) * k
       for (let z = Math.max(0, Math.floor(pz0)); z < Math.min(h, Math.ceil(pz1)); z++) {
         const cz = overlap(z, pz0, pz1)
         for (let x = Math.max(0, Math.floor(px0)); x < Math.min(w, Math.ceil(px1)); x++) {
@@ -63,19 +84,28 @@ export function buildCeilingMapData(): Uint8Array {
   return data
 }
 
-let texture: DataTexture | null = null
+const textures: Record<LevelId, DataTexture | null> = { 1: null, 2: null }
 
-/** The shared ceiling texture (made once, on first use; the bytes are ~0.9 MB and a third more for the mips). */
-export function createCeilingTexture(): DataTexture {
-  if (texture) return texture
-  const t = new DataTexture(buildCeilingMapData(), CEILING_MAP_WIDTH, CEILING_MAP_HEIGHT, RGFormat, UnsignedByteType)
+function makeTexture(level: LevelId): DataTexture {
+  const page = pageOf(level)
+  const t = new DataTexture(buildCeilingMapData(level), page.w, page.h, RGFormat, UnsignedByteType)
   t.minFilter = LinearMipmapLinearFilter
   t.magFilter = LinearFilter
   t.wrapS = t.wrapT = ClampToEdgeWrapping
   t.generateMipmaps = true
   t.unpackAlignment = 1
-  t.name = 'ceiling-map'
+  t.name = level === 1 ? 'ceiling-map' : 'ceiling-map-l2'
   t.needsUpdate = true
-  texture = t
+  textures[level] = t
   return t
+}
+
+/** The shared ceiling texture, page 1 (made once, on first use; the bytes are ~0.9 MB and a third more for the mips). */
+export function createCeilingTexture(): DataTexture {
+  return textures[1] ?? makeTexture(1)
+}
+
+/** Page 2, level 2's ceiling texture (220 x 440 texels, made once on first use). */
+export function createCeilingTexture2(): DataTexture {
+  return textures[2] ?? makeTexture(2)
 }
