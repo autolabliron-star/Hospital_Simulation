@@ -268,7 +268,8 @@ export class UsRenderer {
           }
         }
         // attenuation over this sample, both ways
-        T *= Math.pow(10, (-2 * att[ti] * f0 * drCm) / 20)
+        // (steel is thin: its loss is the reflection at its faces, not attenuation through it, so tissue under the needle stays visible)
+        T *= Math.pow(10, (-2 * (ti === T_NEEDLE ? 1.5 : att[ti]) * f0 * drCm) / 20)
         if (reverb > 0.02) {
           const ph2 = (j - reverbJ) % period
           vi += ph2 < 2 ? reverb : reverb * 0.08 * PAIR.q

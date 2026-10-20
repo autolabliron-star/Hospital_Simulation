@@ -6,7 +6,7 @@
  */
 import type { BodyPart, ImagingModality } from '@/sim/types'
 import type { ProbeFrame } from '../phantom/usViews'
-import type { SeqLike } from '../render/spec'
+import type { SeqLike, SliceMeta } from '../render/spec'
 
 /** An ultrasound frame: the probe's frame on the patient (LPS mm), depth, time (breathing), frame number (noise). */
 export interface UsJob {
@@ -40,7 +40,27 @@ export interface SliceJob {
   size: number
 }
 
-export type Job = UsJob | SliceJob
+/**
+ * A blood-draw robot's screens: the near-infrared vein map of the patient's forearm and the needle-guide ultrasound (a linear probe along
+ * the median cubital vein), side by side in one picture: the map `mapW` x `mapH` on the left, the ultrasound `us` x `us` on the right.
+ */
+export interface VeinJob {
+  t: 'vein'
+  slot: string
+  id: number
+  /** The patient (the strip's seed of the patient id). */
+  seed: number
+  /** Needle advance 0..1 (0: no needle in the picture). */
+  needle: number
+  /** Sim time (s) and frame number (the ultrasound's noise). */
+  time: number
+  n: number
+  mapW: number
+  mapH: number
+  us: number
+}
+
+export type Job = UsJob | SliceJob | VeinJob
 
 /** Shares of the fan taken by the organs a test or the debug hook asks about. */
 export interface FrameMeta {
@@ -51,6 +71,10 @@ export interface FrameMeta {
   bladder: number
   /** Worker milliseconds spent on the frame. */
   ms: number
+  /** A CT, MR or X-ray picture: what the scanner prints round it and its line on the scout (slice jobs only). */
+  slice?: SliceMeta
+  /** A vein picture: where the needle goes on the map (fractions of the map). */
+  vein?: { tx: number; ty: number }
 }
 
 export interface FrameOut {
@@ -67,4 +91,4 @@ export interface FrameOut {
 }
 
 /** Jobs are served in this order when several slots wait (live probes first). */
-export const SLOT_PRIORITY: Record<string, number> = { us: 0, draw0: 1, draw1: 1, draw2: 1, ct: 2, mri: 2, xray: 2, 'ct:next': 3, 'mri:next': 3, 'xray:next': 3, thumb: 5 }
+export const SLOT_PRIORITY: Record<string, number> = { us: 0, draw0: 1, draw1: 1, draw2: 1, ct: 2, mri: 2, xray: 2, 'ct:next': 3, 'mri:next': 3, 'xray:next': 3, 'ct:scout': 4, 'mri:scout': 4, 'xray:scout': 4, thumb: 5 }

@@ -13,10 +13,13 @@
  * ringing along the phase direction at sharp edges, and Rician noise (so the background is a grey haze, never pure black).
  */
 import type { Phantom } from '../phantom/body'
-import { TABLE } from '../phantom/tissues'
+import { TABLE, tissue } from '../phantom/tissues'
 import { gaussianNoise, resize } from './filters'
 import { value3 } from './noise'
 import { SliceRaster, type Plane } from './raster'
+
+const T_FLUID = tissue('csf')
+const T_FAT = tissue('fat')
 
 export type MriSeq = 'T1' | 'T2' | 'PD' | 'PDFS' | 'FLAIR' | 'STIR' | 'DWI' | 'LOC'
 export type Coil = 'head' | 'spine' | 'knee' | 'body'
@@ -42,6 +45,9 @@ const SEQ: Record<MriSeq, { tr: number; te: number; ti: number }> = {
   DWI: { tr: 5000, te: 80, ti: 0 },
   LOC: { tr: 8, te: 4, ti: 0 },
 }
+
+/** Repetition, echo and inversion times (ms) of each sequence, for the scanner's words on the screen. */
+export const MRI_TIMING: Readonly<Record<MriSeq, { tr: number; te: number; ti: number }>> = SEQ
 
 /** The signal of a tissue in a sequence (0..~1). */
 export function mriSignal(t: number, seq: MriSeq): number {
@@ -163,7 +169,9 @@ export class MriRenderer {
     // Rician noise, scaled to the bright end of the picture
     let peak = 0
     for (let i = 0; i < n; i++) if (big[i] > peak) peak = big[i]
-    const ref = this.quantile(big, 0.995, peak)
+    // the display window: the slice's bright end, but never below half of what fluid or fat gives in this sequence (a slice with neither
+    // would otherwise stretch muscle to white, which no radiographer's window does)
+    const ref = Math.max(this.quantile(big, 0.995, peak), 0.5 * Math.max(mriSignal(T_FLUID, req.seq), mriSignal(T_FAT, req.seq)))
     const sigma = (ref || 1) / req.snr
     gaussianNoise(this.n1, (seed * 131 + req.slice * 977) >>> 0)
     gaussianNoise(this.n2, (seed * 131 + req.slice * 977 + 1) >>> 0)

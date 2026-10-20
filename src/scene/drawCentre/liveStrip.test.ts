@@ -5,6 +5,7 @@ import type { Ctx2D, Env } from '@/scene/imaging/images/ctx'
 import type { DrawPhase, DrawStationState } from '@/sim/types'
 import { BUSY_MS, CELLS, CELL_W, LIVE_MS, LiveStrip, STRIP_H, STRIP_W, cellMode, cellRefresh, hash, isLivePhase, paintCell, paintReadyCell, seedOf, veinsFor } from './liveStrip'
 import { inDrawCentre, playerInDrawCentre } from './presence'
+import { InlineBackend } from '@/scene/imaging/worker/client'
 
 const PHASES: DrawPhase[] = ['idle', 'calling', 'cardScan', 'armIn', 'cuff', 'sanitise', 'veinScan', 'needleIn', 'filling', 'needleOut', 'bandage', 'release', 'awaitPorter', 'armMoved', 'fallbackToNurse', 'reset']
 
@@ -237,4 +238,25 @@ describe('who is in the room', () => {
     expect(playerInDrawCentre({ x: -28.2, z: 7 })).toBe(false)
     expect(playerInDrawCentre({ x: -22.1, z: 11.9 })).toBe(true)
   })
+})
+
+describe('R3: the worker pictures of the patient', () => {
+  it('asks the worker for a robot’s picture when it paints the cell, and draws the picture once this patient’s has arrived', () => {
+    const { env, rec } = logEnv()
+    const backend = new InlineBackend()
+    const strip = new LiveStrip(env, backend)
+    const s = [station(0), station(1, { phase: 'needleIn', ticket: 'P007', patientId: 'p7', needle: 0.5 }), station(2)]
+    strip.update(s, true, 0, 1)
+    expect(backend.stats.sent).toBe(1)
+    rec.reset()
+    // the next paint files the answer and shows it (the map and the ultrasound each a drawImage from the picture)
+    strip.update(s, true, 200, 1.2)
+    expect(backend.stats.sent).toBe(2)
+    expect(rec.count('drawImage')).toBeGreaterThanOrEqual(2)
+    // a different patient at that robot: back to the drawing until their own picture comes
+    rec.reset()
+    const other = [station(0), station(1, { phase: 'needleIn', ticket: 'P008', patientId: 'p8', needle: 0.2 }), station(2)]
+    strip.update(other, true, 400, 1.4)
+    expect(rec.count('drawImage')).toBe(0)
+  }, 30_000)
 })

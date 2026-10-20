@@ -6,6 +6,10 @@ import type { BodyPart, ImagingModality } from '@/sim/types'
 import type { BodyBuilder } from '../body'
 import type { PatientParams } from '../params'
 import { buildAbdomen, VERTEBRAE } from './abdomen'
+import { buildForearm } from './forearm'
+import { buildKnee } from './knee'
+import { buildAnkle } from './ankle'
+import { buildWrist } from './wrist'
 import type { Landmarks, RegionId } from './types'
 
 export type RegionBuilder = (b: BodyBuilder, p: PatientParams, regions: readonly RegionId[]) => Landmarks
@@ -18,7 +22,7 @@ const abdomen: RegionBuilder = (b, p, regions) => {
 }
 
 /** The builders that exist (the others arrive with their region). */
-export const BUILDERS: Partial<Record<RegionId, RegionBuilder>> = { abdomen }
+export const BUILDERS: Partial<Record<RegionId, RegionBuilder>> = { abdomen, forearm: (b, p) => buildForearm(b, p), knee: (b, p) => buildKnee(b, p), ankle: (b, p) => buildAnkle(b, p), wrist: (b, p) => buildWrist(b, p) }
 
 /** The regions an exam needs, in build order. */
 export function regionsFor(modality: ImagingModality, bodyPart: BodyPart): RegionId[] {

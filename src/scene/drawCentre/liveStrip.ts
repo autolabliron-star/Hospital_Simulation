@@ -9,8 +9,14 @@
  *
  * Drawing only touches the canvas API (no DOM), through the `Env` the imaging suite uses, so it runs against a recording mock in node.
  * All the words come from src/content/drawUi.json.
+ *
+ * R3: with the imaging worker (`backend`), the map and the inset are real pictures of the patient's synthetic forearm (render/nir.ts, the
+ * US_LINEAR preset along the median cubital vein, the needle in the image plane): a cell asks for a new picture each time it repaints and
+ * shows the newest one that has arrived for THIS patient; until then (and without a worker) it keeps the vector drawing.
  */
 import type { Ctx2D, Env, Surface } from '@/scene/imaging/images/ctx'
+import type { FrameIn, ImagingBackend } from '@/scene/imaging/worker/client'
+import type { VeinJob } from '@/scene/imaging/worker/protocol'
 import { DRAW_UI, fillDraw, phaseText } from '@/content/drawUi'
 import { LAB_CATALOGUE } from '@/content/lab'
 import type { DrawPhase, DrawStationState } from '@/sim/types'
@@ -54,6 +60,15 @@ const BG = '#061012'
 const MAP = { x: 8, y: 26, w: 150, h: 96 }
 const US = { x: 164, y: 26, w: 84, h: 96 }
 const BAR = { x: 8, y: 130, w: 240, h: 10 }
+/** The worker's ultrasound picture is square; the inset shows its middle `US.w` columns. */
+const US_PX = 96
+
+/** A worker picture of one robot's patient: the map on the left of `canvas`, the ultrasound right of it, and the needle's target on the map. */
+export interface VeinPicture {
+  canvas: Surface['canvas']
+  tx: number
+  ty: number
+}
 
 /** A small deterministic hash (0..2^32) of a string or numbers: the same patient always has the same veins. */
 export function hash(seed: number, a = 0, b = 0): number {
@@ -130,25 +145,31 @@ function curve(c: Ctx2D, v: Veins['a'], w: number, h: number): void {
 }
 
 /** The NIR vein map: a dark red field, veins as bright lines, the scan line sweeping wrist to crease, then the target mark. */
-function paintMap(c: Ctx2D, x0: number, s: DrawStationState, veins: Veins): void {
+function paintMap(c: Ctx2D, x0: number, s: DrawStationState, veins: Veins, pic: VeinPicture | null): void {
   const { x, y, w, h } = MAP
   c.save()
   c.beginPath()
   c.rect(x0 + x, y, w, h)
   c.clip()
-  c.fillStyle = '#2a0709'
-  c.fillRect(x0 + x, y, w, h)
-  c.translate(x0 + x, y)
-  c.lineCap = 'round'
-  c.strokeStyle = 'rgba(255,120,105,0.85)'
-  c.lineWidth = 5
-  curve(c, veins.a, w, h)
-  c.lineWidth = 3
-  curve(c, veins.b, w, h)
-  curve(c, veins.c, w, h)
-  c.strokeStyle = 'rgba(255,214,205,0.9)'
-  c.lineWidth = 1.5
-  curve(c, veins.a, w, h)
+  if (pic) {
+    // the near-infrared camera's picture: the veins dark through the skin
+    c.drawImage(pic.canvas, 0, 0, w, h, x0 + x, y, w, h)
+    c.translate(x0 + x, y)
+  } else {
+    c.fillStyle = '#2a0709'
+    c.fillRect(x0 + x, y, w, h)
+    c.translate(x0 + x, y)
+    c.lineCap = 'round'
+    c.strokeStyle = 'rgba(255,120,105,0.85)'
+    c.lineWidth = 5
+    curve(c, veins.a, w, h)
+    c.lineWidth = 3
+    curve(c, veins.b, w, h)
+    curve(c, veins.c, w, h)
+    c.strokeStyle = 'rgba(255,214,205,0.9)'
+    c.lineWidth = 1.5
+    curve(c, veins.a, w, h)
+  }
   const scanning = s.phase === 'veinScan'
   const sx = Math.max(0, Math.min(1, s.scan)) * w
   if (scanning) {
@@ -157,8 +178,8 @@ function paintMap(c: Ctx2D, x0: number, s: DrawStationState, veins: Veins): void
     c.fillStyle = 'rgba(255,225,215,0.95)'
     c.fillRect(sx - 1, 0, 2, h)
   } else if (s.phase === 'needleIn' || s.phase === 'filling' || s.phase === 'needleOut') {
-    const tx = veins.tx * w
-    const ty = veins.ty * h
+    const tx = (pic ? pic.tx : veins.tx) * w
+    const ty = (pic ? pic.ty : veins.ty) * h
     c.strokeStyle = '#7fffd6'
     c.lineWidth = 1.5
     c.beginPath()
@@ -179,12 +200,22 @@ function paintMap(c: Ctx2D, x0: number, s: DrawStationState, veins: Veins): void
 }
 
 /** The ultrasound inset: a sector with speckle, the vein's cross section and, while the needle goes in, the bright needle line. */
-function paintUltrasound(c: Ctx2D, x0: number, s: DrawStationState, seed: number, t: number): void {
+function paintUltrasound(c: Ctx2D, x0: number, s: DrawStationState, seed: number, t: number, pic: VeinPicture | null): void {
   const { x, y, w, h } = US
   c.save()
   c.beginPath()
   c.rect(x0 + x, y, w, h)
   c.clip()
+  if (pic) {
+    // the needle guide: the linear probe's picture along the vein (the needle comes in from the left)
+    c.drawImage(pic.canvas, MAP.w + (US_PX - w) / 2, 0, w, h, x0 + x, y, w, h)
+    c.restore()
+    c.strokeStyle = 'rgba(160,200,208,0.4)'
+    c.lineWidth = 1
+    c.strokeRect(x0 + x + 0.5, y + 0.5, w - 1, h - 1)
+    label(c, DRAW_UI.strip.us, x0 + x + 5, y + 11, 'left', 8, 'rgba(190,225,230,0.9)')
+    return
+  }
   c.fillStyle = '#040809'
   c.fillRect(x0 + x, y, w, h)
   // the sector
@@ -263,14 +294,14 @@ function paintBar(c: Ctx2D, x0: number, s: DrawStationState): void {
 }
 
 /** One robot's live cell (a patient is at the robot). */
-export function paintCell(c: Ctx2D, index: number, s: DrawStationState, t: number): void {
+export function paintCell(c: Ctx2D, index: number, s: DrawStationState, t: number, pic: VeinPicture | null = null): void {
   const x0 = index * CELL_W
   const accent = LED_HEX[s.light]
   frame(c, x0, index + 1, accent)
   label(c, phaseText(s.phase, s.tube, s.tubes.length), x0 + CELL_W - 8, 17, 'right', 9, 'rgba(200,225,228,0.95)')
   const seed = seedOf(s.patientId ?? s.ticket)
-  paintMap(c, x0, s, veinsFor(seed))
-  paintUltrasound(c, x0, s, seed, t)
+  paintMap(c, x0, s, veinsFor(seed), pic)
+  paintUltrasound(c, x0, s, seed, t, pic)
   paintBar(c, x0, s)
 }
 
@@ -289,8 +320,20 @@ export class LiveStrip {
   private readonly lastDraw: number[] = [-1e9, -1e9, -1e9]
   private readonly lastPhase: DrawPhase[] = ['idle', 'idle', 'idle']
   private readonly readyShown: boolean[] = [false, false, false]
+  // R3: the worker's pictures per robot: the job (reused), the patient it was asked for, the newest picture and whose it is
+  private readonly jobs: VeinJob[] = []
+  private readonly asked: number[] = [-1, -1, -1]
+  private readonly pics: (VeinPicture | null)[] = [null, null, null]
+  private readonly picSeed: number[] = [-1, -1, -1]
+  private readonly stages: (Surface | null)[] = [null, null, null]
+  private frameNo = 0
 
-  constructor(env: Env) {
+  constructor(
+    private readonly env: Env,
+    /** R3: the imaging worker (null: the vector drawings). */
+    private readonly backend: ImagingBackend | null = null,
+  ) {
+    for (let i = 0; i < CELLS; i++) this.jobs.push({ t: 'vein', slot: `draw${i}`, id: 0, seed: 0, needle: 0, time: 0, n: 0, mapW: MAP.w, mapH: MAP.h, us: US_PX })
     this.surface = env.createSurface(STRIP_W, STRIP_H)
     this.canvas = this.surface.canvas
     for (let i = 0; i < CELLS; i++) {
@@ -319,7 +362,7 @@ export class LiveStrip {
       }
       const changed = this.lastPhase[i] !== s.phase || this.readyShown[i]
       if (!changed && nowMs - this.lastDraw[i] < every) continue
-      paintCell(this.surface.ctx, i, s, simT)
+      paintCell(this.surface.ctx, i, s, simT, this.backend ? this.picture(i, s, simT) : null)
       this.readyShown[i] = false
       this.lastDraw[i] = nowMs
       this.lastPhase[i] = s.phase
@@ -331,4 +374,45 @@ export class LiveStrip {
     }
     return painted
   }
+
+  /** R3: file the newest worker picture of robot i, ask for the next one, and give the picture to paint if it is this patient's. */
+  private picture(i: number, s: DrawStationState, simT: number): VeinPicture | null {
+    const backend = this.backend!
+    const f = backend.take(`draw${i}`)
+    if (f) this.file(i, f)
+    const seed = seedOf(s.patientId ?? s.ticket)
+    const j = this.jobs[i]
+    j.id++
+    j.seed = seed
+    j.needle = s.phase === 'needleIn' || s.phase === 'filling' || s.phase === 'needleOut' ? (s.phase === 'needleIn' ? s.needle : 1) : 0
+    j.time = simT
+    j.n = this.frameNo++
+    backend.send(j)
+    this.asked[i] = seed
+    return this.picSeed[i] === seed ? this.pics[i] : null
+  }
+
+  private file(i: number, f: FrameIn): void {
+    let pic = this.pics[i]
+    if (!pic || pic.canvas.width !== f.w || pic.canvas.height !== f.h) {
+      const st = this.env.createSurface(f.w, f.h)
+      pic = { canvas: st.canvas, tx: 0.5, ty: 0.5 }
+      this.pics[i] = pic
+      this.stages[i] = st
+    }
+    const c = this.stages[i]!.ctx
+    if (f.bitmap) {
+      c.drawImage(f.bitmap, 0, 0)
+      f.bitmap.close()
+    } else if (f.rgba) {
+      const img = c.createImageData(f.w, f.h)
+      img?.data?.set?.(f.rgba)
+      c.putImageData(img, 0, 0)
+    }
+    pic.tx = f.meta.vein?.tx ?? 0.5
+    pic.ty = f.meta.vein?.ty ?? 0.5
+    // the worker answers the newest job only: a frame for the last ask is that patient's
+    this.picSeed[i] = f.id === this.jobs[i].id ? this.asked[i] : -1
+  }
+
 }

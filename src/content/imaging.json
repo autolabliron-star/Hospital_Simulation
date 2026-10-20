@@ -98,6 +98,16 @@
         { "name": "Lateral view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 }
       ]
     },
+    "xr-knee": {
+      "id": "xr-knee",
+      "modality": "xray",
+      "bodyPart": "knee",
+      "name": "X-ray knee",
+      "sequences": [
+        { "name": "AP view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 },
+        { "name": "Lateral view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 }
+      ]
+    },
     "xr-chest": {
       "id": "xr-chest",
       "modality": "xray",

@@ -4,6 +4,7 @@
  */
 import { CanvasTexture, LinearFilter, MeshBasicMaterial, SRGBColorSpace } from 'three'
 import { domEnv } from '@/scene/imaging/images/ctx'
+import { imagingBackend } from '@/scene/imaging/worker/client'
 import { LiveStrip } from './liveStrip'
 
 let strip: LiveStrip | null = null
@@ -12,7 +13,7 @@ let material: MeshBasicMaterial | null = null
 
 /** The one live strip (created on first use). */
 export function getStrip(): LiveStrip {
-  strip ??= new LiveStrip(domEnv)
+  strip ??= new LiveStrip(domEnv, imagingBackend())
   return strip
 }
 

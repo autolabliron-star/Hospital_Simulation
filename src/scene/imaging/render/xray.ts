@@ -56,6 +56,7 @@ const TILE = 16
 const byValue = (x: number, y: number): number => x - y
 const T_CORTICAL = tissue('cortical')
 const T_MARROW = tissue('marrow')
+const T_CANCELLOUS = tissue('cancellous')
 const T_STONE = tissue('stone')
 const T_CALC = tissue('calcification')
 
@@ -192,13 +193,15 @@ export function memberChord(ph: Phantom, m: number, ox: number, oy: number, oz: 
     out[1] = t1
     return true
   }
-  // M_TAPER: an elliptic tube along local z whose half-axes change along it: cut into 8 slabs, each with its own mean half-axes (a
-  // radiograph must not show the joins of the trunk's segments as steps)
+  // M_TAPER: an elliptic tube along local z whose half-axes change along it: cut into slabs, each with its own mean half-axes (a
+  // radiograph must not show the joins of the trunk's segments as steps); a steep flare (a bone's metaphysis) gets more of them, so its
+  // edge does not show as a staircase
   const z0 = d[o + 12]
   const z1 = d[o + 13]
   let lo = Infinity
   let hi = -Infinity
-  const SLABS = 8
+  const flare = Math.max(Math.abs(d[o + 16] - d[o + 14]), Math.abs(d[o + 17] - d[o + 15]))
+  const SLABS = flare > 6 ? Math.min(32, Math.ceil(flare / 0.7)) : 8
   for (let k = 0; k < SLABS; k++) {
     const za = z0 + ((z1 - z0) * k) / SLABS
     const zb = z0 + ((z1 - z0) * (k + 1)) / SLABS
@@ -338,7 +341,7 @@ export class XrayRenderer {
       }
       if (best < 0) continue
       const t = ph.partTissue[best]
-      const bone = t === T_CORTICAL || t === T_MARROW || t === T_STONE || t === T_CALC
+      const bone = t === T_CORTICAL || t === T_MARROW || t === T_CANCELLOUS || t === T_STONE || t === T_CALC
       sum += (b - a) * mu[t] * (bone ? boneGain : 1)
     }
     return sum

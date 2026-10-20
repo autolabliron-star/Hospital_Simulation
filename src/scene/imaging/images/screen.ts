@@ -28,6 +28,10 @@ import { specKnown } from '../render/spec'
 import { probeFrameInto, usProbeContext, type UsProbeContext } from '../machines/motion'
 import { probeLive } from '../machines/probeLive'
 import { paintUsChrome, paintUsStatus } from './chrome/us'
+import { paintCtChrome, type SliceChrome } from './chrome/ct'
+import { paintMriChrome } from './chrome/mri'
+import { paintXrayChrome } from './chrome/xray'
+import type { SliceMeta } from '../render/spec'
 
 export const SCREEN_SIZE = 384
 const S = SCREEN_SIZE
@@ -38,6 +42,8 @@ export const DISCLAIMER = 'Simulated image, not real patient data'
 
 type Mode = 'none' | 'standby' | 'setup' | 'image' | 'us' | 'usLive'
 
+/** Side of the kept scout pictures (the CT topogram, the MR localisers) the inset is drawn from. */
+const SCOUT_SIZE = 128
 /** Output size of the worker's ultrasound frames: the focused room's and the background's. */
 const US_SIZE_FOCUSED = 512
 const US_SIZE_BACKGROUND = 384
@@ -106,6 +112,12 @@ export class LiveScreen {
   private sliceJobId = 0
   private readonly sliceJob: SliceJob = { t: 'slice', slot: '', id: 0, key: '', seed: 0, modality: 'ct', bodyPart: 'abdomen', seq: { name: '', plane: 'axial', contrast: 'none', images: 1 }, k: 0, size: 512 }
   private readonly thumbs = new Map<string, Surface>()
+  /** The scanner's words of the slice on screen and of the prefetched one (from the worker), and the scout pictures kept for the inset. */
+  private curMeta: SliceMeta | null = null
+  private nextMeta: SliceMeta | null = null
+  private readonly scouts = new Map<string, Surface>()
+  private scoutAsked = ''
+  private readonly chrome: SliceChrome = { size: S, patientName: '', patientId: '', protocol: '', series: '', plane: 'axial', image: 1, images: 1, meta: null as unknown as SliceMeta, scout: null }
   private readonly usJob: UsJob = { t: 'us', slot: 'us', id: 0, seed: 0, frame: newProbeFrame(), depth: 140, time: 0, n: 0, lite: false, size: US_SIZE_FOCUSED }
 
   constructor(
@@ -403,6 +415,8 @@ export class LiveScreen {
       this.resetSeries()
       this.curKey = null
       this.slicePending = null
+      this.curMeta = null
+      this.nextMeta = null
       this.exam = exam
       this.mode = 'image'
     }
@@ -419,6 +433,8 @@ export class LiveScreen {
       this.curValid = false
       this.seq = seqIndex
       this.slice = index
+      // until the new slice's words arrive, the series' last ones stand (the position is the only thing that moves)
+      if (this.curMeta && this.curKey && !this.curKey.startsWith(`${exam.id}:${seqIndex}:`)) this.curMeta = null
       this.buildSliceOverlay(exam, seqIndex, index)
       if (this.nextKey === key && (this.nextBitmap || this.nextStage)) {
         const c = this.cur.ctx
@@ -428,6 +444,9 @@ export class LiveScreen {
         this.curValid = true
         this.curKey = key
         this.nextKey = null
+        this.curMeta = this.nextMeta
+        this.keepScout(exam, seqIndex, index)
+        this.buildSliceOverlay(exam, seqIndex, index)
         arrived = true
         this.prefetch(exam, seqIndex, index)
       } else {
@@ -440,6 +459,9 @@ export class LiveScreen {
       this.curValid = true
       this.curKey = f.key
       this.slicePending = null
+      this.curMeta = f.meta.slice ?? null
+      this.keepScout(exam, seqIndex, index)
+      this.buildSliceOverlay(exam, seqIndex, index)
       arrived = true
       this.prefetch(exam, seqIndex, index)
     } else f?.bitmap?.close()
@@ -454,7 +476,18 @@ export class LiveScreen {
         this.nextStage.ctx.putImageData(img, 0, 0)
       }
       this.nextKey = g.key
+      this.nextMeta = g.meta.slice ?? null
     }
+    // the scout picture for the inset: kept when its step ran, else asked for once (a scan joined mid-way)
+    const h = backend.take(`${m}:scout`)
+    if (h && h.key.startsWith(`${exam.id}:`)) {
+      const sc = this.env.createSurface(SCOUT_SIZE, SCOUT_SIZE)
+      this.blitInto(h, sc)
+      this.scouts.set(h.key, sc)
+      if (this.scouts.size > 8) this.scouts.delete(this.scouts.keys().next().value as string)
+      this.buildSliceOverlay(exam, seqIndex, index)
+      arrived = true
+    } else h?.bitmap?.close()
     if (arrived && index === Math.floor(seq.images / 2)) this.keepThumb(exam, seqIndex)
     const fracQ = Math.round(reveal * 20)
     if (!arrived && (nowMs - this.lastDraw < minInterval || (fracQ === this.fracQ && this.phase === state.phase))) return false
@@ -496,9 +529,60 @@ export class LiveScreen {
     f.drawImage(this.overlay.canvas, 0, 0)
   }
 
-  /** The words round a worker slice (the same as the vector slices' for now). */
+  /** Keep a small copy of a scout picture (a topogram or a localiser) for the later series' insets. */
+  private keepScout(exam: ImagingExam, si: number, k: number): void {
+    if (exam.sequences[si].plane !== 'scout' || !this.curValid) return
+    const sc = this.env.createSurface(SCOUT_SIZE, SCOUT_SIZE)
+    sc.ctx.drawImage(this.cur.canvas, 0, 0, S, S, 0, 0, SCOUT_SIZE, SCOUT_SIZE)
+    this.scouts.set(`${exam.id}:0:${k}`, sc)
+    if (this.scouts.size > 8) this.scouts.delete(this.scouts.keys().next().value as string)
+  }
+
+  /** A worker frame scaled into a surface of any size. */
+  private blitInto(f: FrameIn, into: Surface): void {
+    const W = into.canvas.width
+    const c = into.ctx
+    if (f.bitmap) {
+      c.drawImage(f.bitmap, 0, 0, f.w, f.h, 0, 0, W, W)
+      f.bitmap.close()
+    } else if (f.rgba) {
+      const st = this.env.createSurface(f.w, f.h)
+      const img = st.ctx.createImageData(f.w, f.h)
+      img?.data?.set?.(f.rgba)
+      st.ctx.putImageData(img, 0, 0)
+      c.drawImage(st.canvas, 0, 0, f.w, f.h, 0, 0, W, W)
+    }
+  }
+
+  /** The words round a worker slice: the modality's scanner chrome once the worker's words for it are in, plain words until then. */
   private buildSliceOverlay(exam: ImagingExam, si: number, k: number): void {
     const seq = exam.sequences[si]
+    const meta = this.curMeta
+    if (meta) {
+      const ch = this.chrome
+      ch.patientName = exam.patientName
+      ch.patientId = patientNumber(exam.id)
+      ch.protocol = exam.protocol
+      ch.series = seq.name
+      ch.plane = seq.plane
+      ch.image = k + 1
+      ch.images = seq.images
+      ch.meta = meta
+      ch.scout = null
+      if (meta.insetK >= 0 && exam.sequences[0]?.plane === 'scout') {
+        const key = `${exam.id}:0:${meta.insetK}`
+        const sc = this.scouts.get(key)
+        if (sc) ch.scout = sc.canvas
+        else if (this.scoutAsked !== key && this.backend) {
+          this.scoutAsked = key
+          this.sendSlice(exam, 0, meta.insetK, `${this.modality}:scout`)
+        }
+      }
+      if (exam.modality === 'ct') paintCtChrome(this.overlay.ctx, ch)
+      else if (exam.modality === 'mri') paintMriChrome(this.overlay.ctx, { ...ch, bodyPart: exam.bodyPart })
+      else paintXrayChrome(this.overlay.ctx, { ...ch, bodyPart: exam.bodyPart })
+      return
+    }
     const pick = pickImage(exam, si, k)
     const o = this.overlay.ctx
     o.setTransform(1, 0, 0, 1, 0, 0)

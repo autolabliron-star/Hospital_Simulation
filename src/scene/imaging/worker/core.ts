@@ -9,10 +9,14 @@ import { buildRegions, regionsFor, regionsReady } from '../phantom/regions'
 import type { Landmarks, RegionId } from '../phantom/regions/types'
 import { CtRenderer } from '../render/ct'
 import { MriRenderer } from '../render/mri'
-import { sliceSpec, specKnown } from '../render/spec'
+import { sliceMeta, sliceSpec, specKnown } from '../render/spec'
 import { US_FULL, US_LITE, UsRenderer } from '../render/us'
 import { XrayRenderer } from '../render/xray'
-import type { FrameMeta, Job, SliceJob, UsJob } from './protocol'
+import { NirRenderer } from '../render/nir'
+import { US_LINEAR } from '../render/us'
+import { skinExit } from '../phantom/body'
+import type { V3 } from '../phantom/body'
+import type { FrameMeta, Job, SliceJob, UsJob, VeinJob } from './protocol'
 
 interface Body {
   ph: Phantom
@@ -44,6 +48,9 @@ export class RenderCore {
   private readonly ct = new Map<string, CtRenderer>()
   private readonly mri = new Map<string, MriRenderer>()
   private readonly xray = new Map<string, XrayRenderer>()
+  private readonly nir = new Map<string, NirRenderer>()
+  /** The last vein map per slot (it changes only with the patient) and whose it was. */
+  private readonly nirCache = new Map<string, { seed: number; w: number; h: number; grey: Uint8Array; tx: number; ty: number }>()
 
   /** The compiled body of a patient for a set of regions (the last 4 are kept). */
   body(seed: number, regions: readonly RegionId[]): Body {
@@ -70,7 +77,7 @@ export class RenderCore {
   }
 
   handle(job: Job): Rendered {
-    return job.t === 'us' ? this.renderUs(job) : this.renderSlice(job)
+    return job.t === 'us' ? this.renderUs(job) : job.t === 'vein' ? this.renderVein(job) : this.renderSlice(job)
   }
 
   renderSlice(job: SliceJob): Rendered {
@@ -99,8 +106,58 @@ export class RenderCore {
       rgba[q + 2] = v
       rgba[q + 3] = 255
     }
+    meta.slice = sliceMeta(spec, job.modality, job.bodyPart, job.seq, b.landmarks, b.params)
     meta.ms = now() - t0
     return { rgba, w: job.size, h: job.size, meta }
+  }
+
+  renderVein(job: VeinJob): Rendered {
+    const t0 = now()
+    const b = this.body(job.seed, ['forearm'])
+    const g = veinGeometry(b.ph, b.landmarks)
+    const W = job.mapW + job.us
+    const H = Math.max(job.mapH, job.us)
+    const rgba = new Uint8ClampedArray(W * H * 4)
+    // the vein map: drawn once per patient
+    let map = this.nirCache.get(job.slot)
+    if (!map || map.seed !== job.seed || map.w !== job.mapW || map.h !== job.mapH) {
+      const r = pick(this.nir, job.slot, () => new NirRenderer())
+      const grey = r.render(b.ph, { centre: g.centre, xDir: [0, 0, 1], yDir: [1, 0, 0], view: VEIN_VIEW, w: g.w, h: g.h, sizeW: job.mapW, sizeH: job.mapH, seed: job.seed }).slice()
+      const tx = 0.5 + (g.target[2] - g.centre[2]) / g.w
+      const ty = 0.5 + (g.target[0] - g.centre[0]) / g.h
+      map = { seed: job.seed, w: job.mapW, h: job.mapH, grey, tx, ty }
+      this.nirCache.set(job.slot, map)
+    }
+    for (let y = 0; y < job.mapH; y++) {
+      for (let x = 0; x < job.mapW; x++) {
+        const v = map.grey[y * job.mapW + x]
+        const q = (y * W + x) * 4
+        rgba[q] = v
+        rgba[q + 1] = v
+        rgba[q + 2] = v
+        rgba[q + 3] = 255
+      }
+    }
+    // the needle guide: a linear probe along the vein, the needle in the image plane
+    let r = this.us.get(job.slot)
+    if (!r) {
+      r = new UsRenderer()
+      this.us.set(job.slot, r)
+    }
+    const nd = Math.max(0, Math.min(1, job.needle)) * 1.04
+    const needle = nd > 0 ? { ax: g.entry[0], ay: g.entry[1], az: g.entry[2], bx: g.entry[0] + (g.target[0] - g.entry[0]) * nd, by: g.entry[1] + (g.target[1] - g.entry[1]) * nd, bz: g.entry[2] + (g.target[2] - g.entry[2]) * nd } : undefined
+    const out = r.render(b.ph, b.params, { frame: g.probe, depth: 22, focus: 9, t: job.time, n: job.n, preset: US_LINEAR, size: job.us, needle })
+    for (let y = 0; y < job.us; y++) {
+      for (let x = 0; x < job.us; x++) {
+        const v = out.grey[y * job.us + x]
+        const q = (y * W + job.mapW + x) * 4
+        rgba[q] = v
+        rgba[q + 1] = v
+        rgba[q + 2] = v
+        rgba[q + 3] = 255
+      }
+    }
+    return { rgba, w: W, h: H, meta: { kidney: 0, liver: 0, gallbladder: 0, spleen: 0, bladder: 0, ms: now() - t0, vein: { tx: map.tx, ty: map.ty } } }
   }
 
   renderUs(job: UsJob): Rendered {
@@ -126,6 +183,41 @@ export class RenderCore {
     const share = [0, 0, 0, 0, 0, 0]
     for (let i = 0; i < b.ph.nParts; i++) share[b.group[i]] += out.partShare[i]
     return { rgba, w: job.size, h: job.size, meta: { kidney: share[1], liver: share[2], gallbladder: share[3], spleen: share[4], bladder: share[5], ms: now() - t0 } }
+  }
+}
+
+const VEIN_VIEW: V3 = [0, 1, 0]
+
+export interface VeinGeometry {
+  /** The map's centre on the arm, its x (toward the elbow) and y directions, its field (mm). */
+  centre: V3
+  w: number
+  h: number
+  /** The probe: its face on the skin, the beam and the array (along the vein), the needle's entry and its target (LPS mm). */
+  probe: { ox: number; oy: number; oz: number; bx: number; by: number; bz: number; ax: number; ay: number; az: number; contact: number }
+  entry: V3
+  target: V3
+}
+
+/** Where the vein map looks and where the needle-guide probe sits on a forearm body, from its landmarks. */
+export function veinGeometry(ph: Phantom, lm: Landmarks): VeinGeometry {
+  const t = lm.veinTarget
+  const fossa = lm.fossa
+  const ax = lm.veinAxis
+  // the probe's face: straight above the target on the skin of the palm side
+  const up = skinExit(ph, t[0], t[1], t[2], 0, -1, 0, 60)
+  const ox = t[0]
+  const oy = t[1] - (Number.isFinite(up) ? up : 6)
+  const oz = t[2]
+  // the needle comes in at the probe's wrist end, about 30 degrees to the skin, in the image plane
+  const entry: V3 = [ox - ax[0] * 17, oy - 0.5, oz - ax[2] * 17]
+  return {
+    centre: [fossa[0], fossa[1], t[2] - 34],
+    w: 136,
+    h: 87,
+    probe: { ox, oy, oz, bx: 0, by: 1, bz: 0, ax: ax[0], ay: ax[1], az: ax[2], contact: 1 },
+    entry,
+    target: t,
   }
 }
 

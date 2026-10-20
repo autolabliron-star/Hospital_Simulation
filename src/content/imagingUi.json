@@ -22,5 +22,50 @@
       "spleen": "SPLEEN  LONG",
       "bladder": "BLADDER  TRANS"
     }
+  },
+  "image": "Im {n}/{total}",
+  "orient": {
+    "R": "R",
+    "L": "L",
+    "A": "A",
+    "P": "P",
+    "H": "H",
+    "F": "F"
+  },
+  "ct": {
+    "scanner": "CT  128-slice",
+    "exposure": "{kv} kV  {mas} mAs",
+    "thick": "{mm} mm",
+    "pos": "Z {z} mm",
+    "wl": "W {w}  L {l}",
+    "kernel": {
+      "soft": "Kernel Soft",
+      "sharp": "Kernel Sharp"
+    },
+    "topogram": "Topogram"
+  },
+  "mri": {
+    "field": "3.0 T",
+    "trte": "TR {tr}  TE {te}",
+    "ti": "TI {ti}",
+    "thick": "SL {mm} mm",
+    "pos": "Pos {pos} mm",
+    "fov": "FOV {fov} mm",
+    "localiser": "Localiser",
+    "coils": {
+      "head": "Head 32ch",
+      "spine": "Spine 24ch",
+      "knee": "Knee 18ch",
+      "body": "Body 18ch"
+    }
+  },
+  "xray": {
+    "detector": "DR  Wireless",
+    "exposure": "{kv} kV  {mas} mAs",
+    "sid": "SID {cm} cm",
+    "ei": "EI {ei}",
+    "di": "DI {di}",
+    "grid": "Grid",
+    "noGrid": "No grid"
   }
 }

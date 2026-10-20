@@ -34,6 +34,7 @@ export interface CtRequest {
 }
 
 const T_MARROW = tissue('marrow')
+const T_CANCELLOUS = tissue('cancellous')
 
 export class CtRenderer {
   private readonly raster = new SliceRaster()
@@ -81,7 +82,7 @@ export class CtRenderer {
           const py = p.cy + p.uy * a + p.vy * b
           const pz = p.cz + p.uz * a + p.vz * b
           // trabecular bone is fine and contrasty; soft tissue texture is coarse and faint
-          const cell = ta === T_MARROW ? 0.9 : 3.5
+          const cell = ta === T_MARROW || ta === T_CANCELLOUS ? 0.9 : 3.5
           v += amp * 2 * (value3(px, py, pz, cell, seed ^ (ta * 0x45d9f3b)) - 0.5) * wA[k]
         }
         this.hu[k] = v

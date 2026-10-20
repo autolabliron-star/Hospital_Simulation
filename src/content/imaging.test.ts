@@ -122,6 +122,15 @@ const EXPECTED: Array<[id: string, modality: string, bodyPart: string, sequences
       ['Lateral view', 'projection', 'none', 1, 1],
     ],
   ],
+  [
+    'xr-knee',
+    'xray',
+    'knee',
+    [
+      ['AP view', 'projection', 'none', 1, 1],
+      ['Lateral view', 'projection', 'none', 1, 1],
+    ],
+  ],
   ['xr-chest', 'xray', 'chest', [['PA view', 'projection', 'none', 1, 1]]],
   [
     'xr-hip',
@@ -189,7 +198,7 @@ const SPACING_MINUTES: Record<string, number> = { mri: 20, ct: 10, xray: 8, us: 
 const modalityOf = (o: { protocol: string }): string => protocolById(o.protocol).modality
 
 describe('protocols', () => {
-  it('defines exactly the thirteen protocols in the brief', () => {
+  it('defines exactly the protocols in the brief (thirteen, and the R3 knee radiograph)', () => {
     expect(Object.keys(PROTOCOLS).sort()).toEqual(EXPECTED.map(([id]) => id).sort())
   })
 

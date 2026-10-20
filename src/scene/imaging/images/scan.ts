@@ -116,6 +116,10 @@ function xrayPick(exam: ExamLike, seq: ScanSequence, si: number): SlicePick {
     case 'chest':
       model = lat ? RX.chestLateral(seed) : RX.chestPA(seed)
       break
+    case 'knee':
+      // R3: no vector radiograph of the knee; the worker draws it, and without one the knee's bone shapes stand in
+      model = lat ? kneeSagittal(seed, 0.5) : kneeCoronal(seed, 0.5)
+      break
     default:
       model = lat ? RX.hipLateral(seed) : RX.pelvisAP(seed)
   }

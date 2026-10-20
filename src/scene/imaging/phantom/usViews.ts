@@ -62,14 +62,17 @@ export function viewSpec(view: UsViewId, p: PatientParams): ViewSpec {
     case 'kidneyL':
       return { target: p.kidneyL.c, beam: unit([-1, 0.55, 0.48]), array: [-p.kidneyL.axis[0], -p.kidneyL.axis[1], -p.kidneyL.axis[2]], fan: [-16, 16], depth: 140 }
     case 'liver':
-      return { target: [p.liver.c[0] + 10, p.liver.c[1] - 6, p.liver.c[2] - 20], beam: unit([0.1, 0.9, 0.42]), array: [1, 0, -0.3], fan: [-14, 22], depth: 170 }
+      // right subcostal, a long-axis (sagittal-oblique) plane through the right lobe, the beam tipped up under the costal margin: the plane
+      // runs between the ribs instead of along one (tuned over many patients for the most liver and the least rib in the fan)
+      return { target: [p.liver.c[0] + 10, p.liver.c[1] - 6, p.liver.c[2] - 15], beam: unit([0.2, 0.9, 0.3]), array: [0.3, 0, 1], fan: [-14, 8], depth: 160 }
     case 'gallbladder': {
       const g = p.gallbladder
       return { target: g.c, beam: unit([0.25, 0.78, 0.55]), array: g.axis, fan: [-12, 12], depth: 140 }
     }
     case 'spleen':
-      // intercostal on the left flank, the transducer along the rib space (so the beam passes between two ribs), angled up
-      return { target: [p.spleen.c[0], p.spleen.c[1] - 6, p.spleen.c[2] - 12], beam: unit([-1, 0.05, 0.5]), array: [0, -0.6, -0.8], fan: [-10, 10], depth: 140 }
+      // left flank at the posterior axillary line, a coronal-oblique long axis, the beam angled forward and up toward the hilum under the
+      // lung base; 11-12 cm deep (tuned over many patients for the most spleen and the least rib and lung in the fan)
+      return { target: [p.spleen.c[0], p.spleen.c[1] - 6, p.spleen.c[2] - 40], beam: unit([-1, -0.45, 0.55]), array: [0, 0.4, 1], fan: [-10, 10], depth: 115 }
     case 'bladder': {
       const f = Math.cbrt(p.bladderFill)
       return { target: [0, (-36 + 6 * (1 - f)) * p.depth, (28 + 20 * f) * p.height], beam: unit([0, 0.86, -0.5]), array: [1, 0, 0], fan: [-15, 15], depth: 140 }

@@ -31,6 +31,38 @@ export const ImagingUiSchema = z.strictObject({
     noContact: line,
     views: z.strictObject({ liver: line, gallbladder: line, kidneyR: line, kidneyL: line, spleen: line, bladder: line }),
   }),
+  /** The image counter of a series. */
+  image: line,
+  /** Orientation letters at the picture's edges: right, left, anterior, posterior, head, feet. */
+  orient: z.strictObject({ R: line, L: line, A: line, P: line, H: line, F: line }),
+  ct: z.strictObject({
+    scanner: line,
+    exposure: line,
+    thick: line,
+    pos: line,
+    wl: line,
+    kernel: z.strictObject({ soft: line, sharp: line }),
+    topogram: line,
+  }),
+  mri: z.strictObject({
+    field: line,
+    trte: line,
+    ti: line,
+    thick: line,
+    pos: line,
+    fov: line,
+    localiser: line,
+    coils: z.strictObject({ head: line, spine: line, knee: line, body: line }),
+  }),
+  xray: z.strictObject({
+    detector: line,
+    exposure: line,
+    sid: line,
+    ei: line,
+    di: line,
+    grid: line,
+    noGrid: line,
+  }),
 })
 
 export type ImagingUi = z.infer<typeof ImagingUiSchema>

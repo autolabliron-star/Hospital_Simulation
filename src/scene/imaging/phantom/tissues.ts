@@ -90,6 +90,8 @@ const ROWS: Row[] = [
   ['diaphragm',        50,    55,    60,   6, 0.7, 1420,  32,  1.5, 0, 0,    1.8,  0.4,  1.1, 1.66, 0.212],
   ['scalp',            30,    35,    35,   6, 0.8,  600,  60,  1.0, 0, 0,    1.2,  0.5,  0.8, 1.6,  0.205],
   ['sinusAir',       -950,  -950,  -950,  15, 0.0,  1e4,   1,  0,   0, 0,    0.0,  0.0,  20,  0.0004, 0.002],
+  ['yellowMarrow',    -40,   -38,   -36,  30, 0.9,  400,  80,  0.1, 1, 0,    2.0,  0.6,  12,  4.0,  0.19],
+  ['cancellous',      240,   245,   250, 110, 0.85, 450,  70,  0.3, 1, 0,    2.2,  0.6,  15,  5.0,  0.29],
 ]
 
 export const TISSUES: readonly TissueProps[] = ROWS.map(([name, hu, huArt, huPort, huTex, pd, t1, t2, adc, fat, flow, echo, structure, att, z, mu]) =>

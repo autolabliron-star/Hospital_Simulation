@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { RenderCore } from '../worker/core'
 import { patientParams } from './params'
 import { distanceToSkin, newProbeFrame, viewFrame, viewSpec, type UsViewId } from './usViews'
+import { regionsFor } from './regions'
+import { tissue } from './tissues'
+import { US_LITE, UsRenderer } from '../render/us'
 
 const VIEWS: UsViewId[] = ['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder']
 const ORGAN: Record<UsViewId, 'liver' | 'gallbladder' | 'kidney' | 'spleen' | 'bladder'> = { liver: 'liver', gallbladder: 'gallbladder', kidneyR: 'kidney', kidneyL: 'kidney', spleen: 'spleen', bladder: 'bladder' }
@@ -32,5 +35,33 @@ describe('ultrasound views', () => {
         expect(r.meta[ORGAN[v]], `${v} seed ${seed}`).toBeGreaterThan(0.04)
       }
     }
+  }, 60_000)
+})
+
+describe('the liver and spleen windows (R3 tuning)', () => {
+  it('fill the liver view with liver and keep the ribs out of it; give the spleen a clear share of its fan', () => {
+    const core = new RenderCore()
+    const r = new UsRenderer()
+    const bone = [tissue('cortical'), tissue('marrow')]
+    let liver = 0
+    let ribs = 0
+    let spleen = 0
+    const seeds = [11, 4242, 90001, 5150]
+    for (const seed of seeds) {
+      const p = patientParams(seed)
+      const b = core.body(seed, regionsFor('us', 'abdomen'))
+      for (const [v, into] of [['liver', 'l'], ['spleen', 's']] as const) {
+        const spec = viewSpec(v, p)
+        const f = viewFrame(spec, p, 0.5, 0, 1, newProbeFrame())
+        const o = r.render(b.ph, b.params, { frame: f, depth: spec.depth, focus: spec.depth * 0.55, t: 0, n: 0, preset: US_LITE, size: 64 })
+        if (into === 'l') {
+          liver += o.tissueShare[tissue('liver')] / seeds.length
+          ribs += (o.tissueShare[bone[0]] + o.tissueShare[bone[1]]) / seeds.length
+        } else spleen += o.tissueShare[tissue('spleen')] / seeds.length
+      }
+    }
+    expect(liver).toBeGreaterThan(0.55)
+    expect(ribs).toBeLessThan(0.03)
+    expect(spleen).toBeGreaterThan(0.18)
   }, 60_000)
 })

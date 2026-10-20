@@ -52,7 +52,7 @@ export function buildForearm(b: BodyBuilder, p: PatientParams): Landmarks {
   }
 
   // skin and fat: the outline; the muscles inside it
-  const outline = b.part('armOutline', T.fat, { layer: 1, smooth: 8 })
+  const outline = b.part('armOutline', T.fat, { layer: 1, smooth: 8, outline: true })
   outline.taper(cl, cp, zw - 20, zc, wa, wb, ea, eb).taper(cl, cp, zc, top, ea, eb, ea * 1.05, eb * 1.1)
   b.part('armSkin', T.skin, { layer: 2 }).taper(cl, cp, zw - 20, zc, wa, wb, ea, eb).taper(cl, cp, zc, top, ea, eb, ea * 1.05, eb * 1.1)
   b.part('armFat', T.fat, { layer: 3 }).taper(cl, cp, zw - 20, zc, wa - ARM.skin, wb - ARM.skin, ea - ARM.skin, eb - ARM.skin).taper(cl, cp, zc, top, ea - ARM.skin, eb - ARM.skin, ea * 1.05 - ARM.skin, eb * 1.1 - ARM.skin)
@@ -93,7 +93,18 @@ export function buildForearm(b: BodyBuilder, p: PatientParams): Landmarks {
     return [l, cp - y * (bb - d), z]
   }
   const vein = (name: string, path: [number, number][], rad: number): void => {
-    const pts = path.map(([l, z]) => onVolar(l, z, depthOf + rad))
+    // veins meander: each leg is cut in four with a seeded sideways wander (ends stay put, so the veins still join)
+    const fine: [number, number][] = [path[0]]
+    for (let i = 0; i + 1 < path.length; i++) {
+      const [l0, z0] = path[i]
+      const [l1, z1] = path[i + 1]
+      for (let k = 1; k <= 4; k++) {
+        const t = k / 4
+        const w = k < 4 ? u(-4, 4) * Math.sin(Math.PI * t) : 0
+        fine.push([l0 + (l1 - l0) * t + w, z0 + (z1 - z0) * t])
+      }
+    }
+    const pts = fine.map(([l, z]) => onVolar(l, z, depthOf + rad))
     for (let i = 0; i + 1 < pts.length; i++) {
       b.part(`vein${name}Wall`, T.wall, { layer: 9 }).capsule(pts[i], pts[i + 1], rad + 0.35)
       b.part(`vein${name}`, T.blood, { layer: 10 }).capsule(pts[i], pts[i + 1], rad)

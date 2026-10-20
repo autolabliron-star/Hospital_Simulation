@@ -32,7 +32,7 @@ import type { ErPatient } from '../er/patient'
 const DEMO_PROTOCOLS: Record<ImagingModality, string[]> = {
   mri: ['mri-lumbar', 'mri-brain', 'mri-knee'],
   ct: ['ct-head', 'ct-abdo', 'ct-chest'],
-  xray: ['xr-ankle', 'xr-wrist', 'xr-hip'],
+  xray: ['xr-ankle', 'xr-wrist', 'xr-hip', 'xr-knee'],
   us: ['us-abdo', 'us-renal'],
 }
 
