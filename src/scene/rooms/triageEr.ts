@@ -31,10 +31,11 @@ function trolley(f: Frame, id: string, cx: number, v: number): void {
   f.rect(`${id}:trolley`, cx, v, w + 0.04, l + 0.04)
 }
 
-function monitorStand(f: Frame, id: string, mx: number, mv: number): void {
+/** A bedside monitor on a stand: the live face (R3, src/scene/monitors) goes in the bezel, at anchor `monitorId`; 1.5 : 1 like its layout. */
+function monitorStand(f: Frame, id: string, monitorId: string, mx: number, mv: number): void {
   f.cyl(mx, 0, mv, 0.34, 0.03, 'metalDark')
   f.cyl(mx, 0.03, mv, 0.045, 1.2, 'metalDark')
-  f.display(mx, 1.3, mv + 0.03, 0.42, 0.3, TILE.vitals, { ry: 0, lean: 0.25 })
+  f.bedMonitor(monitorId, mx, 1.3, mv + 0.03, 0.435, 0.3, { ry: 0, lean: 0.25 })
   f.circle(`${id}:monitor`, mx, mv, 0.18)
 }
 
@@ -61,7 +62,7 @@ function bay(f: Frame, id: string, i: number, x0: number, x1: number, first: boo
   // to feet. Triage: the patient sits on the trolley's foot end. Both are approached from the hall.
   if (er) f.seat(`erBay:bay:${i}`, 'erBay', cx, 1.32, TROLLEY.top, { pose: 'lie', far: 1.6 })
   else f.seat(`triageBay:bay:${i}`, 'triageBay', cx, 2.0, TROLLEY.top)
-  monitorStand(f, id, cx + Math.min(0.9, (x1 - x0) / 2 - 0.4), 0.55)
+  monitorStand(f, id, `${er ? 'er' : 'triage'}:${i}`, cx + Math.min(0.9, (x1 - x0) / 2 - 0.4), 0.55)
   curtains(f, id, x0, x1, first, last)
 }
 

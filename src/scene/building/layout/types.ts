@@ -114,6 +114,26 @@ export interface ConsoleScreen {
   h: number
 }
 
+/**
+ * R3: where a live patient monitor's face goes (triage, the ER, pre-op, recovery and the PACU's central station). The layout draws the bezel and NO
+ * picture: src/scene/monitors draws the sweeping face at each anchor (`Frame.bedMonitor`).
+ */
+export interface BedMonitorAnchor {
+  /** `triage:<i>`, `er:<i>`, `preop:<i>`, `pacu:<i>` or `pacu:station`. */
+  id: string
+  area: AreaId
+  /** Centre of the picture (world metres; on level 2, sim coordinates and y above the level's floor). */
+  x: number
+  y: number
+  z: number
+  /** Heading of the picture's normal (the way it faces), and how far it leans back (radians, face up). */
+  heading: number
+  tilt: number
+  /** Size of the picture (the bezel is 3 cm larger). */
+  w: number
+  h: number
+}
+
 export interface BuildingLayout {
   prims: Prim[]
   footprints: Footprint[]
@@ -125,6 +145,8 @@ export interface BuildingLayout {
   commandWall: CommandWallPanel[]
   /** Monitor anchors on the scanner consoles (two per MRI and CT control room, one in the X-ray booth). */
   consoleScreens: ConsoleScreen[]
+  /** R3: the live patient monitors' faces (bezel drawn, picture left to src/scene/monitors), in build order. */
+  bedMonitors: BedMonitorAnchor[]
   /**
    * Every place someone sits or lies (deterministic, ids stable, sorted by id). Each has its true seat height and a
    * walkable `approach` spot (see `SeatSpec`); the nav graph gets a node at every approach and the sim's `SeatRegistry`

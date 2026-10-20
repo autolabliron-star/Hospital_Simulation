@@ -23,6 +23,7 @@
  *   -0.3  imaging images      live scan canvases (10 Hz in the focused room, 1 Hz elsewhere)       src/scene/imaging/index.tsx
  *  -0.28  surgery robot       R2: patient cart, boom and the four arms from robot state; lights   src/scene/surgery
  *  -0.27  surgery screens     R2: the theatre atlas and the shared endoscope live texture         src/scene/surgery
+ *  -0.26  patient monitors    R3: the display clock and the sweeping monitor faces (quads only)   src/scene/monitors
  *  -0.25  imaging machines    MRI table, CT rotor, X-ray tube, ultrasound probe from scanner state src/scene/imaging/machines
  *  -0.24  health kiosks       W4: height arm, cuff, LEDs, paper slip from kiosk state            src/scene/kiosks
  *  -0.23  draw centre         W4: robot heads, needles, tourniquets, prep gripper, live strip     src/scene/drawCentre
@@ -59,6 +60,8 @@ export const FRAME_PRIORITY = {
   /** R2 robotic surgery on level 2. */
   surgeryRig: -0.28,
   surgeryScreens: -0.27,
+  /** R3 live patient monitors: the sweep moves its quads (the pump paints outside the frame). */
+  patientMonitors: -0.26,
   imagingMachines: -0.25,
   /** W4 smart diagnostics (docs/W4-DIAGNOSTICS.md). */
   kiosks: -0.24,

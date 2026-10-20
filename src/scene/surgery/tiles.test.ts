@@ -12,7 +12,6 @@ import { hourAt } from '@/sim/population/schedule'
 import type { SurgeryState } from '@/sim/types'
 import { KIT_SCREENS, KIT_TILE, KIT_TILE_COUNT } from './dims'
 import {
-  anaesthesiaVersion,
   bayPatient,
   boardVersion,
   circulatorVersion,
@@ -22,19 +21,15 @@ import {
   currentCase,
   fitText,
   sentences,
-  MONITOR,
   nextCase,
-  paintAnaesthesia,
   paintCirculator,
   paintConsole,
   paintPacuBoard,
   paintPreOpBoard,
-  patientOnMonitor,
   registerSurgeryTiles,
   stopwatch,
   surgeryTiles,
   versionOf,
-  vitalsOf,
 } from './tiles'
 import { caseView, dockedRobot, stowedRobot, surgeryState, theatre } from './testkit'
 import { logCtx } from './testctx'
@@ -67,13 +62,16 @@ afterEach(() => {
 })
 
 describe('registering the tiles', () => {
-  it('registers the six tiles at the contract indexes with the screens\' anchors, and removes them again', () => {
+  it('registers the five tiles at the contract indexes with the screens\' anchors, and removes them again', () => {
     const st = busy()
     const off = registerSurgeryTiles({ state: () => st, now: () => 1200 })
     cleanup.push(off)
     const reg = surgeryTiles()
-    expect(reg.size).toBe(6)
+    expect(reg.size).toBe(5)
+    // R3: the anaesthesia monitor is a live patient monitor (src/scene/monitors); its index stays reserved and unregistered
+    expect(reg.has(KIT_TILE.anaesthesia)).toBe(false)
     for (const [name, index] of Object.entries(KIT_TILE)) {
+      if (index === KIT_TILE.anaesthesia) continue
       const t = reg.get(index)!
       expect(t, name).toBeDefined()
       expect(t.anchor, name).toBe(KIT_SCREENS[name as keyof typeof KIT_TILE])
@@ -90,7 +88,7 @@ describe('registering the tiles', () => {
     expect(W / H).toBeCloseTo(1.6, 6)
   })
 
-  it('shows up in the atlas rig: six quads placed, painted once, quiet until the theatre changes', () => {
+  it('shows up in the atlas rig: five quads placed, painted once, quiet until the theatre changes', () => {
     let state = busy()
     let now = 1200
     cleanup.push(registerSurgeryTiles({ state: () => state, now: () => now }))
@@ -99,13 +97,14 @@ describe('registering the tiles', () => {
     const atlas: StatusAtlas = { texture, paint: (i, p) => void painted.push(p === null ? -1 : i) }
     const rig = createStatusRig({ atlas, tiles: surgeryTiles })
     rig.step({ generation: 0, now: 0 })
-    expect(rig.shown().sort()).toEqual(Object.values(KIT_TILE).sort())
-    expect(painted.sort()).toEqual(Object.values(KIT_TILE).sort())
+    const five = Object.values(KIT_TILE).filter((i) => i !== KIT_TILE.anaesthesia).sort()
+    expect(rig.shown().sort()).toEqual(five)
+    expect(painted.sort()).toEqual(five)
     painted.length = 0
     // nothing changed: no repaint, however long it runs
     for (let k = 1; k <= 20; k++) rig.step({ generation: 0, now: k * 0.25 })
-    // (the anaesthesia monitor sweeps twice a second, and the clocks tick: only those repaint)
-    expect(painted.filter((i) => i !== KIT_TILE.anaesthesia && i !== KIT_TILE.consoleSurgeon && i !== KIT_TILE.consoleTeach)).toEqual([])
+    // (the console clocks tick: only those repaint)
+    expect(painted.filter((i) => i !== KIT_TILE.consoleSurgeon && i !== KIT_TILE.consoleTeach)).toEqual([])
     // the theatre changes: the version moves and the tiles repaint
     painted.length = 0
     state = busy()
@@ -235,56 +234,6 @@ describe('the console panels', () => {
     expect(consoleVersion(other, 1600)).not.toBe(v)
     const idle = surgeryState()
     expect(consoleVersion(idle, 10)).toBe(consoleVersion(idle, 500))
-  })
-})
-
-describe('the anaesthesia monitor', () => {
-  it('shows traces and numbers only while a patient is on the table: flat lines before and after', () => {
-    const on = busy()
-    expect(patientOnMonitor(on)).toBe(true)
-    const l = logCtx()
-    paintAnaesthesia(l.ctx, W, H, on, 1200)
-    expect(l.texts).toContain(MONITOR.hr)
-    expect(l.texts).toContain(MONITOR.spo2)
-    expect(l.texts).toContain(MONITOR.bp)
-    expect(l.count('stroke')).toBe(3) // the three traces
-    const off = surgeryState()
-    expect(patientOnMonitor(off)).toBe(false)
-    const q = logCtx()
-    paintAnaesthesia(q.ctx, W, H, off, 1200)
-    expect(q.texts).toEqual([])
-    expect(q.count('stroke')).toBe(3)
-  })
-
-  it('shows synthetic vital signs in plausible ranges, seeded by the case and steady over a case', () => {
-    const v = { hr: 0, spo2: 0, rr: 0, sys: 0, dia: 0 }
-    for (const seed of [1, 7, 12345, 99999]) {
-      for (let t = 0; t < 7200; t += 97) {
-        vitalsOf(seed, t, v)
-        expect(v.hr).toBeGreaterThanOrEqual(58)
-        expect(v.hr).toBeLessThanOrEqual(78)
-        expect(v.spo2).toBeGreaterThanOrEqual(96)
-        expect(v.spo2).toBeLessThanOrEqual(99)
-        expect(v.sys).toBeGreaterThan(105)
-        expect(v.sys).toBeLessThan(135)
-        expect(v.dia).toBeGreaterThan(62)
-        expect(v.dia).toBeLessThan(85)
-        expect(v.rr).toBe(12)
-      }
-    }
-    const a = { ...v }
-    vitalsOf(7, 1000, a)
-    const b = { ...v }
-    vitalsOf(7, 1000, b)
-    expect(a).toEqual(b)
-  })
-
-  it('sweeps twice a second while a patient is on the table and holds still when nobody is', () => {
-    const on = busy()
-    expect(anaesthesiaVersion(on, 100.1)).toBe(anaesthesiaVersion(on, 100.3))
-    expect(anaesthesiaVersion(on, 100.1)).not.toBe(anaesthesiaVersion(on, 100.7))
-    const off = surgeryState()
-    expect(anaesthesiaVersion(off, 100.1)).toBe(anaesthesiaVersion(off, 900.7))
   })
 })
 

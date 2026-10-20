@@ -8,10 +8,12 @@
  *
  * Draw calls (visible meshes): MRI 3 + 1 coil, CT 4, X-ray 5, ultrasound 3, monitors 4 = 20.
  */
-import { type BufferGeometry, Group, type Material, Mesh, Quaternion, Vector3 } from 'three'
+import { type BufferGeometry, Group, type Material, Matrix4, Mesh, Quaternion, Vector3 } from 'three'
 import type { ConsoleScreen } from '@/scene/building/layout'
 import { IMAGING } from '@/sim/places'
-import type { ImagingModality, ScannerState } from '@/sim/types'
+import type { ImagingExam, ImagingModality, ScannerState } from '@/sim/types'
+import { newProbeFrame, type ProbeFrame } from '../phantom/usViews'
+import { probeLive } from './probeLive'
 import { buildCtCradle, buildCtGlow, buildCtRotor, buildCtStatic, CT } from './ct'
 import { monitorPlanes } from './monitors'
 import { type GlowGeometry, linear, setRegion, setRegionRGB } from './geometry'
@@ -30,8 +32,12 @@ import {
   ledGain,
   ledLevel,
   lerp,
+  newProbePose,
+  poseFromFrame,
+  probeFrameInto,
   type ProbePose,
-  probeTargetInto,
+  type UsProbeContext,
+  usProbeContext,
   rotorAdvance,
   smoothTo,
   stepToward,
@@ -87,10 +93,14 @@ interface UsRig {
   probe: Mesh
   cable: Mesh
   probeVertices: number
+  /** R3: the smoothed probe frame (patient LPS mm) and its target; the world pose drawn from it. */
+  frame: ProbeFrame
+  target: ProbeFrame
   pose: ProbePose
-  target: ProbePose
+  exam: ImagingExam | null
+  ctx: UsProbeContext | null
   hand: boolean
-  last: { x: number; y: number; z: number; rx: number; tz: number }
+  last: { x: number; y: number; z: number; ax: number; ay: number; az: number; ux: number; uy: number; uz: number }
 }
 
 export interface Rig {
@@ -217,10 +227,13 @@ export function createRig(screens: readonly ConsoleScreen[], monitorMaterial: Mo
       probe,
       cable,
       probeVertices: probeGeo.probeVertices,
-      pose: { x: US_CART.holder.x, y: US_CART.holder.y, z: US_CART.holder.z, rx: 0, tz: 0 },
-      target: { x: 0, y: 0, z: 0, rx: 0, tz: 0 },
+      frame: parkedProbeFrame(),
+      target: newProbeFrame(),
+      pose: newProbePose(),
+      exam: null,
+      ctx: null,
       hand: true,
-      last: { x: NaN, y: NaN, z: NaN, rx: NaN, tz: NaN },
+      last: { x: NaN, y: NaN, z: NaN, ax: NaN, ay: NaN, az: NaN, ux: NaN, uy: NaN, uz: NaN },
     },
   }
   return rig
@@ -352,25 +365,87 @@ const _q = new Quaternion()
 const Z_AXIS = new Vector3(0, 0, 1)
 const CABLE = 0.012
 
-function updateUs(r: UsRig, s: ScannerState, dt: number, t: number): void {
-  const p = r.pose
-  const w = probeTargetInto(r.target, s.phase, s.detail, s.activity, t)
-  p.x = smoothTo(p.x, w.x, PROBE_RATE, dt)
-  p.y = smoothTo(p.y, w.y, PROBE_RATE, dt)
-  p.z = smoothTo(p.z, w.z, PROBE_RATE, dt)
-  p.rx = smoothTo(p.rx, w.rx, PROBE_ROCK_RATE, dt)
-  p.tz = smoothTo(p.tz, w.tz, PROBE_ROCK_RATE, dt)
+function parkedProbeFrame(): ProbeFrame {
+  const f = newProbeFrame()
+  probeFrameInto(f, 'idle', -1, 0, 0, 0, null)
+  return f
+}
 
+const _m = new Matrix4()
+const _x = new Vector3()
+const _y = new Vector3()
+const _z = new Vector3()
+
+function updateUs(r: UsRig, s: ScannerState, dt: number, t: number): void {
+  if (s.exam !== r.exam) {
+    // a new exam: the patient's anatomy and the view of every sweep (allocates, once per exam)
+    r.exam = s.exam
+    r.ctx = usProbeContext(s.exam)
+  }
+  const active = probeFrameInto(r.target, s.phase, s.sequence, s.detail, s.activity, t, r.ctx)
+  // smooth the probe in the patient's frame: the face, then the beam and the array axis (kept orthonormal)
+  const f = r.frame
+  const w = r.target
+  f.ox = smoothTo(f.ox, w.ox, PROBE_RATE, dt)
+  f.oy = smoothTo(f.oy, w.oy, PROBE_RATE, dt)
+  f.oz = smoothTo(f.oz, w.oz, PROBE_RATE, dt)
+  f.contact = smoothTo(f.contact, w.contact, PROBE_ROCK_RATE, dt)
+  let bx = smoothTo(f.bx, w.bx, PROBE_ROCK_RATE, dt)
+  let by = smoothTo(f.by, w.by, PROBE_ROCK_RATE, dt)
+  let bz = smoothTo(f.bz, w.bz, PROBE_ROCK_RATE, dt)
+  const bl = Math.sqrt(bx * bx + by * by + bz * bz) || 1
+  bx /= bl
+  by /= bl
+  bz /= bl
+  let ax = smoothTo(f.ax, w.ax, PROBE_ROCK_RATE, dt)
+  let ay = smoothTo(f.ay, w.ay, PROBE_ROCK_RATE, dt)
+  let az = smoothTo(f.az, w.az, PROBE_ROCK_RATE, dt)
+  const ab = ax * bx + ay * by + az * bz
+  ax -= ab * bx
+  ay -= ab * by
+  az -= ab * bz
+  const al = Math.sqrt(ax * ax + ay * ay + az * az) || 1
+  f.bx = bx
+  f.by = by
+  f.bz = bz
+  f.ax = ax / al
+  f.ay = ay / al
+  f.az = az / al
+  // the screen images this very probe
+  probeLive.active = active
+  probeLive.examId = active && s.exam ? s.exam.id : null
+  const lf = probeLive.frame
+  lf.ox = f.ox
+  lf.oy = f.oy
+  lf.oz = f.oz
+  lf.bx = f.bx
+  lf.by = f.by
+  lf.bz = f.bz
+  lf.ax = f.ax
+  lf.ay = f.ay
+  lf.az = f.az
+  lf.contact = f.contact
+  probeLive.version++
+
+  const p = poseFromFrame(f, r.pose)
   const l = r.last
-  if (changed(p.x, l.x) || changed(p.y, l.y) || changed(p.z, l.z) || changed(p.rx, l.rx) || changed(p.tz, l.tz)) {
+  if (changed(p.x, l.x) || changed(p.y, l.y) || changed(p.z, l.z) || changed(p.ax, l.ax) || changed(p.ay, l.ay) || changed(p.az, l.az) || changed(p.ux, l.ux) || changed(p.uy, l.uy) || changed(p.uz, l.uz)) {
     r.probe.position.set(p.x, p.y, p.z)
-    r.probe.rotation.set(p.rx, 0, p.tz)
+    // local x along the array, local y up the handle, local z completing the frame
+    _x.set(p.ax, p.ay, p.az)
+    _y.set(p.ux, p.uy, p.uz)
+    _z.crossVectors(_x, _y)
+    r.probe.quaternion.setFromRotationMatrix(_m.makeBasis(_x, _y, _z))
     r.probe.updateMatrix()
     l.x = p.x
     l.y = p.y
     l.z = p.z
-    l.rx = p.rx
-    l.tz = p.tz
+    l.ax = p.ax
+    l.ay = p.ay
+    l.az = p.az
+    l.ux = p.ux
+    l.uy = p.uy
+    l.uz = p.uz
 
     const show = handShown(p)
     if (show !== r.hand) {

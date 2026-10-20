@@ -49,11 +49,14 @@ function trolley(c: Frame, id: string): void {
   c.rect(`${id}:trolley`, 0, 0, 0.86, 2.0)
 }
 
-/** A vitals monitor on a floor pole (a weighted base, the pole and the display, facing local +z), standing at the local point. */
-function monitorPole(c: Frame, id: string, lx: number, lz: number): void {
+/**
+ * A vitals monitor on a floor pole (a weighted base, the pole and the bezel, facing local +z), standing at the local point. The live face (R3,
+ * src/scene/monitors) goes in the bezel, at anchor `monitorId`; 1.5 : 1 like its layout.
+ */
+function monitorPole(c: Frame, id: string, monitorId: string, lx: number, lz: number): void {
   c.cyl(lx, 0, lz, 0.34, 0.03, 'metalDark')
   c.cyl(lx, 0.03, lz, 0.045, 1.5, 'metalDark')
-  c.display(lx, 1.52, lz + 0.03, 0.46, 0.32, TILE.vitals, { ry: 0, lean: 0.22 })
+  c.bedMonitor(monitorId, lx, 1.52, lz + 0.03, 0.465, 0.32, { ry: 0, lean: 0.22 })
   c.circle(`${id}:monitor`, lx, lz, 0.2)
 }
 
@@ -176,7 +179,7 @@ function buildPreOp(b: LayoutBuilder, D: Frame): void {
     const c = D.sub(bx, zBed, 0) // +z runs from the head (north) to the feet
     trolley(c, `l2:preop:bed${i}`)
     D.seat(`surgeryBed:preop:${i}`, 'surgeryBed', bx, zBed, BED_TOP, { pose: 'lie', ry: 0, far: 1.8 })
-    monitorPole(c, `l2:preop:bed${i}`, 0.72, -0.62)
+    monitorPole(c, `l2:preop:bed${i}`, `preop:${i}`, 0.72, -0.62)
     ivPole(c, `l2:preop:bed${i}`, -0.62, -0.45)
   })
   // curtains: a half-drawn panel between the bays and at the east end, and the rail across the front of the row
@@ -216,7 +219,7 @@ function buildPacu(b: LayoutBuilder, D: Frame): void {
     const c = D.sub(bx, zBed, Math.PI) // +z runs from the head (south) to the feet (north)
     trolley(c, `l2:pacu:bed${i}`)
     D.seat(`surgeryBed:pacu:${i}`, 'surgeryBed', bx, zBed, BED_TOP, { pose: 'lie', ry: Math.PI, far: 1.8 })
-    monitorPole(c, `l2:pacu:bed${i}`, 0.72, -0.62)
+    monitorPole(c, `l2:pacu:bed${i}`, `pacu:${i}`, 0.72, -0.62)
     ivPole(c, `l2:pacu:bed${i}`, -0.62, -0.45)
   })
   // half-drawn curtains between the bays (the head ends are against the south wall) and the rail along the front of the row
@@ -230,7 +233,8 @@ function buildPacu(b: LayoutBuilder, D: Frame): void {
   D.rbox(ix, 0, iz, 2.3, 0.94, 0.7, 'whitePlastic', { r: 0.04 })
   D.rbox(ix, 0.94, iz, 2.4, 0.05, 0.8, 'woodOak', { r: 0.02 })
   D.display(ix - 0.5, 1.28, iz + 0.15, 0.5, 0.32, TILE.chart, { ry: 0, lean: 0.12 })
-  D.display(ix + 0.5, 1.28, iz + 0.15, 0.5, 0.32, TILE.vitals, { ry: 0, lean: 0.12 })
+  // the central station (R3: the live face of all three bays, src/scene/monitors), 1.6 : 1 like its layout
+  D.bedMonitor('pacu:station', ix + 0.5, 1.28, iz + 0.15, 0.494, 0.32, { ry: 0, lean: 0.12 })
   D.box(ix, 0.5, iz + 0.352, 2.0, 0.05, 0.012, 'glowTeal')
   D.rect('l2:pacu:island', ix, iz, 2.4, 0.8)
   // supply cabinets along the west wall, north of the bays

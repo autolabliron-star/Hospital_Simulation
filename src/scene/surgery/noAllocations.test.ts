@@ -1,8 +1,8 @@
 /**
  * The surgery scene's per-frame paths allocate nothing: no `new`, no array or object literals, no spreads, no closures and no array methods inside the functions
  * that run every frame (a GC pause is a hitch in the middle of a walk). This reads the source, like src/scene/drawCentre/noAllocations.test.ts, and follows the
- * helpers: the chain from the layer's frame callbacks to the last matrix (and the cart's blocker box) is listed here. (The canvas painters run at most 10-12 Hz and build strings; they are not
- * on this list, and the V8 sampling profiler in rig.test.ts measures the rig's frame itself.)
+ * helpers: the chain from the layer's frame callbacks to the last matrix (and the cart's blocker box) is listed here, and (R3) the endoscope picture's whole paint,
+ * from the view it fills to the HUD (src/scene/surgery/endo/). (The V8 sampling profiler in rig.test.ts measures the rig's frame itself.)
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -53,8 +53,15 @@ const PATHS: Record<string, string[]> = {
   'rig.ts': ['writeCart', 'writeArm', 'ledModeOf', 'writeRings', 'writeLaser', 'writeDrape', 'writeLights', 'step'],
   'robotPose.ts': ['poseRobot', 'elbowUp', 'solveTilt', 'tiltDistance', 'tipMotion', 'motionGain', 'angleDelta', 'smooth01', 'clamp01', 'lerp', 'h01'],
   'matrices.ts': ['hideInstance', 'put', 'putYawed', 'putSegment', 'putSegmentPart'],
-  'endoscope.ts': ['tipOnScreen'],
   'liveEndoscope.ts': ['playerInOr', 'inOr', 'cameraLive', 'update'],
+  // R3: the endoscope picture, every function a paint runs (the plate, the wet layer, the tools, the light, the HUD) and the view it reads
+  'endo/view.ts': ['fillEndoView', 'withdrawOf', 'energyAt', 'cameraPose'],
+  'endo/frame.ts': ['tipOnScreen', 'drawTissue', 'drawPlainField', 'clampTo', 'sprite', 'spritePart', 'basis', 'drawShaft', 'drawTent', 'drawInstrument', 'needle', 'glint', 'drawShadows', 'flickerAt', 'drawLight'],
+  'endo/hud.ts': ['roundRect', 'widthOfLook', 'draw', 'chipWidth', 'box', 'badge', 'chip'],
+  'endo/paint.ts': ['paint'],
+  'endo/looks.ts': ['lookIndexOf'],
+  'endo/field.ts': ['smooth'],
+  '../../ui/walk/consoleCard.canvas.ts': ['update'],
   '../interact/surgery/teaching.ts': ['tick', 'end'],
   'cartBlocker.ts': ['writeCartBlocker'],
 }

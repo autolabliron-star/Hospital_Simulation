@@ -7,7 +7,8 @@ import { buildCtBase, buildCtCradle, buildCtGantry, buildCtGlow, buildCtRotor, C
 import { triangles } from './geometry'
 import { monitorPlanes, screenPlane } from './monitors'
 import { buildMriBase, buildMriCoil, buildMriCradle, buildMriGlow, buildMriMagnet, MRI } from './mri'
-import { CRADLE, COIL_OFFSET, PROBE, US_CART, XRAY_POSE } from './motion'
+import { CRADLE, COIL_OFFSET, US_CART, XRAY_POSE } from './motion'
+import { probeLive } from './probeLive'
 import { createRig, disposeRig, type Rig, updateRig } from './rig'
 import { buildUsCable, buildUsCart, buildUsMonitor, buildUsProbe, US_FOOTPRINT } from './us'
 import { buildXrayCarriage, buildXrayColumn, buildXrayGlow, buildXrayHead, buildXrayStatic, XRAY } from './xray'
@@ -476,11 +477,16 @@ describe('animation from the scanner state', () => {
     expect(probe.geometry.drawRange.count).toBe(rig.us.probeVertices)
     expect(cable.scale.z).toBeGreaterThan(0.01)
 
-    for (let i = 0; i < 240; i++) updateRig(rig, states({ us: { phase: 'scanning', detail: 0.5, activity: 1 } }), dt, i * dt)
-    expect(Math.abs(probe.position.x - IMAGING.us.table.out.x)).toBeLessThanOrEqual(0.06)
-    expect(probe.position.z).toBeGreaterThan(8.2)
-    expect(probe.position.z).toBeLessThan(9.0)
-    expect(probe.position.y).toBeLessThan(IMAGING.us.table.height + PROBE.surface + PROBE.hover)
+    // a renal exam's first sweep: the right kidney, from the patient's right flank (+x in the world)
+    const renal: ImagingExam = { ...exam('us', 'kidneys'), sequences: ['Right kidney', 'Left kidney', 'Bladder'].map((name) => ({ name, plane: 'sweep' as const, contrast: 'none' as const, seconds: 90, images: 3 })) }
+    for (let i = 0; i < 240; i++) updateRig(rig, states({ us: { exam: renal, phase: 'scanning', sequence: 0, detail: 0.5, activity: 1 } }), dt, i * dt)
+    expect(probe.position.x).toBeGreaterThan(IMAGING.us.table.out.x + 0.1)
+    expect(probe.position.z).toBeGreaterThan(8.7)
+    expect(probe.position.z).toBeLessThan(9.05)
+    expect(probe.position.y).toBeLessThan(IMAGING.us.table.height + 0.3)
+    // the screen images that very probe
+    expect(probeLive.active).toBe(true)
+    expect(probeLive.examId).toBe(renal.id)
     expect(rig.us.hand).toBe(true)
     expect(probe.geometry.drawRange.count).toBe(Infinity)
     // the cable ends on the cart and on the probe
@@ -494,7 +500,8 @@ describe('animation from the scanner state', () => {
 
   it('a paused sim (dt 0) holds every pose', () => {
     const rig = createRig(screens, stub)
-    const s = states({ ct: { activity: 1 }, us: { phase: 'scanning', activity: 1, detail: 0.3 } })
+    const renal: ImagingExam = { ...exam('us', 'kidneys'), sequences: [{ name: 'Right kidney', plane: 'sweep', contrast: 'none', seconds: 90, images: 3 }] }
+    const s = states({ ct: { activity: 1 }, us: { exam: renal, phase: 'scanning', sequence: 0, activity: 1, detail: 0.3 } })
     updateRig(rig, s, dt, 0)
     const rotor = rig.ct.angle
     const probeZ = rig.us.probe.position.z

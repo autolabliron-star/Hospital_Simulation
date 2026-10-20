@@ -1,23 +1,23 @@
 /**
- * R2 (agent O): the shared endoscope live texture. ONE 256 x 160 canvas shown on the vision cart's monitor, the wall monitor and both console viewers (four
- * quads, one material, one draw call). It repaints at 2 Hz normally and at 10 Hz while somebody is looking: you standing in the OR (level 2 shown, inside its
- * walls) or the OR focused in the overview. Before the endoscope arm is docked (and whenever the camera is not live) it shows a dim standby picture, painted
- * once per robot phase and never again until the phase changes.
+ * R2 (agent O), R3: the shared endoscope live texture. ONE 384 x 216 (16:9) canvas shown on the vision cart's monitor, the wall monitor and both console
+ * viewers (four quads, one material, one draw call). It repaints at 2 Hz normally and at 10 Hz while somebody is looking: you standing in the OR (level 2
+ * shown, inside its walls) or the OR focused in the overview. Before the endoscope arm is docked (and whenever the camera is not live) it shows a dim standby
+ * picture, painted once per robot phase and never again until the phase changes.
  *
  * The material copies the imaging monitors' and the draw-centre strip's settings (a map, `toneMapped: false`, vertex colours), so it shares their shader program and
- * the warm-up has nothing new to compile. The painter is endoscope.ts's; the canvas API goes through the imaging suite's `Env`, so node tests inject a recorder.
+ * the warm-up has nothing new to compile. The painter is endoscope.ts's (src/scene/surgery/endo/): its view is filled from the theatre and the robot each
+ * paint without allocating; the canvas API goes through the imaging suite's `Env`, so node tests inject a recorder.
  */
 import { CanvasTexture, LinearFilter, MeshBasicMaterial, SRGBColorSpace } from 'three'
 import { SURGERY_COPY } from '@/content/surgery'
 import { SURGERY_UI } from '@/content/surgeryUi'
 import type { Env, Surface } from '@/scene/imaging/images/ctx'
 import { areaById, type AreaId } from '@/sim/places'
-import type { RobotState } from '@/sim/types'
-import { paintEndoscope, paintStandby, type EndoView } from './endoscope'
-import { motionGain } from './robotPose'
+import type { RobotState, SurgeryState } from '@/sim/types'
+import { EndoPainter, fillEndoView, newEndoView, paintStandby, type EndoView } from './endoscope'
 
-export const LIVE_W = 256
-export const LIVE_H = 160
+export const LIVE_W = 384
+export const LIVE_H = 216
 /** Redraw periods (ms): somebody is looking, and nobody is. */
 export const HOT_MS = 100
 export const COOL_MS = 500
@@ -66,8 +66,9 @@ export class LiveEndoscope {
   private lastDraw = -1e9
   private lastKey = ''
   private lastLive = false
-  /** The painter's input, one object reused (a frame allocates nothing). */
-  private readonly view: EndoView = { seed: 0, t: 0, gain: 0 }
+  /** The painter's input, one object reused (a frame allocates nothing), and the painter of this size. */
+  readonly view: EndoView = newEndoView()
+  readonly painter = new EndoPainter(LIVE_W, LIVE_H)
 
   constructor(env: Env) {
     this.surface = env.createSurface(LIVE_W, LIVE_H)
@@ -83,17 +84,16 @@ export class LiveEndoscope {
   }
 
   /**
-   * Call every frame. Repaints when due (see the file's header) and returns whether it did. `simT` is the sim clock in seconds, `nowMs` the page clock, `hot`
-   * whether somebody is in the OR.
+   * Call every frame. Repaints when due (see the file's header) and returns whether it did. `s` is the theatre's state, `simT` the sim clock in seconds,
+   * `nowMs` the page clock, `hot` whether somebody is in the OR.
    */
-  update(robot: Readonly<RobotState>, simT: number, nowMs: number, hot: boolean): boolean {
+  update(s: Readonly<SurgeryState>, simT: number, nowMs: number, hot: boolean): boolean {
+    const robot = s.robot
     if (cameraLive(robot)) {
       const every = hot ? HOT_MS : COOL_MS
       if (this.lastLive && nowMs - this.lastDraw < every) return false
-      this.view.seed = robot.motionSeed
-      this.view.t = simT
-      this.view.gain = motionGain(robot, simT)
-      paintEndoscope(this.surface.ctx, LIVE_W, LIVE_H, this.view)
+      fillEndoView(s, simT, this.view)
+      this.painter.paint(this.surface.ctx, this.view)
       this.lastDraw = nowMs
       this.lastLive = true
       this.lastKey = ''

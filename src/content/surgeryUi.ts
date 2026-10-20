@@ -53,8 +53,6 @@ export const SurgeryUiSchema = z.strictObject({
   }),
   prompts: z.strictObject({ viewingWindow: line, preOpDesk: line, pacuIsland: line }),
   goTo: z.strictObject({ group: line }),
-  /** The anaesthesia monitor's channel glyphs (synthetic traces; drawn on the theatre screens). */
-  monitor: z.strictObject({ hr: line, spo2: line, rr: line, bp: line }),
 })
 
 export type SurgeryUiCopy = z.output<typeof SurgeryUiSchema>

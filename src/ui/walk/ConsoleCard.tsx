@@ -6,8 +6,8 @@
  *   ConsoleCardInline   inside the OR panel, under "Watch the endoscope view" (source 'panel'): the same card without sitting; while it is open it tells the sim
  *                       somebody is teaching (`sim.surgery.setTeaching`)
  *
- * The picture is a 384 x 240 canvas repainted at 12 Hz ONLY while the card is mounted (consoleCard.canvas.ts); the HUD (procedure, phase, console clock, each
- * arm's instrument and force-feedback bar, insufflation) is read from the sim at 4 Hz (consoleCard.view.ts). Esc and the close button close it (Esc is the
+ * The picture is a 768 x 432 (16:9) canvas repainted at 12 Hz ONLY while the card is mounted (consoleCard.canvas.ts), with the console's own HUD inside it; the
+ * fact list under it (procedure, phase, console clock, each arm's instrument and force-feedback bar, insufflation) is read from the sim at 4 Hz (consoleCard.view.ts). Esc and the close button close it (Esc is the
  * interaction layer's: src/scene/interact/overlays.ts).
  */
 import { useCallback, useEffect, useRef } from 'react'
@@ -86,7 +86,7 @@ function Body({ source }: { source: 'seat' | 'panel' }) {
         useConsoleCard.getState().close()
         return
       }
-      painter.update(sim.surgery.state.robot, sim.t, performance.now())
+      painter.update(sim.surgery.state, sim.t, performance.now())
     }
     tick()
     const id = window.setInterval(tick, 1000 / 12)

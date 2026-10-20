@@ -1,6 +1,6 @@
 /*
- * R2: the teaching-console card. A frosted card like the health card's: the simulated endoscope view on top (a 384 x 240 canvas, a 8:5 picture that scales with the
- * card), then the HUD rows. Walk mode puts it bottom right where the drawer and health cards go (you are never at more than one of them); inside the OR panel it
+ * R2: the teaching-console card. A frosted card like the health card's: the simulated endoscope view on top (a 768 x 432 canvas, a 16:9 picture that scales with
+ * the card), then the HUD rows. Walk mode puts it bottom right where the drawer and health cards go (you are never at more than one of them); inside the OR panel it
  * is an ordinary block under the "Watch the endoscope view" button.
  */
 
@@ -8,7 +8,7 @@
   position: absolute;
   right: 16px;
   bottom: 16px;
-  width: min(420px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 32px));
   padding: 12px 14px 12px;
   animation: hud-fade-in 0.25s ease both;
 }
@@ -46,7 +46,7 @@
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 8 / 5;
+  aspect-ratio: 16 / 9;
 }
 
 .walk-console__standby {

@@ -1,0 +1,52 @@
+{
+  "simulated": "Simulated",
+  "standby": "Standby",
+  "standbyNote": "No patient connected",
+  "spotCheck": "Spot check",
+  "adult": "Adult",
+  "beds": {
+    "or": "OR 1 · Robotic",
+    "pacu": "PACU {n}",
+    "preop": "Pre-op {n}",
+    "er": "ER {n}",
+    "triage": "Triage {n}",
+    "station": "PACU · Central station"
+  },
+  "waves": {
+    "ecg": "II",
+    "ecgV": "V5",
+    "pleth": "Pleth",
+    "art": "ART",
+    "co2": "CO₂",
+    "resp": "Resp"
+  },
+  "params": {
+    "hr": "HR",
+    "pr": "PR",
+    "spo2": "SpO₂",
+    "nibp": "NIBP",
+    "art": "ART",
+    "co2": "CO₂",
+    "etco2": "et",
+    "fico2": "fi",
+    "awrr": "awRR",
+    "rr": "RR",
+    "temp": "Temp"
+  },
+  "units": {
+    "bpm": "bpm",
+    "percent": "%",
+    "mmHg": "mmHg",
+    "perMin": "rpm",
+    "celsius": "°C"
+  },
+  "nibp": {
+    "none": "---/---",
+    "at": "{time}",
+    "auto": "Auto {n} min",
+    "manual": "Manual"
+  },
+  "station": {
+    "empty": "Empty bay"
+  }
+}

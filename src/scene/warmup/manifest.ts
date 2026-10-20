@@ -49,6 +49,11 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/drawCentre/liveTexture.ts': { count: 1, via: 'mounted', where: 'DrawCentreLayer: the three robot screens (draw-screens), made at mount by createDrawRig; imaging-monitor settings, shared program' },
   'src/scene/surgery/liveEndoscope.ts': { count: 1, via: 'mounted', where: 'SurgeryLayer: the four endoscope screens (surgery-live-screens: vision cart, wall monitor, console viewers), made at mount by createLiveResources; imaging-monitor settings, shared program' },
   'src/scene/robots/faceMaterial.ts': { count: 1, via: 'mounted', where: 'PodsLayer: the pod face screens' },
+  'src/scene/monitors/mesh.ts': {
+    count: 1,
+    via: 'mounted',
+    where: 'PatientMonitors: the monitor faces of both levels (patient-monitors-level-1/2), mounted hidden at load; the live strip\'s settings (map, toneMapped false, vertex colours of item size 3), shared program',
+  },
 }
 
 const BLOCK_COMMENT = /\/\*[\s\S]*?\*\//g

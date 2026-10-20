@@ -1,6 +1,7 @@
 /**
- * The shared endoscope live texture in node (a recording environment stands in for the canvas): standby before the camera is live and once per robot phase, 2 Hz
- * normally and 10 Hz while somebody is in the OR, the presence rule, and the live screens' material and geometry.
+ * The shared endoscope live texture in node (a recording environment stands in for the canvas): one 384 x 216 (16:9) canvas, standby before the camera is live
+ * and once per robot phase, 2 Hz normally and 10 Hz while somebody is in the OR, the procedure's plate and instruments from the theatre, the presence rule,
+ * and the live screens' material and 16:9 geometry.
  */
 import { LinearFilter, MeshBasicMaterial, SRGBColorSpace } from 'three'
 import { describe, expect, it } from 'vitest'
@@ -9,10 +10,15 @@ import { SURGERY_UI } from '@/content/surgeryUi'
 import type { Env, Surface } from '@/scene/imaging/images/ctx'
 import { createRecorder, mockSurface } from '@/scene/imaging/images/mockCanvas'
 import { areaById } from '@/sim/places'
-import { LIVE_SCREENS } from './dims'
+import { LIVE_ASPECT, LIVE_SCREENS } from './dims'
 import { cameraLive, COOL_MS, createLiveResources, HOT_MS, inOr, LIVE_H, LIVE_W, LiveEndoscope, playerInOr } from './liveEndoscope'
 import { liveScreensGeometry, screenQuad } from './liveScreens'
-import { dockedRobot, stowedRobot } from './testkit'
+import { caseView, dockedRobot, stowedRobot, surgeryState, theatre } from './testkit'
+import type { RobotState, SurgeryProcedure, SurgeryState } from '@/sim/types'
+
+/** The theatre around a robot: a case of `procedure` in the console phase. */
+const st = (robot: RobotState, procedure: SurgeryProcedure = 'cholecystectomy'): SurgeryState =>
+  surgeryState({ theatre: theatre('console', { cases: [caseView('c1', { procedure, consoleStart: 0 })] }), robot })
 
 /** A recording environment that keeps every string drawn. */
 function logEnv(): { env: Env; texts: string[]; sizes: [number, number][]; rec: ReturnType<typeof createRecorder> } {
@@ -50,11 +56,11 @@ describe('when the camera is live', () => {
 })
 
 describe('the live canvas', () => {
-  it('is one 256 x 160 canvas, painted at construction with the standby picture', () => {
+  it('is one 384 x 216 (16:9) canvas, painted at construction with the standby picture', () => {
     const { env, texts, sizes } = logEnv()
     const live = new LiveEndoscope(env)
     expect(sizes).toEqual([[LIVE_W, LIVE_H]])
-    expect([LIVE_W, LIVE_H]).toEqual([256, 160])
+    expect([LIVE_W, LIVE_H]).toEqual([384, 216])
     expect(live.paints).toBe(1)
     expect(texts).toEqual([SURGERY_UI.console.endoscope, SURGERY_COPY.robotPhases.stowed])
   })
@@ -65,9 +71,9 @@ describe('the live canvas', () => {
     let flagged = 0
     live.onDraw = () => flagged++
     const r = stowedRobot('stowed')
-    for (let i = 0; i < 100; i++) expect(live.update(r, i, i * 16, false)).toBe(false)
+    for (let i = 0; i < 100; i++) expect(live.update(st(r), i, i * 16, false)).toBe(false)
     expect(live.paints).toBe(1)
-    const d = stowedRobot('draping', 0.5)
+    const d = st(stowedRobot('draping', 0.5))
     expect(live.update(d, 100, 1700, false)).toBe(true)
     expect(live.update(d, 101, 1716, false)).toBe(false)
     expect(texts.slice(-2)).toEqual([SURGERY_UI.console.endoscope, SURGERY_COPY.robotPhases.draping])
@@ -77,7 +83,7 @@ describe('the live canvas', () => {
   it('repaints the live picture every 500 ms when nobody is in the OR and every 100 ms when somebody is', () => {
     const { env } = logEnv()
     const live = new LiveEndoscope(env)
-    const r = dockedRobot('transverse')
+    const r = st(dockedRobot('transverse'))
     const count = (hot: boolean): number => {
       const start = live.paints
       // 10 seconds of frames at 60 Hz
@@ -97,11 +103,22 @@ describe('the live canvas', () => {
     expect(COOL_MS).toBe(500)
   })
 
+  it('paints the current case\'s procedure with the arms\' own instruments, through one painter of its own size, allocation-free view', () => {
+    const { env, texts } = logEnv()
+    const live = new LiveEndoscope(env)
+    const r = dockedRobot('transverse', { arms: dockedRobot('transverse').arms.map((a, i) => ({ ...a, instrument: SURGERY_COPY.procedures.prostatectomy.instruments[i] })) })
+    expect(live.update(st(r, 'prostatectomy'), 100, 1000, true)).toBe(true)
+    expect(live.view.proc).toBe(2)
+    expect(live.painter.w).toBe(LIVE_W)
+    expect(live.painter.h).toBe(LIVE_H)
+    expect(texts).toEqual(expect.arrayContaining(['Prograsp', 'Bipolar', 'Needle drv', '30°', 'Simulated']))
+  })
+
   it('goes back to standby when the arms come off, once', () => {
     const { env, texts } = logEnv()
     const live = new LiveEndoscope(env)
-    live.update(dockedRobot('transverse'), 100, 1000, true)
-    const back = stowedRobot('cleaning', 0.5)
+    live.update(st(dockedRobot('transverse')), 100, 1000, true)
+    const back = st(stowedRobot('cleaning', 0.5))
     expect(live.update(back, 3000, 90_000, true)).toBe(true)
     expect(live.update(back, 3001, 90_100, true)).toBe(false)
     expect(texts.slice(-1)).toEqual([SURGERY_COPY.robotPhases.cleaning])
@@ -124,8 +141,10 @@ describe('who is in the OR', () => {
 })
 
 describe('the live screens', () => {
-  it('are four quads (the vision cart, the wall monitor, the two viewers) in ONE geometry with white vertex colours', () => {
+  it('are four 16:9 quads (the vision cart, the wall monitor, the two viewers) in ONE geometry with white vertex colours', () => {
     expect(LIVE_SCREENS).toHaveLength(4)
+    for (const a of LIVE_SCREENS) expect(a.w / a.h).toBeCloseTo(LIVE_ASPECT, 9)
+    expect(LIVE_W / LIVE_H).toBeCloseTo(LIVE_ASPECT, 9)
     const g = liveScreensGeometry()
     expect(g.getAttribute('position').count).toBe(16)
     expect(g.index!.count / 3).toBe(8)
@@ -177,7 +196,7 @@ describe('the live screens', () => {
     expect(res.texture.minFilter).toBe(LinearFilter)
     // a redraw flags the texture for upload
     const v0 = res.texture.version
-    res.live.update(dockedRobot('transverse'), 100, 1000, true)
+    res.live.update(st(dockedRobot('transverse')), 100, 1000, true)
     expect(res.texture.version).toBeGreaterThan(v0)
     res.dispose()
   })

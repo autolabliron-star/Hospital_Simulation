@@ -60,30 +60,20 @@ const PAINTERS: Record<TileName, Painter> = {
     text(c, '98%', w - 62, h - 62, 24, '#e8fffb', 600, 'center')
   },
   vitals(c, w, h) {
-    bg(c, w, h, '#06100f', '#0a1a18')
-    c.strokeStyle = 'rgba(60, 207, 110, 0.14)'
-    c.lineWidth = 1
-    for (let x = 0; x < w; x += 20) {
-      c.beginPath()
-      c.moveTo(x, 0)
-      c.lineTo(x, h)
-      c.stroke()
+    // R3: the live patient monitors draw their own faces (src/scene/monitors); a screen left on this tile is a monitor in standby: dark, no text,
+    // faint flat lines where the traces would run and dim boxes where the numbers would be
+    bg(c, w, h, '#05090b', '#081013')
+    c.fillStyle = 'rgba(120, 150, 160, 0.10)'
+    c.fillRect(0, 0, w, 16)
+    for (let i = 0; i < 3; i++) {
+      c.fillStyle = 'rgba(80, 200, 140, 0.16)'
+      c.fillRect(14, 48 + i * 52, w - 140, 2)
     }
-    c.strokeStyle = STATUS.green
-    c.lineWidth = 3
-    c.beginPath()
-    for (let x = 0; x <= w - 120; x += 2) {
-      const t = (x % 80) / 80
-      const y = 62 + (t < 0.4 ? 0 : t < 0.46 ? -34 * ((t - 0.4) / 0.06) : t < 0.52 ? -34 + 70 * ((t - 0.46) / 0.06) : t < 0.58 ? 36 - 36 * ((t - 0.52) / 0.06) : 0)
-      if (x === 0) c.moveTo(x, y)
-      else c.lineTo(x, y)
+    for (let i = 0; i < 4; i++) {
+      rr(c, w - 108, 26 + i * 42, 94, 30, 4)
+      c.fillStyle = 'rgba(140, 170, 180, 0.07)'
+      c.fill()
     }
-    c.stroke()
-    text(c, '72', w - 56, 40, 44, STATUS.green, 700, 'center')
-    text(c, 'bpm', w - 56, 74, 15, '#7fcf9a', 500, 'center')
-    text(c, '98', 52, 148, 40, '#6fd6ff', 700, 'center')
-    text(c, 'SpO2', 52, 178, 15, '#7fb9d6', 500, 'center')
-    text(c, '120/80', w - 78, 150, 34, STATUS.amber, 700, 'center')
   },
   chart(c, w, h) {
     bg(c, w, h, '#17242a', '#1d2f35')

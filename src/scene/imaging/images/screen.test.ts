@@ -134,3 +134,38 @@ describe('LiveScreen', () => {
     expect(screen.update(stateOf('us', exam, 'scanning', 0, 0.3, 1, 0.3), 5, 2000, 100)).toBe(false)
   })
 })
+
+describe('LiveScreen with the imaging worker (R3, inline backend)', () => {
+  it('draws the ultrasound from the worker while sweeping, holds it frozen between sweeps', async () => {
+    const { InlineBackend } = await import('../worker/client')
+    const { env, rec } = mockEnv()
+    const backend = new InlineBackend()
+    const screen = new LiveScreen('us', env, createPainter(env), backend)
+    const exam = examOf('us-renal')
+    let draws = 0
+    for (let i = 0; i < 12; i++) if (screen.update(stateOf('us', exam, 'scanning', 0, i / 40, 1, i / 40), i * 0.1, 1000 + i * 100, 100)) draws++
+    // every update while sweeping asks for a frame; the inline backend answers at once, so every one draws
+    expect(backend.stats.sent).toBeGreaterThanOrEqual(10)
+    expect(draws).toBeGreaterThanOrEqual(10)
+    expect(rec.count('drawImage')).toBeGreaterThan(10)
+    // the sweep ends: no more requests, one frozen redraw, then quiet
+    const sent = backend.stats.sent
+    const frozen = [0, 1, 2].map((i) => screen.update(stateOf('us', exam, 'scanning', 0, 1, 0, 0.9), 5 + i, 3000 + i * 200, 100))
+    expect(backend.stats.sent).toBe(sent)
+    expect(frozen.filter(Boolean).length).toBe(1)
+  }, 60_000)
+
+  it('asks the worker for each new CT slice (and prefetches the next) and reveals it', async () => {
+    const { InlineBackend } = await import('../worker/client')
+    const { env } = mockEnv()
+    const backend = new InlineBackend()
+    const screen = new LiveScreen('ct', env, createPainter(env), backend)
+    const exam = examOf('ct-abdo')
+    let drew = 0
+    for (let i = 0; i < 6; i++) if (screen.update(stateOf('ct', exam, 'scanning', 1, i / 60 + 0.001, 1), i, 1000 + i * 150, 100)) drew++
+    expect(drew).toBeGreaterThan(0)
+    // the slice and the next one, for the first slice; later slices come from the prefetch
+    expect(backend.stats.sent).toBeGreaterThanOrEqual(2)
+    expect(screen.thumbOf(exam, 1)).toBeNull()
+  }, 60_000)
+})

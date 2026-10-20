@@ -1,0 +1,26 @@
+{
+  "institution": "The Ideal Hospital",
+  "disclaimer": "Simulated image, not real patient data",
+  "us": {
+    "preset": "C5-1  Abdomen",
+    "live": "LIVE",
+    "freeze": "FREEZE",
+    "stored": "Stored {n}/{total}",
+    "freq": "{mhz} MHz",
+    "gain": "Gain {gain}",
+    "dr": "DR {dr}",
+    "depth": "D {cm} cm",
+    "fr": "{fps} Hz",
+    "mi": "MI {mi}",
+    "tis": "TIs {tis}",
+    "noContact": "No contact",
+    "views": {
+      "liver": "LIVER  RUQ",
+      "gallbladder": "GB  LONG",
+      "kidneyR": "RT KIDNEY  LONG",
+      "kidneyL": "LT KIDNEY  LONG",
+      "spleen": "SPLEEN  LONG",
+      "bladder": "BLADDER  TRANS"
+    }
+  }
+}

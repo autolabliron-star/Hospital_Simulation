@@ -1,7 +1,8 @@
 /**
  * The robotic OR's live scene layer (R2, level 2): the da Vinci 5 patient cart and its four arms from `sim.surgery.state.robot` (rig.ts: three instanced pools, three
  * draw calls), the surgical lights' glowing faces, the surgeryKit status screens (tiles.ts on the W4 atlas rig: consoles, anaesthesia monitor, the circulator's
- * desk, the PACU and pre-op boards) and the shared endoscope live texture on the vision cart's monitor, the wall monitor and the console viewers (liveEndoscope.ts);
+ * desk, the PACU and pre-op boards) and the shared endoscope live texture on the vision cart's monitor, the wall monitor and the console viewers (liveEndoscope.ts;
+ * R3: its tissue plates and instrument sprites are baked here at mount, behind the loading screen, under a warm gate: endo/plates.ts);
  * plus YOUR session at the teaching console (src/scene/interact/surgery/teaching.ts), ticked here after the interaction system has seated or stood you.
  * The patient cart is solid: its footprint is a moving blocker for your body (cartBlocker.ts), written at FRAME_PRIORITY.doors, before you move.
  *
@@ -24,6 +25,8 @@ import { createStatusRig, type StatusStep } from '@/scene/w4kit/statusRig'
 import { loop, sim, simGeneration } from '@/sim'
 import { LEVEL2_DX, LEVEL_Y } from '@/sim/levels'
 import { useConsoleCard } from '@/ui/walk/consoleCard.store'
+import { installEndoDebug } from './endo/debug'
+import { ensureEndoPlates } from './endoscope'
 import { inOr, createLiveResources } from './liveEndoscope'
 import { createLiveScreens } from './liveScreens'
 import { createSurgeryRig, type SurgeryRigStep } from './rig'
@@ -45,6 +48,9 @@ function teachingEnv(): TeachingEnv {
     },
   }
 }
+
+/** `?probe=1` installs the endoscope's probe handle (endo/debug.ts). */
+const probeEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('probe') === '1'
 
 export function SurgeryLayer() {
   const rig = useMemo(() => createSurgeryRig(), [])
@@ -72,9 +78,13 @@ export function SurgeryLayer() {
     kit.attach()
     // the six tiles are painted and uploaded now, behind the loading screen, not on the frame level 2 is first shown
     kit.step({ generation: simGeneration, now: 0 })
+    // the endoscope's sprites now, its three tissue plates in 8 ms slices; the warm-up holds the Enter button until they are in
+    void ensureEndoPlates(domEnv)
+    const offDebug = probeEnabled ? installEndoDebug(domEnv, { get canvas() { return live.live.canvas }, get paints() { return live.live.paints } }) : null
     teachingRegistry.current = teaching
     return () => {
       off()
+      offDebug?.()
       if (teachingRegistry.current === teaching) teachingRegistry.current = null
       kit.dispose()
       live.dispose()
@@ -103,7 +113,7 @@ export function SurgeryLayer() {
     kitIn.generation = simGeneration
     kitIn.now = state.clock.elapsedTime
     kit.step(kitIn)
-    live.live.update(sim.surgery.state.robot, sim.t, performance.now(), inOr(useFocus.getState().area, sim.player, levelView.shown))
+    live.live.update(sim.surgery.state, sim.t, performance.now(), inOr(useFocus.getState().area, sim.player, levelView.shown))
   }, FRAME_PRIORITY.surgeryScreens)
 
   return (

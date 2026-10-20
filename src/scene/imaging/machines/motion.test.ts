@@ -11,10 +11,12 @@ import {
   laserTarget,
   lampLevel,
   ledLevel,
+  newProbePose,
   PROBE,
   probeActive,
-  type ProbePose,
+  probeFrameInto,
   probeTargetInto,
+  usProbeContext,
   ROTOR_TURNS_PER_SECOND,
   rotorAdvance,
   smoothTo,
@@ -25,10 +27,10 @@ import {
   xrayPose,
   XRAY_POSE,
 } from './motion'
+import { newProbeFrame } from '../phantom/usViews'
 
 const TAU = Math.PI * 2
 const PHASES: ScannerPhase[] = ['idle', 'prep', 'positioning', 'tableIn', 'scanning', 'tableOut', 'cleanup']
-const newProbe = (): ProbePose => ({ x: 0, y: 0, z: 0, rx: 0, tz: 0 })
 
 describe('table travel', () => {
   for (const m of ['mri', 'ct'] as const) {
@@ -171,46 +173,107 @@ describe('X-ray tube', () => {
 
 describe('ultrasound probe', () => {
   const holder = US_CART.holder
-  it('is parked on the cart holder whenever the scan is not under way', () => {
+  const couch = IMAGING.us.table
+  const renal = usProbeContext({ imageSeed: 4242, bodyPart: 'kidneys', sequences: ['Right kidney', 'Left kidney', 'Bladder'].map((name) => ({ name, plane: 'sweep' as const, contrast: 'none' as const, seconds: 90, images: 3 })) })!
+  const abdo = usProbeContext({ imageSeed: 77, bodyPart: 'abdomen', sequences: ['Liver', 'Gallbladder', 'Right kidney', 'Left kidney', 'Spleen'].map((name) => ({ name, plane: 'sweep' as const, contrast: 'none' as const, seconds: 90, images: 3 })) })!
+
+  it('is parked on the cart holder whenever the scan is not under way (or there is no exam)', () => {
     for (const p of PHASES) {
       if (probeActive(p)) continue
-      const out = probeTargetInto(newProbe(), p, 0.7, 1, 3.3)
-      expect([out.x, out.y, out.z, out.rx, out.tz]).toEqual([holder.x, holder.y, holder.z, 0, 0])
+      const out = probeTargetInto(newProbePose(), p, 0.7, 1, 3.3, 0, renal)
+      expect(out.x).toBeCloseTo(holder.x, 9)
+      expect(out.y).toBeCloseTo(holder.y, 9)
+      expect(out.z).toBeCloseTo(holder.z, 9)
+      // upright in its holder: array along +x, handle up
+      expect([out.ax, out.uy]).toEqual([1, 1])
       expect(handShown(out)).toBe(false)
     }
+    expect(handShown(probeTargetInto(newProbePose(), 'scanning', 0.5, 1, 0, 0, null))).toBe(false)
   })
-  it('works over the abdomen while positioning and scanning, with the hand on it', () => {
+
+  it('works on the patient while positioning and scanning, with the hand on it', () => {
     for (const p of ['positioning', 'tableIn', 'scanning'] as const) {
       expect(probeActive(p)).toBe(true)
-      expect(handShown(probeTargetInto(newProbe(), p, 0.5, 1, 0))).toBe(true)
+      expect(handShown(probeTargetInto(newProbePose(), p, 0.5, 1, 0, 0, renal))).toBe(true)
     }
   })
-  it('sweeps z over 8.2 .. 9.0 with detail, a few cm across the couch, and presses down in contact', () => {
-    const couchX = IMAGING.us.table.out.x
-    const y = IMAGING.us.table.height + PROBE.surface
-    const a = probeTargetInto(newProbe(), 'scanning', 0, 1, 0)
-    const b = probeTargetInto(newProbe(), 'scanning', 1, 1, 0)
-    expect(a.z).toBeCloseTo(8.2, 9)
-    expect(b.z).toBeCloseTo(9.0, 9)
-    for (let i = 0; i <= 50; i++) {
-      const p = probeTargetInto(newProbe(), 'scanning', i / 50, 1, i * 0.07)
-      expect(Math.abs(p.x - couchX)).toBeLessThanOrEqual(0.05 + 1e-9)
-      expect(p.z).toBeGreaterThanOrEqual(8.2 - 1e-9)
-      expect(p.z).toBeLessThanOrEqual(9.0 + 1e-9)
-      expect(p.y).toBeCloseTo(y - PROBE.press, 9)
+
+  it('images the right kidney from the right flank, the left from the left, the bladder from just above the pubis', () => {
+    const f = newProbeFrame()
+    // right kidney: on the patient's right (+x in the world), at kidney height, the beam going medially (handle pointing out to +x)
+    for (let i = 0; i <= 10; i++) {
+      const r = probeTargetInto(newProbePose(), 'scanning', i / 10, 1, i * 0.37, 0, renal, f)
+      expect(r.x).toBeGreaterThan(couch.out.x + 0.1)
+      expect(r.z).toBeGreaterThan(8.7)
+      expect(r.z).toBeLessThan(9.05)
+      expect(r.ux).toBeGreaterThan(0.6)
+      // the beam aims through the kidney: its centre lies close to the middle of the picture plane
+      const k = renal.params.kidneyR.c
+      const dx = k[0] - f.ox
+      const dy = k[1] - f.oy
+      const dz = k[2] - f.oz
+      const along = dx * f.bx + dy * f.by + dz * f.bz
+      expect(along).toBeGreaterThan(40)
+      expect(along).toBeLessThan(130)
     }
-    // in contact the probe is pressed 2 cm below the surface level; without contact it hovers above it
-    expect(probeTargetInto(newProbe(), 'scanning', 0.5, 0, 0).y).toBeCloseTo(y + PROBE.hover, 9)
+    const l = probeTargetInto(newProbePose(), 'scanning', 0.5, 1, 0, 1, renal)
+    expect(l.x).toBeLessThan(couch.out.x - 0.1)
+    expect(l.ux).toBeLessThan(-0.4)
+    const b = probeTargetInto(newProbePose(), 'scanning', 0.5, 1, 0, 2, renal)
+    expect(Math.abs(b.x - couch.out.x)).toBeLessThan(0.03)
+    expect(b.z).toBeGreaterThan(8.5)
+    expect(b.z).toBeLessThan(8.8)
+    // on the belly, beam going down into the pelvis (handle up)
+    expect(b.y).toBeGreaterThan(couch.height + 0.12)
+    expect(b.uy).toBeGreaterThan(0.6)
   })
-  it('rocks within +-12 degrees at 0.4 Hz in contact and not at all without it', () => {
+
+  it('fans through the organ with detail and rocks only a few degrees in contact', () => {
+    const f0 = newProbeFrame()
+    const f1 = newProbeFrame()
+    const angle = (a: typeof f0, b: typeof f0) => (Math.acos(Math.min(1, a.bx * b.bx + a.by * b.by + a.bz * b.bz)) * 180) / Math.PI
+    probeFrameInto(f0, 'scanning', 0, 0, 1, 0, renal)
+    probeFrameInto(f1, 'scanning', 0, 1, 1, 0, renal)
+    expect(angle(f0, f1)).toBeGreaterThan(25)
+    // the face stays on its window while fanning
+    expect(Math.hypot(f0.ox - f1.ox, f0.oy - f1.oy, f0.oz - f1.oz)).toBeLessThan(1e-6)
     let peak = 0
-    for (let i = 0; i < 500; i++) peak = Math.max(peak, Math.abs(probeTargetInto(newProbe(), 'scanning', 0.5, 1, i * 0.01).rx))
-    expect(peak).toBeCloseTo((12 * Math.PI) / 180, 2)
-    expect(peak).toBeLessThanOrEqual((12 * Math.PI) / 180 + 1e-9)
-    expect(probeTargetInto(newProbe(), 'scanning', 0.5, 0, 0.6).rx).toBe(0)
-    // period 2.5 s
-    expect(probeTargetInto(newProbe(), 'scanning', 0.5, 1, 0.3).rx).toBeCloseTo(probeTargetInto(newProbe(), 'scanning', 0.5, 1, 2.8).rx, 9)
+    for (let i = 0; i < 300; i++) {
+      probeFrameInto(f1, 'scanning', 0, 0.5, 1, i * 0.01, renal)
+      probeFrameInto(f0, 'scanning', 0, 0.5, 1, 0, renal)
+      peak = Math.max(peak, angle(f0, f1))
+    }
+    expect(peak).toBeGreaterThan(PROBE.rockDegrees * 0.8)
+    expect(peak).toBeLessThanOrEqual(2 * PROBE.rockDegrees + 1e-6)
   })
+
+  it('moves smoothly between sweeps: gliding over the skin to a near window, lifting off for a far one', () => {
+    const f = newProbeFrame()
+    const prev = newProbeFrame()
+    for (const [ctx, k] of [
+      [abdo, 0],
+      [abdo, 1],
+      [renal, 0],
+      [renal, 1],
+    ] as const) {
+      probeFrameInto(prev, 'scanning', k, 1, 0, 0, ctx)
+      let lifted = false
+      for (let i = 1; i <= 40; i++) {
+        probeFrameInto(f, 'scanning', k, 1 - i / 40, 0, 0, ctx)
+        expect(Math.hypot(f.ox - prev.ox, f.oy - prev.oy, f.oz - prev.oz)).toBeLessThan(40)
+        if (f.contact < 0.5) lifted = true
+        Object.assign(prev, f)
+      }
+      // the end of the move is the next view's start, on the skin
+      const next = newProbeFrame()
+      probeFrameInto(next, 'scanning', k + 1, 0, 1, 0, ctx)
+      expect(Math.hypot(f.ox - next.ox, f.oy - next.oy, f.oz - next.oz)).toBeLessThan(PROBE.hoverMm + 5)
+      // right kidney -> left kidney is a far move (the probe lifts); liver -> gallbladder glides
+      if (ctx === renal && k === 0) expect(lifted).toBe(true)
+      if (ctx === abdo && k === 0) expect(lifted).toBe(false)
+    }
+  })
+
   it('the monitor turns toward the sonographer on the stool', () => {
     const m = US_CART.monitor
     const op = IMAGING.us.operator.at

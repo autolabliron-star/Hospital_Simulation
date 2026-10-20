@@ -13,7 +13,7 @@
  */
 import { areaById, wardSign, type ImagingModalityId, type Spot } from '@/sim/places'
 import type { SeatKind, SeatPose, SeatSpec, Vec2, WardId } from '@/sim/types'
-import type { AreaId, BuildingLayout, CommandWallPanel, ConsoleScreen, Footprint, LabelSpec, MatKey, Prim, Shape, TreeSpec, Vec3Tuple, WallPiece } from './types'
+import type { AreaId, BedMonitorAnchor, BuildingLayout, CommandWallPanel, ConsoleScreen, Footprint, LabelSpec, MatKey, Prim, Shape, TreeSpec, Vec3Tuple, WallPiece } from './types'
 
 export interface PrimOpts {
   /** Rotation about y, in the frame's own terms (a heading relative to the frame). */
@@ -265,6 +265,34 @@ export class Frame {
     return this
   }
 
+  /**
+   * R3: a live patient monitor. Draws the bezel exactly as `display` does (outer size `w` x `h`, centre (lx, yc, lz), facing local heading `ry`,
+   * leaning back `lean`) and, instead of an atlas quad, records where the picture goes (`BedMonitorAnchor`, `w - 0.03` x `h - 0.03`):
+   * src/scene/monitors draws the live face there.
+   */
+  bedMonitor(id: string, lx: number, yc: number, lz: number, w: number, h: number, o: { ry?: number; lean?: number; t?: number } = {}): this {
+    const ry = o.ry ?? 0
+    const lean = o.lean ?? 0
+    const t = o.t ?? 0.03
+    this.rbox(lx, yc - h / 2, lz, w, h, t, 'metalDark', { ry, rx: -lean, r: Math.min(0.012, t / 2 - 0.001), cast: false })
+    const k = t / 2 + 0.003
+    const nx = Math.sin(ry) * Math.cos(lean)
+    const nz = Math.cos(ry) * Math.cos(lean)
+    const p = this.pt(lx + nx * k, lz + nz * k)
+    this.b.bedMonitors.push({
+      id,
+      area: this.b.area as AreaId,
+      x: p.x,
+      y: yc + Math.sin(lean) * k,
+      z: p.z,
+      heading: this.heading(ry),
+      tilt: lean,
+      w: w - 0.03,
+      h: h - 0.03,
+    })
+    return this
+  }
+
   // --- seats ------------------------------------------------------------------------------------------------------
 
   /**
@@ -334,6 +362,7 @@ export class LayoutBuilder {
   readonly trees: TreeSpec[] = []
   readonly commandWall: CommandWallPanel[] = []
   readonly consoleScreens: ConsoleScreen[] = []
+  readonly bedMonitors: BedMonitorAnchor[] = []
   readonly pendingSeats: PendingSeat[] = []
   walls: WallPiece[] = []
   /** The area the footprints being added belong to. */
@@ -374,6 +403,7 @@ export class LayoutBuilder {
       walls: this.walls,
       commandWall: this.commandWall,
       consoleScreens: this.consoleScreens,
+      bedMonitors: this.bedMonitors,
       seats: this.resolveSeats(),
     }
   }

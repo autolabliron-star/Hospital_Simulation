@@ -1,0 +1,20 @@
+{
+  "hud": {
+    "camera": "30°",
+    "cameraArm": "2",
+    "exchanging": "Exchanging",
+    "simulated": "Simulated"
+  },
+  "instruments": {
+    "Fenestrated bipolar forceps": { "look": "fenestratedBipolar", "short": "Bipolar" },
+    "Endoscope 30°": { "look": "endoscope", "short": "30°" },
+    "Monopolar curved scissors": { "look": "curvedScissors", "short": "Scissors" },
+    "Prograsp forceps": { "look": "prograsp", "short": "Prograsp" },
+    "Clip applier": { "look": "clipApplier", "short": "Clips" },
+    "Suction irrigator": { "look": "suction", "short": "Suction" },
+    "Hook electrode": { "look": "hook", "short": "Hook" },
+    "Cadiere forceps": { "look": "cadiere", "short": "Cadiere" },
+    "Large needle driver": { "look": "needleDriver", "short": "Needle drv" },
+    "Vessel sealing forceps": { "look": "vesselSealer", "short": "Sealer" }
+  }
+}

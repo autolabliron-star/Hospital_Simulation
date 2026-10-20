@@ -76,11 +76,5 @@
   },
   "goTo": {
     "group": "Level 2 · Surgery"
-  },
-  "monitor": {
-    "hr": "HR",
-    "spo2": "SpO2",
-    "rr": "RR",
-    "bp": "NIBP"
   }
 }

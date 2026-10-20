@@ -7,7 +7,11 @@
  * agree about where things are.
  */
 import { IMAGING } from '@/sim/places'
-import type { BodyPart, ScannerPhase } from '@/sim/types'
+import type { BodyPart, ImagingExam, ScannerPhase } from '@/sim/types'
+import { couchDirToWorld, couchToWorld, worldToCouch } from '../phantom/frame'
+import { patientParams, type PatientParams } from '../phantom/params'
+import { blendFrames, newProbeFrame, viewFrame, viewSpec, type ProbeFrame, type UsViewId, type ViewSpec } from '../phantom/usViews'
+import { usViewOf } from '../images/ultrasound'
 
 export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
 export const lerp = (a: number, b: number, k: number): number => a + (b - a) * k
@@ -194,31 +198,55 @@ export const US_CART = {
   monitor: { x: cartAt.x, y: 1.27, z: cartAt.z + 0.2, yaw: Math.atan2(stool.x - cartAt.x, stool.z - (cartAt.z + 0.2)), w: 0.42, h: 0.32 },
 } as const
 
-/** The probe's sweep along the couch (z) and how far it rocks across it. */
+/**
+ * R3: the probe works on THIS patient's anatomy. Each sweep of the exam has a view (images/ultrasound.ts usViewOf: liver, gallbladder,
+ * right or left kidney, spleen, bladder) and each view a window on the synthetic body (phantom/usViews.ts): the right kidney is imaged from
+ * the right flank, the bladder from just above the pubis. `detail` fans the beam through the organ, the probe rocks a few degrees while in
+ * contact, and between sweeps it glides over the skin to the next window (or lifts and moves when that is far). Poses are worked out in
+ * the patient's frame (LPS mm) and turned into the world by phantom/frame.ts, so the probe the room shows and the picture the screen
+ * draws come from the same numbers.
+ */
 export const PROBE = {
-  sweepZ0: 8.2,
-  sweepZ1: 9.0,
-  crossX: 0.05,
-  /** Contact height above the mattress top (the abdomen's surface), the lift when hovering, the press when in contact. */
-  surface: 0.12,
-  hover: 0.045,
-  press: 0.02,
-  rockDegrees: 12,
+  /** How far the face lifts off the skin when out of contact (mm), and the rock while in contact (degrees, Hz). */
+  hoverMm: 30,
+  rockDegrees: 4,
   rockHz: 0.4,
-  /** The probe leans toward the sonographer (east) while held, in radians about z (negative: top toward +x). */
-  lean: -0.3,
+  /** The gel circle while positioning (mm). */
+  gelMm: 14,
   /** The hand is drawn only once the probe is further than this from its holder (m). */
   handDistance: 0.05,
 } as const
 
+/** Where the probe is in the world: the face centre, the array axis (local x) and the axis up the handle (local y), and skin contact. */
 export interface ProbePose {
   x: number
   y: number
   z: number
-  /** Rock about x (the sweep direction), radians. */
-  rx: number
-  /** Lean about z, radians. */
-  tz: number
+  ax: number
+  ay: number
+  az: number
+  ux: number
+  uy: number
+  uz: number
+  contact: number
+}
+
+export const newProbePose = (): ProbePose => ({ x: 0, y: 0, z: 0, ax: 1, ay: 0, az: 0, ux: 0, uy: 1, uz: 0, contact: 0 })
+
+/** What the probe needs to know about the exam: the patient and the view of every sweep. */
+export interface UsProbeContext {
+  seed: number
+  params: PatientParams
+  specs: ViewSpec[]
+  views: UsViewId[]
+}
+
+/** The context of an exam (null: none, the probe stays in its holder). Allocates: call it when the exam changes. */
+export function usProbeContext(exam: Pick<ImagingExam, 'imageSeed' | 'sequences' | 'bodyPart'> | null): UsProbeContext | null {
+  if (!exam || exam.sequences.length === 0) return null
+  const params = patientParams(exam.imageSeed)
+  const views = exam.sequences.map((s) => usViewOf(s.name, exam.bodyPart))
+  return { seed: exam.imageSeed, params, views, specs: views.map((v) => viewSpec(v, params)) }
 }
 
 /** Hand on the probe over the patient (positioning, gel, scanning) or parked on the cart (everything else). */
@@ -226,35 +254,96 @@ export function probeActive(phase: ScannerPhase): boolean {
   return phase === 'positioning' || phase === 'tableIn' || phase === 'scanning'
 }
 
-/** Where the probe wants to be. While scanning `detail` runs the sweep along z and `activity` is skin contact. */
-export function probeTargetInto(out: ProbePose, phase: ScannerPhase, detail: number, activity: number, t: number): ProbePose {
-  if (!probeActive(phase)) {
-    out.x = US_CART.holder.x
-    out.y = US_CART.holder.y
-    out.z = US_CART.holder.z
-    out.rx = 0
-    out.tz = 0
-    return out
-  }
-  const couch = US.table.out
-  const d = clamp01(detail)
-  const a = clamp01(activity)
-  const scanning = phase === 'scanning'
-  let x = couch.x + (scanning ? PROBE.crossX * Math.sin(d * 4 * Math.PI) : 0)
-  let z = lerp(PROBE.sweepZ0, PROBE.sweepZ1, d)
-  let y = US.table.height + PROBE.surface + PROBE.hover * (1 - a) - PROBE.press * a
-  if (phase === 'positioning') {
-    // gel: a slow circle just above the skin
-    x += 0.03 * Math.sin(2 * Math.PI * 0.5 * t)
-    z += 0.04 * Math.cos(2 * Math.PI * 0.5 * t)
-    y += 0.012 * Math.sin(2 * Math.PI * 1.0 * t)
-  }
-  out.x = x
-  out.y = y
-  out.z = z
-  out.rx = a * ((PROBE.rockDegrees * Math.PI) / 180) * Math.sin(2 * Math.PI * PROBE.rockHz * t)
-  out.tz = PROBE.lean
+const _a = newProbeFrame()
+const _b = newProbeFrame()
+const _w = { x: 0, y: 0, z: 0 }
+
+/** The probe parked in its holder, as a patient-frame probe frame (face down, array along world +x). */
+function parkedFrame(out: ProbeFrame): ProbeFrame {
+  const h = US_CART.holder
+  worldToCouch(h.x, h.y, h.z, _w)
+  out.ox = _w.x
+  out.oy = _w.y
+  out.oz = _w.z
+  // world down is +P; world +x is -L
+  out.bx = 0
+  out.by = 1
+  out.bz = 0
+  out.ax = -1
+  out.ay = 0
+  out.az = 0
+  out.contact = 0
   return out
+}
+
+/** The rock in contact: a slow out-of-plane fan (degrees). */
+export const rockOf = (t: number, contact: number): number => PROBE.rockDegrees * contact * Math.sin(2 * Math.PI * PROBE.rockHz * t)
+
+/**
+ * Where the probe wants to be, as a probe frame in the patient's frame (LPS mm): parked, spreading gel at the first window, sweeping a view,
+ * or moving between two views. Returns true when the probe is in the sonographer's hand. Allocation-free.
+ */
+export function probeFrameInto(out: ProbeFrame, phase: ScannerPhase, sequence: number, detail: number, activity: number, t: number, ctx: UsProbeContext | null): boolean {
+  if (!probeActive(phase) || !ctx) {
+    parkedFrame(out)
+    return false
+  }
+  const n = ctx.specs.length
+  const p = ctx.params
+  if (phase !== 'scanning' || sequence < 0) {
+    // gel: a slow circle on the first window, touching the skin
+    viewFrame(ctx.specs[0], p, 0, 0, 1, out)
+    const cx = out.ay * out.bz - out.az * out.by
+    const cy = out.az * out.bx - out.ax * out.bz
+    const cz = out.ax * out.by - out.ay * out.bx
+    const s = Math.sin(2 * Math.PI * 0.5 * t) * PROBE.gelMm
+    const c = Math.cos(2 * Math.PI * 0.5 * t) * PROBE.gelMm * 0.6
+    out.ox += out.ax * s + cx * c
+    out.oy += out.ay * s + cy * c
+    out.oz += out.az * s + cz * c
+    out.contact = 0.8
+  } else {
+    const k = Math.max(0, Math.min(n - 1, sequence))
+    if (activity > 0.3) {
+      // sweeping view k, in contact, rocking a little
+      viewFrame(ctx.specs[k], p, detail, rockOf(t, 1), 1, out)
+    } else if (k + 1 < n) {
+      // between sweeps: from the end of view k to the start of view k + 1 as detail falls back to 0
+      viewFrame(ctx.specs[k], p, 1, 0, 1, _a)
+      viewFrame(ctx.specs[k + 1], p, 0, 0, 1, _b)
+      blendFrames(_a, _b, 1 - clamp01(detail), p, out)
+    } else viewFrame(ctx.specs[k], p, 1, 0, 1, out)
+  }
+  // out of contact the face lifts off along the beam
+  const lift = PROBE.hoverMm * (1 - out.contact)
+  out.ox -= out.bx * lift
+  out.oy -= out.by * lift
+  out.oz -= out.bz * lift
+  return true
+}
+
+/** The world pose of a probe frame (the face centre on the couch, the array axis, the axis up the handle = minus the beam). */
+export function poseFromFrame(f: ProbeFrame, out: ProbePose): ProbePose {
+  couchToWorld(f.ox, f.oy, f.oz, _w)
+  out.x = _w.x
+  out.y = _w.y
+  out.z = _w.z
+  couchDirToWorld(f.ax, f.ay, f.az, _w)
+  out.ax = _w.x
+  out.ay = _w.y
+  out.az = _w.z
+  couchDirToWorld(-f.bx, -f.by, -f.bz, _w)
+  out.ux = _w.x
+  out.uy = _w.y
+  out.uz = _w.z
+  out.contact = f.contact
+  return out
+}
+
+/** Back-compat for the room's tests and the rig: the target pose straight from a state (no smoothing). */
+export function probeTargetInto(out: ProbePose, phase: ScannerPhase, detail: number, activity: number, t: number, sequence = 0, ctx: UsProbeContext | null = null, frame: ProbeFrame = _a): ProbePose {
+  probeFrameInto(frame, phase, sequence, detail, activity, t, ctx)
+  return poseFromFrame(frame, out)
 }
 
 /** True once the probe has left its holder far enough for the hand to be on it. */

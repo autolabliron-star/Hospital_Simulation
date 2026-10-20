@@ -81,9 +81,12 @@ export interface ScreenAnchor {
   tilt?: number
 }
 
-/** The shared picture and the atlas tiles are 1.6 : 1, so a screen is `w` wide and `w / 1.6` tall. */
+/** The atlas tiles are 1.6 : 1, so a status screen is `w` wide and `w / 1.6` tall. */
 const ASPECT = 1.6
 const screen = (x: number, y: number, z: number, heading: number, w: number, tilt = 0): ScreenAnchor => ({ at: { x, y, z }, heading, w, h: w / ASPECT, ...(tilt ? { tilt } : {}) })
+
+/** R3: the endoscope's live picture is full-frame 16:9 (384 x 216), and so are the screens that show it. */
+export const LIVE_ASPECT = 16 / 9
 
 /** The anaesthesia monitor's swivel about the vertical (radians; negative turns it west, toward the anaesthetist who stands north-west of the stool). */
 export const ANAES_SWIVEL = -0.25
@@ -114,21 +117,21 @@ const consoleAt = (c: Pt2, lx: number, y: number, lz: number): { x: number; y: n
   z: localZ(c.x, c.z, CONSOLE_HEADING, lx, lz),
 })
 
-/** The live endoscope screens (the shared 256 x 160 texture): vision cart, wall monitor, the two console viewers. */
+/** The live endoscope screens (the shared 384 x 216 texture, 16:9): vision cart, wall monitor, the two console viewers. */
 export const LIVE_SCREENS: readonly ScreenAnchor[] = [
   // the vision cart's monitor, 1.52 m up on its tower, a hair in front of the bezel
   {
     at: { x: localX(visionC.x, visionC.z, VISION_HEADING, 0, 0.124), y: 1.52, z: localZ(visionC.x, visionC.z, VISION_HEADING, 0, 0.124) },
     heading: VISION_HEADING,
     w: 0.46,
-    h: 0.46 / ASPECT,
+    h: 0.46 / LIVE_ASPECT,
     tilt: 0.18,
   },
   // the wall monitor on the OR's south wall, over the table, read from the head and the sides
-  screen(l2(-49.2), 1.7, 9.846, Math.PI, 1.0),
+  { at: { x: l2(-49.2), y: 1.7, z: 9.846 }, heading: Math.PI, w: 1.0, h: 1.0 / LIVE_ASPECT },
   // the viewers
-  { at: consoleAt(consoleSurgeon, 0, CONSOLE_PARTS.hoodY, CONSOLE_PARTS.hoodFace + 0.004), heading: CONSOLE_HEADING, w: CONSOLE_PARTS.viewerW, h: CONSOLE_PARTS.viewerW / ASPECT },
-  { at: consoleAt(consoleTeach, 0, CONSOLE_PARTS.hoodY, CONSOLE_PARTS.hoodFace + 0.004), heading: CONSOLE_HEADING, w: CONSOLE_PARTS.viewerW, h: CONSOLE_PARTS.viewerW / ASPECT },
+  { at: consoleAt(consoleSurgeon, 0, CONSOLE_PARTS.hoodY, CONSOLE_PARTS.hoodFace + 0.004), heading: CONSOLE_HEADING, w: CONSOLE_PARTS.viewerW, h: CONSOLE_PARTS.viewerW / LIVE_ASPECT },
+  { at: consoleAt(consoleTeach, 0, CONSOLE_PARTS.hoodY, CONSOLE_PARTS.hoodFace + 0.004), heading: CONSOLE_HEADING, w: CONSOLE_PARTS.viewerW, h: CONSOLE_PARTS.viewerW / LIVE_ASPECT },
 ]
 
 /** Which live screen is which. */

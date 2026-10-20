@@ -11,7 +11,7 @@ import { SURGERY_UI } from '@/content/surgeryUi'
 import { createRecorder, mockSurface } from '@/scene/imaging/images/mockCanvas'
 import { caseView, dockedRobot, stowedRobot, surgeryState, theatre } from '@/scene/surgery/testkit'
 import { CONFIG } from '@/sim/config'
-import type { SurgeryState } from '@/sim/types'
+import type { RobotState, SurgeryState } from '@/sim/types'
 import { CARD_H, CARD_MS, CARD_W, ConsoleCanvas } from './consoleCard.canvas'
 import { useConsoleCard } from './consoleCard.store'
 import { consoleHud } from './consoleCard.view'
@@ -86,30 +86,34 @@ describe('the card\'s picture', () => {
     const s = mockSurface(CARD_W, CARD_H, rec)
     return { painter: new ConsoleCanvas(s.ctx), rec }
   }
+  /** The theatre around a robot (the card paints the current case's procedure). */
+  const st = (robot: RobotState): SurgeryState => surgeryState({ theatre: theatre('console', { cases: [caseView('c1', { consoleStart: 0 })] }), robot })
 
-  it('is a 384 x 240 canvas at 12 Hz', () => {
-    expect([CARD_W, CARD_H]).toEqual([384, 240])
+  it('is a 768 x 432 (16:9, hi-DPI) canvas at 12 Hz', () => {
+    expect([CARD_W, CARD_H]).toEqual([768, 432])
     expect(CARD_MS).toBeCloseTo(1000 / 12, 9)
   })
 
   it('paints the standby screen once per robot phase, then nothing until the phase changes', () => {
     const { painter } = make()
-    const r = stowedRobot('stowed')
+    const r = st(stowedRobot('stowed'))
     expect(painter.update(r, 1, 0)).toBe(true)
     for (let i = 1; i < 120; i++) expect(painter.update(r, 1 + i, i * 16)).toBe(false)
     expect(painter.paints).toBe(1)
-    expect(painter.update(stowedRobot('draping', 0.3), 200, 3000)).toBe(true)
+    expect(painter.update(st(stowedRobot('draping', 0.3)), 200, 3000)).toBe(true)
     expect(painter.paints).toBe(2)
   })
 
   it('paints the live picture at the 12 Hz timer\'s rate, never faster than 16 Hz even when it is called every frame, and holds the frame while the sim clock is paused', () => {
     const { painter, rec } = make()
-    const r = dockedRobot('transverse')
+    const r = st(dockedRobot('transverse'))
     let n = 0
     // the card's timer: a tick every 83.3 ms for 10 s
     for (let f = 0; f < 120; f++) if (painter.update(r, 100 + f / 12, f * (1000 / 12))) n++
     expect(n).toBeGreaterThanOrEqual(118)
-    expect(rec.count('clip')).toBe(n) // each live paint is the round endoscope view
+    // each live paint is the full-frame picture: the field over the whole 16:9 canvas, never a round clip
+    expect(rec.count('clip')).toBe(0)
+    expect(rec.count('fillRect')).toBe(n)
     // called every 60 Hz frame it still stays under 16 paints a second
     const other = make().painter
     let m = 0
@@ -124,9 +128,9 @@ describe('the card\'s picture', () => {
 
   it('goes back to the standby screen when the arms come off', () => {
     const { painter } = make()
-    painter.update(dockedRobot('transverse'), 100, 0)
-    expect(painter.update(stowedRobot('cleaning', 1), 500, 1000)).toBe(true)
-    expect(painter.update(stowedRobot('cleaning', 1), 501, 1100)).toBe(false)
+    painter.update(st(dockedRobot('transverse')), 100, 0)
+    expect(painter.update(st(stowedRobot('cleaning', 1)), 500, 1000)).toBe(true)
+    expect(painter.update(st(stowedRobot('cleaning', 1)), 501, 1100)).toBe(false)
   })
 })
 

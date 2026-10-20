@@ -16,6 +16,7 @@ import { Meals } from './meals'
 import { PharmacyCore } from './pharmacy'
 import { Robots } from './robots'
 import { SurgeryLayer } from './surgery/SurgeryLayer'
+import { PatientMonitors } from './monitors/PatientMonitors'
 
 /**
  * Everything inside the canvas. Each layer is one entry point owned by one builder:
@@ -23,7 +24,7 @@ import { SurgeryLayer } from './surgery/SurgeryLayer'
  *   · PharmacyCore (MedVend, gantry, docks, rank, robot doors)
  *   · Daylight (L1: sun, sky and night lights from the clock; never the sun direction) · Robots (ceiling rail, MedPods)
  *   · Meals (L1: MealBots, trays, bed backrests, bedside screens, door tiles) · Drawers (MedDrawers) · ImagingMachines (MRI, CT, X-ray, ultrasound and their live
- *   scan images) · People (the instanced crowd) · fx (emote icons,
+ *   scan images) · PatientMonitors (R3: the bedside, triage, PACU and anaesthesia monitors) · People (the instanced crowd) · fx (emote icons,
  *   speech bubbles).
  */
 export function World() {
@@ -50,6 +51,8 @@ export function World() {
       </LevelGroup>
       {/* R2 level 2: the da Vinci 5 cart, the OR's screens and your teaching-console session (hidden unless level 2 is shown) */}
       <SurgeryLayer />
+      {/* R3: the live patient monitors of triage, the ER, pre-op, recovery and the OR (each level's mesh shows only while that level is shown) */}
+      <PatientMonitors />
       <People />
       {/* these capture the running hospital's entity map when they mount: rebuilt on a Jump (L1) */}
       <SimKeyed>

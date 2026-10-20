@@ -1,11 +1,13 @@
 /**
  * R2 (agent O): the surgeryKit atlas, as a registry of tiles on the W4 status-screen machinery (src/scene/w4kit): a 4 x 4 atlas of 320 x 200 tiles on the shared
- * bedside material (the same shader program as the W4 atlas), repainted only when a tile's `version` moves, uploaded at most 2 Hz (statusRig.ts). Six tiles are
- * in use (dims.ts KIT_TILE): the surgeon console's and the teaching console's status panels, the anaesthesia monitor (synthetic traces), the circulator's desk,
- * and the PACU's and pre-op's boards. The painters are pure canvas-2D calls on a view of `SurgeryState`, so the node tests run them on a recording context.
+ * bedside material (the same shader program as the W4 atlas), repainted only when a tile's `version` moves, uploaded at most 2 Hz (statusRig.ts). Five tiles are
+ * in use (dims.ts KIT_TILE): the surgeon console's and the teaching console's status panels, the circulator's desk, and the PACU's and pre-op's boards. The
+ * painters are pure canvas-2D calls on a view of `SurgeryState`, so the node tests run them on a recording context.
  *
- * Words come from src/content/surgeryUi.ts and surgery.ts, the anaesthesia monitor's channel glyphs included (`MONITOR` = SURGERY_UI.monitor).
- * Every number on the monitor is synthetic and seeded by the case.
+ * R3: the anaesthesia monitor is a live patient monitor now (src/scene/monitors: sweeping traces at `KIT_SCREENS.anaesthesia`); its tile index
+ * (`KIT_TILE.anaesthesia`) stays reserved and is never registered, so the atlas rig keeps that quad hidden.
+ *
+ * Words come from src/content/surgeryUi.ts and surgery.ts.
  */
 import { SURGERY_COPY } from '@/content/surgery'
 import { fillSurgery, SURGERY_UI } from '@/content/surgeryUi'
@@ -15,7 +17,6 @@ import { CONFIG } from '@/sim/config'
 import { hourAt } from '@/sim/population/schedule'
 import type { SurgeryBayState, SurgeryCaseView, SurgeryState } from '@/sim/types'
 import { KIT_SCREENS, KIT_TILE } from './dims'
-import { h01 } from './robotPose'
 
 /** What the tiles read: the live state (`sim.surgery.state`: a Jump swaps it) and the sim clock in seconds. */
 export interface KitSource {
@@ -130,99 +131,6 @@ export function paintConsole(c: CanvasRenderingContext2D, w: number, h: number, 
 }
 
 // ---------------------------------------------------------------------------------------------
-// The anaesthesia monitor
-// ---------------------------------------------------------------------------------------------
-
-/** A patient monitor's own channel symbols (not interface copy; see the file's header). */
-export const MONITOR = SURGERY_UI.monitor
-
-/** The phases the patient lies anaesthetised on the table: the monitor shows traces from induction to emergence. */
-const ON_TABLE: ReadonlySet<string> = new Set(['induction', 'positioning', 'ports', 'docking', 'console', 'undocking', 'closing', 'emergence'])
-
-export function patientOnMonitor(s: SurgeryState): boolean {
-  return s.theatre.caseId !== null && ON_TABLE.has(s.theatre.phase)
-}
-
-/** The vital signs the monitor shows: synthetic, seeded by the case, steady with a slow wander (no decision depends on them). */
-export interface Vitals {
-  hr: number
-  spo2: number
-  rr: number
-  sys: number
-  dia: number
-}
-
-export function vitalsOf(seed: number, now: number, out: Vitals): Vitals {
-  out.hr = Math.round(64 + 8 * h01(seed, 1, 1) + 2.5 * Math.sin(now / 47 + h01(seed, 1, 2) * 6))
-  out.spo2 = Math.round(98 + 1 * Math.sin(now / 83 + h01(seed, 2, 2) * 6))
-  out.rr = 12
-  out.sys = Math.round(116 + 8 * h01(seed, 3, 1) + 3 * Math.sin(now / 120 + 1))
-  out.dia = Math.round(72 + 5 * h01(seed, 4, 1) + 2 * Math.sin(now / 150))
-  return out
-}
-
-const _v: Vitals = { hr: 0, spo2: 0, rr: 0, sys: 0, dia: 0 }
-
-export function anaesthesiaVersion(s: SurgeryState, now: number): number {
-  // the traces sweep: a new picture every half second while a patient is on the table
-  return versionOf(patientOnMonitor(s) ? 1 : 0, patientOnMonitor(s) ? Math.floor(now * 2) : 0, s.theatre.version)
-}
-
-/** A trace across the width: `shape(x)` gives each sample's height in -1..1; scrolls with `phase`. */
-function trace(c: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, colour: string, shape: (u: number) => number, phase: number): void {
-  c.strokeStyle = colour
-  c.lineWidth = 2
-  c.lineJoin = 'round'
-  c.beginPath()
-  const n = 64
-  for (let i = 0; i <= n; i++) {
-    const u = i / n
-    const y = y0 + h / 2 - shape(u * 3 + phase) * (h / 2 - 2)
-    if (i === 0) c.moveTo(x0 + u * w, y)
-    else c.lineTo(x0 + u * w, y)
-  }
-  c.stroke()
-}
-
-/** One heartbeat's trace: a flat line with a sharp beat. */
-const beat = (u: number): number => {
-  const f = u - Math.floor(u)
-  if (f < 0.1) return 0.12 * Math.sin((f / 0.1) * Math.PI)
-  if (f > 0.18 && f < 0.22) return -0.25
-  if (f >= 0.22 && f < 0.27) return 1.0 - Math.abs(f - 0.245) * 40
-  if (f >= 0.27 && f < 0.31) return -0.3
-  if (f > 0.45 && f < 0.6) return 0.3 * Math.sin(((f - 0.45) / 0.15) * Math.PI)
-  return 0
-}
-const pleth = (u: number): number => 0.8 * Math.pow(Math.sin(Math.PI * (u - Math.floor(u))), 2) - 0.4
-const breath = (u: number): number => 0.6 * Math.sin(u * 2.2)
-
-export function paintAnaesthesia(c: CanvasRenderingContext2D, w: number, h: number, s: SurgeryState, now: number): void {
-  c.fillStyle = '#050b0c'
-  c.fillRect(0, 0, w, h)
-  if (!patientOnMonitor(s)) {
-    trace(c, 12, 44, w - 130, 40, SCREEN_INK.green, () => 0, 0)
-    trace(c, 12, 94, w - 130, 40, SCREEN_INK.blue, () => 0, 0)
-    trace(c, 12, 144, w - 130, 40, '#e8fffb', () => 0, 0)
-    return
-  }
-  const seed = s.robot.motionSeed
-  const v = vitalsOf(seed, now, _v)
-  const sweep = now * 0.9
-  trace(c, 12, 12, w - 130, 52, SCREEN_INK.green, beat, sweep)
-  trace(c, 12, 74, w - 130, 52, SCREEN_INK.blue, pleth, sweep * 1.3)
-  trace(c, 12, 136, w - 130, 52, '#e8fffb', breath, sweep * 0.5)
-  const col = w - 108
-  paintText(c, MONITOR.hr, col, 22, 13, SCREEN_INK.green, 700)
-  paintText(c, String(v.hr), col, 50, 34, SCREEN_INK.green, 700)
-  paintText(c, MONITOR.spo2, col, 88, 13, SCREEN_INK.blue, 700)
-  paintText(c, String(v.spo2), col, 116, 34, SCREEN_INK.blue, 700)
-  paintText(c, MONITOR.bp, col, 148, 12, SCREEN_INK.amber, 700)
-  paintText(c, `${v.sys}/${v.dia}`, col, 172, 22, SCREEN_INK.amber, 700)
-  paintText(c, `${MONITOR.rr} ${v.rr}`, 14, h - 8, 12, SCREEN_INK.dim, 600)
-}
-
-// ---------------------------------------------------------------------------------------------
 // The circulator's desk
 // ---------------------------------------------------------------------------------------------
 
@@ -299,12 +207,11 @@ export function paintPreOpBoard(c: CanvasRenderingContext2D, w: number, h: numbe
 // Registering
 // ---------------------------------------------------------------------------------------------
 
-/** Register the six tiles in the surgeryKit registry; returns the function that removes them. */
+/** Register the five tiles in the surgeryKit registry (not the anaesthesia monitor's: see the header); returns the function that removes them. */
 export function registerSurgeryTiles(src: KitSource): () => void {
   const defs: [number, W4Tile][] = [
     [KIT_TILE.consoleSurgeon, { anchor: KIT_SCREENS.consoleSurgeon, version: () => consoleVersion(src.state(), src.now()), paint: (c, w, h) => paintConsole(c, w, h, src.state(), src.now(), false) }],
     [KIT_TILE.consoleTeach, { anchor: KIT_SCREENS.consoleTeach, version: () => consoleVersion(src.state(), src.now()), paint: (c, w, h) => paintConsole(c, w, h, src.state(), src.now(), true) }],
-    [KIT_TILE.anaesthesia, { anchor: KIT_SCREENS.anaesthesia, version: () => anaesthesiaVersion(src.state(), src.now()), paint: (c, w, h) => paintAnaesthesia(c, w, h, src.state(), src.now()) }],
     [KIT_TILE.circulator, { anchor: KIT_SCREENS.circulator, version: () => circulatorVersion(src.state(), src.now()), paint: (c, w, h) => paintCirculator(c, w, h, src.state(), src.now()) }],
     [KIT_TILE.pacuBoard, { anchor: KIT_SCREENS.pacuBoard, version: () => boardVersion(src.state(), src.now()), paint: (c, w, h) => paintPacuBoard(c, w, h, src.state(), src.now()) }],
     [KIT_TILE.preOpBoard, { anchor: KIT_SCREENS.preOpBoard, version: () => boardVersion(src.state(), src.now()), paint: (c, w, h) => paintPreOpBoard(c, w, h, src.state(), src.now()) }],
