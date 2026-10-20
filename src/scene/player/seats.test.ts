@@ -82,7 +82,7 @@ describe('seats', () => {
     console.log(`seats: ${seats.length} walked out; first-frame displacement at most ${(worstFirst * 1000).toFixed(2)} mm, any frame at most ${(worstStep * 1000).toFixed(1)} mm (the limit is ${(SPEED * DT * 1000).toFixed(1)})`)
   })
 
-  it('standing up the way the interaction does (facing out, towards the approach spot) walks you clear of the seat within a second', () => {
+  it('standing up the way the interaction does (facing out, towards the approach spot) walks you clear of the seat within 1.3 s (an ordinary 1.4 m/s walk)', () => {
     let clear = 0
     const stuck: string[] = []
     for (const seat of seats) {
@@ -90,7 +90,7 @@ describe('seats', () => {
       sys.placeAt(seat.x, seat.z, standHeading(seat))
       sys.update(DT)
       sys.input.keyDown('KeyW')
-      for (let i = 0; i < 60; i++) sys.update(DT)
+      for (let i = 0; i < 78; i++) sys.update(DT)
       if (staticClearance(sim.player!.x, sim.player!.z).d >= R - 1e-4) clear++
       else stuck.push(seat.id)
       sys.dispose()

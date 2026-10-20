@@ -49,9 +49,10 @@ interface OldPlanter {
 }
 const oldFoot = (): OldFoot => ({ x: 0, z: 0, yaw: 0, lift: 0, pitch: 0, stepping: false, t: 0, dur: GAIT.swingIdle, spitch: 0, tx: 0, tz: 0, tyaw: 0, steps: 0 })
 const createOldPlanter = (): OldPlanter => ({ feet: [oldFoot(), oldFoot()], moving: false, gait: 0, stance: [1, 1], distance: 0, steps: 0, lastStepper: -1, initialised: false, px: 0, pz: 0 })
+/** The walk's foot roll, with the push-off of the normal-walk fix (the heel rises from mid-stance to about 55 degrees at toe-off; it was 37). */
 function oldStancePitch(ps: number, motion: number): number {
   const heel = 0.18 * smoothstep(0.5, 1.0, ps)
-  const toe = -0.65 * smoothstep(-0.35, -1.0, ps)
+  const toe = -0.95 * smoothstep(-0.1, -1.0, ps)
   return motion * (heel + toe)
 }
 function oldReset(p: OldPlanter, x: number, z: number, heading: number, scale = 1): void {
@@ -542,8 +543,9 @@ describe('swing easing', () => {
     }
   })
 
-  it('stancePitch is the old curve at a walk and lands flatter and pushes off further at a run', () => {
+  it('stancePitch rolls a walker well onto the ball at push-off (about 55 degrees), and lands a runner flatter and pushes off further', () => {
     for (const ps of [-1.2, -0.8, -0.4, 0, 0.6, 1]) expect(stancePitch(ps, 1)).toBe(oldStancePitch(ps, 1))
+    expect(stancePitch(-1, 1)).toBeCloseTo(-0.95, 6)
     expect(stancePitch(1, 1, 1)).toBeLessThan(stancePitch(1, 1, 0))
     expect(stancePitch(-1, 1, 1)).toBeLessThan(stancePitch(-1, 1, 0))
   })
@@ -775,16 +777,17 @@ describe('the pelvis and the legs', () => {
       return (range(xs).mean * 180) / Math.PI
     }
     expect(trunk(1.2)).toBeLessThan(10)
-    expect(trunk(4.2)).toBeGreaterThan(10)
-    expect(trunk(4.2)).toBeLessThan(18)
-    expect(ankle(4.2), 'ankle line at 4.2').toBeGreaterThan(8)
-    expect(ankle(4.2)).toBeLessThan(12)
-    expect(ankle(3.2), 'ankle line at 3.2').toBeGreaterThan(8)
-    expect(ankle(3.2)).toBeLessThan(12)
+    // a runner's trunk leans 5-10 degrees, the whole body 5-8 from the ankle (it was 15 and 9: a sprinter's lunge, not a run)
+    expect(trunk(4.2)).toBeGreaterThan(5.5)
+    expect(trunk(4.2)).toBeLessThan(11)
+    expect(ankle(4.2), 'ankle line at 4.2').toBeGreaterThan(4.5)
+    expect(ankle(4.2)).toBeLessThan(9)
+    expect(ankle(3.2), 'ankle line at 3.2').toBeGreaterThan(4.5)
+    expect(ankle(3.2)).toBeLessThan(9)
     // the blend: between a stroll and a run the lean grows steadily
     expect(trunk(2.0)).toBeLessThan(trunk(2.6) + 0.01)
     expect(trunk(2.6)).toBeLessThan(trunk(3.2) + 0.01)
-    expect(trunk(2.0)).toBeLessThan(trunk(4.2) - 4)
+    expect(trunk(2.0)).toBeLessThan(trunk(4.2) - 2)
   })
 
   it('let the white coat follow the legs instead of hanging like a stiff dress, subtly: it tips and opens a little, and rides up a little at a run', () => {
@@ -948,19 +951,19 @@ describe('the run reads as a run, not as a crouch', () => {
       const f = runs.get(v)!
       const l = f.map((x) => x.handLz)
       const r = f.map((x) => x.handRz)
-      expect(range(l).p2p, `left hand travel at ${v}`).toBeGreaterThan(0.45)
-      expect(range(r).p2p).toBeGreaterThan(0.45)
+      expect(range(l).p2p, `left hand travel at ${v}`).toBeGreaterThan(0.35)
+      expect(range(r).p2p).toBeGreaterThan(0.35)
       expect(range(l).min, `left hand behind the body at ${v}`).toBeLessThan(0.02)
       expect(range(r).min).toBeLessThan(0.02)
       expect(corr(l, r)).toBeLessThan(-0.9)
       // both forearms are never far forward together
       for (let i = 0; i < f.length; i++) expect(Math.min(l[i], r[i]), `both hands ahead at ${v}`).toBeLessThan(0.3)
-      // when one hand is at the front of its swing the other is behind the hips
+      // when one hand is at the front of its swing the other is back by the hips (a jogger's relaxed pump, not a sprinter's)
       const lMax = Math.max(...l)
       const rMax = Math.max(...r)
       for (let i = 0; i < f.length; i++) {
-        if (l[i] > lMax - 0.03) expect(r[i]).toBeLessThan(0.1)
-        if (r[i] > rMax - 0.03) expect(l[i]).toBeLessThan(0.1)
+        if (l[i] > lMax - 0.03) expect(r[i]).toBeLessThan(0.15)
+        if (r[i] > rMax - 0.03) expect(l[i]).toBeLessThan(0.15)
       }
       const e = range(f.flatMap((x) => [x.lElbow, x.rElbow]))
       expect(e.min).toBeGreaterThan(1.05)
@@ -1069,7 +1072,7 @@ describe('turning', () => {
 
   it('on the move: a 90 degree turn at a brisk walk and at a run keeps the feet under the body and the pelvis up', () => {
     for (const [v, drop] of [
-      [CONFIG.player.walkSpeed, 0.1],
+      [CONFIG.player.walkSpeed, 0.12],
       [CONFIG.player.hurrySpeed, 0.15],
     ] as const) {
       for (const sign of [1, -1]) {
@@ -1139,9 +1142,9 @@ describe('starting and stopping', () => {
 })
 
 describe('the contract', () => {
-  it('has the player walk briskly and run on Shift', () => {
-    expect(CONFIG.player.walkSpeed).toBe(2.0)
-    expect(CONFIG.player.hurrySpeed).toBe(4.2)
+  it('has the player walk like everybody else (an ordinary 1.4 m/s) and jog on Shift', () => {
+    expect(CONFIG.player.walkSpeed).toBe(1.4)
+    expect(CONFIG.player.hurrySpeed).toBe(3.6)
   })
 
   it('keeps the standing pelvis where the rig puts it', () => {

@@ -99,7 +99,8 @@ describe('S1 imaging in-flight warm', () => {
     expect(s.world.quiet).toBe(false)
   })
 
-  it('is deterministic', () => {
+  // two hospitals built and run 450 s each: about 5 s alone, more under a full parallel run
+  it('is deterministic', { timeout: 60_000 }, () => {
     const a = build()
     const b = build()
     a.preRoll(CONFIG.opening.preRollSeconds)

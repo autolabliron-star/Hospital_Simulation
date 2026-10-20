@@ -25,8 +25,13 @@ export const CONFIG = {
     preRollSeconds: 50,
     /** ER patients placed: waiting for triage, waiting for a doctor, already in an ER bay. */
     er: { triage: 2, doctor: 2, bay: 2 },
-    /** Walk-ups on the health kiosks, chairs mid-draw, tubes put on the lab track. */
-    kiosks: 2,
+    /** Walk-ups on the health kiosks (one: the other is left free for the presenter to show), chairs mid-draw, tubes put on the lab track. */
+    kiosks: 1,
+    /**
+     * The kiosk left free is kept for you: no walk-up or ER patient is called to it for this long after a warm start (sim seconds), or until
+     * your own session there has ended, so the presenter can always walk up and show how it works.
+     */
+    kioskHoldSeconds: 1800,
     drawChairs: 3,
     labTubes: 5,
     /** Seconds after the warm start at which one ward order per ward is written (MedVend picks, a pod flies). */
@@ -602,12 +607,12 @@ export const CONFIG = {
 
   /** Walk-in (W1): you, the doctor. Distances in metres, times in seconds, angles in degrees. */
   player: {
-    /** A brisk walk by default (game feel, still a person), and a real run on Shift. */
-    walkSpeed: 2.0,
-    hurrySpeed: 4.2,
+    /** An ordinary person's walk by default (1.4 m/s, the walk everybody in the hospital has), and a natural run on Shift (a jog, not a sprint). */
+    walkSpeed: 1.4,
+    hurrySpeed: 3.6,
     /**
      * W3: speed changes are critically damped (no overshoot). Seconds to 95 % of the change; the spring's smoothTime is s / 2.37.
-     * Starting from rest (walk or run) peaks about 10 m/s^2; a stop from a walk takes about 0.24 m, from a run about 0.5 m.
+     * Starting from rest peaks about 7 m/s^2 into a walk; a stop from a walk takes about 0.16 m, from a run about 0.42 m.
      */
     startSeconds: 0.35,
     stopSeconds: 0.28,
@@ -615,7 +620,7 @@ export const CONFIG = {
     shiftSeconds: 0.45,
     /** W3: your body stops this short of every solid (metres): the collide-and-slide skin. */
     bodySkin: 0.01,
-    /** W3: doors sense you this far ahead along your velocity (seconds), so a 4.2 m/s run meets an open door. */
+    /** W3: doors sense you this far ahead along your velocity (seconds), so a running body meets an open door. */
     doorLeadSeconds: 0.6,
     turnSeconds: 0.12,
     /** Collision radius against walls and furniture, and the proxy NPCs steer around. */

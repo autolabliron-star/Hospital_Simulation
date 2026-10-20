@@ -172,7 +172,7 @@ const WALLS: readonly Wall[] = [
 /** Stand where `w` says and walk into its wall until pressed against it (and prove that it is). */
 function press(w: Wall): { r: Rig; into: Leg } {
   const r = standAt(w.x, w.z, w.heading)
-  const into = hold(r, ['KeyW'], 1.5)
+  const into = hold(r, ['KeyW'], 2.5)
   expect(w.axis === 'x' ? into.x : into.z, `${w.name}: it walked up to the wall`).toBeCloseTo(w.at, 3)
   expect(into.speed, `${w.name}: and stopped there`).toBe(0)
   return { r, into }
@@ -181,7 +181,7 @@ function press(w: Wall): { r: Rig; into: Leg } {
 describe('wall trials: pressed against a wall, the doctor can always leave it', () => {
   const corridorA = WALLS[0]
 
-  it('backing away with S after a head-on press walks away at the back speed (half the walking speed): 1.8 m or more in 2 s, from every kind of wall', () => {
+  it('backing away with S after a head-on press walks away at the back speed (half the walking speed): 1.2 m or more in 2 s, from every kind of wall', () => {
     const legs = WALLS.map((w) => {
       const { r } = press(w)
       const leg = hold(r, ['KeyS'], 2)
@@ -189,11 +189,11 @@ describe('wall trials: pressed against a wall, the doctor can always leave it', 
       return { w, leg }
     })
     for (const { w, leg } of legs) {
-      expect(leg.path, w.name).toBeGreaterThanOrEqual(1.8)
+      expect(leg.path, w.name).toBeGreaterThanOrEqual(1.2)
       // straight back, away from the wall, and never into anything
       const away = w.axis === 'x' ? Math.abs(leg.dx) : Math.abs(leg.dz)
       const across = w.axis === 'x' ? Math.abs(leg.dz) : Math.abs(leg.dx)
-      expect(away, w.name).toBeGreaterThanOrEqual(1.8)
+      expect(away, w.name).toBeGreaterThanOrEqual(1.2)
       expect(across, w.name).toBeLessThan(1e-6)
       expect(leg.inside, w.name).toBe(0)
     }
@@ -223,7 +223,7 @@ describe('wall trials: pressed against a wall, the doctor can always leave it', 
     const turn = hold(r, ['KeyA'], 0.7) // 140 deg/s: about 98 degrees, so it faces along the corridor
     const leg = hold(r, ['KeyW'], 2)
     note(`A 0.7 s then W 2 s from the corridor-A wall: turned on the spot (${Math.hypot(turn.dx, turn.dz).toFixed(3)} m), then path ${leg.path.toFixed(3)} m`)
-    expect(leg.path).toBeGreaterThanOrEqual(2.5)
+    expect(leg.path).toBeGreaterThanOrEqual(2.2)
     expect(leg.inside).toBe(0)
   })
 
@@ -276,7 +276,7 @@ describe('wall trials: pressed against a wall, the doctor can always leave it', 
   it('a ward room bedside pocket: placed 1 cm inside the skin of the A1 bath (the spot the app reported), W then A+W turns away at once, and the move never ends inside anything', () => {
     // (-21.5, -20.5) is 0.30 m from the bath's west face (R is 0.31) and the sofa's corner closes the way ahead at z -20.69
     const r = standAt(-21.5, -20.5, Math.PI)
-    const into = hold(r, ['KeyW'], 1.5)
+    const into = hold(r, ['KeyW'], 2.5)
     const leg = hold(r, ['KeyA', 'KeyW'], 2)
     note(`A1 pocket (-21.5, -20.5): W 1.5 s to (${into.x.toFixed(3)}, ${into.z.toFixed(3)}), then A+W 2 s: path ${leg.path.toFixed(3)} m`)
     expect(leg.path).toBeGreaterThanOrEqual(1.5)
@@ -305,7 +305,7 @@ describe('wall trials: pressed against a wall, the doctor can always leave it', 
       expect(touching.length).toBeGreaterThanOrEqual(2)
       expect(slide.path).toBeLessThan(0.02)
       // but it can leave: backing up (the way back is open for 1.7 m, along the bay's curtain) and turning away
-      expect(back.path).toBeGreaterThanOrEqual(1.2)
+      expect(back.path).toBeGreaterThanOrEqual(1.0)
       expect(turn.path).toBeGreaterThanOrEqual(1.5)
     } else {
       expect(slide.path).toBeGreaterThanOrEqual(0.9)

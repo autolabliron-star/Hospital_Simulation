@@ -114,7 +114,7 @@ describe('walking', () => {
     r.sys.input.keyDown('KeyW')
     run(r, 1)
     expect(r.sim.player!.speed).toBeCloseTo(CONFIG.player.walkSpeed, 1)
-    expect(r.sim.player!.x).toBeGreaterThan(PLAYER_SPAWN.at.x + 1.2) // facing east
+    expect(r.sim.player!.x).toBeGreaterThan(PLAYER_SPAWN.at.x + 1.0) // facing east
     expect(r.sim.player!.z).toBeCloseTo(0, 3)
     expect(r.sim.playerAvatar!.anim).toBe('walk')
     r.sys.input.keyDown('ShiftLeft')
@@ -297,7 +297,7 @@ describe('classic (`?controls=classic`): the behaviour from before', () => {
     const facing = r.sys.snapshot().facing
     r.sys.input.keyDown('KeyD') // the right of the picture: facing east, that is south (+z)
     run(r, 1)
-    expect(r.sim.player!.z).toBeGreaterThan(1.2)
+    expect(r.sim.player!.z).toBeGreaterThan(1.0)
     expect(Math.abs(r.sim.player!.x + 70)).toBeLessThan(1e-6)
     expect(r.sys.snapshot().facing).toBeCloseTo(facing, 9) // the view does not turn
     expect(r.sys.snapshot().lookOffset).toBe(0)
@@ -462,7 +462,7 @@ describe('easy: A and D turn you, and the camera follows behind by itself', () =
     const x0 = r.sim.player!.x
     const z0 = r.sim.player!.z
     run(r, 0.8)
-    expect(r.sim.player!.x - x0).toBeGreaterThan(1) // east: the way you face
+    expect(r.sim.player!.x - x0).toBeGreaterThan(0.8) // east: the way you face
     expect(Math.abs(r.sim.player!.z - z0)).toBeLessThan(1e-6)
     expect(heading(r)).toBe(h0)
   })
@@ -490,7 +490,7 @@ describe('easy: A and D turn you, and the camera follows behind by itself', () =
     r.sys.input.keyDown('KeyS')
     run(r, 1)
     expect(r.sim.player!.speed).toBeCloseTo(CONFIG.player.walkSpeed * EASY.backSpeedFactor, 1)
-    expect(r.sim.player!.x).toBeLessThan(x0 - 0.7) // west: backwards
+    expect(r.sim.player!.x).toBeLessThan(x0 - 0.5) // west: backwards
     expect(heading(r)).toBe(h0) // still facing east
     r.sys.input.keyDown('ShiftLeft') // Shift does not run you backwards
     run(r, 0.6)
@@ -1063,8 +1063,8 @@ describe('walkBody: the body\'s numbers for the legs, the doors, the camera and 
     run(r, 1)
     expect(walkBody.vx).toBeCloseTo(CONFIG.player.walkSpeed, 6)
     expect(walkBody.x).toBe(r.sim.player!.x)
-    expect(walkBody.restX).toBeGreaterThan(walkBody.x + 0.2) // 0.24 m of coast
-    expect(walkBody.restX).toBeLessThan(walkBody.x + 0.3)
+    expect(walkBody.restX).toBeGreaterThan(walkBody.x + 0.13) // 0.16 m of coast from a 1.4 m/s walk
+    expect(walkBody.restX).toBeLessThan(walkBody.x + 0.2)
     expect(walkBody.stillFor).toBe(0)
     // let go: stopping, then at rest where it said
     const said = walkBody.restX

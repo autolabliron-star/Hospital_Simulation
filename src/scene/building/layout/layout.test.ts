@@ -8,7 +8,9 @@ import { NAV } from '@/sim/nav/graph'
 import { CIRCUITS, pointAt, type PathPoint } from '@/sim/meds/circuit'
 import { AREAS, BUILDING, CORE, DOORS, ROBOT, ROOMS, areaById, wardSign } from '@/sim/places'
 import { WAYFINDING } from '@/scene/materials'
-import { wayfindingSegments, LINE_WIDTH } from '@/scene/wayfinding/lines'
+import { L2_BRANCHES, L2_LANES, wayfindingSegments, LINE_WIDTH } from '@/scene/wayfinding/lines'
+import { areaAt } from '@/sim/places'
+import { levelOf } from '@/sim/levels'
 import { buildLayout } from './index'
 import { compileLayout, estimateBudget } from '../render/compile'
 import { DRAWER_GAP, buildWallPieces } from './walls'
@@ -210,6 +212,34 @@ describe('furniture keeps clear of the robot lanes', () => {
     expect([...new Set(offenders)]).toEqual([])
     // all five colours are present
     for (const color of Object.values(WAYFINDING)) expect(segs.some((s) => s.color === color)).toBe(true)
+  })
+})
+
+describe('level 2 floor lines', () => {
+  it('run the theatre corridor from lift door to lift door and turn off into pre-op, the family lounge and recovery, on the level-2 floor', () => {
+    expect(L2_LANES.length).toBe(3)
+    for (const d of [...L2_LANES, ...L2_BRANCHES]) for (const [x] of d.pts) expect(levelOf(x), `${d.color} at ${x}`).toBe(2)
+    for (const d of L2_LANES) {
+      expect(areaAt(d.pts[0][0], d.pts[0][1])?.id).toBe('l2Corridor')
+      expect(areaAt(d.pts[1][0], d.pts[1][1])?.id).toBe('l2Corridor')
+      expect(Math.abs(d.pts[1][1] - d.pts[0][1])).toBeGreaterThan(30)
+    }
+    const into = L2_BRANCHES.map((d) => areaAt(...d.pts[d.pts.length - 1])?.id)
+    expect(into).toEqual(['l2PreOp', 'l2Lounge', 'l2Pacu'])
+    // every point of every line is on a walkable level-2 floor (no wall crossed except at a door: the areas along the way are the corridor, the hall and the room)
+    for (const d of [...L2_LANES, ...L2_BRANCHES]) {
+      for (let i = 0; i + 1 < d.pts.length; i++) {
+        const [ax, az] = d.pts[i]
+        const [bx, bz] = d.pts[i + 1]
+        for (let t = 0; t <= 1; t += 0.02) {
+          const a = areaAt(ax + (bx - ax) * t, az + (bz - az) * t)?.id
+          expect(['l2Corridor', 'l2Hall', 'l2PreOp', 'l2Lounge', 'l2Pacu']).toContain(a)
+        }
+      }
+    }
+    // and they are in the building's layout (drawn like level 1's)
+    const segs = wayfindingSegments()
+    for (const c of [WAYFINDING.preOp, WAYFINDING.lounge, WAYFINDING.recovery]) expect(segs.filter((g) => g.color === c && levelOf(g.x0) === 2).length).toBeGreaterThan(1)
   })
 })
 

@@ -168,12 +168,12 @@ function evalRelaxed(c: PoseCtx, o: Out): void {
   const m = c.motion
   const r = c.run
   const b = c.brisk
-  const amp = (0.09 + 0.36 * m + 0.04 * b + 0.17 * r) * (1 + 0.32 * c.happy) * (1 - 0.55 * c.slump)
+  const amp = (0.09 + 0.3 * m + 0.04 * b + 0.12 * r) * (1 + 0.32 * c.happy) * (1 - 0.55 * c.slump)
   const breath = Math.sin(TAU * c.breathHz * c.t + c.seed)
   const slumpArm = 0.12 * c.slump
   const sway = noise1(c.t * 0.5, c.seed + 3)
   // the mean of the swing sits ahead of the body for a runner (the elbow is bent, the hand comes up in front of the chest)
-  const mean = 0.03 - 0.04 * r
+  const mean = 0.03 - 0.06 * r
   // left arm goes back when the left foot is ahead
   const pl = -amp * c.gait + mean + 0.012 * breath + 0.02 * sway + slumpArm
   const pr = amp * c.gait + mean - 0.012 * breath - 0.02 * sway + slumpArm
@@ -185,9 +185,9 @@ function evalRelaxed(c: PoseCtx, o: Out): void {
   const closing = 0.5 - 0.2 * b + 0.26 * r
   arm(o, ARM_L, pl, roll, 0, e0 + m * (0.16 + closing * fwdL), 0.02 * sway, 0.2)
   arm(o, ARM_R, pr, roll, 0, e0 + m * (0.16 + closing * fwdR), -0.02 * sway, 0.2)
-  o[U.chestPitch] = -0.03 * c.happy + 0.2 * c.slump + 0.2 * r
+  o[U.chestPitch] = -0.03 * c.happy + 0.2 * c.slump + 0.07 * r
   o[U.chestRoll] = 0.01 * sway
-  o[U.headPitch] = -0.06 * c.happy + 0.42 * c.slump + 0.02 * breath - 0.1 * r
+  o[U.headPitch] = -0.06 * c.happy + 0.42 * c.slump + 0.02 * breath - 0.04 * r
   o[U.headYaw] = 0.05 * noise1(c.t * 0.35, c.seed + 5)
   o[U.headRoll] = 0.02 * noise1(c.t * 0.3, c.seed + 6)
 }

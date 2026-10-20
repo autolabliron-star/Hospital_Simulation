@@ -41,6 +41,27 @@ describe('the showcase opening', () => {
     }, 60000)
   }
 
+  it('leaves exactly one health kiosk free for the presenter to show, and calls nobody to it for the first half hour', () => {
+    const s = opening(CONFIG.sim.worldSeed)
+    const busy = s.vitals.kiosks.filter((k) => k.phase !== 'idle')
+    expect(busy.length).toBe(1)
+    const held = s.vitals.heldKiosk
+    expect(held).toBe(s.vitals.kiosks.length - 1)
+    expect(s.vitals.kiosks[held].phase).toBe('idle')
+    // the walk-ups keep coming and queue for the other kiosk; the held one stays free
+    let served = 0
+    for (let m = 0; m < 25; m++) {
+      s.preRoll(60)
+      expect(s.vitals.kiosks[held].phase, `minute ${m}`).toBe('idle')
+      expect(s.vitals.kiosks[held].userId).toBeNull()
+      served = s.vitals.kiosks[1 - held].sessionsToday
+    }
+    expect(served).toBeGreaterThan(1)
+    // after the hold the kiosk is everyone's again
+    s.preRoll(CONFIG.opening.kioskHoldSeconds - 25 * 60 + 60)
+    expect(s.vitals.heldKiosk).toBe(-1)
+  }, 120000)
+
   it('is the same opening every time for a seed', () => {
     const snap = (s: Simulation) =>
       JSON.stringify([...s.entities.values()].map((e) => [e.id, Math.round(e.position.x * 100), Math.round(e.position.z * 100), e.anim]))

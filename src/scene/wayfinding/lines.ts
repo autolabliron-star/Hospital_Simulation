@@ -5,7 +5,12 @@
  *
  * In a ward corridor a line runs 0.6 m off the centre line (the people's route), which is 0.7 m from the nearest robot lane
  * centre line; and each line stops short of the two U-turn zones, where the lanes sweep across the whole corridor.
+ *
+ * Level 2 (the surgery floor, in its strip of the flat sim, `l2(drawn x)`): you arrive by lift A at the north end of the theatre corridor or by
+ * lift B at its south end, so each line runs the corridor's length from one lift door to the other in its own lane and turns off through its
+ * door: pre-op (teal), the family lounge through the theatre hall (pink), recovery (green).
  */
+import { l2 } from '@/sim/levels'
 import { CORRIDOR_CENTER, ROBOT } from '@/sim/places'
 import { WAYFINDING } from '@/scene/materials'
 import type { LayoutBuilder } from '@/scene/building/layout/builder'
@@ -48,6 +53,23 @@ function runs(pts: P[], gaps: [number, number][] = []): { x0: number; z0: number
   return out
 }
 
+/** Level 2 (drawn x, then moved into the level-2 strip): the corridor lanes between the two lift doors, and the branches through the doors. */
+const L2_LANE = { preOp: -43.3, lounge: -42.7, recovery: -42.1, north: -15.7, south: 15.7 }
+const toL2 = (pts: P[]): P[] => pts.map(([x, z]) => [l2(x), z] as P)
+export const L2_LANES: { color: string; pts: P[] }[] = [
+  { color: WAYFINDING.preOp, pts: toL2([[L2_LANE.preOp, L2_LANE.north], [L2_LANE.preOp, L2_LANE.south]]) },
+  { color: WAYFINDING.lounge, pts: toL2([[L2_LANE.lounge, L2_LANE.north], [L2_LANE.lounge, L2_LANE.south]]) },
+  { color: WAYFINDING.recovery, pts: toL2([[L2_LANE.recovery, L2_LANE.north], [L2_LANE.recovery, L2_LANE.south]]) },
+]
+export const L2_BRANCHES: { color: string; pts: P[] }[] = [
+  // pre-op: the door on the corridor's west wall at z -13 (1.8 m wide); the line ends 1.4 m inside, by the admissions desk
+  { color: WAYFINDING.preOp, pts: toL2([[L2_LANE.preOp, -13], [-45.4, -13]]) },
+  // the family lounge: through the theatre hall (open 4 m at z -2..2), along its north side clear of the scrub sinks, south through the lounge's opening
+  { color: WAYFINDING.lounge, pts: toL2([[L2_LANE.lounge, -0.7], [-57.5, -0.7], [-57.5, 3.4]]) },
+  // recovery: the door on the west wall at z 12.5
+  { color: WAYFINDING.recovery, pts: toL2([[L2_LANE.recovery, 12.5], [-45.4, 12.5]]) },
+]
+
 export interface LineSegment {
   color: string
   x0: number
@@ -72,6 +94,9 @@ export function wayfindingSegments(): LineSegment[] {
     { color: WAYFINDING.wardB, pts: [[-60.5, 1.35], [-43.4, 1.35], [-43.4, nearRooms], [24.4, nearRooms]], gaps: UTURN_GAPS },
     // emergency (red): across the lobby, south through the ER door
     { color: WAYFINDING.emergency, pts: [[-60.5, 2.3], [-50, 2.3], [-50, 13.2]] },
+    // level 2: lift A to lift B in three lanes (the lift doors are x -42.8..-41.2 at z -16 and 16), each branching off through its door
+    ...L2_LANES,
+    ...L2_BRANCHES,
   ]
   const out: LineSegment[] = []
   for (const d of defs) for (const r of runs(d.pts, d.gaps)) out.push({ color: d.color, ...r })
@@ -99,5 +124,8 @@ export function buildWayfinding(b: LayoutBuilder): void {
     [IMAGING_LINE_END, 0.45, WAYFINDING.diagnostics],
     [-50, 13.2, WAYFINDING.emergency],
   ]
+  // level 2: a cap at both lift doors on each lane and where each branch ends inside its room
+  for (const d of L2_LANES) for (const [x, z] of d.pts) ends.push([x, z, d.color])
+  for (const d of L2_BRANCHES) ends.push([...d.pts[d.pts.length - 1], d.color])
   for (const [x, z, color] of ends) f.cyl(x, LINE_Y - 0.002, z, 0.34, 0.006, 'tinted', { color, cast: false })
 }

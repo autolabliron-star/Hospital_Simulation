@@ -55,6 +55,10 @@ export interface VitalsStats {
 
 export class VitalsService implements VitalsPort {
   readonly kiosks: HealthKioskState[] = HEALTH_KIOSKS.map((k) => newKioskState(k.index))
+  /** The kiosk kept free for the presenter after a warm start, or -1 (for the tests and the panel). */
+  get heldKiosk(): number {
+    return this.held >= 0 && this.t < this.heldUntil ? this.held : -1
+  }
   /** Your avatar (set by the Simulation): your own kiosk session moves it. Null when you are not in the hospital. */
   playerOf: () => Entity | null = () => null
 
@@ -82,6 +86,9 @@ export class VitalsService implements VitalsPort {
   private readonly readings = new Map<string, VitalsReading[]>()
   private readonly profileRng: Rng
   private seatKnown: Set<string> | null = null
+  /** S1: the kiosk kept free for the presenter after a warm start (-1: none), and until when. */
+  private held = -1
+  private heldUntil = 0
 
   constructor(
     protected readonly world: World,
@@ -194,6 +201,9 @@ export class VitalsService implements VitalsPort {
     if (!this.started) this.begin(t, CONFIG.sim.step)
     this.rollDay(t)
     const want = Math.min(CONFIG.opening.kiosks, this.stations.length)
+    // the kiosks past the placed ones: the last is kept free for you to show (nobody is called to it for a while, see `dispatch`)
+    this.held = want < this.stations.length ? this.stations.length - 1 : -1
+    this.heldUntil = t + CONFIG.opening.kioskHoldSeconds
     const hour = (((CONFIG.sim.startHour * 3600 + t + MID_AT) / 3600) % 24 + 24) % 24
     if (want <= 0 || this.world.ambient === null || rateAt(CONFIG.vitals.walkUpsPerHour, hour) <= 0) {
       this.world.t = wasT
@@ -247,6 +257,7 @@ export class VitalsService implements VitalsPort {
     }
     this.line.clear()
     for (const k of this.kiosks) k.sessionsToday = 0
+    this.held = -1
     this.started = false
     this.day = -1
   }
@@ -321,13 +332,17 @@ export class VitalsService implements VitalsPort {
     return -1
   }
 
-  /** A free kiosk takes the head of the line (the one with fewer sessions today first), then everyone is told where to stand. */
+  /**
+   * A free kiosk takes the head of the line (the one with fewer sessions today first), then everyone is told where to stand. The kiosk kept for you
+   * after a warm start takes nobody until the hold is over or you have used it.
+   */
   private dispatch(): void {
     const line = this.line
+    if (this.held >= 0 && this.t >= this.heldUntil) this.held = -1
     while (line.length > 0) {
       let pick: KioskStation | null = null
       for (const s of this.stations) {
-        if (!s.free) continue
+        if (!s.free || s.index === this.held) continue
         if (pick === null || s.state.sessionsToday < pick.state.sessionsToday) pick = s
       }
       if (pick === null) break
@@ -430,7 +445,11 @@ export class VitalsService implements VitalsPort {
   private sessionEnded(log: SessionLog, reading: VitalsReading | null, subject: KioskSubject): void {
     // a call that never reached the platform (the person left first) was no session
     if (log.startedAt !== NOT_STARTED) this.stats.sessions.push(log)
-    if (log.userId === this.playerSubject.id) this.playerKiosk = -1
+    if (log.userId === this.playerSubject.id) {
+      this.playerKiosk = -1
+      // you have shown it: the kiosk goes back to everyone
+      if (log.index === this.held) this.held = -1
+    }
     if (reading === null) return
     this.store(reading)
     const you = log.kind === 'player'

@@ -212,6 +212,9 @@ export const DRIVEN = {
   reverseSwing: 0.15,
   /** How far ahead (in frames of travel) the moving planner looks when it asks whether a foot is out of reach: the NPCs' is half a frame, a run at 30 fps wants a whole one. */
   lookAhead: 1,
+  /** Walking round a curve: a planted foot more than this far (rad) from the heading pivots on its ball toward it, at this rate (1/s). */
+  pivotFree: 0.4,
+  pivotRate: 6,
   /** Move keys held for this long without moving: the body is blocked, the feet stop stepping. */
   stalled: 0.5,
 } as const
@@ -338,13 +341,17 @@ export function gaitParams(v: number, scale: number, out: GaitParams): GaitParam
  */
 export function stancePitch(ps: number, motion: number, run = 0): number {
   const heel = 0.18 * (1 - 0.75 * run) * smoothstep(0.5, 1.0, ps)
-  const toe = -(0.65 + 0.5 * run) * smoothstep(-0.35 + 0.2 * run, -1.0 + 0.1 * run, ps)
+  // the heel rises from mid-stance and the foot rolls well onto the ball before it leaves (about 55 degrees at toe-off, as people push off): the
+  // trailing ankle comes up with it, so that knee bends at push-off instead of the leg staying straight behind the body (a lunge, not a walk)
+  const toe = -(0.95 + 0.2 * run) * smoothstep(-0.1 - 0.05 * run, -1.0 + 0.1 * run, ps)
   return motion * (heel + toe)
 }
 
 /** Ankle height allowance so a pitched foot's heel (toes up) or ball (toes down) stays on the ground. */
 export function contactLift(pitch: number): number {
-  return pitch >= 0 ? 0.07 * Math.sin(pitch) : 0.13 * Math.sin(-pitch)
+  // (on the ball: the ankle rises as if the ball were 0.145 m in front of it; the foot is rigid, so the toes beyond the ball would dip into the floor at a
+  // full push-off if it were lifted only to the ball itself)
+  return pitch >= 0 ? 0.07 * Math.sin(pitch) : 0.145 * Math.sin(-pitch)
 }
 
 /**
@@ -891,7 +898,15 @@ function updateDriven(p: Planter, dt: number, x: number, z: number, heading: num
     const ps = a >= 0 ? a / Math.max(sl, 0.15 * scale) : a / Math.max(sb, 0.15 * scale)
     f.pitch = damp(f.pitch, stancePitch(ps, motion, run), 14 + 16 * kb + 24 * run, dt)
     f.lift = contactLift(f.pitch) + (run > 0 ? 0.05 * run * smoothstep(0.75, 1.05, -a / sb) : 0)
-    const yawNow = Math.abs(wrapPi(f.yaw - (heading + side * GAIT.toeOut)))
+    // (judged on the yaw it landed with: a planted foot on the move pivots, below, but when it steps follows the turn it has been left by)
+    const yawNow = Math.abs(wrapPi((moving && !stopping ? f.tyaw : f.yaw) - (heading + side * GAIT.toeOut)))
+    // walking round a curve, the planted foot pivots on its ball as the body turns over it (people do; at a walk the next step is half a second
+    // away, and a foot that only turned by stepping would be left 70 degrees behind a tight turn, the legs twisted)
+    if (moving && !stopping) {
+      const err = wrapPi(heading + side * GAIT.toeOut - f.yaw)
+      const over = Math.abs(err) - DRIVEN.pivotFree
+      if (over > 0) f.yaw += Math.sign(err) * over * (1 - Math.exp(-DRIVEN.pivotRate * dt))
+    }
     let ratio: number
     let byYaw = false
     let backRatio = 0

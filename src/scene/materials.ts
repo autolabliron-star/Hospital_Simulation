@@ -143,4 +143,8 @@ export const WAYFINDING = {
   emergency: '#e05a4f',
   atrium: '#e0a03a',
   diagnostics: '#8a6bd1',
+  /** Level 2 (the surgery floor): pre-op, the family lounge, recovery. */
+  preOp: '#24a3b5',
+  lounge: '#d1609a',
+  recovery: '#8bb23a',
 } as const

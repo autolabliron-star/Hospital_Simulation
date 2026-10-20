@@ -71,8 +71,9 @@ describe('the speed spring (critically damped, exact for any frame time)', () =>
       stepSpring(s, 1 / 240)
       peak = Math.max(peak, Math.abs(s.a))
     }
-    expect(peak).toBeGreaterThan(9)
-    expect(peak).toBeLessThan(11)
+    // about 7 m/s^2 from rest to an ordinary 1.4 m/s walk in 0.35 s (it was 10 for the old 2 m/s brisk walk)
+    expect(peak).toBeGreaterThan(6)
+    expect(peak).toBeLessThan(8)
   })
 
   it('never overshoots its target, and walks and runs up smoothly (no jump in the speed or in the acceleration)', () => {
@@ -94,8 +95,8 @@ describe('the speed spring (critically damped, exact for any frame time)', () =>
     }
   })
 
-  it('stops from a walk in under 0.3 s and over 0.2-0.3 m, from a run over 0.4-0.6 m, ending in an exact rest', () => {
-    for (const [speed, lo, hi] of [[WALK, 0.2, 0.3], [RUN, 0.4, 0.6]] as const) {
+  it('stops from a walk in under 0.3 s and over 0.14-0.2 m, from a run over 0.35-0.5 m, ending in an exact rest', () => {
+    for (const [speed, lo, hi] of [[WALK, 0.14, 0.2], [RUN, 0.35, 0.5]] as const) {
       for (const dt of [1 / 20, 1 / 30, 1 / 60, 1 / 144]) {
         const s = newSpring()
         retarget(s, speed)

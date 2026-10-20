@@ -51,7 +51,7 @@ describe('the body from the keys', () => {
     const back = easy(-66, 0)
     run(back, 2, 1 / 60, -1, 0, true)
     expect(back.spring.v).toBe(-P.walkSpeed * EASY.backSpeedFactor)
-    expect(back.x).toBeLessThan(-67.5) // west, backwards
+    expect(back.x).toBeLessThan(-67.2) // west, backwards (0.7 m/s for 2 s, the start included)
   })
 
   it('the same 3 s walk and the stop after it end within 2 cm at 20, 30, 60 and 144 frames a second', () => {
@@ -83,8 +83,8 @@ describe('the body from the keys', () => {
     expect(worst).toBeLessThan(0.03)
   })
 
-  it('the stop takes under 0.3 s from a walk and under 0.35 from a run to 5 % of the speed, over 0.2-0.3 m from a walk and 0.4-0.6 m from a run', () => {
-    for (const [hurry, lo, hi] of [[false, 0.2, 0.3], [true, 0.4, 0.6]] as const) {
+  it('the stop takes under 0.3 s from a walk and under 0.35 from a run to 5 % of the speed, over 0.14-0.2 m from a walk and 0.35-0.5 m from a run', () => {
+    for (const [hurry, lo, hi] of [[false, 0.14, 0.2], [true, 0.35, 0.5]] as const) {
       const m = easy()
       run(m, 2.5, 1 / 60, 1, 0, hurry)
       const x0 = m.x

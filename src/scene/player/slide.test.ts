@@ -36,7 +36,7 @@ describe('sliding along a flat wall (the plaza\'s west fence, x = -74, 16 m long
     let worstRatio = Infinity
     let worstJump = 0
     let worstGap = 0
-    for (const [speed, hurry] of [[2.0, false], [4.2, true]] as const) {
+    for (const [speed, hurry] of [[CONFIG.player.walkSpeed, false], [CONFIG.player.hurrySpeed, true]] as const) {
       for (const alpha of [10, 20, 30, 45, 60, 75]) {
         for (const dt of DTS) {
           // heading into the wall (west, -x) and along it (+z), alpha off the tangent
@@ -65,16 +65,17 @@ describe('sliding along a flat wall (the plaza\'s west fence, x = -74, 16 m long
   })
 
   it('the speed comes from the spring, never from the wall: pressing at 85 degrees (head on) drops the speed to what is achieved, at 75 it does not', () => {
-    const shallow = slide(face + 1.2, -7.5, 2.0, Math.atan2(-Math.sin(75 * DEG), Math.cos(75 * DEG)), 1 / 60, 2)
-    expect(shallow.frames[shallow.frames.length - 1].v).toBeCloseTo(2.0, 6)
-    const headOn = slide(face + 1.2, 0, 2.0, Math.atan2(-Math.sin(88 * DEG), Math.cos(88 * DEG)), 1 / 60, 2)
+    const walk = CONFIG.player.walkSpeed
+    const shallow = slide(face + 1.2, -7.5, walk, Math.atan2(-Math.sin(75 * DEG), Math.cos(75 * DEG)), 1 / 60, 2)
+    expect(shallow.frames[shallow.frames.length - 1].v).toBeCloseTo(walk, 6)
+    const headOn = slide(face + 1.2, 0, walk, Math.atan2(-Math.sin(88 * DEG), Math.cos(88 * DEG)), 1 / 60, 2)
     const last = headOn.frames[headOn.frames.length - 1]
-    expect(last.v).toBeLessThan(0.2) // what it achieves: 2 cos(88) = 0.07
+    expect(last.v).toBeLessThan(0.2) // what it achieves: 1.4 cos(88) = 0.05
   })
 
   it('never ends inside the wall however long you push, and always at the same distance', () => {
     for (const dt of DTS) {
-      const { frames } = slide(face + 1, 0, 4.2, -Math.PI / 2, dt, 3, true) // straight at the wall
+      const { frames } = slide(face + 1, 0, CONFIG.player.hurrySpeed, -Math.PI / 2, dt, 3, true) // straight at the wall
       for (const f of frames.slice(Math.round(1 / dt))) expect(f.x).toBeGreaterThanOrEqual(stop - 1e-9)
       expect(frames[frames.length - 1].x).toBeCloseTo(stop, 9)
     }
@@ -120,7 +121,7 @@ describe('round furniture (the forecourt planter, radius 0.5 at (-70.2, 4.2))', 
     let worstGap = 0
     let worstJitter = 0
     let totalSteady = 0
-    for (const [speed, hurry] of [[2.0, false], [4.2, true]] as const) {
+    for (const [speed, hurry] of [[CONFIG.player.walkSpeed, false], [CONFIG.player.hurrySpeed, true]] as const) {
       for (const dt of DTS) {
         for (const offset of [0.15, 0.3, 0.5]) {
           // walking east past the planter, aimed `offset` off its centre line, so it slides round the near side
@@ -162,7 +163,7 @@ describe('round furniture (the forecourt planter, radius 0.5 at (-70.2, 4.2))', 
         const sx = cx + Math.sin(a * DEG) * 3
         const sz = cz + Math.cos(a * DEG) * 3
         if (staticClearance(sx, sz).d < R + 0.1) continue
-        const { frames } = slide(sx, sz, 4.2, bearing(sx, sz, cx, cz + 0.2), dt, 2, true)
+        const { frames } = slide(sx, sz, CONFIG.player.hurrySpeed, bearing(sx, sz, cx, cz + 0.2), dt, 2, true)
         for (const f of frames) expect(Math.hypot(f.x - cx, f.z - cz)).toBeGreaterThanOrEqual(ring - 1e-9)
       }
     }
@@ -173,7 +174,7 @@ describe('an inside corner (the plaza\'s north-west corner)', () => {
   it('takes the speed to 0 without ever reversing it, ends exactly in the corner and never inside either wall', () => {
     const corner = { x: PLAYER_PLAZA.x0 + R + SKIN, z: PLAYER_PLAZA.z0 + R + SKIN }
     for (const dt of DTS) {
-      for (const [speed, hurry] of [[2.0, false], [4.2, true]] as const) {
+      for (const [speed, hurry] of [[CONFIG.player.walkSpeed, false], [CONFIG.player.hurrySpeed, true]] as const) {
         const m = classicMover(PLAYER_PLAZA.x0 + 2, PLAYER_PLAZA.z0 + 2)
         const facing = Math.atan2(-1, -1) // north-west
         m.cruise(speed, facing)

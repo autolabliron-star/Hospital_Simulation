@@ -558,7 +558,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     ST[PZ] = 0.01 * s * m - 0.04 * s * r.run + rideUp
     ST[PYAW] = -0.075 * m * gait + (1 - m) * 0.03 * noise1(t * 0.3, seed + 31)
     ST[PROLL] = 0.05 * m * load * sway + (1 - m) * 0.02 * noise1(t * 0.27, seed + 32) + r.roll
-    ST[PPITCH] = 0.02 + 0.03 * m + 0.04 * r.run + r.lean * LEAN.pelvisShare
+    ST[PPITCH] = 0.02 + 0.012 * m + 0.03 * r.run + r.lean * LEAN.pelvisShare
     // the pelvis is as high as the legs allow: the most stretched planted leg decides
     const lmax = LEG_MAX * legLen
     const cyw = Math.cos(ST[PYAW])
@@ -575,7 +575,8 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     const bounce = 0.02 * s * r.happy * m * (1 - Math.abs(gait))
     // going faster than a stroll the knees stay a little bent (a few cm lower, so the legs never have to be fully stretched to reach the next
     // step), a runner sits lower still and rises and sinks with the stride (`pl.bounce`, from the planter)
-    const crouch = (0.045 * r.brisk * (1 - r.run) + 0.004 * r.run) * s - pl.bounce * s
+    // (a walker's knee is never locked at mid-stance either: about 15 degrees of bend, which is also what keeps the hips from bobbing more than 4-5 cm)
+    const crouch = (0.015 * m * (1 - r.run) + 0.045 * r.brisk * (1 - r.run) + 0.004 * r.run) * s - pl.bounce * s
     const relaxed = ankleY + legFactor * legLen + hop + bounce - crouch
     const hip = Math.min(smin(hy0, hy1, 0.03 * s), relaxed)
     ST[PY] = hip + B.hipDrop * s

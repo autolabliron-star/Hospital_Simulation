@@ -264,15 +264,15 @@ describe('W3: the doors sense you along your way (the leaves are solid)', () => 
     expect(walkAtDoor(d, 1, HURRY, true).shownAt).toBeGreaterThanOrEqual(0.98)
   })
 
-  it('at a hurry an auto door stirs about 5 m out and is wide open about 2.7 m out; a swing door about 4.1 m and 1.6 m', () => {
+  it('at a hurry an auto door stirs about 5 m out and is wide open about 2.7 m out; a swing door about 3.7 m and 1.6 m', () => {
     const auto = walkAtDoor(door('triage'), 1, HURRY, true)
     expect(auto.stirred).toBeGreaterThan(4.6)
     expect(auto.stirred).toBeLessThan(5.2)
     expect(auto.wide).toBeGreaterThan(2.4)
     expect(auto.wide).toBeLessThan(3.1)
     const swing = walkAtDoor(door('room:A3'), 1, HURRY, true)
-    expect(swing.stirred).toBeGreaterThan(3.8)
-    expect(swing.stirred).toBeLessThan(4.4)
+    expect(swing.stirred).toBeGreaterThan(3.4)
+    expect(swing.stirred).toBeLessThan(4.1)
     expect(swing.wide).toBeGreaterThan(1.3)
     expect(swing.wide).toBeLessThan(2.2)
   })
