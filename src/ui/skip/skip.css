@@ -1,0 +1,124 @@
+/*
+ * S1 Smart skip: the skip row in the title card (overview) and the context chip beside the walk clock. Same frosted look as the
+ * speed control (hud.css); colours from src/styles/base.css.
+ */
+
+.hud-skip {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hud-skip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-skip__tag {
+  margin-right: auto;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+.hud-skip__btn,
+.hud-skip__ctx {
+  border: 1px solid var(--hud-faint);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--ink);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.hud-skip__btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-skip__ctx {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 11px;
+  text-align: left;
+  border-color: color-mix(in srgb, var(--teal) 45%, transparent);
+  background: color-mix(in srgb, var(--mint) 16%, transparent);
+}
+
+.hud-skip__ctx-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-skip__btn:hover:not(:disabled),
+.hud-skip__ctx:hover:not(:disabled) {
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--mint) 24%, transparent);
+}
+
+.hud-skip__btn:disabled,
+.hud-skip__ctx:disabled,
+.skip-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- walk mode: the chip beside the clock ---------- */
+
+.hud-tl--walk {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.skip-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  /* small and game-like: it never takes the pointer from the view unless it is free */
+  opacity: 0.92;
+}
+
+.skip-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skip-chip[data-kind='surgery'] {
+  border-color: color-mix(in srgb, var(--teal) 55%, transparent);
+}
+
+@media (max-width: 700px) {
+  .skip-chip {
+    max-width: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-skip__btn,
+  .hud-skip__ctx {
+    transition: none;
+  }
+}

@@ -21,7 +21,7 @@ import type { ImagingExam, ImagingModality, ScannerState } from '../types'
 import { MODALITIES } from '../types'
 import type { Walker } from '../walker'
 import { BookingQueue, type Booking } from './booking'
-import { buildExam, drawPlan, imageSeedOf, type ExamPlan } from './exam'
+import { buildExam, drawPlan, imageSeedOf, sequenceSeconds, type ExamPlan } from './exam'
 import { ImagingOperator } from './operator'
 import { Outpatient } from './outpatient'
 import { Scanner } from './scanner'
@@ -35,6 +35,22 @@ const DEMO_PROTOCOLS: Record<ImagingModality, string[]> = {
   xray: ['xr-ankle', 'xr-wrist', 'xr-hip'],
   us: ['us-abdo', 'us-renal'],
 }
+
+/**
+ * The exams placed mid-way at an in-flight start, per scanner: [protocol, the sequences it may be in]. Long sequences first
+ * (MRI), the ultrasound always on the renal exam's "Right kidney" (the headline image), CT in the contrast phases.
+ */
+const IN_FLIGHT: Record<ImagingModality, readonly (readonly [string, readonly number[]])[]> = {
+  mri: [['mri-brain', [2, 3]], ['mri-lumbar', [1, 2]], ['mri-knee', [1, 2]]],
+  ct: [['ct-abdo', [0, 1]], ['ct-chest', [0]]],
+  xray: [['xr-ankle', [0]], ['xr-hip', [0]], ['xr-wrist', [0]]],
+  us: [['us-renal', [0]]],
+}
+
+/** Outpatients already seated in the imaging hall at an in-flight start. */
+const IN_FLIGHT_HALL = 2
+/** The pause after the first X-ray view of a placed exam (s). */
+const IN_FLIGHT_XRAY_GAP = 24
 
 interface Report {
   at: number
@@ -125,6 +141,105 @@ export class ImagingDepartment {
   /** A radiographer or the sonographer comes on shift. */
   attachOperator(op: ImagingOperator): void {
     this.machines[op.modality].setOperator(op)
+  }
+
+  /**
+   * S1 in-flight warm: a patient mid-exam on every staffed scanner (the ultrasound on the right kidney), placed with
+   * `Scanner.warmBegin` and held there through the hidden pre-roll (`CONFIG.opening.preRollSeconds` plus a second, or until
+   * `endWarmHold()`), so the reveal finds each sequence `CONFIG.opening.seqProgress` through. Logs nothing. A scanner with
+   * no operator on duty at this hour, or one that is busy, is skipped. Drawn from forks of the department rng, so the day's
+   * own draws are untouched. Call after `startOutpatients(t)`; the day's own appointments just wait for the scanner as usual.
+   */
+  warmInFlight(t: number): void {
+    const root = this.rng.fork('inFlight')
+    const [p0, p1] = CONFIG.opening.seqProgress
+    for (const m of MODALITIES) {
+      const sc = this.machines[m]
+      if (!sc.free) continue
+      const r = root.fork(m)
+      const [protocolId, seqs] = IN_FLIGHT[m][r.int(0, IN_FLIGHT[m].length - 1)]
+      const seq = seqs[r.int(0, seqs.length - 1)]
+      const proto = protocolById(protocolId)
+      const sites = this.sites.scanners[m]
+      const id = `inflight-${m}`
+      const name = this.world.uniqueName(r)
+      const b: Booking = {
+        id: this.world.id('bk'),
+        kind: 'outpatient',
+        modality: m,
+        protocolId: proto.id,
+        protocolName: proto.name,
+        patientId: id,
+        patientName: name,
+        acuity: 5,
+        requestedAt: t - 600,
+        apptAt: t,
+        ready: true,
+        state: 'waiting',
+        subject: null,
+      }
+      const exam = buildExam(this.world.id('exam'), proto, { patientId: id, patientName: name }, 'outpatient', imageSeedOf(id))
+      const plan = drawPlan(r.fork('plan'), exam, { demo: false, transported: false })
+      // an X-ray exposure is over in a second and a half: the patient is turned for the second view slowly enough that the
+      // exam is still in its scanning phase if the pre-roll is a little longer than planned (a Jump's 60 s)
+      if (m === 'xray' && plan.gapS.length > 0) plan.gapS[0] = Math.max(plan.gapS[0], IN_FLIGHT_XRAY_GAP)
+      const seat = sites.tableSeat
+      const p = new Outpatient(this.services(), b, id, name, { x: seat.x, z: seat.z }, seat.heading, this.walkerFor(id), r.fork(id), false)
+      b.subject = p
+      if (!sc.warmBegin(b, exam, plan, seq, r.range(p0, p1) * sequenceSeconds(m, exam.sequences[seq]), CONFIG.opening.preRollSeconds + 1)) {
+        this.world.releaseName(name)
+        p.walker.remove()
+        continue
+      }
+      p.warmOnTable()
+      this.bookings.push(b)
+      this.exams.push(exam)
+      this.outpatients.push(p)
+      this.outpatientsSpawned++
+      this.world.hooks.add(p)
+    }
+    this.warmWaiting(t, IN_FLIGHT_HALL)
+  }
+
+  /** S1 in-flight warm: the day's next `n` appointments are already here, checked in and seated in the imaging hall. */
+  private warmWaiting(t: number, n: number): void {
+    for (let k = 0; k < n && this.pendingOutpatients.length > 0; k++) {
+      const { index } = this.pendingOutpatients[0]
+      const o = OUTPATIENTS[index]
+      const proto = PROTOCOLS[o.protocol]
+      const hall = this.sites.scanners[proto.modality].hallDoor
+      const b: Booking = {
+        id: this.world.id('bk'),
+        kind: 'outpatient',
+        modality: proto.modality,
+        protocolId: proto.id,
+        protocolName: proto.name,
+        patientId: o.id,
+        patientName: o.name,
+        acuity: 5,
+        requestedAt: t,
+        apptAt: outpatientTimeSeconds(o),
+        ready: false,
+        state: 'waiting',
+        subject: null,
+      }
+      const p = new Outpatient(this.services(), b, o.id, o.name, { x: hall.x, z: hall.z }, Math.PI, this.walkerFor(o.id), this.rng.fork(o.id), false)
+      if (!p.warmWaiting()) {
+        p.walker.remove()
+        break
+      }
+      this.pendingOutpatients.shift()
+      b.subject = p
+      this.enqueue(b)
+      this.outpatients.push(p)
+      this.outpatientsSpawned++
+      this.world.hooks.add(p)
+    }
+  }
+
+  /** The hidden pre-roll is over: the placed exams resume (they do on their own a second after `preRollSeconds`). */
+  endWarmHold(): void {
+    for (const m of MODALITIES) this.machines[m].endWarmHold()
   }
 
   /** The day's outpatient appointments: each person arrives a few minutes before theirs. */

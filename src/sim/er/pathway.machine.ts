@@ -6,6 +6,7 @@
  *        awaitingResults)] -> decision -> leaving.home | admittedOut(waitingPorter, riding) -> gone
  *   a waiting patient whose patience runs out goes waitingTriage / waitingDoctor -> leaving.lwbs -> gone
  *   an ambulance patient skips check-in and triage: arriving -> waitingDoctor (held on the stretcher until a bay is ready)
+ *   S1 warm start: arriving -> waitingTriage | waitingDoctor | inBay.waitingExam (WARM_TRIAGE / WARM_DOCTOR / WARM_BAY)
  *
  * The machine only decides WHEN and WHICH way:
  *   - timers are `after` delays on the simulation clock (SimClock), so they honour pause and speed;
@@ -127,6 +128,13 @@ export type PathwayEvent =
   /** W4: the robot (or the nurse) finished the blood draw and the arm is free. */
   | { type: 'DRAW_DONE' }
   | { type: 'OUT' }
+  /**
+   * S1 in-flight warm (docs/S1-SHOWCASE.md): a patient placed at a warm start is already under way. Only `arriving` takes these, so the
+   * normal entry hooks of the target state run (no snapshot restore). WARM_BAY is for a patient who is already lying on the trolley.
+   */
+  | { type: 'WARM_TRIAGE' }
+  | { type: 'WARM_DOCTOR' }
+  | { type: 'WARM_BAY' }
 
 const enter = (state: PathwayState) => ({ type: 'enter' as const, params: { state } })
 
@@ -192,7 +200,12 @@ export const pathwayMachine = setup({
   states: {
     arriving: {
       entry: enter('arriving'),
-      on: { ARRIVED: [{ guard: 'ambulance', target: 'waitingDoctor' }, { target: 'checkIn' }] },
+      on: {
+        ARRIVED: [{ guard: 'ambulance', target: 'waitingDoctor' }, { target: 'checkIn' }],
+        WARM_TRIAGE: '#erPatient.waitingTriage',
+        WARM_DOCTOR: '#erPatient.waitingDoctor',
+        WARM_BAY: '#erPatient.inBay.waitingExam',
+      },
     },
     checkIn: {
       initial: 'queueing',

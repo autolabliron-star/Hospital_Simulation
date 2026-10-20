@@ -129,6 +129,11 @@ export interface RigInput {
    * (PROP.blanket) in the prop frame, on the mattress under the hips, for as long as they lie. Anybody else lying (a scanner table) lies bare.
    */
   covered: boolean
+  /**
+   * S1: how many times faster than real time the feet cycle (the sim at 2x to 4x: the legs keep up; 10x and 30x: capped, the feet slide). Absent = 1.
+   * The planner is advanced by `dt * gaitRate`; the body's other blends keep the real `dt`.
+   */
+  gaitRate?: number
   /** World point to look at, or null. */
   hasLook: boolean
   lookX: number
@@ -464,7 +469,7 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
 
   // 3. feet
   const pl = r.planter
-  if (posture === 'stand') updatePlanter(pl, dt, inp.x, inp.z, inp.heading, inp.vx, inp.vz, inp.speed, s, inp.driven ? inp : null)
+  if (posture === 'stand') updatePlanter(pl, inp.gaitRate === undefined ? dt : dt * inp.gaitRate, inp.x, inp.z, inp.heading, inp.vx, inp.vz, inp.speed, s, inp.driven ? inp : null)
   else resetPlanter(pl, inp.x, inp.z, inp.heading, s)
   const standing = posture === 'stand'
   const motion = standing ? clamp(inp.speed / 1.2, 0, 1) : 0

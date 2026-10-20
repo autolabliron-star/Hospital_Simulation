@@ -13,7 +13,7 @@
  */
 import { THEATRE_STAFF } from '@/content/staff'
 import type { World } from '../er/world'
-import type { Spot } from '../places'
+import { SURGERY, type Spot } from '../places'
 import type { Rng } from '../rng'
 import type { CasePhase, RobotPhase, SeatSpec } from '../types'
 import { Staffer, type Task, type Title } from './actors'
@@ -25,6 +25,8 @@ export const SCRUB_LEAD = 360
 export const SCRUB_NURSE_LEAD = 780
 export const CIRCULATOR_LEAD = 720
 export const ANAES_LEAD = 600
+/** The idle porter stays at one sterile-supply spot this long (seconds) before the next. */
+export const STERILE_DWELL = 75
 
 /** The situation the team's routine reads. Written by Surgery; allocation-free to reuse. */
 export interface OrContext {
@@ -333,8 +335,12 @@ export class Team {
         }
         return { key: 'pacu:island', spot: sp.pacuNurse, anim: 'tablet' }
       }
-      case 'porter':
-        return this.base(s)
+      case 'porter': {
+        // S1: between stretcher runs the porter works the sterile supply (trays, drapes), moving on every 75 s; lent out, he follows the case
+        const spots = SURGERY.sterile.spots
+        const k = (((Math.floor(c.now / STERILE_DWELL) % spots.length) + spots.length) % spots.length)
+        return { key: `porter:sterile:${k}`, spot: spots[k], anim: 'give' }
+      }
       case 'cleaner': {
         if (c.turnoverSince !== null && c.turnoverSeconds > 0) {
           const n = sp.clean.length

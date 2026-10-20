@@ -398,6 +398,10 @@ export interface KeyMap {
   speed1: string
   speed2: string
   speed4: string
+  /** S1: the fast speeds (watch a case play out) and the skip ahead (+15 min; with Shift, the next milestone). */
+  speed10: string
+  speed30: string
+  skip: string
   follow: string
   overview: string
   cleanScreen: string
@@ -426,6 +430,21 @@ export interface KeyMap {
   right: string
 }
 
+/**
+ * S1 "Showcase": how the day opens. `showcase` (the app's default) has every machine and room at work from the first
+ * second and the da Vinci already at the console; `quiet` is the R2 day (and what `new Simulation(seed)` builds).
+ */
+export type OpeningKind = 'showcase' | 'quiet'
+
+/** S1: the sim speeds the HUD offers (1×, 2×, 4×, then the fast speeds for watching a case play out). */
+export const SIM_SPEEDS = [1, 2, 4, 10, 30] as const
+export type SimSpeed = (typeof SIM_SPEEDS)[number]
+
+/** S1: a service that can place work already under way at a warm start (opening, Jump, Skip). Logs nothing. */
+export interface InFlightService {
+  warmInFlight(t: number): void
+}
+
 export const DEFAULT_KEYMAP: KeyMap = {
   tour: 'KeyT',
   prescribe: 'KeyP',
@@ -433,6 +452,9 @@ export const DEFAULT_KEYMAP: KeyMap = {
   speed1: 'Digit1',
   speed2: 'Digit2',
   speed4: 'Digit4',
+  speed10: 'Digit0',
+  speed30: 'Digit3',
+  skip: 'BracketRight',
   follow: 'KeyF',
   overview: 'Escape',
   cleanScreen: 'KeyH',

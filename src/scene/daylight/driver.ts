@@ -12,7 +12,8 @@
  *
  * No new lights, no `needsUpdate` on any material or the shadow map, no define changes, so nothing recompiles and the baked shadow
  * map is never rendered again after mount (src/scene/daylight/shadowBake.test.ts greps for it). After a Jump (a new simulation) or a
- * big step in the hour the driver snaps instead of easing, behind the fade.
+ * big step in the hour the driver snaps instead of easing, behind the fade. During a skip's time-lapse (S1, ./lapse.ts) it takes the
+ * lapse hour every frame and follows it directly; when the lapse ends it snaps to the real hour.
  *
  * Walk mode (W1): the caller passes `indoor` (0 in the overview, 1 while walking); the driver eases a blend toward it and, on top of
  * the light of the hour, applies the LOOK of that blend (src/scene/lighting/look.ts: row 0 is exactly the overview's light, row 1 the
@@ -42,6 +43,7 @@ import { lvUniforms } from '@/scene/lighting/volume/uniforms'
 import { setScreenLevel } from './dim'
 import { INDOOR_SECONDS } from './indoor'
 import { copyDayLight, createDayLight, lerpDayLight, lightAt, maxDifference, type DayLight } from './lightAt'
+import { lapse } from './lapse'
 
 /** What the driver writes into. Anything may be null (a layer not mounted yet): it is skipped. */
 export interface DayTargets {
@@ -90,6 +92,8 @@ export class DaylightDriver {
   private pending = false
   private generation = -1
   private lastHour = 0
+  /** S1: the sky was driven by a skip's time-lapse on the last frame (when it stops, snap to the real hour). */
+  private wasLapsing = false
   /** The indoor blend now (eased toward the target the caller passes) and the one last written. */
   private indoor = 0
   private appliedIndoor = 0
@@ -116,14 +120,20 @@ export class DaylightDriver {
     this.timer += dt
     let snap = this.first || generation !== this.generation
     this.generation = generation
-    if (this.timer >= READ_SECONDS || snap) {
+    // S1: while a skip lapses the sky runs from the lapse hour, read every frame and followed directly (no lag); when it ends, snap to the real hour
+    const lapsing = lapse.active
+    if (lapsing !== this.wasLapsing) {
+      this.wasLapsing = lapsing
+      if (!lapsing) snap = true
+    }
+    if (this.timer >= READ_SECONDS || snap || lapsing) {
       this.timer = 0
-      const hour = readHour()
-      if (!this.first && Math.abs(circularDelta(hour, this.lastHour)) > SNAP_HOURS) snap = true
+      const hour = lapsing ? lapse.hour : readHour()
+      if (!lapsing && !this.first && Math.abs(circularDelta(hour, this.lastHour)) > SNAP_HOURS) snap = true
       this.lastHour = hour
       lightAt(hour, this.target)
     }
-    if (snap) copyDayLight(this.target, this.current)
+    if (snap || lapsing) copyDayLight(this.target, this.current)
     else lerpDayLight(this.current, this.target, 1 - Math.exp(-Math.min(dt, 0.25) / FOLLOW_SECONDS), this.current)
     // the indoor blend follows its target the same way and comes to an exact rest
     if (snap) this.indoor = indoorTarget

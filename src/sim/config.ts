@@ -11,6 +11,43 @@ export const CONFIG = {
     /** The simulated day starts at 07:30. */
     startHour: 7.5,
     worldSeed: 20261012,
+    /** S1: steps per frame are capped at max(maxStepsMin, ceil(speed × 2.2)) and by a wall-clock budget; leftover time is dropped. */
+    maxStepsMin: 40,
+    stepBudgetMs: 6,
+  },
+
+  /**
+   * S1 "Showcase" (docs/S1-SHOWCASE.md): the opening and every warm start (Jump, Skip) place work already under way, so
+   * each machine and room has someone at work. The people are placed, then a hidden pre-roll carries them mid-way.
+   */
+  opening: {
+    /** The showcase opening's hidden pre-roll at 07:30 (the clock still reads 07:30 when it fades in). */
+    preRollSeconds: 50,
+    /** ER patients placed: waiting for triage, waiting for a doctor, already in an ER bay. */
+    er: { triage: 2, doctor: 2, bay: 2 },
+    /** Walk-ups on the health kiosks, chairs mid-draw, tubes put on the lab track. */
+    kiosks: 2,
+    drawChairs: 3,
+    labTubes: 5,
+    /** Seconds after the warm start at which one ward order per ward is written (MedVend picks, a pod flies). */
+    medsAt: [0, 40] as readonly number[],
+    /** How far through its current sequence each scanner is when placed (share, uniform). */
+    seqProgress: [0.4, 0.7] as readonly [number, number],
+    /** Early visitor parties placed at a showcase opening (the lounges fill). */
+    visitorParties: 3,
+  },
+
+  /** S1: going forward in time. Short skips run the same hospital headless; longer ones rebuild it at the target (a forward Jump). */
+  skip: {
+    /** The plain skip buttons (seconds): +15 min and +1 h. */
+    steps: [900, 3600] as readonly number[],
+    /** At or under this, a skip runs the live hospital forward (full continuity); above it, a rebuild. */
+    liveMaxSeconds: 180,
+    /** A milestone skip lands this long before the event, so you see it start. */
+    milestoneLeadSeconds: 20,
+    /** The time-lapse veil and the fade back in (ms). */
+    lapseMs: 700,
+    fadeInMs: 450,
   },
 
   pods: {
@@ -433,6 +470,18 @@ export const CONFIG = {
     /** The theatre team is on level 2 from teamFromHour to teamToHour. */
     teamFromHour: 7.0,
     teamToHour: 18.5,
+    /**
+     * S1 showcase opening: an early cholecystectomy still in PACU, a hysterectomy at the console at anchorHour, then the
+     * seeded template (shifted, same draws). The next patient is in a pre-op bay from nextBayHour.
+     */
+    showcase: {
+      anchorHour: 7.5,
+      consoleElapsedMinutes: [8, 14] as readonly [number, number],
+      early: 'cholecystectomy' as const,
+      atConsole: 'hysterectomy' as const,
+      pacuLeftMinutes: [15, 25] as readonly [number, number],
+      nextBayHour: 7.3,
+    },
   },
 
   /** R2: the lifts, now real for level 2 (level 3+ is still "upstairs": the ER and ward fades are unchanged). */

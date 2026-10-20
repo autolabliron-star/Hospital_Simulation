@@ -997,6 +997,17 @@ export const SURGERY = {
   scrubSink: { at: { x: l2(-49.4), z: 1.6 } as Vec2, w: 2.0, d: 0.6, spots: [{ at: { x: l2(-50.0), z: 0.9 }, heading: 0 }, { at: { x: l2(-48.8), z: 0.9 }, heading: 0 }] as Spot[] },
   /** In the theatre corridor, looking west through the viewing window at the table. */
   viewing: { at: { x: l2(-42.8), z: 4.3 }, heading: -Math.PI / 2 } as Spot,
+  /**
+   * S1: sterile supply (`l2Sterile`): where the theatre porter works between stretcher runs (tray racks, the case-cart
+   * bench, the drape shelves). Provisional; the surgery package checks them against the room's furniture and the nav graph.
+   */
+  sterile: {
+    spots: [
+      { at: { x: l2(-51.4), z: -6.2 }, heading: -Math.PI / 2 },
+      { at: { x: l2(-48.6), z: -8.6 }, heading: Math.PI },
+      { at: { x: l2(-45.6), z: -6.2 }, heading: Math.PI / 2 },
+    ] as Spot[],
+  },
 } as const
 
 /** Pre-op and admissions (`l2PreOp`): four curtained bays on the north windows, the admissions desk by the door, waiting chairs. */

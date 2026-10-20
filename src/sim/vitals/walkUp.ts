@@ -40,6 +40,8 @@ export class WalkUp extends Actor implements QueueAwareSubject {
   leftAt = -1
   /** The reading they went home with (partial or not), if any. */
   reading: VitalsReading | null = null
+  /** The stool they were last sent to (null once they are called back to the platform): the in-flight warm-up snaps them onto it. */
+  private stool: Spot | null = null
 
   constructor(
     private readonly host: WalkUpHost,
@@ -96,6 +98,7 @@ export class WalkUp extends Actor implements QueueAwareSubject {
     if (this.state !== 'waiting') return
     this.entity.mood = 'neutral'
     this.showEmote('none', this.world.t)
+    this.stool = null
     this.goTo(stand, 0.9)
   }
 
@@ -106,6 +109,7 @@ export class WalkUp extends Actor implements QueueAwareSubject {
 
   kioskSit(seat: Spot): void {
     if (this.state !== 'waiting') return
+    this.stool = seat
     this.slideTo(seat.at.x, seat.at.z, seat.heading, 1.2, 'stand')
   }
 
@@ -116,13 +120,24 @@ export class WalkUp extends Actor implements QueueAwareSubject {
     this.leave()
   }
 
-  /** A short step (the stool to the platform) glides; a longer one walks. */
+  /** S1 in-flight warm: whoever was sent to the stool is already sitting on it (no glide left to play). */
+  settleOnStool(): void {
+    if (this.stool === null) return
+    this.placeAt(this.stool.at.x, this.stool.at.z, this.stool.heading)
+  }
+
+  /** A short step (the stool to the platform) glides; a longer one walks. Somebody already on the spot stays put (no glide to nowhere). */
   private goTo(spot: Spot, glideWithin: number): void {
+    const away = Math.hypot(this.x - spot.at.x, this.z - spot.at.z)
+    if (away < 0.05 && this.mode === 'static') {
+      this.entity.heading = spot.heading
+      return
+    }
     if (Math.hypot(this.x - spot.at.x, this.z - spot.at.z) < glideWithin && this.mode === 'static') this.slideTo(spot.at.x, spot.at.z, spot.heading, 1.0, 'stand')
     else this.moveTo(spot.at, { face: spot.heading })
   }
 
-  private leave(): void {
+  leave(): void {
     if (this.state === 'toExit' || this.state === 'gone') return
     this.state = 'toExit'
     this.leftAt = this.world.t
@@ -174,6 +189,25 @@ export class WalkUpSpawner {
       this.spawn()
       this.nextAt = p.next()
     }
+  }
+
+  /**
+   * S1 in-flight warm: a visitor already standing on `spot` (a kiosk platform), fully visible, who has joined the line. The next dispatch calls them
+   * at once, and as they are on the platform the session starts on the spot. Null when the line has no room.
+   */
+  spawnAt(spot: Spot, rng: Rng = this.rng): WalkUp | null {
+    const w = this.world
+    const id = w.id('hk')
+    const name = w.uniqueName(rng)
+    const person = new WalkUp(this.host, w, id, name, { x: spot.at.x, z: spot.at.z }, spot.heading, this.walkerFor(id))
+    this.add(person)
+    this.spawned++
+    if (!this.host.offer(person, 'full')) {
+      person.leave()
+      return null
+    }
+    person.state = 'waiting'
+    return person
   }
 
   private spawn(): void {

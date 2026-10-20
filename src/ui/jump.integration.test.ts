@@ -77,7 +77,10 @@ describe('swapping the running hospital', () => {
   // A new hospital's log numbers its events from 1 again; publishWorld starts over when `sim` changes.
   it('the HUD event store follows the new hospital after a Jump', () => {
     jumpTo(9)
-    for (let i = 0; i < 600; i++) sim.step(1 / 60) // ten sim seconds of new events
+    // run until the new hospital logs something after the swap (S1: the in-flight warm can leave the first seconds quiet)
+    const before = sim.log.events.at(-1)?.id ?? 0
+    for (let i = 0; i < 60 * 300 && (sim.log.events.at(-1)?.id ?? 0) === before; i++) sim.step(1 / 60)
+    expect(sim.log.events.at(-1)?.id ?? 0).toBeGreaterThan(before)
     loop.publishNow()
     const shown = useWorld.getState().events
     const newest = sim.log.events.at(-1)!

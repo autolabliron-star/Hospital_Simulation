@@ -201,14 +201,25 @@ export class ErDepartment {
         }
       }
       if (!best) break
-      if (!this.seats.claimId(best.seat.id, c.id)) continue
-      best.state = 'occupied'
-      best.caseId = c.id
-      best.since = t
-      c.bay = best.index
+      if (!this.occupyBay(c, best.index, t)) continue
       out.push(c)
     }
     return out
+  }
+
+  /**
+   * Promise ER bay `index` to patient `c` from time `t`: claim its trolley seat and mark it occupied. False when the bay is not free or its
+   * seat is taken. (The body of `assignBays` for one bay; S1 uses it to put a patient straight on a trolley at a warm start.)
+   */
+  occupyBay(c: ErCase, index: number, t: number): boolean {
+    const bay = this.bays[index]
+    if (!bay || bay.state !== 'free') return false
+    if (!this.seats.claimId(bay.seat.id, c.id)) return false
+    bay.state = 'occupied'
+    bay.caseId = c.id
+    bay.since = t
+    c.bay = bay.index
+    return true
   }
 
   /** The next walk-in with a bay promised and no escort yet, with this nurse now assigned. */

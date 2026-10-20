@@ -4,9 +4,9 @@
  * The sequence itself is in jumpFlow.ts (pure, tested with fake timers); this file only wires it to the running hospital.
  */
 import { create } from 'zustand'
-import { setFollowedPerson, setHoveredPerson, setSelectedPerson } from '@/scene/actors/crowd/runtime'
+import { highlight, setFollowedPerson, setHoveredPerson, setSelectedPerson } from '@/scene/actors/crowd/runtime'
 import { useBubbles } from '@/scene/fx/bubbleStore'
-import { jumpTo, simGeneration } from '@/sim'
+import { advanceBy, jumpTo, sim, simGeneration, skipRebuild } from '@/sim'
 import { createJumpState, type JumpState } from './jumpFlow'
 import { useLiftRide } from './liftRide.store'
 
@@ -32,12 +32,21 @@ function afterFrames(n: number, fn: () => void): void {
 export const useJump = create<JumpState>(
   createJumpState({
     rebuild: jumpTo,
+    advance: advanceBy,
+    rebuildAt: skipRebuild,
     generation: () => simGeneration,
     afterSwap: () => {
       // the people of the old hospital are gone: nobody is selected, followed or talking any more
       setSelectedPerson(null)
       setFollowedPerson(null)
       setHoveredPerson(null)
+      useBubbles.getState().clear()
+    },
+    afterLiveSkip: () => {
+      // the same hospital ran on: keep the selection, but let go of anybody who left meanwhile (a discharged patient, a finished visit)
+      if (highlight.selectedId && !sim.entities.has(highlight.selectedId)) setSelectedPerson(null)
+      if (highlight.followId && !sim.entities.has(highlight.followId)) setFollowedPerson(null)
+      if (highlight.hoverId && !sim.entities.has(highlight.hoverId)) setHoveredPerson(null)
       useBubbles.getState().clear()
     },
     after: (ms, fn) => {

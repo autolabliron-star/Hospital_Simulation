@@ -273,14 +273,14 @@ function updateMri(r: MriRig, s: ScannerState, t: number): void {
 const AMBER = linear('#ffb23a')
 const GREEN = linear('#35e07a')
 
-function updateCt(r: CtRig, s: ScannerState, dt: number): void {
+function updateCt(r: CtRig, s: ScannerState, dt: number, spinDt: number): void {
   const x = tableX(IMAGING.ct.table, s.tablePos)
   if (changed(x, r.last.x)) {
     r.table.position.x = x
     r.table.updateMatrix()
     r.last.x = x
   }
-  r.angle = rotorAdvance(r.angle, s.activity, dt)
+  r.angle = rotorAdvance(r.angle, s.activity, spinDt)
   if (changed(r.angle, r.last.angle)) {
     r.rotor.rotation.x = r.angle
     r.rotor.updateMatrix()
@@ -470,11 +470,12 @@ function updateUs(r: UsRig, s: ScannerState, dt: number, t: number): void {
 
 /**
  * Animate the machines from the scanners' states. `dt` is the seconds to advance (0 while the sim is paused: everything holds),
- * `t` a running clock for the periodic parts (LED pulse, probe rocking).
+ * `t` a running clock for the periodic parts (LED pulse, probe rocking). S1: `dt` may be the sim-speed scaled time (visualDt); `spinDt` is the real
+ * frame time (0 while paused) for the CT gantry, which spins at its own speed whatever the sim speed (default: `dt`).
  */
-export function updateRig(rig: Rig, scanners: Record<ImagingModality, ScannerState>, dt: number, t: number): void {
+export function updateRig(rig: Rig, scanners: Record<ImagingModality, ScannerState>, dt: number, t: number, spinDt: number = dt): void {
   updateMri(rig.mri, scanners.mri, t)
-  updateCt(rig.ct, scanners.ct, dt)
+  updateCt(rig.ct, scanners.ct, dt, spinDt)
   updateXray(rig.xray, scanners.xray, dt)
   updateUs(rig.us, scanners.us, dt, t)
 }

@@ -90,6 +90,12 @@ export class Verifier {
     this.meta.set(order.id, { flagged, item: null, reviewed: false, verified: 0 })
   }
 
+  /** Make this order wait for the scientist whatever its draw was (the in-flight opening puts a review under way). Leaves the share of the others alone. */
+  flag(orderId: string): void {
+    const m = this.meta.get(orderId)
+    if (m) m.flagged = true
+  }
+
   /** Is this order one that waits for the scientist? */
   needsReview(orderId: string): boolean {
     return this.meta.get(orderId)?.flagged ?? false

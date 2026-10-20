@@ -193,6 +193,142 @@
   color: color-mix(in srgb, var(--ink) 58%, transparent);
 }
 
+/* ---------- the skip's time-lapse veil (S1): translucent over the running scene, opaque for the swap, then gone ---------- */
+
+.jm-lapse {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: #e9eeed;
+  color: var(--ink);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* lapsing: up to ~55% over CONFIG.skip.lapseMs (the --lapse-ms variable carries the number) */
+.jm-lapse[data-phase='lapsing'] {
+  visibility: visible;
+  pointer-events: auto;
+  animation: jm-lapse-in var(--lapse-ms, 700ms) ease-in forwards;
+}
+
+/* swapping: opaque while the hospital advances or is rebuilt */
+.jm-lapse[data-phase='swapping'] {
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+  transition: opacity 0.12s ease-out;
+}
+
+/* fading in: CONFIG.skip.fadeInMs */
+.jm-lapse[data-phase='fadingIn'] {
+  visibility: visible;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--fade-ms, 450ms) ease;
+}
+
+@keyframes jm-lapse-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+
+.jm-lapse__body {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 0 24px;
+}
+
+.jm-lapse__caption {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 70%, transparent);
+}
+
+.jm-lapse__time {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the analogue clock: the hands are CSS animations (transform only), so the compositor keeps them turning while the main thread rebuilds */
+.jm-lapse__clock {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--ink) 80%, transparent);
+  background: color-mix(in srgb, #ffffff 70%, transparent);
+}
+
+.jm-lapse__hand {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  border-radius: 2px;
+  background: var(--ink);
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+
+.jm-lapse__hand--hour {
+  width: 4px;
+  height: 26px;
+  margin-left: -2px;
+  transform: rotate(var(--hour-from, 0deg));
+  animation: jm-hand-hour var(--lapse-ms, 700ms) cubic-bezier(0.42, 0, 0.58, 1) forwards;
+}
+
+.jm-lapse__hand--minute {
+  width: 3px;
+  height: 38px;
+  margin-left: -1.5px;
+  transform: rotate(var(--min-from, 0deg));
+  animation: jm-hand-minute var(--lapse-ms, 700ms) cubic-bezier(0.42, 0, 0.58, 1) forwards;
+}
+
+.jm-lapse__pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+@keyframes jm-hand-hour {
+  from {
+    transform: rotate(var(--hour-from, 0deg));
+  }
+  to {
+    transform: rotate(var(--hour-to, 0deg));
+  }
+}
+
+@keyframes jm-hand-minute {
+  from {
+    transform: rotate(var(--min-from, 0deg));
+  }
+  to {
+    transform: rotate(var(--min-to, 0deg));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .jm-backdrop,
   .jm {
@@ -202,6 +338,27 @@
   .jm-item,
   .jm-cover,
   .jm-cover[data-covered='true'] {
+    transition-duration: 0.01s;
+  }
+
+  /* S1: no spin, no slow rise: the veil simply appears and fades */
+  .jm-lapse[data-phase='lapsing'] {
+    animation: none;
+    opacity: 0.55;
+  }
+
+  .jm-lapse__hand--hour {
+    animation: none;
+    transform: rotate(var(--hour-to, 0deg));
+  }
+
+  .jm-lapse__hand--minute {
+    animation: none;
+    transform: rotate(var(--min-to, 0deg));
+  }
+
+  .jm-lapse[data-phase='swapping'],
+  .jm-lapse[data-phase='fadingIn'] {
     transition-duration: 0.01s;
   }
 }

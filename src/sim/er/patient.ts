@@ -155,6 +155,10 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
   private readonly prng: Rng
   private readonly patience: number
   private retry = 0
+  /** S1: true only inside `warmStart` (the entry hook of the first state skips walking to a seat they already hold). */
+  private warmed = false
+  /** S1: a warm-placed waiting patient is not called before this sim time (so the waiting rows are still full when the hidden pre-roll ends). */
+  private readyHoldUntil = 0
   /** Sim time the patient was last seen leaving the department's care (for tests). */
   outcome: 'discharged' | 'admitted' | 'lwbs' | null = null
 
@@ -240,8 +244,11 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
         w.say('checkedIn', `${c.name} checked in at the ${this.queueKey === 'reception' ? 'reception desk' : 'kiosk'}.`, { subjectId: c.id })
         this.entity.mood = 'waiting'
         this.showEmote('hourglass', w.t)
-        this.seekSeat('triage')
-        this.offerKiosk()
+        // S1 warm start: already seated where they wait, and no kiosk detour for somebody who has been here a while
+        if (!this.warmed) {
+          this.seekSeat('triage')
+          this.offerKiosk()
+        }
         break
       case 'triage.walking':
         this.cancelKiosk()
@@ -265,8 +272,11 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
             actorId: c.nurseId ?? undefined,
           })
           w.er.releaseTriageBay(c)
-          this.phase = 'standingFromTriage'
-          this.standUp()
+          // S1 warm start: triaged some time ago and already seated in the ER waiting rows
+          if (!this.warmed) {
+            this.phase = 'standingFromTriage'
+            this.standUp()
+          }
         }
         break
       case 'inBay.walking':
@@ -386,6 +396,48 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
   }
 
   // --- called by the world, staff and porters ------------------------------------------------------------
+
+  /**
+   * S1 in-flight warm: put this (started) patient mid-pathway, as if they had been here for `waitedSeconds`. They are seated or lying where they
+   * would be, and the machine enters the matching state through its WARM_* event, so the normal entry hooks run and the staff pick them up as
+   * they would anyone. For 'bay' the department must already have promised a bay (`ErDepartment.occupyBay`). Nothing is logged by the caller's
+   * `world.quiet`. `holdSeconds`: how long a waiting patient is left uncalled (the staff are busy elsewhere). Call once, right after `start()`.
+   */
+  warmStart(stage: 'triage' | 'doctor' | 'bay', waitedSeconds: number, holdSeconds = 0): void {
+    const w = this.world
+    const c = this.c
+    this.warmed = true
+    this.arrivedSent = true
+    c.arrivedAt = w.t - waitedSeconds
+    if (stage === 'bay') {
+      const seat = this.baySeat
+      if (seat) this.placeOnSeat(seat)
+      this.pathway.send({ type: 'WARM_BAY' })
+      this.warmed = false
+      return
+    }
+    const group = stage === 'triage' ? 'triage' : 'er'
+    const seat = w.claimWaitingSeat(c.id, group, this.pos)
+    if (seat) {
+      this.waitSeat = seat
+      this.placeOnSeat(seat)
+    } else {
+      this.placeAt(STANDING[group].x, STANDING[group].z, -Math.PI / 2)
+    }
+    // they became ready when they began waiting: first come, first served keeps its order
+    const readyAt = Math.min(w.t - 1, c.arrivedAt + (stage === 'triage' ? 20 : 20 + waitedSeconds * 0.5))
+    this.pathway.send({ type: stage === 'triage' ? 'WARM_TRIAGE' : 'WARM_DOCTOR' })
+    this.warmed = false
+    c.readyAt = readyAt
+    c.from = this.pos
+    if (holdSeconds > 0) {
+      // not called yet: `think` makes them ready once the hold is over
+      this.readyHoldUntil = w.t + holdSeconds
+      this.keptReadyAt = readyAt
+    } else {
+      c.ready = true
+    }
+  }
 
   /** The department promised this patient a bay: tell the machine (stops the patience timer). */
   bayAssigned(): void {
@@ -846,7 +898,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
           break
         }
         if (c.ambulance) break
-        if (!c.ready && this.done) {
+        if (!c.ready && this.done && w.t >= this.readyHoldUntil) {
           c.ready = true
           // after a kiosk session they keep the place they had when it began
           c.readyAt = this.keptReadyAt !== null && this.keptReadyAt < w.t ? this.keptReadyAt : w.t

@@ -22,7 +22,8 @@ import { TeachingSession, teachingRegistry, type TeachingEnv, type TeachingSim }
 import { LevelGroup } from '@/scene/levels'
 import { levelView } from '@/scene/levels/levelView'
 import { createStatusRig, type StatusStep } from '@/scene/w4kit/statusRig'
-import { loop, sim, simGeneration } from '@/sim'
+import { visualDt } from '@/scene/timeScale'
+import { sim, simGeneration } from '@/sim'
 import { LEVEL2_DX, LEVEL_Y } from '@/sim/levels'
 import { useConsoleCard } from '@/ui/walk/consoleCard.store'
 import { installEndoDebug } from './endo/debug'
@@ -103,7 +104,7 @@ export function SurgeryLayer() {
     rigIn.robot = s.robot
     rigIn.theatre = s.theatre
     rigIn.t = sim.t
-    rigIn.dt = loop.paused ? 0 : Math.min(dt, 0.1)
+    rigIn.dt = visualDt(dt)
     rigIn.overview = levelView.overview
     rig.step(rigIn)
   }, FRAME_PRIORITY.surgeryRig)

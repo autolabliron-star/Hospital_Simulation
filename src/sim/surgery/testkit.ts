@@ -7,7 +7,7 @@ import { SURGERY } from '../places'
 import { MiniHospital, type MiniOptions } from '../lifts/testkit'
 import { timeAtHour } from '../population/schedule'
 import { defaultSeats } from '../seats'
-import type { SeatSpec } from '../types'
+import type { OpeningKind, SeatSpec } from '../types'
 
 export { DT, MiniHospital, testPerson } from '../lifts/testkit'
 
@@ -59,13 +59,15 @@ export interface SuiteOptions extends Omit<MiniOptions, 'surgery' | 'seats' | 't
   seats?: SeatMode
   /** The clock hour to start at (default: 07:30, the sim's own start). */
   hour?: number
+  /** S1: how the day opens (default 'quiet'). */
+  opening?: OpeningKind
 }
 
 /** A mini hospital with the surgery suite and its day started at `hour`. */
 export function suite(seed: number, opts: SuiteOptions = {}): MiniHospital {
   const t0 = opts.hour === undefined ? 0 : timeAtHour(opts.hour)
   const h = new MiniHospital(seed, { crowd: opts.crowd, seats: seatsFor(opts.seats ?? 'layout'), surgery: true, t0 })
-  h.surgery!.startDay(t0)
+  h.surgery!.startDay(t0, opts.opening ?? 'quiet')
   return h
 }
 

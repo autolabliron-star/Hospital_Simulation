@@ -12,11 +12,12 @@
  */
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MEDICINES, patientInRoom } from '@/content/catalogue'
+import { SKIP, fillSkip } from '@/content/skip'
 import { useWalk } from '@/scene/player/state'
 import { loop, sim } from '@/sim'
 import { CONFIG } from '@/sim/config'
 import { ROOM_IDS } from '@/sim/places'
-import { DEFAULT_KEYMAP, ORDER_STAGES, type OrderStage, type PlayerMode, type SimEvent } from '@/sim/types'
+import { DEFAULT_KEYMAP, ORDER_STAGES, SIM_SPEEDS, type OrderStage, type PlayerMode, type SimEvent } from '@/sim/types'
 import { useWorld } from '@/sim/world.store'
 import { dayStatsTracker } from './dayStats'
 import { useJump } from './jump.store'
@@ -24,6 +25,8 @@ import { fillCopy, L1_COPY } from './l1Copy'
 import { installLevelKey } from './levelKey'
 import { LevelSwitch } from './LevelSwitch'
 import { switchShown } from './levelSwitchModel'
+import { SkipChip } from './skip/SkipChip'
+import { SkipRow, skipByKey } from './skip/SkipControl'
 import { usePoll } from './usePoll'
 import { useHudPrefs } from './walk/hudPrefs.store'
 import { Minimap } from './walk/Minimap'
@@ -68,6 +71,17 @@ function useHotkeys(onPrescribe: () => void): void {
         case km.speed4:
           setSpeed(4)
           break
+        case km.speed10:
+          setSpeed(10)
+          break
+        case km.speed30:
+          setSpeed(30)
+          break
+        case km.skip:
+          // S1: ] skips 15 minutes; Shift+] skips to the next milestone of what you are looking at (else an hour)
+          e.preventDefault()
+          skipByKey(e.shiftKey)
+          break
         case km.prescribe:
           onPrescribe()
           break
@@ -90,8 +104,6 @@ function useHotkeys(onPrescribe: () => void): void {
 // Top left: title, clock, speed
 // ---------------------------------------------------------------------------------------------
 
-const SPEEDS = [1, 2, 4] as const
-
 function TitleCard() {
   const clock = useWorld((s) => s.clock)
   const speed = useWorld((s) => s.speed)
@@ -104,13 +116,13 @@ function TitleCard() {
           {clock}
         </span>
         <div className="hud-seg" role="group" aria-label="Simulation speed">
-          {SPEEDS.map((n) => (
+          {SIM_SPEEDS.map((n) => (
             <button
               key={n}
               type="button"
               className="hud-seg__btn"
               aria-pressed={speed === n}
-              title={`Speed ${n}× (key ${n})`}
+              title={fillSkip(SKIP.speedTitle, { n, key: SKIP.speedKeys[String(n)] })}
               onClick={(e) => {
                 setSpeed(n)
                 e.currentTarget.blur()
@@ -154,6 +166,7 @@ function TitleCard() {
         {L1_COPY.jump.button}
         <kbd className="hud-kbd">J</kbd>
       </button>
+      <SkipRow />
     </section>
   )
 }
@@ -455,8 +468,9 @@ export function HudView({ mode, hidden, rxOpen, rxRoom, rxRequest, onToggleRx, o
         </div>
       )}
       {parts.walkClock && (
-        <div className="hud-tl">
+        <div className="hud-tl hud-tl--walk">
           <WalkClock />
+          <SkipChip />
         </div>
       )}
       <div className="hud-tr">

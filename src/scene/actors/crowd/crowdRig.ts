@@ -170,7 +170,7 @@ export function createCrowdRig(): CrowdRig {
   const people = new Group()
   people.name = 'crowd-people'
 
-  const frame: FrameInput = { dt: 0, time: 0, camX: 0, camY: 0, camZ: 0, entities: new Map<string, Entity>(), followId: null, selectedId: null, hoverId: null, driven: null }
+  const frame: FrameInput = { dt: 0, time: 0, camX: 0, camY: 0, camZ: 0, entities: new Map<string, Entity>(), followId: null, selectedId: null, hoverId: null, driven: null, timeScale: 1 }
 
   return {
     model,
@@ -323,10 +323,11 @@ function setInstances(geo: InstancedBufferGeometry, n: number, a: string, b?: st
 }
 
 /** One frame of the crowd. Everything it touches is preallocated. */
-export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, camX: number, camY: number, camZ: number, delta: number, time: number): void {
+export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, camX: number, camY: number, camZ: number, delta: number, time: number, timeScale = 1): void {
   const f = r.frame
   f.dt = delta
   f.time = time
+  f.timeScale = timeScale
   f.camX = camX
   f.camY = camY
   f.camZ = camZ

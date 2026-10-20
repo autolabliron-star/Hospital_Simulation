@@ -23,6 +23,7 @@ import { LIFTS, PACU, PREOP, SURGERY } from '../places'
 import type { Rng } from '../rng'
 import type {
   CasePhase,
+  OpeningKind,
   RobotArmState,
   SimEventType,
   SurgeryBayState,
@@ -33,16 +34,19 @@ import type {
 import type { Walker } from '../walker'
 import type { Staffer } from './actors'
 import { SurgeryCase, type CaseHost } from './case'
-import { planDay, ROOM_PHASES, type PlannedCase, type RoomPhase } from './plan'
+import { planDay, ROOM_PHASES, timelineOf, type PlannedCase, type RoomPhase } from './plan'
 import type { SurgeryPort } from './ports'
 import { applyRobot, EXCHANGE_SECONDS, segmentAt, UNDOCK_SPLIT, type RobotCaseTimes } from './robot'
 import { SurgerySites } from './sites'
-import { newOrContext, Team, type OrContext } from './team'
+import { newOrContext, SCRUB_NURSE_LEAD, Team, type OrContext } from './team'
 
 export { planDay, timelineOf, ROOM_PHASES, type PlannedCase, type Timeline, type RoomPhase } from './plan'
 export { cartPose, cartPath, applyRobot, segmentAt, forceAt, DOCK_SPLIT, UNDOCK_SPLIT, type CartPose, type RobotSegment } from './robot'
 export { SurgerySites } from './sites'
 export { SurgeryCase, casePhaseOf, type Stage } from './case'
+
+/** The team is on level 2 this long before the scrub nurse's lead ahead of the first case's drape. */
+const TEAM_EARLY_SECONDS = 600
 
 /** A porter who went up with a ward patient comes back this way. */
 interface Away {
@@ -66,6 +70,8 @@ export class Surgery implements SurgeryPort, CaseHost {
   plan: PlannedCase[] = []
 
   private started = false
+  /** The clock hour the team starts the day (CONFIG.surgery.teamFromHour, or earlier for an early first case). */
+  teamFrom: number = CONFIG.surgery.teamFromHour
   private t = 0
   private settledAt = Number.NaN
   private readonly ctx: OrContext = newOrContext()
@@ -138,9 +144,17 @@ export class Surgery implements SurgeryPort, CaseHost {
   }
 
   /** Plan today's list from the start time (a fresh day or a warm start) and put everything where the plan has it at `t0`. */
-  startDay(t0: number): void {
+  /** S1: how the day opened (the showcase list stays the plan through every Jump and Skip). */
+  opening: OpeningKind = 'quiet'
+
+  startDay(t0: number, opening: OpeningKind = 'quiet'): void {
     this.started = true
-    this.plan = planDay(this.rng.fork('plan'))
+    this.opening = opening
+    // S1: the showcase list opens on an early case in PACU and a case at the console at the anchor hour; 'quiet' is the plain template
+    this.plan = planDay(this.rng.fork('plan'), opening)
+    // the team is on level 2 from teamFromHour, or earlier when the first case is draped before that (the showcase's early case)
+    const firstDrape = this.plan.reduce((m, p) => Math.min(m, timelineOf(p).drapeStart), Infinity)
+    this.teamFrom = Number.isFinite(firstDrape) ? Math.min(CONFIG.surgery.teamFromHour, hourAt(firstDrape - SCRUB_NURSE_LEAD - TEAM_EARLY_SECONDS)) : CONFIG.surgery.teamFromHour
     // names are drawn once for the day and held until their owners leave
     this.names.length = 0
     for (let i = 0; i < this.plan.length; i++) this.names.push({ patient: this.world.uniqueName(this.nameRng), companion: this.world.uniqueName(this.nameRng) })
@@ -209,7 +223,7 @@ export class Surgery implements SurgeryPort, CaseHost {
     for (const c of this.runs) this.state.theatre.cases.push(c.view)
     this.exDone = this.runs.map(() => 0)
     const hour = hourAt(t)
-    const teamOn = hour >= CONFIG.surgery.teamFromHour && hour < CONFIG.surgery.teamToHour
+    const teamOn = hour >= this.teamFrom && hour < CONFIG.surgery.teamToHour
     this.ctx.now = t
     if (teamOn) this.team.spawn(this.ctx, true)
     for (const c of this.runs) c.warm(t)
@@ -249,8 +263,8 @@ export class Surgery implements SurgeryPort, CaseHost {
 
   private teamLife(t: number): void {
     const hour = hourAt(t)
-    const { teamFromHour, teamToHour } = CONFIG.surgery
-    if (!this.team.present && hour >= teamFromHour && hour < teamToHour) this.team.spawn(this.ctx, false)
+    const { teamToHour } = CONFIG.surgery
+    if (!this.team.present && hour >= this.teamFrom && hour < teamToHour) this.team.spawn(this.ctx, false)
     if (hour >= teamToHour) {
       this.ctx.dayOver = true
       if (this.team.present && this.team.dismiss()) this.team.clear()

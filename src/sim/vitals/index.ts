@@ -17,17 +17,18 @@
 import { renderLine } from '@/content/vitalsCopy'
 import { W4_STAFF } from '@/content/staff'
 import { CONFIG } from '../config'
+import { rateAt } from '../population/schedule'
 import { HEALTH_KIOSKS } from '../places'
 import type { Walker } from '../walker'
 import type { World } from '../er/world'
 import type { Rng } from '../rng'
-import type { Entity, HealthKioskState, HealthSessionKind, VitalsReading } from '../types'
+import type { Entity, HealthKioskPhase, HealthKioskState, HealthSessionKind, VitalsReading } from '../types'
 import { KioskGuide } from './guide'
 import { HealthLine, isQueueAware } from './line'
 import { profileFor, readingAt, type Profile } from './model'
 import { PlayerSubject, playerTooFar } from './player'
 import type { KioskSubject, VitalsPort } from './ports'
-import { KioskStation, type BodyLike, type SessionLog, type StationEnv } from './station'
+import { KioskStation, NOT_STARTED, type BodyLike, type SessionLog, type StationEnv } from './station'
 import { TUNING } from './tuning'
 import { WalkUp, WalkUpSpawner, type WalkUpHost } from './walkUp'
 
@@ -36,6 +37,9 @@ export function newKioskState(index: number): HealthKioskState {
 }
 
 const NONE: readonly VitalsReading[] = []
+/** The in-flight warm-up: which phase each kiosk is in at `MID_AT` seconds after the start (between the 50 s and 60 s pre-rolls). */
+const IN_FLIGHT_PHASES: readonly HealthKioskPhase[] = ['bp', 'spo2', 'bodyFat', 'login']
+const MID_AT = 55
 /** How long a person's body and readings are kept (sim seconds), and how many session logs. */
 const KEEP_SECONDS = 48 * 3600
 const MAX_LOGS = 4000
@@ -174,6 +178,63 @@ export class VitalsService implements VitalsPort {
   sync(alpha: number): void {
     void alpha
     for (let i = 0; i < this.stations.length; i++) this.stations[i].sync()
+  }
+
+  /**
+   * S1 in-flight warm (after warmStart): start the day here (so the first step does not reset what is placed), then put CONFIG.opening.kiosks walk-ups
+   * on the kiosk platforms, each part-way through a session: the first at the cuff, the next on the finger clip (then the grip handles, the login). Each
+   * is timed so the middle of that phase falls `MID_AT` seconds on, which holds for the 50 s opening pre-roll and the 60 s of a Jump. They are real
+   * walk-ups in the line and at a station, so the sessions finish normally (slip, home). Logs nothing; seeded from the service stream. Not placed when
+   * the clock is outside the walk-up hours.
+   */
+  warmInFlight(t: number): void {
+    const wasT = this.world.t
+    this.t = t
+    this.world.t = t
+    if (!this.started) this.begin(t, CONFIG.sim.step)
+    this.rollDay(t)
+    const want = Math.min(CONFIG.opening.kiosks, this.stations.length)
+    const hour = (((CONFIG.sim.startHour * 3600 + t + MID_AT) / 3600) % 24 + 24) % 24
+    if (want <= 0 || this.world.ambient === null || rateAt(CONFIG.vitals.walkUpsPerHour, hour) <= 0) {
+      this.world.t = wasT
+      return
+    }
+    const rng = this.rng.fork('inFlight')
+    const placed: WalkUp[] = []
+    for (let i = 0; i < want; i++) {
+      const w = this.spawner.spawnAt(this.stations[i].stand, rng.fork(i))
+      if (w !== null) placed.push(w)
+    }
+    this.dispatch()
+    const dt = CONFIG.sim.step
+    for (const st of this.stations) {
+      const s = st.session
+      if (s === null || st.free) continue
+      // when the target phase is in the middle of its run at MID_AT: start the session that much earlier
+      const phase = IN_FLIGHT_PHASES[st.index % IN_FLIGHT_PHASES.length]
+      let from = 0
+      let mid = 0
+      for (const step of s.steps) {
+        if (step.phase === phase) {
+          mid = from + step.dur / 2
+          break
+        }
+        from += step.dur
+      }
+      const offset = Math.max(0, mid - MID_AT)
+      const t0 = t - offset
+      this.world.t = t0
+      s.joinedAt = t0
+      s.calledAt = t0
+      st.step(dt) // on the platform already: the login begins
+      for (let k = 1; k * dt < offset; k++) {
+        this.world.t = t0 + k * dt
+        st.step(dt)
+      }
+      this.world.t = t
+    }
+    for (const w of placed) w.settleOnStool()
+    this.world.t = wasT
   }
 
   /** A start at another hour: an empty line and idle kiosks (the day's counts start from zero, the arrivals from that hour). */
@@ -368,7 +429,7 @@ export class VitalsService implements VitalsPort {
 
   private sessionEnded(log: SessionLog, reading: VitalsReading | null, subject: KioskSubject): void {
     // a call that never reached the platform (the person left first) was no session
-    if (log.startedAt >= 0) this.stats.sessions.push(log)
+    if (log.startedAt !== NOT_STARTED) this.stats.sessions.push(log)
     if (log.userId === this.playerSubject.id) this.playerKiosk = -1
     if (reading === null) return
     this.store(reading)

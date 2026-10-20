@@ -103,6 +103,41 @@ export class Outpatient extends Actor implements ScanSubject {
     if (this.seat) this.standUp()
   }
 
+  /**
+   * S1 in-flight warm: this person is already on the scanner's table (the scanner placed them); their state machine is in the
+   * scanner-owned state, so after the exam they get off, change back and leave like any outpatient.
+   */
+  warmOnTable(): void {
+    this.state = 'scan'
+    this.booking.ready = true
+    this.entity.mood = 'neutral'
+    this.entity.emote = 'none'
+  }
+
+  /**
+   * S1 in-flight warm: this person has already checked in and sits in the imaging hall waiting for their scanner (a chair if
+   * one is free, else a standing spot). Returns false if the hall has no place at all.
+   */
+  warmWaiting(): boolean {
+    const w = this.svc.world
+    const seat = w.seats.claim(this.id, { kind: 'waiting', area: 'imagingHall' }, this.pos)
+    if (seat) this.placeOnSeat(seat)
+    else {
+      const spots = this.svc.sites.hallStand
+      let i = 0
+      while (i < spots.length && this.svc.standing.has(i)) i++
+      if (i >= spots.length) return false
+      this.standIdx = i
+      this.svc.standing.add(i)
+      this.placeAt(spots[i].x, spots[i].z, Math.PI)
+    }
+    this.state = 'waiting'
+    this.booking.ready = true
+    this.entity.mood = 'waiting'
+    this.showEmote('hourglass', w.t)
+    return true
+  }
+
   // --- the person ------------------------------------------------------------------------------------------
 
   think(dt: number, _ctx: PeopleContext): void {

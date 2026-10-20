@@ -5,12 +5,13 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { sim } from '@/sim'
+import { visualDt } from '@/scene/timeScale'
 import { lifeOf, LIFE_PRIORITY } from './life'
 import { createTraysRig } from './traysRig'
 
 export function TraysLayer() {
   const rig = useMemo(createTraysRig, [])
   useEffect(() => () => rig.dispose(), [rig])
-  useFrame((_, dt) => rig.step(lifeOf(sim), dt), LIFE_PRIORITY)
+  useFrame((_, dt) => rig.step(lifeOf(sim), visualDt(dt)), LIFE_PRIORITY)
   return <primitive object={rig.group} />
 }

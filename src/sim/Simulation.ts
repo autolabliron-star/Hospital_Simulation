@@ -22,7 +22,8 @@ import { ImagingDepartment } from './imaging/department'
 import { MedSystem, type PrescribeResult } from './meds/system'
 import { Crowd } from './nav/crowd'
 import { makeQueue } from './nav/queue'
-import { createPeople, Patient, type PeopleContext, type Person } from './people'
+import { createPeople, Doctor, Patient, type PeopleContext, type Person } from './people'
+import { Porter } from './er/porter'
 import { createErStaff } from './population/staffing'
 import { Director } from './population/director'
 import { Rng } from './rng'
@@ -30,13 +31,15 @@ import { defaultSeats, SeatRegistry } from './seats'
 import { newEntity } from './person'
 import { Reactions } from './reactions'
 import { groundHeightAt, type Spot } from './places'
-import type { Entity, OrderItem, PlayerView, RoomId } from './types'
+import type { Entity, OpeningKind, OrderItem, PlayerView, RoomId } from './types'
 import { makeWalker, type Walker } from './walker'
 import { DrawCentre } from './blood'
 import { Lab } from './lab'
 import { LiftBank } from './lifts'
 import { Surgery } from './surgery'
 import { VitalsService } from './vitals'
+import { warmErInFlight } from './er/inFlight'
+import { OpeningScript } from './opening/script'
 
 function lerpAngle(a: number, b: number, t: number): number {
   let d = (b - a) % (Math.PI * 2)
@@ -59,6 +62,13 @@ export interface SimulationOptions {
   startHour?: number
   /** Added to `rosterVersion`, so renderers see a rebuilt hospital as a roster change (L1 Jump). */
   rosterBase?: number
+  /** S1: how the day opens (the surgery list for the whole day). Default 'quiet', the R2 day; the app passes 'showcase'. */
+  opening?: OpeningKind
+  /**
+   * S1: place work already under way at the start (patients mid-scan, ER bays, kiosks, draw chairs, lab tubes, ward
+   * orders). Default false (an empty start, as before); the app turns it on for the showcase opening, every Jump and Skip.
+   */
+  inFlight?: boolean
 }
 
 export class Simulation {
@@ -93,6 +103,11 @@ export class Simulation {
   readonly meals: Meals
   /** How people and pods react to you (W1). */
   readonly reactions: Reactions
+  /** S1: how this day opened, and whether the start placed work already under way. */
+  readonly opening: OpeningKind
+  readonly inFlight: boolean
+  /** S1: the opening's timed actions after an in-flight warm (null once done). */
+  private openingScript: OpeningScript | null = null
   /** You (W1 walk-in): null until the player system adds you. The player system writes it every frame. */
   player: PlayerView | null = null
   private playerEntity: Entity | null = null
@@ -102,6 +117,8 @@ export class Simulation {
 
   constructor(seed: number = CONFIG.sim.worldSeed, options: SimulationOptions = {}) {
     this.seed = seed
+    this.opening = options.opening ?? 'quiet'
+    this.inFlight = options.inFlight ?? false
     const startHour = options.startHour ?? CONFIG.sim.startHour
     const t0 = (startHour - CONFIG.sim.startHour) * 3600
     this.t = t0
@@ -176,7 +193,7 @@ export class Simulation {
     } else {
       for (const p of createErStaff(this.world, root.fork('staff'), walkerFor)) this.addPerson(p)
       this.imaging.startOutpatients(t0)
-      this.surgery.startDay(t0)
+      this.surgery.startDay(t0, this.opening)
       this.director = new Director(this.world, root.fork('director'), walkerFor, (p) => this.addPerson(p), t0)
       // visitors go to whoever lies in the bed now (L1 bed flow), not the morning's catalogue patient
       this.director.occupantName = (r) => this.beds.occupantName(r)
@@ -205,7 +222,43 @@ export class Simulation {
       this.lifts.warmStart(startHour)
       this.surgery.warmStart(startHour)
     }
+    if (this.inFlight && this.director) this.warmInFlight(t0, root)
     this.sync(1)
+  }
+
+  /**
+   * S1: put work already under way into every service that would otherwise start empty, quietly (no event lines). The
+   * services start their own day first, so their first step does not reset what was placed. The hidden pre-roll then
+   * carries everyone mid-way.
+   */
+  private warmInFlight(t0: number, root: Rng): void {
+    this.world.quiet = true
+    try {
+      this.lab.warmInFlight(t0)
+      this.vitals.warmInFlight(t0)
+      this.blood.warmInFlight(t0)
+      this.imaging.warmInFlight(t0)
+      warmErInFlight(this.world, root.fork('inFlight:er'), t0)
+      if (this.opening === 'showcase' && t0 === 0) {
+        // the back rooms at the opening: one doctor still at the desk in the doctors' office, a porter loading linen in clean supply
+        const reveal = CONFIG.opening.preRollSeconds
+        this.people.find((p): p is Doctor => p instanceof Doctor && p.entity.id === 'doc-B')?.holdAtBase(reveal + 150)
+        for (const p of this.people) if (p instanceof Porter && p.warmLinenRun(reveal + 90)) break
+      }
+    } finally {
+      this.world.quiet = false
+    }
+    this.openingScript = new OpeningScript(
+      {
+        world: this.world,
+        meds: this.meds,
+        director: this.director,
+        rng: root.fork('inFlight:opening'),
+        occupied: (r) => this.beds.occupantName(r) !== null,
+      },
+      t0,
+      this.opening,
+    )
   }
 
   /** Somebody arrives (a patient, a visitor, a paramedic): they join the simulation and, if `fadeIn()` was called, fade in. */
@@ -244,6 +297,10 @@ export class Simulation {
     this.day.step(this.t, dt)
     this.meals.step(this.t, dt)
     this.reactions.step(this.t, dt)
+    if (this.openingScript) {
+      this.openingScript.step(this.t)
+      if (this.openingScript.done) this.openingScript = null
+    }
     const people = this.people
     for (let i = 0; i < people.length; i++) {
       const p = people[i]
@@ -346,6 +403,8 @@ export class Simulation {
   preRoll(seconds: number): void {
     const n = Math.round(seconds / CONFIG.sim.step)
     for (let i = 0; i < n; i++) this.step(CONFIG.sim.step)
+    // S1: the scanners placed mid-sequence hold their place until the reveal, whatever the pre-roll's length
+    this.imaging.endWarmHold()
     this.sync(1)
   }
 

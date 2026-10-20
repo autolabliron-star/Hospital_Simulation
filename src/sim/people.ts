@@ -56,6 +56,11 @@ export class Doctor extends Person {
     this.rest = restSpot(ward)
   }
 
+  /** S1 showcase opening: stay at the desk in the doctors' office this long before the first round (notes, the day's list). */
+  holdAtBase(seconds: number): void {
+    if (this.state === 'resting') this.timer = Math.max(this.timer, seconds)
+  }
+
   update(dt: number, ctx: PeopleContext): void {
     this.tickEmote(ctx)
     switch (this.state) {

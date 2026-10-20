@@ -100,6 +100,9 @@ export interface Session {
   lastTick: number
 }
 
+/** `startedAt` of a call that never reached the platform. (Not -1: a warm start before 07:30 runs the sim clock at negative times.) */
+export const NOT_STARTED = -Infinity
+
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x)
 const smooth = (x: number): number => {
   const t = clamp01(x)
@@ -202,7 +205,7 @@ export class KioskStation {
       reading,
       joinedAt,
       calledAt: env.t,
-      startedAt: -1,
+      startedAt: NOT_STARTED,
       phaseTime: 0,
       assisted,
       forced: false,
@@ -378,7 +381,7 @@ export class KioskStation {
     const data = hasData(r)
     this.release(s)
     env.releaseGuide(this.index)
-    const started = s.startedAt >= 0
+    const started = s.startedAt !== NOT_STARTED
     st.phase = 'idle'
     st.phaseTime = 0
     st.progress = 0

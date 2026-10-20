@@ -6,7 +6,8 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
-import { loop, sim, simGeneration } from '@/sim'
+import { visualDt } from '@/scene/timeScale'
+import { sim, simGeneration } from '@/sim'
 import { createLabRig, type LabStep } from './rig'
 import { registerLabTiles } from './tiles'
 
@@ -25,7 +26,7 @@ export function LabLayer() {
     input.lab = sim.lab
     input.generation = simGeneration
     input.simT = sim.t
-    input.dt = loop.paused ? 0 : Math.min(dt, 0.1)
+    input.dt = visualDt(dt)
     rig.step(input)
   }, FRAME_PRIORITY.lab)
   return <primitive object={rig.root} />

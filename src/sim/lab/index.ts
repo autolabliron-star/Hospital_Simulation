@@ -35,7 +35,7 @@ import { LAB_STOPS } from '../labTrack'
 import { timeAtHour } from '../population/schedule'
 import type { Rng } from '../rng'
 import { SAMPLE_STAGES, SampleBook } from '../samples'
-import type { AnalyserKind, LabOrder, LabState, Sample, SampleStage } from '../types'
+import type { AnalyserKind, LabOrder, LabPriority, LabState, Sample, SampleStage } from '../types'
 import { BackgroundFlow } from './background'
 import type { Job, LabHost } from './job'
 import { Analyser, Archive, Camera, CentrifugeUnit, Decapper, pickUnit, Recapper, Sorter, Station, type ModuleEvents } from './modules'
@@ -52,6 +52,13 @@ export const DEMO_SOURCE = 0
 /** One tube, one test: the demo sample's panel. */
 export const DEMO_PANEL = 'op-precontrast'
 export const BACKGROUND_PANEL = 'ward-routine'
+/** The one-tube order the in-flight warm mixes in (a citrate tube for the coagulation analyser). */
+const IN_FLIGHT_SINGLE_PANEL = 'op-anticoag'
+/**
+ * Seconds before the opening that each in-flight order reached the receive station: a STAT order whose tube is spinning, a ward order whose
+ * blood-count tube is at the analyser, and a late one still on the lane. (Ages beyond the list reuse it, a little later each time.)
+ */
+const IN_FLIGHT_AGES: readonly number[] = [105, 38, 14]
 
 function analyser(kind: AnalyserKind) {
   return { kind, queue: 0, aspirating: null as string | null, probe: 0, running: 0, testsToday: 0 }
@@ -292,6 +299,65 @@ export class Lab implements LabPort {
       const w = j.sample.where
       w.sDraw = w.line === 'track' || w.line === 'pneumatic' ? j.prevS + (w.s - j.prevS) * alpha : w.s
     }
+  }
+
+  /**
+   * S1 in-flight warm (after warmStart or at t0 = 0): about `CONFIG.opening.labTubes` ward tubes are already on their way. Rather than
+   * placing tubes by hand, the lab runs its own normal path for the minutes before `t0` on a private clock (the world is quiet and
+   * nothing outside the lab is touched): ward orders arrive at staggered times (the oldest is STAT, so a centrifuge is spinning), and
+   * every tube is then in a consistent place with consistent state, so each finishes normally (results, archive). Deterministic (a
+   * forked stream), logs nothing, and stamps every order and stage with its private-clock time, so turnaround figures stay honest.
+   */
+  warmInFlight(t0: number): void {
+    const want = CONFIG.opening.labTubes
+    if (want <= 0) return
+    const rng = this.rng.fork('inFlight')
+    // the orders: ward bloods (two tubes) until one tube is left, which is an anticoagulation check (one tube); the oldest is STAT
+    const plan: { panel: string; priority: LabPriority; age: number }[] = []
+    for (let tubes = 0, k = 0; tubes < want; k++) {
+      const panel = want - tubes >= 2 ? BACKGROUND_PANEL : IN_FLIGHT_SINGLE_PANEL
+      plan.push({ panel, priority: 'routine', age: IN_FLIGHT_AGES[k % IN_FLIGHT_AGES.length] - 3 * Math.floor(k / IN_FLIGHT_AGES.length) + rng.between([-3, 3]) })
+      tubes += tubesFor(panelTests(panel)).length
+    }
+    plan.sort((a, b) => b.age - a.age)
+    plan[0].priority = 'stat'
+    const dt = CONFIG.sim.step
+    const steps = Math.ceil(plan[0].age / dt)
+    let next = 0
+    for (let i = 0; i <= steps; i++) {
+      const tt = t0 - (steps - i) * dt
+      while (next < plan.length && t0 - plan[next].age <= tt + 1e-9) {
+        this.placeInFlight(plan[next], tt, next === 0)
+        next++
+      }
+      this.step(tt, dt)
+    }
+    while (next < plan.length) this.placeInFlight(plan[next], t0, next++ === 0)
+    for (const j of this.active) j.sample.where.sDraw = j.sample.where.s
+  }
+
+  /** One planned order of `warmInFlight`; the first one's results will wait for the scientist (a review is under way at the opening). */
+  private placeInFlight(o: { panel: string; priority: LabPriority }, t: number, review: boolean): void {
+    const order = this.placeWard(o.panel, o.priority, t)
+    if (review) this.verifier.flag(order.id)
+  }
+
+  /** A ward order reaches the receive station at `t` (a time on the private clock of `warmInFlight`, not `world.t`). */
+  private placeWard(panel: string, priority: LabPriority, t: number): LabOrder {
+    const n = ++this.bgSeq
+    const order = this.order({ patientId: `ward-${n}`, patientName: `Ward sample ${n}`, source: 'background', panel, priority })
+    order.orderedAt = t
+    order.drawnAt = t
+    order.drawnBy = 'external'
+    for (const id of order.sampleIds) {
+      const s = this.samples.get(id)!
+      s.stageAt.ordered = t
+      for (const stage of ['labelled', 'drawn', 'inTube'] as const) this.samples.advance(id, stage, t)
+      const job = this.newJob(s, order)
+      job.since = t
+      this.received(job, t)
+    }
+    return order
   }
 
   /** An empty lab at `hour`: the ward's samples arrive from there on, the scientist's first reagent trip is planned. */

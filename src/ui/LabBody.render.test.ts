@@ -1,12 +1,14 @@
 /**
- * The lab panel as markup, in node (react-dom/server): what the Lab room panel shows for the hospital as it starts (the live sim's lab, nothing on
- * the belt yet). No effects run here; the view model's behaviour with tubes in the lab is in labView.test.ts.
+ * The lab panel as markup, in node (react-dom/server): what the Lab room panel shows for the hospital as it starts (the live sim's lab; S1: the showcase
+ * opening may already have tubes on the belt). No effects run here; the view model's behaviour with tubes in the lab is in labView.test.ts.
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { LAB_MODULE_IDS, LAB_UI } from '@/content/labUi'
+import { sim } from '@/sim'
 import { LabBody } from './LabBody'
+import { labView } from './labView'
 
 const out = renderToStaticMarkup(createElement(LabBody))
 
@@ -30,9 +32,12 @@ describe('the lab panel', () => {
     expect(out).toContain('d="M ')
   })
 
-  it('says so when the lab is empty', () => {
-    expect(out).toContain(LAB_UI.empty.samples)
-    expect(out).toContain(LAB_UI.empty.results)
-    expect(out).toContain(LAB_UI.empty.track)
+  // S1: the showcase opening may already have tubes in the lab, so the empty notes follow the live lab's view model
+  it('says so when the lab is empty, and only then', () => {
+    const v = labView(sim.lab, sim.t)
+    const shows = (text: string, empty: boolean) => (empty ? expect(out).toContain(text) : expect(out).not.toContain(text))
+    shows(LAB_UI.empty.samples, v.samples.length === 0)
+    shows(LAB_UI.empty.results, v.results.length === 0)
+    shows(LAB_UI.empty.track, v.track.empty)
   })
 })

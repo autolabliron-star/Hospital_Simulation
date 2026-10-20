@@ -174,6 +174,37 @@ export class RobotStation {
 
   /** A ticket was called to this station: the patient is walking (or being wheeled) to the chair and the nurse is bringing the tray. */
   begin(entry: DrawEntry): void {
+    this.setUp(entry)
+    this.host.nurse.bringTray(this, entry.ticket.id)
+  }
+
+  /**
+   * S1 in-flight warm: the patient is already in the chair and the tray is already at the robot (the nurse brought it before the
+   * reveal), so the draw starts at the card scan and is carried forward to where it will be when the hidden pre-roll (`preRoll`
+   * seconds) ends: `frac` (0..1) of the way through the needle-in and the filling. The plan is forced onto the straight path (a vein
+   * is found, the first stick holds, the arm stays still) so the reveal shows the robot at work. Quiet when the world is.
+   * Returns the seconds the draw was carried forward.
+   */
+  warmBegin(entry: DrawEntry, preRoll: number, frac: number): number {
+    this.setUp(entry)
+    const s = this.state
+    s.trayHere = true
+    this.beginDraw()
+    const plan = this.plan!
+    plan.noVein = false
+    plan.attempts[0].missed = false
+    plan.armMove = null
+    const a = plan.attempts[0]
+    let filling = 0
+    for (const t of plan.tubes) filling += tubeSeconds(t)
+    const needleStart = plan.cardScan + plan.armIn + plan.cuff + plan.sanitise + a.veinScan
+    const ahead = Math.max(0, needleStart + frac * (a.needleIn + filling) - preRoll)
+    const dt = CONFIG.sim.step
+    for (let i = 0, n = Math.round(ahead / dt); i < n; i++) this.step(dt)
+    return ahead
+  }
+
+  private setUp(entry: DrawEntry): void {
     const s = this.state
     this.entry = entry
     this.subject = entry.subject
@@ -208,7 +239,6 @@ export class RobotStation {
     s.attendantId = null
     s.attempts = 0
     this.go('calling', 1)
-    this.host.nurse.bringTray(this, entry.ticket.id)
   }
 
   /** The nurse put the tray at the robot. */

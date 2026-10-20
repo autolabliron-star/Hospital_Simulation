@@ -47,6 +47,13 @@ import { reclineAngle, reclineOfEntity } from '@/scene/rooms/bedPose'
 import { walkStride } from '@/scene/player/state'
 
 export const FADE_SECONDS = 0.35
+
+/**
+ * S1: how much faster than real time the legs may cycle at the sim's 10x and 30x speeds (see `FrameInput.timeScale`). People are measured in SIM
+ * metres per SIM second, so a stroll still picks the walk gait; the feet step `min(speed, GAIT_RATE_MAX)` times faster than real time and the body
+ * outruns them (they slide), which looks busy but not absurd.
+ */
+export const GAIT_RATE_MAX = 4
 const RIM_SECONDS = 0.15
 /** Instances the gear draws can hold. */
 export const MAX_VEHICLES = 96
@@ -107,6 +114,12 @@ export interface PersonSlot {
   vx: number
   vz: number
   speed: number
+  /**
+   * S1: where the gait is planned relative to where the person is drawn. Above `GAIT_RATE_MAX` times real time the body outruns its feet; the planner is
+   * given a position that moves only `GAIT_RATE_MAX / timeScale` as far (actual minus this offset), and the feet are drawn back at the person. 0 at 1x to 4x.
+   */
+  gox: number
+  goz: number
   // last state, for picking, rings and ghosts: DRAWN coordinates (the level mapping is applied in `visit`)
   x: number
   y: number
@@ -179,6 +192,11 @@ export interface FrameInput {
   hoverId: string | null
   /** W3: the player's body (see `DrivenBody`, in SIM coordinates), or null/absent: the player is then measured like everybody else. */
   driven?: DrivenBody | null
+  /**
+   * S1: the sim speed (1, 2, 4, 10, 30; absent = 1). People move this many sim seconds per real second, so a person's ground speed is measured in sim
+   * units (metres per sim second) and the gait cycle runs at `min(timeScale, GAIT_RATE_MAX)` times real time. At 1 nothing changes.
+   */
+  timeScale?: number
 }
 
 export interface CrowdStats {
@@ -277,6 +295,9 @@ export class CrowdModel {
   // the frame being processed (so the per-entity and per-slot callbacks can be allocated once)
   private cur: FrameInput = { dt: 0, time: 0, camX: 0, camY: 0, camZ: 0, entities: new Map(), followId: null, selectedId: null, hoverId: null }
   private dt = 0
+  /** S1: the sim speed of this frame (>= 1), and the rate the gait cycle runs at (min(speed, GAIT_RATE_MAX)). */
+  private scale = 1
+  private gait = 1
   private warm = false
   /** Seconds between two of your heel strikes at the moment (see `publishStride`). */
   private stridePeriod = 0.45
@@ -393,6 +414,8 @@ export class CrowdModel {
       vx: 0,
       vz: 0,
       speed: 0,
+      gox: 0,
+      goz: 0,
       x: e.position.x + levelDx(levelOf(e.position.x)),
       y: e.position.y + LEVEL_Y[levelOf(e.position.x)],
       z: e.position.z,
@@ -523,6 +546,9 @@ export class CrowdModel {
     this.frame++
     this.warm = this.frame <= 1
     this.dt = clamp(f.dt, 0, 0.1)
+    const ts = f.timeScale
+    this.scale = ts !== undefined && ts > 1 ? ts : 1
+    this.gait = this.scale < GAIT_RATE_MAX ? this.scale : GAIT_RATE_MAX
     this.cur = f
     const st = this.stats
     st.people = 0
@@ -733,9 +759,11 @@ export class CrowdModel {
     const inp = this.inp
     inp.dt = dt
     inp.time = f.time
-    inp.x = p.x
+    // (the planner's frame: the person's own at 1x to 4x; see `PersonSlot.gox`. The look-at target moves with it)
+    inp.x = p.x - p.gox
     inp.y = p.y
-    inp.z = p.z
+    inp.z = p.z - p.goz
+    inp.gaitRate = driven ? 1 : this.gait
     inp.heading = p.heading
     inp.vx = p.vx
     inp.vz = p.vz
@@ -757,9 +785,9 @@ export class CrowdModel {
     if (target) {
       // a look-at target is a sim point too: drawn where it is drawn (its own level)
       const tl = levelOf(target.x)
-      inp.lookX = target.x + levelDx(tl)
+      inp.lookX = target.x + levelDx(tl) - p.gox
       inp.lookY = target.y + LEVEL_Y[tl]
-      inp.lookZ = target.z
+      inp.lookZ = target.z - p.goz
     }
     inp.driven = driven
     if (driven) {
@@ -872,6 +900,8 @@ export class CrowdModel {
       p.vz = dv.vz
       p.speed = sp
     }
+    p.gox = 0
+    p.goz = 0
     p.px = p.x
     p.pz = p.z
     p.hasPrev = true
@@ -884,27 +914,37 @@ export class CrowdModel {
       p.pz = p.z
       p.hasPrev = true
     }
+    // S1: at the sim's 10x and 30x a person covers `scale` sim seconds of walking per real second: the speed is measured per SIM second (so a stroll is
+    // still a stroll), a jump is judged by the sim distance, and the gait is planned in a frame that moved only `gait / scale` as far as the person
+    const scale = this.scale
     if (p.posture !== 'stand') {
       p.vx = 0
       p.vz = 0
       p.speed = 0
+      p.gox = 0
+      p.goz = 0
     } else if (dt > 1e-5) {
       const dx = p.x - p.px
       const dz = p.z - p.pz
       const jump = dx * dx + dz * dz
-      if (jump > 6.25) {
+      if (jump > 6.25 * scale * scale) {
         p.vx = 0
         p.vz = 0
         p.speed = 0
+        p.gox = 0
+        p.goz = 0
       } else {
-        let rx = dx / dt
-        let rz = dz / dt
+        const slip = 1 - this.gait / scale
+        p.gox += dx * slip
+        p.goz += dz * slip
+        let rx = dx / dt / scale
+        let rz = dz / dt / scale
         if (rx * rx + rz * rz < 0.0064) {
           rx = 0
           rz = 0
         }
-        p.vx = damp(p.vx, rx, 1 / 0.1, dt)
-        p.vz = damp(p.vz, rz, 1 / 0.1, dt)
+        p.vx = damp(p.vx, rx, this.gait / 0.1, dt)
+        p.vz = damp(p.vz, rz, this.gait / 0.1, dt)
         p.speed = Math.sqrt(p.vx * p.vx + p.vz * p.vz)
         if (p.speed < 0.02) {
           p.vx = 0

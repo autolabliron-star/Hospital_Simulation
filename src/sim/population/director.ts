@@ -226,9 +226,10 @@ export class Director {
 
   /**
    * A visiting party arrives. `opts` is for a start at another hour (L1): `ward` limits the rooms, `solo` makes it one person
-   * (an overnight companion), `quiet` leaves out the "arrived" sentence (they were already here).
+   * (an overnight companion), `quiet` leaves out the "arrived" sentence (they were already here). `lounge` (S1 showcase)
+   * seats the whole party in the wing's lounge (loungeA / quietB), as overflow visitors would sit.
    */
-  spawnParty(opts: { ward?: WardId; solo?: boolean; quiet?: boolean } = {}): Party | null {
+  spawnParty(opts: { ward?: WardId; solo?: boolean; quiet?: boolean; lounge?: boolean } = {}): Party | null {
     const w = this.world
     if (this.visitorsOnSite >= CONFIG.visitors.maxOnSite) return null
     const order = this.rng.shuffle([...this.rooms])
@@ -239,9 +240,9 @@ export class Director {
     const leaderId = w.id('vis')
     const pair = this.rng.chance(CONFIG.visitors.pairChance) && !opts.solo
     const partnerId = pair ? w.id('vis') : null
-    const leaderPlace = this.placeFor(leaderId, room, true)
+    const leaderPlace = opts.lounge ? this.loungeFor(leaderId, room) : this.placeFor(leaderId, room, true)
     if (!leaderPlace) return null
-    const partnerPlace = partnerId ? this.placeFor(partnerId, room, false) : null
+    const partnerPlace = partnerId ? (opts.lounge ? this.loungeFor(partnerId, room) : this.placeFor(partnerId, room, false)) : null
 
     const patientName = this.occupantName(room.id) ?? patientInRoom(room.id).name
     const party: Party = {
@@ -375,6 +376,30 @@ export class Director {
     }
   }
 
+  /**
+   * S1 showcase opening (07:30, t0 = 0): `CONFIG.opening.visitorParties` early parties are already mid-visit when the
+   * hospital fades in, so the bedside chairs and the ward lounges show visitors. Quiet (no "arrived" lines); they leave the
+   * normal way. Later warm starts do this through `seedVisitors` instead. Returns how many parties were placed.
+   */
+  seedOpening(): number {
+    if (this.t0 !== 0) return 0
+    let placed = 0
+    for (let i = 0; i < CONFIG.opening.visitorParties; i++) {
+      const party = this.spawnParty({ quiet: true })
+      if (!party) break
+      this.placeMidVisit(party)
+      placed++
+    }
+    // and one party in each wing's lounge (loungeA, quietB), so those rooms are not empty at the opening either
+    for (const ward of ['A', 'B'] as WardId[]) {
+      const party = this.spawnParty({ ward, quiet: true, lounge: true })
+      if (!party) continue
+      this.placeMidVisit(party)
+      placed++
+    }
+    return placed
+  }
+
   /** Put a party that has just been created where its visit is (at the bedside already), and let the visit begin. */
   private placeMidVisit(party: Party): void {
     for (const m of party.members) {
@@ -382,6 +407,12 @@ export class Director {
       if (pl.kind === 'window') m.placeAt(pl.at.x, pl.at.z, headingTo(pl.at, party.room.bed))
       else m.placeAt(pl.seat.approach.x, pl.seat.approach.z, pl.seat.heading)
     }
+  }
+
+  /** S1: a seat in the wing's lounge. */
+  private loungeFor(id: string, room: (typeof ROOMS)[number]): Place | null {
+    const lounge = this.world.seats.claim(id, { kind: 'lounge', area: room.ward === 'A' ? 'loungeA' : 'quietB' })
+    return lounge ? { kind: 'lounge', seat: lounge } : null
   }
 
   /** The leader gets the visitor chair if it is free; everyone else the window, then the wing's lounge. */

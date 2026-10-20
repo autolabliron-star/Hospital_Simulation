@@ -303,3 +303,53 @@ describe('W4 live bloods (the draw centre and the lab behind the patient)', () =
     expect(at(actor)).toBe('arriving')
   })
 })
+
+describe('S1 warm events on arriving', () => {
+  function warmed(event: 'WARM_TRIAGE' | 'WARM_DOCTOR' | 'WARM_BAY') {
+    const clock = new SimClock()
+    const entered: PathwayState[] = []
+    const host: PathwayHost = { enter: (s) => entered.push(s) }
+    const rng = { between: (span: readonly [number, number]) => span[0], chance: () => false }
+    const actor = createPathway({ rng, host, clock, acuity: 3, ambulance: false, patienceSeconds: 600 }, clock)
+    actor.send({ type: event })
+    return { actor, entered, clock }
+  }
+
+  it('WARM_TRIAGE enters waitingTriage and runs its entry hook', () => {
+    const { actor, entered } = warmed('WARM_TRIAGE')
+    expect(stateOf(actor.getSnapshot().value)).toBe('waitingTriage')
+    expect(entered).toEqual(['arriving', 'waitingTriage'])
+    actor.send({ type: 'CALLED' })
+    expect(stateOf(actor.getSnapshot().value)).toBe('triage.walking')
+  })
+
+  it('WARM_DOCTOR enters waitingDoctor with its patience timer live', () => {
+    const { actor, entered, clock } = warmed('WARM_DOCTOR')
+    expect(stateOf(actor.getSnapshot().value)).toBe('waitingDoctor')
+    expect(entered).toEqual(['arriving', 'waitingDoctor'])
+    clock.advanceTo(601_000)
+    expect(stateOf(actor.getSnapshot().value)).toBe('leaving.lwbs')
+  })
+
+  it('WARM_DOCTOR then BAY_CALLED and ON_TROLLEY follow the normal path', () => {
+    const { actor } = warmed('WARM_DOCTOR')
+    actor.send({ type: 'BAY_CALLED' })
+    expect(stateOf(actor.getSnapshot().value)).toBe('inBay.walking')
+    actor.send({ type: 'ON_TROLLEY' })
+    expect(stateOf(actor.getSnapshot().value)).toBe('inBay.waitingExam')
+  })
+
+  it('WARM_BAY enters inBay.waitingExam and DOCTOR_HERE starts the exam', () => {
+    const { actor, entered } = warmed('WARM_BAY')
+    expect(stateOf(actor.getSnapshot().value)).toBe('inBay.waitingExam')
+    expect(entered).toEqual(['arriving', 'inBay.waitingExam'])
+    actor.send({ type: 'DOCTOR_HERE' })
+    expect(stateOf(actor.getSnapshot().value)).toBe('inBay.exam')
+  })
+
+  it('ignores the warm events outside arriving', () => {
+    const { actor } = warmed('WARM_TRIAGE')
+    actor.send({ type: 'WARM_BAY' })
+    expect(stateOf(actor.getSnapshot().value)).toBe('waitingTriage')
+  })
+})

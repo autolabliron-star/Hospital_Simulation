@@ -6,7 +6,7 @@
  * only ever DELAY the next step, never shorten a phase.
  *
  * Stages, in order (CasePhase in brackets):
- *   scheduled [scheduled]; arriving, liftUp, waiting [arrived]; toBay, gown, nurseCheck, anaesVisit, surgeonVisit, ready [preOp];
+ *   scheduled [scheduled]; arriving, liftUp, waiting [arrived]; toBay, gown, nurseCheck, settled, anaesVisit, surgeonVisit, ready [preOp];
  *   fetch, toTheatre [toTheatre]; in .. out [the theatre phases]; toPacu, pacu [pacu]; phase2 [phase2] (day cases);
  *   wardFetch, wardPush, wardFade, leaving, leaveWalk [leaving]; done [done]
  *
@@ -34,6 +34,8 @@ export type Stage =
   | 'toBay'
   | 'gown'
   | 'nurseCheck'
+  /** S1: an early patient lying in the bay until the doctors' visits fit in front of wheels-in (Timeline.visitsAt). */
+  | 'settled'
   | 'anaesVisit'
   | 'surgeonVisit'
   | 'ready'
@@ -63,6 +65,7 @@ export function casePhaseOf(stage: Stage): CasePhase {
     case 'toBay':
     case 'gown':
     case 'nurseCheck':
+    case 'settled':
     case 'anaesVisit':
     case 'surgeonVisit':
     case 'ready':
@@ -297,6 +300,9 @@ export class SurgeryCase {
       case 'nurseCheck':
         if (t >= this.until) this.endNurseCheck(t)
         break
+      case 'settled':
+        if (t >= this.tl.visitsAt) this.beginVisits(t)
+        break
       case 'anaesVisit':
         this.stepVisit(t, 'anaesthetist', 'surgeonVisit', this.plan.preOp.anaes)
         break
@@ -497,6 +503,12 @@ export class SurgeryCase {
 
   private endNurseCheck(t: number): void {
     this.host.team.release('preOp', this.id)
+    // an early patient (S1) lies in the bay until the doctors' visits fit in front of wheels-in (the theatre team is in the room before)
+    if (t < this.tl.visitsAt) this.enter('settled', t)
+    else this.beginVisits(t)
+  }
+
+  private beginVisits(t: number): void {
     this.enter('anaesVisit', t)
     this.visitor = null
     this.visitKey = ''
@@ -1120,7 +1132,8 @@ export class SurgeryCase {
       const s = h.sites.spots.waitStand[this.standIdx++ % h.sites.spots.waitStand.length]
       p0.companion.placeAt(s.at.x, s.at.z, s.heading)
     }
-    h.bayChanged(this.bedRef.seat.id, p0.patient.entity.id, t, false)
+    // S1: a warm start dates the bay from the plan ("in the bay for 12 min"), not from the moment it was placed
+    h.bayChanged(this.bedRef.seat.id, p0.patient.entity.id, Math.min(t, this.tl.preOpStart), false)
   }
 
   private warmPreOp(t: number): void {
@@ -1152,6 +1165,11 @@ export class SurgeryCase {
       }
       this.enter('nurseCheck', t)
       this.until = tl.nurseEnd
+      return
+    }
+    if (t < tl.visitsAt) {
+      // (an early patient, S1) lying in the bay, the doctors still busy elsewhere
+      this.enter('settled', t)
       return
     }
     const title = t < tl.anaesEnd ? 'anaesthetist' : 'surgeon'
@@ -1236,7 +1254,7 @@ export class SurgeryCase {
     this.view.bay = this.pacuRef.seat.id
     this.placeInLounge(companion)
     this.pacuInAt = tl.pacuIn
-    h.bayChanged(this.pacuRef.seat.id, patient.entity.id, t, false)
+    h.bayChanged(this.pacuRef.seat.id, patient.entity.id, Math.min(t, tl.pacuIn), false)
     this.enter('pacu', t)
   }
 

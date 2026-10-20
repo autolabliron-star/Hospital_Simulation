@@ -13,6 +13,7 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import { sim } from '@/sim'
 import { registerWarmGate } from '@/scene/warmup/registry'
+import { timeScale } from '@/scene/timeScale'
 import { loadPeople } from './avatarLoader'
 import { attachPeople, createCrowdRig, detachPeople, driveCrowd } from './crowdRig'
 import { setActiveCrowd } from './runtime'
@@ -54,7 +55,7 @@ export function People() {
     }
   }, [rig])
 
-  useFrame((state, delta) => driveCrowd(rig, sim.entities, state.camera.position.x, state.camera.position.y, state.camera.position.z, delta, state.clock.elapsedTime))
+  useFrame((state, delta) => driveCrowd(rig, sim.entities, state.camera.position.x, state.camera.position.y, state.camera.position.z, delta, state.clock.elapsedTime, timeScale()))
 
   return (
     <>

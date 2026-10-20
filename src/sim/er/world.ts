@@ -112,7 +112,11 @@ export class World {
     }
   }
 
+  /** S1: true while a warm start places work already under way (nothing it does is news). */
+  quiet = false
+
   say(type: SimEventType, text: string, refs: EventRefs = {}): void {
+    if (this.quiet) return
     this.log.push(this.t, type, text, refs)
   }
 

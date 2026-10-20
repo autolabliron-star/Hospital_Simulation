@@ -112,8 +112,11 @@ export class Scanner {
   /** Seconds the operator needs to walk from the table to her station (plus a little), so she leaves in time. */
   private readonly lead: number
   private op: ImagingOperator | null = null
+  private readonly warmSpot: Vec2 = { x: 0, z: 0 }
   /** Total seconds the scanner was not idle, for the utilisation numbers (see ImagingDepartment). */
   busySeconds = 0
+  /** S1 in-flight warm: seconds the placed exam stays frozen (the hidden pre-roll), so it is `seqProgress` through at the reveal. */
+  private holdS = 0
 
   constructor(
     readonly modality: ImagingModality,
@@ -198,6 +201,73 @@ export class Scanner {
     if (booking.kind === 'er') this.go('awaitPorter')
     else if (!subject) this.go('wait')
     else this.go('meet')
+  }
+
+  /**
+   * S1 in-flight warm: the same bookkeeping as `begin()`, but the exam is already under way. The patient lies on the table
+   * (MRI and CT: inside the bore, in a gown for the MRI), the operator works at her station, sequence `seq` is running
+   * `seqT` seconds in. Logs nothing. For `holdS` seconds the session's clocks stand still (the machine and the people carry
+   * on), so the hidden pre-roll ends with the sequence exactly where it was placed; `endWarmHold()` stops it early.
+   * Returns false (and places nobody) if the scanner has no operator, is busy, or the booking's person is not an outpatient.
+   */
+  warmBegin(booking: Booking, exam: ImagingExam, plan: ExamPlan, seq: number, seqT: number, holdS = 0): boolean {
+    const op = this.op
+    const subject = booking.subject
+    if (!op || this.sess || !subject) return false
+    const a = this.sites
+    const p = subject.actor
+    booking.state = 'active'
+    // the operator at her station (she is there already unless a shift change left her elsewhere)
+    if (!op.isAtStation()) {
+      const st = a.station
+      if (st.seat) {
+        if (op.seat !== st.seat) {
+          this.ports.seats.claimId(st.seat.id, op.entity.id)
+          op.placeOnSeat(st.seat)
+        }
+      } else op.placeAt(st.at.x, st.at.z, st.heading)
+    }
+    let scanElapsed = seqT
+    for (let i = 0; i < seq; i++) scanElapsed += sequenceSeconds(this.modality, exam.sequences[i]) + (plan.gapS[i] ?? 0)
+    const s: Session = {
+      booking,
+      exam,
+      plan,
+      step: 'scan',
+      stepT: 0,
+      seq,
+      seqT,
+      scanElapsed,
+      stationSent: this.modality === 'xray' && seq === 0,
+      cubicle: -1,
+    }
+    this.sess = s
+    const st = this.state
+    st.exam = exam
+    st.operatorId = op.entity.id
+    st.sequence = seq
+    st.progress = Math.min(1, seqT / sequenceSeconds(this.modality, exam.sequences[seq]))
+    st.tablePos = this.modality === 'mri' || this.modality === 'ct' ? 1 : 0
+    st.phaseTime = 0
+    this.setPhase(PHASE.scan)
+    op.working = true
+    op.hurry(false)
+    op.entity.anim = 'tablet'
+    // the patient on the table
+    if (this.sites.tableInRegistry) this.ports.seats.claimId(a.tableSeat.id, booking.patientId)
+    if (this.modality === 'mri') p.entity.outfit = 'gown'
+    p.placeOnSeat(a.tableSeat)
+    p.rideTable(this.ref)
+    this.tableSpot(this.warmSpot)
+    p.placeAt(this.warmSpot.x, this.warmSpot.z, a.tableSeat.heading)
+    this.holdS = holdS
+    this.publish(60)
+    return true
+  }
+
+  /** The placed exam resumes (the hidden pre-roll is over). */
+  endWarmHold(): void {
+    this.holdS = 0
   }
 
   private end(): void {
@@ -317,8 +387,11 @@ export class Scanner {
         this.say('scanSequence', `The ${MODALITY_NAME[this.modality]} table is moving ${exam.patientName} in.`, s.booking)
         break
       case 'gap':
-        // X-ray: the radiographer steps out from behind the booth to turn the patient for the next view
-        if (this.modality === 'xray') op.goTo(a.handler.at, { face: a.handler.heading })
+        // X-ray: the radiographer steps out from behind the booth to turn the patient for the next view (and goes back in time)
+        if (this.modality === 'xray') {
+          s.stationSent = false
+          op.goTo(a.handler.at, { face: a.handler.heading })
+        }
         break
       case 'tableOut':
         this.say('scanSequence', `The ${MODALITY_NAME[this.modality]} table is bringing ${exam.patientName} out.`, s.booking)
@@ -370,6 +443,13 @@ export class Scanner {
       return
     }
     this.busySeconds += dt
+    if (this.holdS > 0) {
+      // S1 in-flight warm: the clocks of the exam stand still, the machine and the people go on
+      this.holdS -= dt
+      this.workAtStation()
+      this.publish(dt)
+      return
+    }
     s.stepT += dt
     const op = this.op!
     const a = this.sites

@@ -155,6 +155,19 @@ export class BloodOutpatient extends Actor implements DrawSubject {
 
   resultsReady(_order: LabOrder): void {}
 
+  /** S1 in-flight warm: already checked in, called and sitting in the robot's chair (the station takes it from here). */
+  warmSeat(seat: SeatSpec, checkedInAt: number, seatedAt: number): void {
+    this.placeOnSeat(seat)
+    this.called = seat
+    this.chair = seat
+    this.pending = null
+    this.checkedInAt = checkedInAt
+    this.seatedAt = seatedAt
+    this.state = 'seated'
+    this.entity.mood = 'neutral'
+    this.entity.emote = 'none'
+  }
+
   // --- per step ------------------------------------------------------------------------------------------------------
 
   think(dt: number, _ctx: PeopleContext): void {

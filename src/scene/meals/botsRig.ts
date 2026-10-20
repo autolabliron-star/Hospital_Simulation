@@ -134,7 +134,8 @@ export function createMealBotsRig(): MealBotsRig {
     drawn: () => f.n,
     step(life, dt, time) {
       f.n = 0
-      f.dt = Math.min(dt, 0.1)
+      // (the layer hands over `visualDt`: sim speed applied, at most 0.25 s)
+      f.dt = Math.min(dt, 0.25)
       f.time = time
       if (life) life.mealBots.forEach(visit)
       const n = f.n

@@ -105,7 +105,7 @@ export function createTraysRig(): TraysRig {
     cover,
     shelfTrays: () => st.used,
     step(life, dt) {
-      const grow = Math.min(dt, 0.1) / GROW_SECONDS
+      const grow = Math.min(dt, 0.25) / GROW_SECONDS
       let moving = false
       for (let i = 0; i < TABLES; i++) {
         const meal = life?.rooms.get(ROOMS[i].id)?.meal ?? 'none'

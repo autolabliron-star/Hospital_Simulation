@@ -13,7 +13,8 @@ import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { interaction } from '@/scene/interact'
 import { HealthCheck, healthCheckRegistry, type HealthEnv, type HealthSim } from '@/scene/interact/healthCheck'
 import { placePlayer } from '@/scene/player/api'
-import { loop, sim, simGeneration } from '@/sim'
+import { visualDt } from '@/scene/timeScale'
+import { sim, simGeneration } from '@/sim'
 import { showToast } from '@/ui/walk/toast.store'
 import { useHealthCard } from '@/ui/walk/healthCard.store'
 import { resetKioskMemory, trackKiosk, type TriageSim } from '@/ui/kioskView'
@@ -71,7 +72,7 @@ export function KioskLayer() {
       resetKioskMemory()
     }
     const kiosks = sim.vitals.kiosks
-    updateRig(rig, kiosks, loop.paused ? 0 : Math.min(dt, 0.1), state.clock.elapsedTime)
+    updateRig(rig, kiosks, visualDt(dt), state.clock.elapsedTime)
     for (let i = 0; i < kiosks.length; i++) trackKiosk(kiosks[i])
     health.tick(Math.min(dt, 0.1))
   }, KIOSKS_FRAME_PRIORITY)

@@ -6,9 +6,12 @@
  *
  * The labels and captions come from src/content/day.json; the chrome words from l1Copy.ts.
  */
-import { useEffect, useId, useMemo, useRef, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, type CSSProperties, type KeyboardEvent } from 'react'
+import { clockAngles, endLapse, lapseHourAt, startLapse } from '@/scene/daylight/lapse'
+import { CONFIG } from '@/sim/config'
 import { useWorld } from '@/sim/world.store'
 import { useJump } from './jump.store'
+import { hourText } from './dayStats'
 import { buildJumpItems, clockHourOf, startIndex, type JumpItem } from './jumpModel'
 import { fillCopy, L1_COPY } from './l1Copy'
 import './jumpMenu.css'
@@ -138,21 +141,102 @@ export function JumpMenu() {
 }
 
 /**
+ * The time-lapse veil of a skip (S1): a translucent cover over the still-running scene while the sky runs to the new hour, then opaque
+ * for the swap, then a fade back in. The analogue hands turn by CSS animation (they keep turning on the compositor even while the main
+ * thread is blocked by the rebuild); the digital time is written through a ref by a rAF loop (no React state per frame) and the same
+ * loop drives the sky (`lapse`, read by the daylight driver). `prefers-reduced-motion`: no spin, no sky run, a plain fade.
+ */
+function SkipLapse() {
+  const phase = useJump((s) => s.phase)
+  const req = useJump((s) => s.skipping)
+  const digital = useRef<HTMLParagraphElement>(null)
+
+  useEffect(() => {
+    if (!req) return
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const write = (hour: number) => {
+      if (digital.current) digital.current.textContent = hourText(hour)
+    }
+    if (reduced) {
+      write(req.toHour)
+      return
+    }
+    write(req.fromHour)
+    startLapse(req.fromHour)
+    const t0 = performance.now()
+    let raf = 0
+    const tick = () => {
+      const p = Math.min(1, (performance.now() - t0) / CONFIG.skip.lapseMs)
+      const hour = lapseHourAt(req.fromHour, req.toHour, p)
+      write(hour)
+      startLapse(hour)
+      // the hour is held at the target from here on (the flow's swap may block this loop for a while); `endLapse` below lifts it
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      endLapse()
+    }
+  }, [req])
+
+  // the sky goes back to the real hour as the veil starts to lift
+  useEffect(() => {
+    if (phase === 'fadingIn' || phase === 'idle') endLapse()
+  }, [phase])
+
+  const angles = req ? clockAngles(req.fromHour, req.toHour) : null
+  const vars =
+    angles && req
+      ? ({
+          '--hour-from': `${angles.hourFrom}deg`,
+          '--hour-to': `${angles.hourTo}deg`,
+          '--min-from': `${angles.minuteFrom}deg`,
+          '--min-to': `${angles.minuteTo}deg`,
+          '--lapse-ms': `${CONFIG.skip.lapseMs}ms`,
+          '--fade-ms': `${CONFIG.skip.fadeInMs}ms`,
+        } as CSSProperties)
+      : undefined
+  return (
+    <div className="jm-lapse" data-phase={phase} data-active={req !== null} aria-hidden={phase === 'idle'} style={vars}>
+      {req && (
+        <div className="jm-lapse__body" key={`${req.fromT}:${req.toT}`} role="status">
+          {req.caption && <p className="jm-lapse__caption">{req.caption}</p>}
+          <div className="jm-lapse__clock" aria-hidden="true">
+            <span className="jm-lapse__hand jm-lapse__hand--hour" />
+            <span className="jm-lapse__hand jm-lapse__hand--minute" />
+            <span className="jm-lapse__pin" />
+          </div>
+          <p className="jm-lapse__time" ref={digital} aria-hidden="true">
+            {hourText(req.fromHour)}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * The cover for a jump: it fades in while the hospital is rebuilt behind it (so no half-built state is ever visible), shows
- * where we are going, and fades out once the new hospital has drawn. Mount it once, last, in App.
+ * where we are going, and fades out once the new hospital has drawn. Mount it once, last, in App. A skip (S1) has its own
+ * time-lapse veil (`SkipLapse`); the Jump cover stays out of its way.
  */
 export function JumpFade() {
   const phase = useJump((s) => s.phase)
   const target = useJump((s) => s.target)
-  const covered = phase === 'fadingOut' || phase === 'swapping'
+  const skipping = useJump((s) => s.skipping !== null)
+  const covered = !skipping && (phase === 'fadingOut' || phase === 'swapping')
   return (
-    <div className="jm-cover" data-phase={phase} data-covered={covered} role="status" aria-live="polite" aria-hidden={phase === 'idle'}>
-      {target && (
-        <div className="jm-cover__text">
-          <p className="jm-cover__time">{fillCopy(COPY.overlay, { time: target.time })}</p>
-          {target.label && <p className="jm-cover__label">{target.label}</p>}
-        </div>
-      )}
-    </div>
+    <>
+      <div className="jm-cover" data-phase={skipping ? 'idle' : phase} data-covered={covered} role="status" aria-live="polite" aria-hidden={skipping || phase === 'idle'}>
+        {target && !skipping && (
+          <div className="jm-cover__text">
+            <p className="jm-cover__time">{fillCopy(COPY.overlay, { time: target.time })}</p>
+            {target.label && <p className="jm-cover__label">{target.label}</p>}
+          </div>
+        )}
+      </div>
+      <SkipLapse />
+    </>
   )
 }

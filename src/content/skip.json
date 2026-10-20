@@ -1,0 +1,34 @@
+{
+  "group": "Skip ahead",
+  "stepMinutes": "+{n} min",
+  "stepHours": "+{n} h",
+  "stepTitle": "Skip ahead {label} ({key})",
+  "stepTitleNoKey": "Skip ahead {label}",
+  "chipTitle": "{label} ({key})",
+  "busyTitle": "A jump is under way",
+  "keys": {
+    "step": "]",
+    "milestone": "Shift+]"
+  },
+  "speedTitle": "Speed {n}× (key {key})",
+  "speedKeys": {
+    "1": "1",
+    "2": "2",
+    "4": "4",
+    "10": "0",
+    "30": "3"
+  },
+  "milestoneLabel": "Skip to {name} · {time}",
+  "milestones": {
+    "docking": { "name": "docking", "caption": "Docking" },
+    "console": { "name": "the console", "caption": "At the console" },
+    "undocking": { "name": "undocking", "caption": "Undocking" },
+    "wheelsOut": { "name": "wheels-out", "caption": "Wheels-out" },
+    "pacuDischarge": { "name": "PACU discharge", "caption": "Recovery discharge" },
+    "nextWheelsIn": { "name": "the next patient", "caption": "Next patient" }
+  },
+  "scan": {
+    "label": "Skip to scan end",
+    "caption": "Scan end"
+  }
+}

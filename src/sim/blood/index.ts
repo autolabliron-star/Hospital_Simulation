@@ -103,6 +103,7 @@ export class DrawCentre implements DrawPort, StationHost, VisitorServices {
   private readonly holdBy: (string | null)[]
   private t = 0
   private started = false
+  private warmed = false
   private arrivalsOn = false
   private pollAcc = 0
   private callRepeatAt = 0
@@ -197,6 +198,73 @@ export class DrawCentre implements DrawPort, StationHost, VisitorServices {
 
   sync(alpha: number): void {
     void alpha
+  }
+
+  /**
+   * S1 in-flight warm (after warmStart): `CONFIG.opening.drawChairs` outpatients already seated in robot chairs, ticketed through the
+   * normal path, their robots started with `RobotStation.warmBegin` (the tray is already there) so that the hidden pre-roll ends with
+   * the needle in or a tube filling, each robot at a different point. The nurse is at her post. All placed draws are robot draws.
+   * Logs nothing (the world is quiet). Outside the outpatient hours nothing is placed. Idempotent.
+   */
+  warmInFlight(t: number): void {
+    if (this.warmed) return
+    this.warmed = true
+    this.t = t
+    const hour = hourAt(t)
+    this.start(hour)
+    const [h0, h1] = CONFIG.blood.outpatientHours
+    if (hour < h0 || hour >= h1 || !this.nurse.onSite) return
+    // the pre-roll the caller will run (index.ts buildSimulation): the opening's at 07:30, a Jump's anywhere else
+    const preRoll = t === 0 ? CONFIG.opening.preRollSeconds : CONFIG.day.jumpPreRollSeconds
+    const want = Math.min(CONFIG.opening.drawChairs, this.robots.length)
+    const root = this.rng.fork('inFlight')
+    const w = this.world
+    let placed = 0
+    for (const station of this.robots) {
+      if (placed >= want) break
+      const seat = this.chairs[station.index]
+      if (!station.free || (this.chairReal[station.index] && w.seats.occupant(seat.id) !== null)) continue
+      const r = root.fork(station.index)
+      const id = w.id('bld')
+      const name = w.uniqueName(r)
+      const age = drawAge(r)
+      const v = new BloodOutpatient(this, id, name, age, { x: seat.x, z: seat.z }, seat.heading, this.walkerFor(id), r.fork(id), false)
+      const list = LAB_CATALOGUE.outpatientPanels
+      v.panel = r.weighted(
+        list.map((p) => p.panel),
+        list.map((p) => p.weight),
+      )
+      const entry = this.issue(v, 'outpatient', true, age >= CONFIG.blood.priorityAge ? 'V' : 'P')
+      // the robots sit at different points of the draw: the first early, the last late (a spread of the window, jittered)
+      const frac = 0.08 + (0.72 * (placed + r.range(0.1, 0.9))) / want
+      this.book.take(entry)
+      const tk = entry.ticket
+      tk.state = 'called'
+      tk.station = station.index
+      this.claimChair(station.index, id)
+      v.drawCalled(station.index, seat)
+      v.warmSeat(seat, t, t)
+      // the tray was made and brought before the reveal: no prep job, no errand for the nurse
+      this.trayReady(entry)
+      this.machine.cancel(entry)
+      this.machine.state.traysToday++
+      const ahead = station.warmBegin(entry, preRoll, frac)
+      // when it all happened, for the records: called ~20 s before the card scan, after a wait of a few minutes
+      const calledAt = t - ahead - 20
+      const wait = r.range(60, 240)
+      entry.readyAt = calledAt - wait
+      entry.waited = wait
+      tk.issuedAt = entry.readyAt
+      tk.calledAt = calledAt
+      v.checkedInAt = entry.readyAt
+      v.seatedAt = calledAt + 15
+      this.outpatients.push(v)
+      this.outpatientsSpawned++
+      w.hooks.add(v)
+      placed++
+    }
+    this.rebuildQueue()
+    this.version++
   }
 
   /** A day that starts at `hour`: the numbers of the day so far (tickets, draws) and arrivals from there on. Idempotent. */

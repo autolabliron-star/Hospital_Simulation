@@ -447,13 +447,14 @@ describe('the ward fade', () => {
     const away = (h.t - faded) / 60
     expect(away).toBeGreaterThanOrEqual(4)
     expect(away).toBeLessThanOrEqual(6.3)
-    // back at the lobby of level 2, then on to the staff room
+    // back at the lobby of level 2, then on to the sterile supply (S1: the porter's idle routine; the day is not over)
     expect(levelOf(porter.walker.x)).toBe(2)
     runToTime(h, h.t + 120)
     expect(porter.engagedBy).toBeNull()
     expect(h.lifts.gates[3].stretcherBy).toBeNull()
     runToTime(h, h.t + 180)
-    expect(porter.isAt('base')).toBe(true)
+    expect(porter.task?.key.startsWith('porter:sterile:')).toBe(true)
+    expect(porter.isAt(porter.task!.key)).toBe(true)
   }, 120_000)
 })
 

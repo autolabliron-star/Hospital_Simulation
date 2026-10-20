@@ -62,6 +62,8 @@ export class Porter extends Actor {
   private timer = 0
   private idleFor = 0
   private linenAt: Vec2 = LINEN_PICKUP
+  /** S1 showcase: the opening's linen run loads its cart in the clean supply room until this sim time. */
+  private loadUntil = -Infinity
   /** The ward room of the bed-flow errand in progress (a wheelchair home or fresh linen). */
   private errandRoom: RoomId | null = null
   /** The patient being taken home by wheelchair (the bed board forgets them once they are out of the room). */
@@ -244,6 +246,10 @@ export class Porter extends Actor {
       case 'linenGet':
         if (this.due(dt) && this.world.porters.pending > 0 && this.takeJob()) {
           this.world.linenRun = false
+          break
+        }
+        if (this.state === 'linenGet' && this.done && this.world.t < this.loadUntil) {
+          this.entity.anim = 'give'
           break
         }
         if (this.state === 'linenGet' && this.done) {
@@ -475,6 +481,22 @@ export class Porter extends Actor {
   }
 
   // --- linen runs ---------------------------------------------------------------------------------------
+
+  /**
+   * S1 showcase opening: this porter is already in the clean supply room, loading a linen cart until `until`, then runs it
+   * as any linen run (a job that comes up first still wins). False if they are busy or another linen run is under way.
+   */
+  warmLinenRun(until: number): boolean {
+    if (this.state !== 'idle' || this.world.linenRun) return false
+    this.world.idlePorters.delete(this.staff.id)
+    this.world.linenRun = true
+    this.linenAt = this.srng.pick(LINEN_DROPS)
+    this.loadUntil = until
+    this.placeAt(LINEN_PICKUP.x, LINEN_PICKUP.z, Math.PI)
+    this.moveTo(LINEN_PICKUP)
+    this.state = 'linenGet'
+    return true
+  }
 
   private maybeLinen(): void {
     if (this.idleFor < 45 || this.world.idlePorters.size < 2 || this.world.linenRun) return

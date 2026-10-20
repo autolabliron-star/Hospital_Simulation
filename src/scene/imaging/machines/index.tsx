@@ -12,6 +12,7 @@ import { useFrame } from '@react-three/fiber'
 import { getLayout } from '@/scene/building/layout'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { invalidateShadows } from '@/scene/Lighting'
+import { visualDt } from '@/scene/timeScale'
 import { loop, sim } from '@/sim'
 import { monitorMaterial } from './machineMaterials'
 import { createRig, disposeRig, updateRig } from './rig'
@@ -27,7 +28,8 @@ export function Machines() {
     return () => disposeRig(rig)
   }, [rig])
 
-  useFrame((state, dt) => updateRig(rig, sim.imaging.scanners, loop.paused ? 0 : Math.min(dt, 0.1), state.clock.elapsedTime), MACHINES_FRAME_PRIORITY)
+  // the table and probe smoothing stand for the sim's process (visualDt); the CT gantry spin stays on real time
+  useFrame((state, dt) => updateRig(rig, sim.imaging.scanners, visualDt(dt), state.clock.elapsedTime, loop.paused ? 0 : Math.min(dt, 0.1)), MACHINES_FRAME_PRIORITY)
 
   return <primitive object={rig.root} />
 }
