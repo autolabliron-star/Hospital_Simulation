@@ -20,6 +20,14 @@ interface ViewerSnap {
   view: ScannerView | null
   title: string
   line: string
+  /** F-06: nobody is on duty to run this scanner (MRI and ultrasound after 18:00): "Start a scan now" cannot work. */
+  noOperator: boolean
+}
+
+/** Does the sim know of nobody on duty for this scanner? Unknown (an older sim without the question) counts as "somebody". */
+function hasNoOperator(img: object, m: ImagingModality): boolean {
+  const q = (img as { hasOperator?: (m: ImagingModality) => boolean }).hasOperator
+  return typeof q === 'function' ? !q.call(img, m) : false
 }
 
 /** The machines & images module: undefined while loading, null if it is not part of this build. */
@@ -159,7 +167,7 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
   const scene = useImagingScene()
   const read = useCallback((): ViewerSnap => {
     const img = imagingOf(sim)
-    if (!img) return { view: null, title: '', line: '' }
+    if (!img) return { view: null, title: '', line: '', noOperator: false }
     const view = scannerView(img, modality, sim.t)
     let caption = { title: '', line: '' }
     if (scene) {
@@ -169,9 +177,9 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
         // fall back to the protocol name below
       }
     }
-    return { view, title: caption.title, line: caption.line }
+    return { view, title: caption.title, line: caption.line, noOperator: hasNoOperator(img, modality) }
   }, [modality, scene])
-  const { view, title, line } = usePoll(read)
+  const { view, title, line, noOperator } = usePoll(read)
 
   // "Start a scan now" was pressed and the patient has not reached the scanner yet.
   const [asked, setAsked] = useState(false)
@@ -179,11 +187,17 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
   useEffect(() => {
     if (busy) setAsked(false)
   }, [busy])
+  useEffect(() => {
+    // nobody on duty: whatever was asked is not coming
+    if (noOperator) setAsked(false)
+  }, [noOperator])
 
   const start = () => {
     try {
-      imagingOf(sim)?.startDemoScan(modality)
-      setAsked(true)
+      // F-06: the sim refuses (false) when nobody is on duty; then nobody is booked and nobody walks to the hall
+      const img = imagingOf(sim)
+      const result = img?.startDemoScan(modality) as unknown
+      if (result !== false) setAsked(true)
     } catch {
       // the sim refused (nothing to do); the button stays available
     }
@@ -191,7 +205,8 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
 
   const name = view?.modalityName ?? modality
   const headline = title || view?.protocol || `${name} scanner`
-  const waitingForPatient = !busy && (asked || (view?.demoPending ?? false))
+  const waitingForPatient = !noOperator && !busy && (asked || (view?.demoPending ?? false))
+  const staffTitle = modality === 'us' ? 'sonographer' : 'radiographer'
 
   return (
     <div className="sv" role="region" aria-label={`Scan viewer: ${name}`}>
@@ -248,9 +263,14 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
           </section>
 
           <div className="sv-actions">
-            <button type="button" className="hud-send sv-start" disabled={busy || waitingForPatient} aria-describedby="sv-queue" onClick={start}>
+            <button type="button" className="hud-send sv-start" disabled={busy || waitingForPatient || noOperator} aria-describedby="sv-queue" onClick={start}>
               {waitingForPatient ? 'Patient on the way…' : 'Start a scan now'}
             </button>
+            {noOperator && (
+              <p className="sv-queue sv-queue--closed" role="status">
+                No {staffTitle} on duty: the {name} is closed until the day team is back.
+              </p>
+            )}
             <p className="sv-queue" id="sv-queue">
               <span className="sv-queue__label">{view.queueLabel}:</span> {view.queueText}
             </p>

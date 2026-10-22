@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "note": "The building split into zones for the authored model (one glb + lightmaps per zone, loaded and culled per zone). Rects are sim/drawn coordinates (x east, z south, metres) on the given level; a zone owns every area in `areas` and every wall/door line whose centre lies in its rects. Every area in plan.json belongs to exactly one zone. Owned by the orchestrator: ask before changing.",
+  "zones": [
+    { "id": "lobby", "level": 1, "label": "Entrance, lobby and spine", "rects": [{ "x0": -62, "x1": -40, "z0": -6, "z1": 6 }, { "x0": -44, "x1": -40, "z0": -22, "z1": 22 }], "areas": ["lobby", "spine", "liftA", "liftB"], "status": "designed" },
+    { "id": "er", "level": 1, "label": "Triage and emergency department", "rects": [{ "x0": -62, "x1": -44, "z0": -22, "z1": -6 }, { "x0": -62, "x1": -44, "z0": 6, "z1": 22 }], "areas": ["triage", "er"], "status": "todo" },
+    { "id": "imaging", "level": 1, "label": "Imaging (MRI, CT, X-ray, ultrasound)", "rects": [{ "x0": -40, "x1": -22, "z0": -12, "z1": 12 }], "areas": ["imagingHall", "mri", "mriControl", "ct", "ctControl", "xray", "ultrasound", "diagnostics"], "status": "todo" },
+    { "id": "wardA", "level": 1, "label": "Ward A and corridor A", "rects": [{ "x0": -40, "x1": 40, "z0": -22, "z1": -12 }], "areas": ["corridorA", "staffA", "hubA", "loungeA", "room:A1", "room:A2", "room:A3", "room:A4", "room:A5", "room:A6", "room:A7", "room:A8"], "status": "todo" },
+    { "id": "wardB", "level": 1, "label": "Ward B, corridor B, lab and supply", "rects": [{ "x0": -40, "x1": 40, "z0": 12, "z1": 22 }], "areas": ["corridorB", "supplyB", "lab", "hubB", "quietB", "room:B1", "room:B2", "room:B3", "room:B4", "room:B5", "room:B6", "room:B7", "room:B8"], "status": "todo" },
+    { "id": "core", "level": 1, "label": "Command centre and pharmacy core", "rects": [{ "x0": -22, "x1": 12, "z0": -12, "z1": 12 }], "areas": ["command", "core"], "status": "todo" },
+    { "id": "atrium", "level": 1, "label": "Healing atrium and cafe", "rects": [{ "x0": 12, "x1": 40, "z0": -12, "z1": 12 }], "areas": ["atrium"], "status": "todo" },
+    { "id": "theatres", "level": 2, "label": "Level 2: theatres, pre-op, recovery", "rects": [{ "x0": -62, "x1": -40, "z0": -22, "z1": 22 }], "areas": ["l2LiftA", "l2LiftB", "l2Corridor", "l2PreOp", "l2Staff", "l2Sterile", "l2Hall", "l2Or", "l2Pacu", "l2Lounge"], "status": "todo" }
+  ],
+  "budgets": {
+    "note": "Meta Quest 3 slice per zone (stereo). The whole building: < 200 draw calls in view, < 1.5 M triangles, about 250 MB GPU textures (shared material textures count once).",
+    "perZone": { "draws": 40, "tris": 200000, "lightmapMB": 16 },
+    "sharedMaterialTexturesMB": 48
+  }
+}

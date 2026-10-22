@@ -355,6 +355,11 @@ export type SimEventType =
   | 'theatreOut'
   | 'pacuOut'
   | 'turnoverDone'
+  // the WHO surgical safety checklist and the recovery discharge criteria (F-30)
+  | 'whoSignIn'
+  | 'whoTimeOut'
+  | 'whoSignOut'
+  | 'pacuDischarge'
 
 export interface SimEvent {
   /** Sequential, stable across replays with the same seed. */

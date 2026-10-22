@@ -7,7 +7,9 @@
  * wiring; it is the one place this file depends on the orchestrator's glue.
  */
 import { describe, expect, it, vi } from 'vitest'
+import { ADMISSION_PROFILES } from '@/content/admissions'
 import { talkLines, greetLines, helloFor, fillBark, TALK_KEYS } from '@/content/barks'
+import { DIET, isNilByMouth } from '@/content/diet'
 import { CONFIG } from './config'
 import { NIGHT_STAFF, HOSTS, STAFF } from '@/content/staff'
 import { Actor } from './er/actor'
@@ -517,8 +519,8 @@ describe('W1 Life reacts: stepping aside', () => {
   }, 600_000)
 
   it('a 4 m corridor with you in the middle still lets everybody through, as many as without you', () => {
-    const crossings = (o: { player: boolean }): number => {
-      const sim = new Simulation(7, { startHour: CORRIDOR_HOUR })
+    const crossings = (seed: number, o: { player: boolean }): number => {
+      const sim = new Simulation(seed, { startHour: CORRIDOR_HOUR })
       if (o.player) {
         sim.addPlayer(spot(-4.7, CZ, Math.PI / 2))
         sim.movePlayer(-4.7, CZ, Math.PI / 2, 0)
@@ -541,11 +543,16 @@ describe('W1 Life reacts: stepping aside', () => {
       }
       return n
     }
-    const without = crossings({ player: false })
-    const withYou = crossings({ player: true })
-    console.log(`[W1 sidestep] crossings of x = -4.7 in ward A's corridor in 10 min: ${without} without you, ${withYou} with you standing there`)
-    expect(without).toBeGreaterThan(8)
-    expect(withYou).toBeGreaterThanOrEqual(Math.floor(without * 0.8))
+    // Pooled over several seeds: one seed at this hour sees only about 8 crossings in 10 minutes (the ward day is real now, so the corridor is
+    // quiet by design), too thin a sample for a ratio (a single crossing either way flipped it). The claim is the same: with you standing in
+    // the middle, at least 80 % as many get through as without you.
+    const SEEDS_X = [7, 11, 3, 2026]
+    const without = SEEDS_X.map((s) => crossings(s, { player: false }))
+    const withYou = SEEDS_X.map((s) => crossings(s, { player: true }))
+    const sum = (a: number[]) => a.reduce((x, y) => x + y, 0)
+    console.log(`[W1 sidestep] crossings of x = -4.7 in ward A's corridor in 10 min (${SEEDS_X.length} seeds): ${sum(without)} without you (${without.join('/')}), ${sum(withYou)} with you standing there (${withYou.join('/')})`)
+    expect(sum(without)).toBeGreaterThan(20)
+    expect(sum(withYou)).toBeGreaterThanOrEqual(Math.floor(sum(without) * 0.8))
   }, 600_000)
 
   it('everybody makes way for you in the lobby and the halls too, and the exclusions hold (nobody hurrying, riding or pushing)', () => {
@@ -699,10 +706,10 @@ describe('W1 Life reacts: stepping aside', () => {
     const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < end - 90 * 60)
     expect(stuck.map((c) => `${c.name} ${c.state} since ${(c.arrivedAt / 60).toFixed(0)} min`)).toEqual([])
     expect(er.finished.length).toBeGreaterThan(12) // Wave 1: real arrival rates (a few an hour), 20 finished at the last run
-    expect(er.maxCleanWait).toBeLessThanOrEqual(45 * 60) // Wave 1: real stays, one cleaner team; as in the population gate
+    expect(er.maxCleanWait).toBeLessThanOrEqual(30 * 60) // 30 min from empty to ready (clean 5-10 min plus the cleaner on the way); measured max about 23 min
     const orders = [...sim.meds.orders.values()]
     expect(orders.filter((o) => o.createdAt < end - 25 * 60 && o.stage !== 'given')).toEqual([])
-    expect(sim.imaging.stuckLog.filter((l) => !/xray stuck in gap/.test(l))).toEqual([])
+    expect(sim.imaging.stuckLog).toEqual([])
     expect(sim.beds.board.log.violations).toEqual([])
   }, 900_000)
 })
@@ -906,6 +913,26 @@ describe('W1 Life reacts: talkTo', () => {
     expect(['ward.eaten.breakfast', 'ward.eaten.lunch', 'ward.eaten.dinner', 'ward.medsGiven', 'ward.medsReady'].flatMap((k) => talkLines(k as never))).toContain(lunch)
   }, 300_000)
 
+  it('a nil-by-mouth ward patient says so, and never "Lunch was lovely" (F-29)', () => {
+    const { sim, r } = rig(9, 11.9)
+    stand(sim, 0, -14)
+    const nbmRoom = [...sim.life.rooms.values()].find((st) => st.bed === 'occupied' && st.patientId !== null)!.roomId
+    sim.beds.board.recordOf(nbmRoom)!.reason = ADMISSION_PROFILES.find((p) => p.reasons.every(isNilByMouth))!.wardReason
+    sim.beds.board.syncRoom(sim.beds.board.get(nbmRoom))
+    let line: string | null = null
+    for (let i = 0; i < 90 * 60 * 60 && line === null; i += 30 * 60) {
+      run(sim, 30)
+      const pat = sim.world.wardPatients.get(nbmRoom)
+      if (!pat || !pat.inBed || pat.dState !== null) continue
+      line = r.talkTo(pat.entity.id)
+    }
+    expect(line, 'the nil-by-mouth patient answered').not.toBeNull()
+    expect(talkLines('ward.nilByMouth')).toContain(line)
+    expect(talkLines('ward.nilByMouth')).toContain(DIET.nilByMouth.bark)
+    expect(['ward.served.lunch', 'ward.eaten.lunch', 'ward.served.breakfast', 'ward.eaten.breakfast'].flatMap((k) => talkLines(k as never).map((l) => fillBark(l, { dish: 'x' })))).not.toContain(line)
+    expect(line).not.toMatch(/lunch|lovely/i)
+  }, 300_000)
+
   it('cannot talk to somebody riding, mid-transfer, being scanned, fading, gone, or without a player', () => {
     const { sim, r } = rig(5, 9.5)
     const people = sim.people.filter((p) => p instanceof Actor && p.entity.role !== 'doctor') as Actor[]
@@ -1016,13 +1043,12 @@ describe('W1 Life reacts: a morning of conversations', () => {
     const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < end - 90 * 60)
     expect(stuck.map((c) => `${c.name} ${c.state} since ${(c.arrivedAt / 60).toFixed(0)} min`)).toEqual([])
     expect(er.finished.length).toBeGreaterThan(15) // Wave 1: real arrival rates (a few an hour), 25 finished at the last run
-    expect(er.maxCleanWait).toBeLessThanOrEqual(45 * 60) // Wave 1: real stays, one cleaner team; as in the population gate
+    expect(er.maxCleanWait).toBeLessThanOrEqual(30 * 60) // 30 min from empty to ready (clean 5-10 min plus the cleaner on the way); measured max about 23 min
     const orders = [...sim.meds.orders.values()]
     expect(orders.length).toBeGreaterThan(20)
     expect(orders.filter((o) => o.createdAt < end - 25 * 60 && o.stage !== 'given')).toEqual([])
-    // no scanner step had to be forced because somebody held up by a conversation did not arrive (the plain day already logs a
-    // few X-ray "gap" watchdog fixes of its own, with no player: those are not ours)
-    expect(sim.imaging.stuckLog.filter((l) => !/xray stuck in gap/.test(l))).toEqual([])
+    // no scanner step had to be forced (F-14: the X-ray "stuck in gap" filter is gone, the log must be empty)
+    expect(sim.imaging.stuckLog).toEqual([])
     expect(sim.beds.board.log.violations).toEqual([])
     console.log(`[W1] ${talks} conversations in a morning, ${holdsInPinch} held-in-a-doorway samples, ER finished ${er.finished.length}`)
   }, 900_000)

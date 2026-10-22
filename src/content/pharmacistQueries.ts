@@ -35,9 +35,19 @@ export const PharmacistQueriesSchema = z
           .strict(),
       )
       .min(1),
+    /** The allergy check (patient record): the query sentence and which catalogue medicines belong to each allergy class. */
+    allergy: z
+      .object({
+        text: line,
+        classes: z
+          .array(z.object({ id: z.string().min(1), name: line, meds: ids }).strict())
+          .min(1),
+      })
+      .strict(),
     ui: z
       .object({
         queryTitle: line,
+        allergyTitle: line,
         heldNote: line,
         queriedNotice: line,
         confirm: line,
@@ -59,6 +69,11 @@ export const PharmacistQueriesSchema = z
       if (seen.has(r.id)) ctx.addIssue({ code: 'custom', message: `rule id "${r.id}" repeats` })
       seen.add(r.id)
     }
+    const classes = new Set<string>()
+    for (const c of v.allergy.classes) {
+      if (classes.has(c.id)) ctx.addIssue({ code: 'custom', message: `allergy class "${c.id}" repeats` })
+      classes.add(c.id)
+    }
   })
 
 export type PharmacistQueriesCopy = z.output<typeof PharmacistQueriesSchema>
@@ -70,6 +85,7 @@ for (const r of PHARMACIST_QUERIES.rules) {
   const named = [...r.meds, ...('meds' in r.with ? r.with.meds : [])]
   for (const id of named) medicineById(id) // throws "Unknown medicine id" for a typo
 }
+for (const c of PHARMACIST_QUERIES.allergy.classes) for (const id of c.meds) medicineById(id)
 for (const m of MEDICINES) {
   if (!(m.form in PHARMACIST_QUERIES.ui.route)) {
     throw new Error(`src/content/pharmacistQueries.json: ui.route has no entry for the form "${m.form}" (${m.id})`)
@@ -81,7 +97,7 @@ export function fillQuery(template: string, values: Record<string, string | numb
   return template.replace(/\{(\w+)\}/g, (whole, key: string) => (key in values ? String(values[key]) : whole))
 }
 
-export type QueryKind = 'duplicate' | 'interaction'
+export type QueryKind = 'duplicate' | 'interaction' | 'allergy'
 
 /** One thing the pharmacist queries about an order, as a sentence for the tablet. */
 export interface QueryReason {
@@ -126,6 +142,50 @@ export function findInteractions(ctx: InteractionContext): QueryReason[] {
       // report each pair once: when both are in the order, the first of the order's medicines reports it
       if (ctx.orderMeds.includes(partner) && ctx.orderMeds.indexOf(partner) < ctx.orderMeds.indexOf(medId)) continue
       out.push({ id: rule.id, kind: 'interaction', medId, text: fillQuery(rule.text, { med: meds(medId), with: meds(partner) }) })
+    }
+  }
+  return out
+}
+
+/** An allergy class of the content ("penicillin"), or undefined. */
+export function allergyClass(id: string): PharmacistQueriesCopy['allergy']['classes'][number] | undefined {
+  return PHARMACIST_QUERIES.allergy.classes.find((c) => c.id === id)
+}
+
+/** One recorded allergy as the pharmacist's check sees it (src/sim/records builds these from the patient record). */
+export interface AllergyFact {
+  agent: string
+  classId: string | null
+  type: 'allergy' | 'intolerance'
+  reaction: string
+  severity: string
+}
+
+/**
+ * The allergy queries an order raises: every ordered medicine that belongs to the class of a recorded allergy or intolerance (amoxicillin with a
+ * penicillin allergy). Pure, in a fixed order (the order's medicines, then the allergies). Allergies with no class (latex, a food) never match a medicine.
+ */
+export function findAllergyConflicts(orderMeds: readonly string[], allergies: readonly AllergyFact[], patient: string): QueryReason[] {
+  const out: QueryReason[] = []
+  for (const medId of orderMeds) {
+    for (const a of allergies) {
+      if (a.classId === null) continue
+      const cls = allergyClass(a.classId)
+      if (!cls || !cls.meds.includes(medId)) continue
+      out.push({
+        id: `allergy-${a.classId}`,
+        kind: 'allergy',
+        medId,
+        text: fillQuery(PHARMACIST_QUERIES.allergy.text, {
+          patient,
+          agent: a.agent,
+          type: a.type,
+          reaction: a.reaction.toLowerCase(),
+          severity: a.severity,
+          med: medicineById(medId).name,
+          className: cls.name,
+        }),
+      })
     }
   }
   return out

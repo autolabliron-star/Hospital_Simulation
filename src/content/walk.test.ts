@@ -72,7 +72,7 @@ describe('walk.json', () => {
   })
 
   it('fills a template and leaves an unknown placeholder visible', () => {
-    expect(fillWalk(WALK.prompt.prescribe, { patient: 'Grace Adeyemi' })).toBe('Prescribe for Grace Adeyemi')
+    expect(fillWalk(WALK.prompt.prescribe, { patient: 'Grace Adeyemi' })).toBe('Tablet for Grace Adeyemi')
     expect(fillWalk(WALK.objective.enRoute, { pod: 'A1', room: 'A3', eta: 'about 2 min' })).toBe('Pod A1 is bringing your order to A3: about 2 min')
     expect(fillWalk('Hello {who}', {})).toBe('Hello {who}')
   })

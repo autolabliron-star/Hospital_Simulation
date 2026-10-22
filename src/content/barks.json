@@ -198,6 +198,10 @@
       "I'm just stretching my legs.",
       "Back from my appointment and happy to be up."
     ],
+    "ward.nilByMouth": [
+      "I'm not allowed to eat or drink yet.",
+      "The team says nothing to eat or drink for now."
+    ],
     "outpatient.checkIn": [
       "I'm here for my scan. Just checking in.",
       "Checking in for my appointment. Nice and easy."

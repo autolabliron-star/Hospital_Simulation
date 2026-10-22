@@ -6,6 +6,11 @@
  *     -> inBay(walking, waitingCare, care, waitingExam, exam) -> [tests(waitingPorter, toLab, testing, waitingReturn, returning: the scan only)]
  *     -> [tests.awaitingResults] -> inBay(waitingReview, review) -> decision -> leaving.home | admittedOut(waitingPorter, riding) -> gone
  *   - a priority 1-2 walk-in or an ambulance patient skips check-in and triage (arriving -> waitingDoctor); a nurse wheels the walk-in to a bay
+ *   - F-27: a priority 1-2 patient whose complaint needs a CT (stroke, collapse, a fit) has the scan ordered as soon as the nurse's care step is
+ *     over, IN PARALLEL with the wait for the doctor (inBay.care -> tests.waitingPorter, then back to inBay.waitingExam for the assessment): the
+ *     door-to-CT time no longer includes the doctor's queue or the assessment. Every other scan is still ordered after the assessment.
+ *   - F-27: a chest pain gets its ECG at triage (triage.assessing) or, for a priority 1-2 walk-in who has no triage, in the waiting area a few
+ *     minutes after arrival (`CONFIG.er.triageEcgSeconds`), whether or not a bay is free; the nurse at the bay then does not repeat it
  *   - at the bay the ER nurse's care step comes before the doctor: observations, cannula, ECG and the bedside bloods (tubes go by pneumatic tube)
  *   - the doctor's assessment is 10-20 min; the tests of the complaint's bundle (content/imaging.json) are drawn at the bay
  *   - admission is decided AFTER the results, at the doctor's review (a patient with no results is decided at the end of the assessment)
@@ -68,6 +73,8 @@ export interface PathwayRng {
 export interface PathwayHost {
   /** Called on every state entry, after the transition's assignments, with the live context. */
   enter(state: PathwayState, ctx: PathwayContext): void
+  /** F-27: the triage nurse has just recorded the ECG of a chest pain (at triage, or in the waiting area). */
+  triageEcg?(ctx: PathwayContext): void
 }
 
 /** What the complaint's bundle holds (content/imaging.json), as the machine needs it. */
@@ -77,6 +84,10 @@ export interface TestBundle {
   bloods: boolean
   ecg: boolean
   imaging: boolean
+  /** F-27: the scan is a CT for a stroke, collapse or fit: a priority 1-2 patient has it ordered after the nurse's care, before the doctor sees them. */
+  imagingEarly?: boolean
+  /** F-27: the ECG is recorded at triage (or in the waiting area), not only at the bay (a chest pain). */
+  triageEcg?: boolean
 }
 
 export const NO_TESTS: TestBundle = { chance: 0, bloods: false, ecg: false, imaging: false }
@@ -106,6 +117,14 @@ export interface PathwayContext {
   needsBloods: boolean
   needsEcg: boolean
   needsImaging: boolean
+  /** F-27: this patient's CT is ordered right after the nurse's care (priority 1-2 and an early-scan complaint). */
+  scanFirst: boolean
+  /** The scan has been ordered (early or after the assessment): it is never ordered twice. */
+  scanOrdered: boolean
+  /** True between an early order and the patient's return to the bay: they go back to wait for the doctor, not for the results. */
+  earlyScan: boolean
+  /** F-27: the ECG was already recorded at triage or in the waiting area. */
+  ecgDone: boolean
   /** The bedside bloods are verified by the lab / the imaging report arrived (either may arrive early). */
   bloodsReady: boolean
   reportReady: boolean
@@ -187,6 +206,17 @@ export const pathwayMachine = setup({
       const b = context.bundle
       return { tests: hit, needsBloods: hit && b.bloods, needsEcg: hit && b.ecg, needsImaging: hit && b.imaging }
     }),
+    markEarlyScan: assign({ earlyScan: () => true }),
+    clearEarlyScan: assign({ earlyScan: () => false }),
+    markScanOrdered: assign({ scanOrdered: () => true }),
+    /** F-27: the ECG of a chest pain at triage; the host writes the line. */
+    triageEcg: assign({ ecgDone: () => true }),
+    tellTriageEcg: ({ context }) => context.host.triageEcg?.(context),
+    /** The ECG of a chest pain at triage, once: tell the host, then record it (in that order: the host sees the context before the flag). */
+    tellEcgIfDue: ({ context }) => {
+      if (context.bundle.triageEcg === true && !context.ecgDone) context.host.triageEcg?.(context)
+    },
+    markEcgIfDue: assign({ ecgDone: ({ context }) => context.ecgDone || context.bundle.triageEcg === true }),
     /** S1: the patient has results to wait for (their bundle's bloods; the scan is left out of a placed patient). */
     warmTests: assign(({ context }) => ({ tests: true, needsBloods: context.bundle.bloods, needsEcg: context.bundle.ecg, needsImaging: false })),
     sampleCare: assign({
@@ -215,7 +245,12 @@ export const pathwayMachine = setup({
   },
   guards: {
     skipsQueue: ({ context }) => context.ambulance || context.critical,
-    needsImaging: ({ context }) => context.needsImaging,
+    /** The scan still to be ordered after the assessment (not one that was ordered early). */
+    needsImaging: ({ context }) => context.needsImaging && !context.scanOrdered,
+    /** F-27: the nurse's care is over and the CT can be ordered now. */
+    scansEarly: ({ context }) => context.needsImaging && context.scanFirst && !context.scanOrdered,
+    backToExam: ({ context }) => context.earlyScan,
+    ecgWhileWaiting: ({ context }) => context.bundle.triageEcg === true && !context.ecgDone && !context.ambulance,
     needsResults: ({ context }) => context.needsBloods || context.needsImaging,
     resultsIn: ({ context }) => (!context.needsBloods || context.bloodsReady) && (!context.needsImaging || context.reportReady),
     admit: ({ context }) => context.admit,
@@ -223,6 +258,7 @@ export const pathwayMachine = setup({
   delays: {
     serviceDelay: ({ context }) => context.serviceSeconds * 1000,
     triageDelay: ({ context }) => context.triageSeconds * 1000,
+    triageEcgDelay: () => CONFIG.er.triageEcgSeconds * 1000,
     careDelay: ({ context }) => Math.max(500, context.careSeconds * 1000 * (1 - context.careProgress)),
     examDelay: ({ context }) => Math.max(500, context.examSeconds * 1000 * (1 - context.examProgress)),
     reviewDelay: ({ context }) => Math.max(500, context.reviewSeconds * 1000 * (1 - context.reviewProgress)),
@@ -251,6 +287,10 @@ export const pathwayMachine = setup({
     needsBloods: false,
     needsEcg: false,
     needsImaging: false,
+    scanFirst: input.acuity <= CONFIG.er.earlyScanMaxAcuity && input.bundle?.imagingEarly === true,
+    scanOrdered: false,
+    earlyScan: false,
+    ecgDone: false,
     bloodsReady: false,
     reportReady: false,
     admit: false,
@@ -303,7 +343,8 @@ export const pathwayMachine = setup({
           on: { IN_TRIAGE_BAY: { target: 'assessing', actions: 'sampleTriage' } },
         },
         assessing: {
-          entry: enter('triage.assessing'),
+          // F-27: the ECG of a chest pain is recorded by the triage nurse during the assessment
+          entry: [enter('triage.assessing'), { type: 'tellEcgIfDue' }, { type: 'markEcgIfDue' }],
           after: { triageDelay: '#erPatient.waitingDoctor' },
         },
       },
@@ -311,7 +352,11 @@ export const pathwayMachine = setup({
     waitingDoctor: {
       entry: enter('waitingDoctor'),
       on: { BAY_CALLED: 'inBay' },
-      after: { patienceDelay: '#erPatient.leaving.lwbs' },
+      after: {
+        patienceDelay: '#erPatient.leaving.lwbs',
+        // F-27: a chest pain waiting for a bay (a priority 1-2 walk-in has no triage) still gets the ECG; no target, so no timer restarts
+        triageEcgDelay: { guard: 'ecgWhileWaiting', actions: ['triageEcg', 'tellTriageEcg'] },
+      },
     },
     inBay: {
       initial: 'walking',
@@ -326,7 +371,8 @@ export const pathwayMachine = setup({
         },
         care: {
           entry: enter('inBay.care'),
-          after: { careDelay: 'waitingExam' },
+          // F-27: a priority 1-2 stroke or collapse goes to the CT as soon as the nurse is done, not after the doctor's assessment
+          after: { careDelay: [{ guard: 'scansEarly', target: '#erPatient.tests.waitingPorter', actions: 'markEarlyScan' }, { target: 'waitingExam' }] },
         },
         waitingExam: {
           entry: enter('inBay.waitingExam'),
@@ -355,12 +401,16 @@ export const pathwayMachine = setup({
     tests: {
       initial: 'waitingPorter',
       states: {
-        waitingPorter: { entry: enter('tests.waitingPorter'), on: { PICKED_UP: 'toLab' } },
+        waitingPorter: { entry: [{ type: 'markScanOrdered' }, enter('tests.waitingPorter')], on: { PICKED_UP: 'toLab' } },
         toLab: { entry: enter('tests.toLab'), on: { AT_LAB: 'testing' } },
         // the scanner says SCAN_DONE
         testing: { entry: enter('tests.testing'), on: { SCAN_DONE: 'waitingReturn' } },
         waitingReturn: { entry: enter('tests.waitingReturn'), on: { PICKED_UP: 'returning' } },
-        returning: { entry: enter('tests.returning'), on: { BACK_IN_BAY: 'awaitingResults' } },
+        returning: {
+          entry: enter('tests.returning'),
+          // an early scan: back to the bay to wait for the doctor, who has not seen the patient yet
+          on: { BACK_IN_BAY: [{ guard: 'backToExam', target: '#erPatient.inBay.waitingExam', actions: 'clearEarlyScan' }, { target: 'awaitingResults' }] },
+        },
         // in the bay, until the lab and the radiologist have both reported; then the doctor reviews
         awaitingResults: {
           entry: enter('tests.awaitingResults'),

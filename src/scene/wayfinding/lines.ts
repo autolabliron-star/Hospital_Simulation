@@ -103,9 +103,20 @@ export function wayfindingSegments(): LineSegment[] {
   return out
 }
 
-export function buildWayfinding(b: LayoutBuilder): void {
-  b.area = 'lobby'
-  const f = b.world
+/** One drawn piece of the lines: a flat strip ('plane', w x d) or a round end cap ('cyl', diameter w, height d), at its centre. */
+export interface WayfindingPiece {
+  shape: 'plane' | 'cyl'
+  x: number
+  y: number
+  z: number
+  w: number
+  d: number
+  color: string
+}
+
+/** Every drawn piece (pure data): what `buildWayfinding` puts in the layout, and what ./presentLines.ts finds again to hide in presentation mode. */
+export function wayfindingPieces(): WayfindingPiece[] {
+  const out: WayfindingPiece[] = []
   for (const s of wayfindingSegments()) {
     const horizontal = Math.abs(s.z0 - s.z1) < 1e-9
     const len = Math.hypot(s.x1 - s.x0, s.z1 - s.z0)
@@ -113,8 +124,8 @@ export function buildWayfinding(b: LayoutBuilder): void {
     // extend by half a width so corners meet
     const cx = (s.x0 + s.x1) / 2
     const cz = (s.z0 + s.z1) / 2
-    if (horizontal) f.plane(cx, LINE_Y, cz, len + LINE_WIDTH, LINE_WIDTH, 'tinted', { color: s.color })
-    else f.plane(cx, LINE_Y, cz, LINE_WIDTH, len + LINE_WIDTH, 'tinted', { color: s.color })
+    if (horizontal) out.push({ shape: 'plane', x: cx, y: LINE_Y, z: cz, w: len + LINE_WIDTH, d: LINE_WIDTH, color: s.color })
+    else out.push({ shape: 'plane', x: cx, y: LINE_Y, z: cz, w: LINE_WIDTH, d: len + LINE_WIDTH, color: s.color })
   }
   // a round end cap where each line finishes
   const ends: [number, number, string][] = [
@@ -127,5 +138,15 @@ export function buildWayfinding(b: LayoutBuilder): void {
   // level 2: a cap at both lift doors on each lane and where each branch ends inside its room
   for (const d of L2_LANES) for (const [x, z] of d.pts) ends.push([x, z, d.color])
   for (const d of L2_BRANCHES) ends.push([...d.pts[d.pts.length - 1], d.color])
-  for (const [x, z, color] of ends) f.cyl(x, LINE_Y - 0.002, z, 0.34, 0.006, 'tinted', { color, cast: false })
+  for (const [x, z, color] of ends) out.push({ shape: 'cyl', x, y: LINE_Y - 0.002, z, w: 0.34, d: 0.006, color })
+  return out
+}
+
+export function buildWayfinding(b: LayoutBuilder): void {
+  b.area = 'lobby'
+  const f = b.world
+  for (const p of wayfindingPieces()) {
+    if (p.shape === 'plane') f.plane(p.x, p.y, p.z, p.w, p.d, 'tinted', { color: p.color })
+    else f.cyl(p.x, p.y, p.z, p.w, p.d, 'tinted', { color: p.color, cast: false })
+  }
 }

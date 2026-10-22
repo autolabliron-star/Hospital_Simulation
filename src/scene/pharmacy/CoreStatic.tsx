@@ -6,10 +6,12 @@
  * material, built once. The shadow map is baked once and re-rendered after this mounts (glass and the floor do not cast;
  * frames and casings do).
  */
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import type { Mesh } from 'three'
 import { invalidateShadows } from '@/scene/Lighting'
 import { MAT } from '@/scene/materials'
 import { buildCoreStatic } from './coreParts'
+import { bindCoreFloor } from './coreFloor'
 
 export function CoreStatic() {
   const core = useMemo(buildCoreStatic, [])
@@ -19,10 +21,13 @@ export function CoreStatic() {
       for (const g of Object.values(core.geometries)) g.dispose()
     }
   }, [core])
+  // the core zone's authored terrazzo is at y = 0 too: this floor is hidden while that zone's model is drawn (a zone that fails to load keeps it)
+  const floor = useRef<Mesh>(null)
+  useEffect(() => (floor.current ? bindCoreFloor(floor.current) : undefined), [])
   const g = core.geometries
   return (
     <group name="core-static">
-      <mesh geometry={g.floor} material={MAT.floorCore} receiveShadow />
+      <mesh ref={floor} name="core-floor" geometry={g.floor} material={MAT.floorCore} receiveShadow />
       <mesh geometry={g.frame} material={MAT.frame} castShadow receiveShadow />
       <mesh geometry={g.white} material={MAT.whitePlastic} castShadow receiveShadow />
       <mesh geometry={g.wood} material={MAT.woodOak} castShadow receiveShadow />

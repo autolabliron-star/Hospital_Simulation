@@ -375,6 +375,13 @@
           "contrast": "none",
           "seconds": 60,
           "images": 2
+        },
+        {
+          "name": "Pancreas",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 75,
+          "images": 3
         }
       ]
     },
@@ -440,14 +447,16 @@
       "redFlag": true,
       "bloods": "er-chest",
       "ecg": true,
-      "imaging": "xr-chest"
+      "imaging": "xr-chest",
+      "triageEcg": true
     },
     "Chest pain at rest, sweating": {
       "chance": 1,
       "redFlag": true,
       "bloods": "er-chest",
       "ecg": true,
-      "imaging": "xr-chest"
+      "imaging": "xr-chest",
+      "triageEcg": true
     },
     "Sudden weakness down one side": {
       "chance": 1,

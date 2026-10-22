@@ -1,12 +1,15 @@
 /**
  * Post-processing: soft ambient occlusion (half resolution), a gentle bloom that only catches emissive lights (pod rings, drawer lights,
- * screens, and in walk mode the ceiling panels), the tone mapper (AgX, the Blender look; Neutral is one constant away: look.ts `TONE_MAP`, which
+ * screens, and in walk mode the ceiling panels), the tone mapper (AgX: our own effect holding three's AgX and Blender's; Neutral is one constant away: look.ts `TONE_MAP`, which
  * also carries the exposure compensation the daylight driver applies; the mode is a define of the one tone-mapping pass, fixed for the page, so
  * nothing recompiles at runtime), and (W3) the colour grade and a vignette, which both merge into the tone mapper's pass (no extra draw).
  *
  * Presentation mode (C, src/ui/present) changes the picture only through uniforms, blended in over `PRESENT_LOOK.seconds`: the grade's opacity
- * goes to 0, the vignette to half its darkness, the bloom to a gentler intensity and a higher threshold (so the bright sky does not glow). The
- * blend is a plain number advanced in a frame callback and written into the three effects only when it moves: no define, no recompile, no allocation.
+ * goes to 0, the vignette to half its darkness, the bloom to a gentler intensity and a higher threshold (so the bright sky does not glow), and the
+ * tone mapper moves from three's AgX to Blender's own (the review stills' "AgX - Base Contrast", a LUT sampled from Blender, at look.ts
+ * PRESENT_EXPOSURE: lighting/presentToneMapping.ts). The same callback drives the authored lobby's box-projected floor reflections
+ * (building/model/reflections.ts, uniforms) and hides the floor lines (wayfinding/presentLines.ts, on the toggle only). The blend is a plain
+ * number advanced in a frame callback and written into the effects only when it moves: no define, no recompile, no allocation.
  *
  * The grade (src/scene/lighting/grade.ts) is an always-mounted 32 cubed LUT in blend mode NORMAL: its blend opacity IS its strength, so the
  * overview (opacity 0) is exactly the picture it always was and walk mode fades it in with the rest of the look. The vignette is the stock
@@ -30,17 +33,27 @@ import { useFrame } from '@react-three/fiber'
 import { Bloom, EffectComposer, LUT, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { BlendFunction, ToneMappingMode, type BloomEffect, type LUT3DEffect, type VignetteEffect } from 'postprocessing'
 import { SRGBColorSpace } from 'three'
+import { updateModelReflections } from '@/scene/building/model/reflections'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { createGradeLut } from '@/scene/lighting/grade'
 import { liveLook } from '@/scene/lighting/liveLook'
-import { BLOOM, PRESENT_LOOK, TONE_MAP, VIGNETTE_OFFSET } from '@/scene/lighting/look'
+import { BLOOM, PRESENT_LOOK, TONE_MAP, VIGNETTE_OFFSET, presentExposureGain } from '@/scene/lighting/look'
+import { PresentToneMappingEffect } from '@/scene/lighting/presentToneMapping'
+import { MAT } from '@/scene/materials'
 import { useWalk } from '@/scene/player/state'
 import { aoSettings } from '@/scene/quality/aoProfile'
 import { useRenderStore } from '@/scene/quality/render.store'
+import { setLineMaterial, syncPresentLines } from '@/scene/wayfinding/presentLines'
+import { registerWarmSource } from '@/scene/warmup/registry'
 import { presentActive } from '@/ui/present/presentation.store'
+import { BUILDING_MODEL_ON } from '@/scene/building/model/flags'
+import { playerPhase } from '@/scene/player/api'
 
-/** The tone mapper of the page (look.ts `TONE_MAP`). */
-const TONE_MODE = TONE_MAP === 'agx' ? ToneMappingMode.AGX : ToneMappingMode.NEUTRAL
+/** AgX (look.ts `TONE_MAP`) is our own effect, three's AgX and Blender's in one shader (presentToneMapping.ts); Neutral is postprocessing's. */
+const AGX = TONE_MAP === 'agx'
+
+/** Make the tone mapper (once per mount; null for Neutral). */
+const createTone = (): PresentToneMappingEffect | null => (AGX ? new PresentToneMappingEffect(presentExposureGain()) : null)
 
 export interface AoPass {
   enabled: boolean
@@ -73,6 +86,8 @@ export function Effects() {
   const lut = useRef<LUT3DEffect | null>(null)
   const vignette = useRef<VignetteEffect | null>(null)
   const bloom = useRef<BloomEffect | null>(null)
+  // the tone mapper (AgX): presentation blends it from three's AgX to Blender's through `mix`
+  const [tone] = useState(createTone)
   // presentation mode's blend, 0 (the game's look) .. 1 (the walkthrough's), and the one last written into the effects (-1: nothing yet)
   const present = useRef(0)
   const presentWritten = useRef(-1)
@@ -102,14 +117,31 @@ export function Effects() {
     presentWritten.current = -1
   }, [])
 
-  // the daylight driver publishes the look, and presentation mode (C) blends its own on top; this writes both into the effects, only when either moved
-  useFrame((_, dt) => {
-    const want = presentActive() ? 1 : 0
+  // the LUT uploads behind the loading screen; the line material is told once (the floor lines hide in presentation: wayfinding/presentLines.ts)
+  useEffect(() => {
+    setLineMaterial(MAT.tinted)
+    if (!tone) return
+    // (the effect itself lives as long as the page's composer: no dispose here, so a StrictMode re-run never leaves it without its LUT)
+    return registerWarmSource({ name: 'tone-lut', textures: () => [tone.lut] })
+  }, [tone])
+
+  // the daylight driver publishes the look, and presentation mode (C) blends its own on top; this writes both into the effects, only when either moved.
+  // Presentation also drives, from here: Blender's AgX (the tone mapper's mix), the lobby floor's box-projected reflections (uniforms), and hiding
+  // the floor lines (on the toggle only)
+  useFrame((state, dt) => {
+    const on = presentActive()
+    // the authored building's photographic look (Blender AgX, exposure, floor reflections) also in the normal walk, with every game function;
+    // presentation mode adds only its camera, the hidden HUD and the hidden floor lines
+    const look = on || (BUILDING_MODEL_ON && playerPhase() === 'walk')
+    const want = look ? 1 : 0
     if (present.current !== want) {
       const step = Math.min(dt, 0.1) / PRESENT_LOOK.seconds
       present.current = want > present.current ? Math.min(want, present.current + step) : Math.max(want, present.current - step)
     }
     const p = present.current
+    if (tone) tone.mix.value = p * PRESENT_LOOK.agx
+    updateModelReflections(p, liveLook.lobbyEnv, state.scene.environmentIntensity)
+    syncPresentLines(state.scene, on)
     const l = lut.current
     const v = vignette.current
     const b = bloom.current
@@ -175,7 +207,7 @@ export function Effects() {
         color="#1d2b2a"
       />
       <Bloom ref={bloomRef as never} mipmapBlur luminanceThreshold={BLOOM.threshold} luminanceSmoothing={0.2} intensity={BLOOM.intensity} radius={0.6} />
-      <ToneMapping mode={TONE_MODE} />
+      {tone ? <primitive object={tone} dispose={null} /> : <ToneMapping mode={ToneMappingMode.NEUTRAL} />}
       <LUT ref={lutRef} lut={gradeLut} blendFunction={BlendFunction.NORMAL} />
       <Vignette ref={vignetteRef} offset={VIGNETTE_OFFSET} darkness={0} />
     </EffectComposer>

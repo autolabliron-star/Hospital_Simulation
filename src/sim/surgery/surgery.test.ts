@@ -188,6 +188,47 @@ describe('the robotic day, 50 seeds', () => {
     }
   }, 300_000)
 
+  it('says the WHO checklist and the recovery criteria once per case, in order: sign-in, time-out, (docked, console, undocked), sign-out, then recovery discharge (F-30)', () => {
+    for (const d of days()) {
+      d.plan.forEach((c) => {
+        const name = d.views.find((v) => v.id === c.id)!.name
+        const mine = d.events.filter((e) => e.text.includes(name))
+        const one = (type: string) => {
+          const ev = mine.filter((e) => e.type === type)
+          expect(ev, `seed ${d.seed} ${c.id} ${type}`).toHaveLength(1)
+          return ev[0]
+        }
+        const signIn = one('whoSignIn')
+        const timeOut = one('whoTimeOut')
+        const signOut = one('whoSignOut')
+        const discharge = one('pacuDischarge')
+        const wheelsIn = one('theatreIn')
+        const docked = one('robotDocked')
+        const undocked = one('robotUndocked')
+        const wheelsOut = one('theatreOut')
+        const pacuOut = one('pacuOut')
+        const where = `seed ${d.seed} ${c.id}`
+        // sign-in as the induction begins (after the wheels in), the time-out before the robot docks, the sign-out before the patient leaves theatre
+        expect(signIn.t, where).toBeGreaterThanOrEqual(wheelsIn.t)
+        expect(timeOut.t, where).toBeGreaterThan(signIn.t)
+        expect(timeOut.t, where).toBeLessThanOrEqual(docked.t)
+        expect(signOut.t, where).toBeGreaterThanOrEqual(undocked.t)
+        expect(signOut.t, where).toBeLessThanOrEqual(wheelsOut.t)
+        expect(discharge.t, where).toBeGreaterThanOrEqual(wheelsOut.t)
+        expect(discharge.t, where).toBeLessThanOrEqual(pacuOut.t)
+        // the words are the content's, with the patient's name in front
+        expect(signIn.text, where).toBe(`${name}: ${SURGERY_COPY.checklist.signIn}`)
+        expect(timeOut.text, where).toBe(`${name}: ${SURGERY_COPY.checklist.timeOut}`)
+        expect(signOut.text, where).toBe(`${name}: ${SURGERY_COPY.checklist.signOut}`)
+        expect(discharge.text, where).toBe(`${name}: ${SURGERY_COPY.checklist.recoveryDischarge}`)
+        // and the event ids follow the order they were said in
+        expect([signIn.id, timeOut.id, signOut.id, discharge.id], where).toEqual([...[signIn.id, timeOut.id, signOut.id, discharge.id]].sort((x, y) => x - y))
+      })
+      expect(d.events.filter((e) => e.type === 'whoSignIn')).toHaveLength(d.plan.length)
+      expect(d.events.filter((e) => e.type === 'pacuDischarge')).toHaveLength(d.plan.length)
+    }
+  }, 300_000)
+
   it('sends day cases home by lift A (walking, with their companion) and ward cases up by lift B (the stretcher), all served well inside 3 minutes', () => {
     for (const d of days()) {
       const trips = d.trips

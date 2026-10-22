@@ -188,6 +188,8 @@ function buildPreOp(b: LayoutBuilder, D: Frame): void {
   const zRail = zBed + 1.85
   dividers.forEach((x, i) => curtain(D, `l2:preop:div${i}`, x, -21.9, 1, zRail))
   D.box((-61.5 + dividers[dividers.length - 1]) / 2, 2.1, zRail, dividers[dividers.length - 1] + 61.5, 0.03, 0.03, 'frame')
+  // overhead (no collision): lets the authored theatres zone replace the rail with its ceiling track (REPLACES footprint:l2:preop:div*)
+  D.rect('l2:preop:divRail', (-61.5 + dividers[dividers.length - 1]) / 2, zRail, 0.2, 0.2, { overhead: true }) // a marker at the rail's centre (hiding is by prim centre)
 
   // the admissions desk: a slim counter between the nurse's spot and the guest's (1.0 m apart: the nurse faces east, the guest west)
   const dx = (drawn(PREOP.nurse.at.x) + drawn(PREOP.desk.at.x)) / 2
@@ -226,6 +228,7 @@ function buildPacu(b: LayoutBuilder, D: Frame): void {
   const zRail = zBed - 1.85
   xs.slice(0, -1).forEach((x, i) => curtain(D, `l2:pacu:div${i}`, (x + xs[i + 1]) / 2, 21.9, -1, zRail))
   D.box(-48.5, 2.1, zRail, 7.8, 0.03, 0.03, 'frame')
+  D.rect('l2:pacu:divRail', -48.5, zRail, 0.2, 0.2, { overhead: true }) // overhead marker at the rail's centre: the authored zone's ceiling track replaces the rail
 
   // the nurse island, and the nurse's screens turned toward the bays
   const ix = drawn(PACU.island.at.x)
@@ -261,6 +264,7 @@ function buildLounge(b: LayoutBuilder, D: Frame): void {
   coffeeTable(D, 'l2:lounge:table1', -55.5, 12.8, -Math.PI / 2, 0.9, 0.5)
   // a soft rug under the sofa group, and a tea and water station on the south wall
   D.plane(-55.0, 0.012, 10.4, 3.2, 7.2, 'fabricSage')
+  D.rect('l2:lounge:rug', -55.0, 10.4, 0.2, 0.2, { overhead: true }) // a marker at the rug's centre (not an obstacle): lets the authored zone replace the rug
   D.rbox(-57.0, 0, 21.55, 3.2, 0.9, 0.6, 'whitePlastic', { r: 0.03 })
   D.rbox(-57.0, 0.9, 21.55, 3.26, 0.04, 0.66, 'woodOak', { r: 0.015 })
   D.cyl(-55.9, 0.94, 21.55, 0.16, 0.32, 'metalDark')

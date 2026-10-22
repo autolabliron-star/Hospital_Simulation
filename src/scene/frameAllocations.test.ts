@@ -110,6 +110,10 @@ function calledNames(text: string): string[] {
 /** Step functions that are called from another file's `useFrame` (the scan cannot follow an import), named by hand. */
 const EXTRA_STEPS: Record<string, string[]> = {
   'src/scene/actors/crowd/crowdRig.ts': ['driveCrowd', 'poseRows', 'uploadFirst', 'setAvatarInstances', 'setInstances'],
+  // the authored building's zones (ZonesModel.tsx calls them through the runtime; src/scene/building/model/noAllocations.test.ts is stricter)
+  'src/scene/building/model/culling.ts': ['frustumOf', 'levelAllows', 'cameraZoneIndex', 'cullZones'],
+  'src/scene/building/model/clip.ts': ['updateModelClips'],
+  'src/scene/lighting/env/lobbyProbe.ts': ['selectZoneProbe', 'lobbyEnvWanted'],
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * `?building=model` only (see ./flags.ts): draws the authored pilot lobby, static and baked. One frame callback with the building's
+ * The pilot path (`?building=model` without a zone manifest, see ./source.ts): draws the authored pilot lobby, static and baked. One frame callback with the building's
  * visibility: shown while level 1 is, and cut at the storey's cut height in the overview (./clip.ts), whole while walking.
  * Navigation, collision and picking stay with src/sim/places.ts. The materials are the model's own (baked lightmap, never patchMaterialLook).
  */
@@ -9,8 +9,11 @@ import { sim } from '@/sim'
 import { levelView } from '@/scene/levels/levelView'
 import { BUILDING_VISIBILITY_PRIORITY } from '../render/levelVisibility'
 import { isWalkMode } from '../render/walk/modeSwitch'
-import { MODEL_CLIP, modelClipHeight } from './clip'
+import { setCellReplaced } from './cells'
+import { updateModelClips } from './clip'
 import { markModelFailed } from './modelStatus'
+import { PILOT_CELL } from './region'
+import { notifyBuildingCommitted } from './source'
 import { ensurePilotModel, notifyModelCommitted, type PilotModel } from './loader'
 
 export function BuildingModel() {
@@ -37,12 +40,20 @@ export function BuildingModel() {
   }, [gl])
   // F-46: the warm-up gate opens only after React has put the model (or the decision that there is none) in the scene
   useEffect(() => {
-    if (settled) notifyModelCommitted()
-  }, [settled])
+    if (!settled) return
+    // the pilot is in the scene: its procedural cell goes in the same commit (a failed pilot leaves the cell drawn)
+    if (model) setCellReplaced(PILOT_CELL, true)
+    notifyModelCommitted()
+    return () => {
+      if (model) setCellReplaced(PILOT_CELL, false)
+    }
+  }, [settled, model])
+  // the source gate closes once this component holds its own (ensurePilotModel's)
+  useEffect(() => notifyBuildingCommitted(), [])
   useFrame(() => {
     if (!model) return
     model.scene.visible = levelView.shown === 1
-    MODEL_CLIP.constant = modelClipHeight(isWalkMode(sim.player?.mode))
+    updateModelClips(isWalkMode(sim.player?.mode))
   }, BUILDING_VISIBILITY_PRIORITY)
   return model ? <primitive object={model.scene} /> : null
 }

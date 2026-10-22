@@ -167,24 +167,40 @@ def lightmap_size(area, density, max_size, forced=None):
 
 # meshes made of thousands of small coplanar pieces (lay-in ceiling tiles, T-bar strips): one top-down projection over the whole mesh instead of
 # an island per piece (thousands of islands of a few texels each would come out black or blotchy)
-PLANAR = ('CeilingTile', 'CeilingGrid')
+PLANAR = ('CeilingTile', 'CeilingGrid', 'AcousticTile')
 
 
 def unwrap_planar(o, size):
+    """One top-down projection over the whole mesh. A long, thin mesh (a ward corridor's ceiling) is folded: cut across its long axis into k
+    bands (k ~ sqrt of its aspect) stacked side by side, a face going to the band of its centre, so the square lightmap is used, not a strip."""
     me = o.data
     uv = me.uv_layers.new(name='Lightmap')
     uv0 = me.uv_layers.get('UVMap')
     if uv0:
         uv0.active_render = True
-    xs = [v.co.x for v in me.vertices]
-    ys = [v.co.y for v in me.vertices]
+    co = [v.co for v in me.vertices]
+    xs = [c.x for c in co]
+    ys = [c.y for c in co]
     x0, y0 = min(xs), min(ys)
-    span = max(max(xs) - x0, max(ys) - y0)
+    sx, sy = max(xs) - x0, max(ys) - y0
+    along_x = sx >= sy
+    L, W = (sx, sy) if along_x else (sy, sx)
+    k = max(1, int(round(math.sqrt(L / max(W, 1e-3)))))
+    gap = 0.8 if k > 1 else 0.0          # metres between bands: room for faces that straddle a cut
+    Lb = L / k
+    span = max(Lb + gap, k * W + (k - 1) * gap)
     pad = 8.0 / size
-    k = (1.0 - 2 * pad) / span
-    for li, loop in enumerate(me.loops):
-        c = me.vertices[loop.vertex_index].co
-        uv.data[li].uv = (pad + (c.x - x0) * k, pad + (c.y - y0) * k)
+    s = (1.0 - 2 * pad) / max(span, 1e-6)
+    for p in me.polygons:
+        t = (p.center.x - x0) if along_x else (p.center.y - y0)
+        band = min(k - 1, max(0, int(t / Lb))) if k > 1 else 0
+        for li in p.loop_indices:
+            c = co[me.loops[li].vertex_index]
+            a = (c.x - x0) if along_x else (c.y - y0)
+            w = (c.y - y0) if along_x else (c.x - x0)
+            u = a - band * Lb + gap / 2
+            v = w + band * (W + gap)
+            uv.data[li].uv = (pad + u * s, pad + v * s)
     me.uv_layers.active = uv
 
 

@@ -196,7 +196,7 @@
   --toast-ms: 3200ms;
   position: absolute;
   left: 50%;
-  top: 18px;
+  top: 58px; /* below the sound pill (styles/presenter.css .presenter-sound, top centre) */
   transform: translateX(-50%);
   max-width: min(520px, calc(100vw - 32px));
   margin: 0;

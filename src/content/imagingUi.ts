@@ -29,7 +29,7 @@ export const ImagingUiSchema = z.strictObject({
     mi: line,
     tis: line,
     noContact: line,
-    views: z.strictObject({ liver: line, gallbladder: line, kidneyR: line, kidneyL: line, spleen: line, bladder: line }),
+    views: z.strictObject({ liver: line, gallbladder: line, kidneyR: line, kidneyL: line, spleen: line, bladder: line, pancreas: line }),
   }),
   /** The image counter of a series. */
   image: line,

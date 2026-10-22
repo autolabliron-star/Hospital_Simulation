@@ -118,6 +118,8 @@ function hall(b: LayoutBuilder, area: AreaId, f: Frame, bays: number, mirrored: 
   } else {
     // the ER: a parked stretcher by the ambulance doors (west band)
     trolley(f, `${id}:handover`, -60.8, 7)
+    // the authored nurse station + back counter (tools/arch/zones/er.py; x -59.35..-53.45, z 6.15..8.65, just inside the wall line): collision only, the model draws it
+    f.rect(`${id}:station`, -56.4, 14.6, 5.9, 2.5)
   }
   supplyRun(f, id, -44.55, 7.6, 14.2)
   crashCart(f, id, -45.4, 14.9)

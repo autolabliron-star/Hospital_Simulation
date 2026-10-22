@@ -1,11 +1,14 @@
 """
-The runtime look, previewed in Blender: every baked mesh of the saved .blend shaded as the game shades it (src/scene/building/model/lightmaps.ts:
-diffuse = albedo x lightmap x lightmapScale, no live lights), so leaks, seams and blotchy texels show before a browser ever loads the model.
+The runtime look, previewed in Blender: every baked mesh of a zone's saved .blend shaded as the game shades it
+(src/scene/building/model/lightmaps.ts: diffuse = albedo x lightmap x lightmapScale, no live lights), so leaks, seams and blotchy texels show
+before a browser ever loads the model. The context (neighbours, stand-ins) keeps its path-traced look.
 
-  ~/Applications/Blender.app/Contents/MacOS/Blender -b assets-src/arch/out/pilot-lobby.blend -P tools/arch/preview_lightmaps.py -- \
-      --lightmaps assets-src/arch/out --out <dir> [--exposure 1.5] [--samples 32] [--res 960]
+  ~/Applications/Blender.app/Contents/MacOS/Blender -b assets-src/arch/out/zones/<id>/<id>.blend -P tools/arch/preview_lightmaps.py -- \
+      --zone <id> --out <dir> [--lightmaps assets-src/arch/out/zones/<id>] [--exposure 1.5] [--samples 32] [--res 960]
+  (generate.py --zone <id> --blend saves the .blend)
 
-Writes <dir>/lightmap-preview-{1..4}.jpg from the four review poses. Specular is left out (the game adds the environment's), so floors read flatter.
+Writes <dir>/lightmap-preview-<id>-{1..n}.jpg from the zone's review poses (zones/<id>.py POSES, else the default pose). Specular is left out
+(the game adds the environment's), so floors read flatter.
 """
 import argparse
 import math
@@ -16,16 +19,29 @@ import bpy
 
 sys.dont_write_bytecode = True        # no __pycache__ in tools/arch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json  # noqa: E402
+
+import shell  # noqa: E402
+import zones as zn  # noqa: E402
 from common import P  # noqa: E402
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 ap = argparse.ArgumentParser()
-ap.add_argument('--lightmaps', required=True)
+ap.add_argument('--zone', default='lobby')
+ap.add_argument('--lightmaps', default='')
+ap.add_argument('--plan', default=os.path.join(ROOT, 'assets-src', 'arch', 'plan.json'))
 ap.add_argument('--out', required=True)
 ap.add_argument('--exposure', type=float, default=1.5)
 ap.add_argument('--samples', type=int, default=32)
 ap.add_argument('--res', type=int, default=960)
 args = ap.parse_args(argv)
+args.lightmaps = args.lightmaps or os.path.join(ROOT, 'assets-src', 'arch', 'out', 'zones', args.zone)
+PLAN = json.load(open(args.plan))
+ZONES = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zones.json')))['zones']
+pl = zn.configure(shell.Plan(PLAN, ZONES, args.zone), zn.load(args.zone))
+POSES = zn.poses_of(zn.load(args.zone), pl)
 
 scene = bpy.context.scene
 for o in list(bpy.data.objects):
@@ -60,7 +76,6 @@ for o in list(bpy.data.objects):
     nt.links.new(mul.outputs['Result'], em.inputs['Color'])
     nt.links.new(em.outputs['Emission'], out.inputs['Surface'])
 
-POSES = [((-61.0, 0.0), (-44.0, 0.0)), ((-48.5, 1.5), (-51.5, -3.0)), ((-46.5, 0.0), (-62.0, 0.0)), ((-55.5, 0.5), (-59.6, 5.3))]
 os.makedirs(args.out, exist_ok=True)
 scene.cycles.samples = args.samples
 scene.view_settings.exposure = args.exposure
@@ -74,9 +89,9 @@ for i, ((x, z), (tx, tz)) in enumerate(POSES, 1):
     cam.sensor_width = 36.0
     o = bpy.data.objects.new('Eye', cam)
     scene.collection.objects.link(o)
-    o.location = P(x, 1.6, z)
+    o.location = P(x, pl.level_y + 1.6, z)
     o.rotation_euler = (math.radians(90), 0, math.atan2(-(tz - z), tx - x) - math.pi / 2)
     scene.camera = o
-    scene.render.filepath = os.path.join(os.path.abspath(args.out), f'lightmap-preview-{i}.jpg')
+    scene.render.filepath = os.path.join(os.path.abspath(args.out), f'lightmap-preview-{args.zone}-{i}.jpg')
     bpy.ops.render.render(write_still=True)
     print('preview', scene.render.filepath, flush=True)

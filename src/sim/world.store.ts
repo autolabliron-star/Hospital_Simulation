@@ -5,6 +5,7 @@
 import { create } from 'zustand'
 import { clockText } from './events'
 import type { SimLoop } from './SimLoop'
+import { noteEvents } from './records/chartIndex'
 import type { Simulation } from './Simulation'
 import { ORDER_STAGES, type OrderStage, type SimEvent } from './types'
 
@@ -46,6 +47,7 @@ let lastEventId = 0
 let lastSim: Simulation | null = null
 
 export function publishWorld(sim: Simulation, loop: SimLoop): void {
+  noteEvents(sim.log) // the patient record keeps each patient's events past the log's 2000-event window
   if (lastSim !== sim) {
     // a Jump swapped the hospital (L1): its log numbers events from 1, and the pre-roll's events happened behind the cover
     lastSim = sim

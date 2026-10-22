@@ -428,3 +428,176 @@ describe('S1 warm events on arriving', () => {
     expect(at(actor)).toBe('waitingTriage')
   })
 })
+
+describe('F-27: the CT goes in parallel with care for a priority 1-2 stroke or collapse', () => {
+  const EARLY: TestBundle = { chance: 1, bloods: true, ecg: true, imaging: true, imagingEarly: true }
+  const SCAN_STEPS: PathwayState[] = ['tests.waitingPorter', 'tests.toLab', 'tests.testing', 'tests.waitingReturn', 'tests.returning']
+
+  /** Drive a walk-in to the nurse's care, then let the care time pass: returns the sim seconds (from ARRIVED) at which the scan was ordered, or null. */
+  function careThenScan(acuity: number, bundle: TestBundle, ambulance = false) {
+    const { actor, clock, visited } = make({ seed: 9, acuity, bundle, ambulance })
+    if (ambulance) {
+      actor.send({ type: 'ARRIVED' })
+      actor.send({ type: 'BAY_CALLED' })
+      actor.send({ type: 'ON_TROLLEY' })
+    } else toTrolley(actor, clock)
+    const arrivedAtTrolley = clock.now
+    actor.send({ type: 'NURSE_HERE' })
+    clock.advanceTo(clock.now + (ctx(actor).careSeconds + 1) * SEC)
+    return { actor, clock, visited, afterCare: at(actor), sinceTrolley: (clock.now - arrivedAtTrolley) / 1000 }
+  }
+
+  it('orders the CT as soon as the nurse is done, before the doctor sees a priority 1-2 patient', () => {
+    for (const [acuity, ambulance] of [[2, false], [1, false], [2, true], [1, true]] as const) {
+      const r = careThenScan(acuity, EARLY, ambulance)
+      expect(r.afterCare, `acuity ${acuity}${ambulance ? ' ambulance' : ''}`).toBe('tests.waitingPorter')
+      expect(r.visited, 'the doctor has not been').not.toContain('inBay.exam')
+      expect(ctx(r.actor).earlyScan).toBe(true)
+      expect(ctx(r.actor).scanOrdered).toBe(true)
+      // door-to-order: the care step is at most 6 min x the serious scale, from the moment they are on the trolley
+      expect(r.sinceTrolley, `acuity ${acuity}`).toBeLessThanOrEqual(CONFIG.er.bayCareSeconds[1] * CONFIG.er.seriousScale + 2)
+    }
+  })
+
+  it('is far sooner than the old order (care, then the doctor, then the scan)', () => {
+    const early = careThenScan(2, EARLY)
+    // the same patient with the scan left to the assessment (no imagingEarly): the order comes after the exam
+    const late = make({ seed: 9, acuity: 2, bundle: { ...EARLY, imagingEarly: false } })
+    toExam(late.actor, late.clock)
+    examEnd(late.clock)
+    expect(at(late.actor)).toBe('tests.waitingPorter')
+    expect(ctx(late.actor).earlyScan).toBe(false)
+    const lateAt = late.clock.now / 1000
+    expect(early.clock.now / 1000).toBeLessThan(lateAt)
+    // at least the shortest assessment sooner
+    expect(lateAt - early.clock.now / 1000).toBeGreaterThan(CONFIG.er.examSeconds[0] * CONFIG.er.seriousScale * 0.5)
+  })
+
+  it('brings the patient back to wait for the doctor, who then assesses and reviews (the scan is never ordered twice)', () => {
+    const { actor, clock, visited } = careThenScan(2, EARLY)
+    expect(visited.filter((s) => s === 'tests.waitingPorter')).toHaveLength(1)
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'AT_LAB' })
+    actor.send({ type: 'SCAN_DONE' })
+    actor.send({ type: 'PICKED_UP' })
+    actor.send({ type: 'BACK_IN_BAY' })
+    expect(at(actor)).toBe('inBay.waitingExam')
+    expect(ctx(actor).earlyScan).toBe(false)
+    actor.send({ type: 'DOCTOR_HERE' })
+    expect(at(actor)).toBe('inBay.exam')
+    actor.send({ type: 'REPORT_READY' })
+    actor.send({ type: 'BLOODS_READY' })
+    examEnd(clock)
+    // the results are in: straight to the doctor's review, with no second scan
+    expect(at(actor)).toBe('inBay.waitingReview')
+    expect(visited.filter((s) => s === 'tests.waitingPorter')).toHaveLength(1)
+    for (const s of SCAN_STEPS) expect(visited.filter((v) => v === s).length, s).toBeLessThanOrEqual(1)
+    actor.send({ type: 'REVIEW_HERE' })
+    clock.advanceTo(clock.now + (CONFIG.er.reviewSeconds[1] + 1) * SEC)
+    expect(['leaving.home', 'admittedOut.waitingPorter']).toContain(at(actor))
+  })
+
+  it('waits for the report after the assessment if it is not in yet', () => {
+    const { actor, clock } = careThenScan(2, EARLY)
+    for (const e of ['PICKED_UP', 'AT_LAB', 'SCAN_DONE', 'PICKED_UP', 'BACK_IN_BAY', 'DOCTOR_HERE'] as const) actor.send({ type: e })
+    actor.send({ type: 'BLOODS_READY' })
+    examEnd(clock)
+    expect(at(actor)).toBe('tests.awaitingResults')
+    actor.send({ type: 'REPORT_READY' })
+    expect(at(actor)).toBe('inBay.waitingReview')
+  })
+
+  it('leaves everyone else as it was: priority 3 and below are scanned after the assessment, and a bundle with no CT flag is too', () => {
+    expect(careThenScan(3, EARLY).afterCare).toBe('inBay.waitingExam')
+    expect(careThenScan(4, EARLY).afterCare).toBe('inBay.waitingExam')
+    expect(careThenScan(2, { ...EARLY, imagingEarly: false }).afterCare).toBe('inBay.waitingExam')
+    expect(careThenScan(2, { ...EARLY, imaging: false, imagingEarly: true }).afterCare).toBe('inBay.waitingExam')
+  })
+
+  it('is deterministic: the early order draws nothing of its own', () => {
+    const a = careThenScan(2, EARLY)
+    const b = careThenScan(2, EARLY)
+    expect(a.visited).toEqual(b.visited)
+    expect(a.clock.now).toBe(b.clock.now)
+  })
+})
+
+describe('F-27: a chest pain has its ECG at triage, or in the waiting area, not only at the bay', () => {
+  const CHEST: TestBundle = { chance: 1, bloods: true, ecg: true, imaging: true, triageEcg: true }
+
+  function hosted(opts: { acuity: number; ambulance?: boolean; bundle?: TestBundle }) {
+    const clock = new SimClock()
+    const ecgAt: { state: PathwayState | null; t: number }[] = []
+    let state: PathwayState = 'arriving'
+    const host: PathwayHost = {
+      enter: (s) => {
+        state = s
+      },
+      triageEcg: () => ecgAt.push({ state, t: clock.now / 1000 }),
+    }
+    const actor = createPathway(
+      { rng: new Rng(4), host, clock, acuity: opts.acuity, ambulance: opts.ambulance ?? false, patienceSeconds: Infinity, bundle: opts.bundle ?? CHEST },
+      clock,
+    )
+    return { actor, clock, ecgAt }
+  }
+
+  it('records the ECG during the triage assessment of a walk-in who goes through triage, once', () => {
+    const { actor, clock, ecgAt } = hosted({ acuity: 3 })
+    actor.send({ type: 'ARRIVED' })
+    actor.send({ type: 'SERVICE_BEGIN' })
+    clock.advanceTo(41 * SEC)
+    actor.send({ type: 'CALLED' })
+    expect(ecgAt).toHaveLength(0)
+    actor.send({ type: 'IN_TRIAGE_BAY' })
+    expect(at(actor)).toBe('triage.assessing')
+    expect(ecgAt).toHaveLength(1)
+    expect(ecgAt[0].state).toBe('triage.assessing')
+    expect(ctx(actor).ecgDone).toBe(true)
+    // waiting for a doctor afterwards does not record a second one
+    clock.advanceTo(clock.now + (CONFIG.er.triageSeconds[1] + 1) * SEC)
+    expect(at(actor)).toBe('waitingDoctor')
+    clock.advanceTo(clock.now + (CONFIG.er.triageEcgSeconds + 60) * SEC)
+    expect(ecgAt).toHaveLength(1)
+  })
+
+  it('a priority 1-2 walk-in with no triage has it in the waiting area after triageEcgSeconds, with or without a free bay', () => {
+    const { actor, clock, ecgAt } = hosted({ acuity: 2 })
+    actor.send({ type: 'ARRIVED' })
+    expect(at(actor)).toBe('waitingDoctor')
+    clock.advanceTo((CONFIG.er.triageEcgSeconds - 1) * SEC)
+    expect(ecgAt).toHaveLength(0)
+    clock.advanceTo((CONFIG.er.triageEcgSeconds + 1) * SEC)
+    expect(ecgAt).toHaveLength(1)
+    expect(ecgAt[0].state).toBe('waitingDoctor')
+    expect(ecgAt[0].t).toBeLessThanOrEqual(CONFIG.er.triageEcgSeconds + 1)
+    // the bays stay full for an hour: still just the one
+    clock.advanceTo(3600 * SEC)
+    expect(ecgAt).toHaveLength(1)
+    expect(at(actor)).toBe('waitingDoctor')
+    expect(ctx(actor).ecgDone).toBe(true)
+  })
+
+  it('a bay that comes first does the ECG at the bay: nothing is recorded in the waiting area', () => {
+    const { actor, clock, ecgAt } = hosted({ acuity: 2 })
+    actor.send({ type: 'ARRIVED' })
+    clock.advanceTo(30 * SEC)
+    actor.send({ type: 'BAY_CALLED' })
+    actor.send({ type: 'ON_TROLLEY' })
+    clock.advanceTo(3600 * SEC)
+    expect(ecgAt).toHaveLength(0)
+    expect(ctx(actor).needsEcg).toBe(true)
+    expect(ctx(actor).ecgDone).toBe(false)
+  })
+
+  it('is for a chest pain only: no flag, no ECG at triage; an ambulance crew has its own', () => {
+    const none = hosted({ acuity: 2, bundle: { ...CHEST, triageEcg: false } })
+    none.actor.send({ type: 'ARRIVED' })
+    none.clock.advanceTo(3600 * SEC)
+    expect(none.ecgAt).toHaveLength(0)
+    const amb = hosted({ acuity: 2, ambulance: true })
+    amb.actor.send({ type: 'ARRIVED' })
+    amb.clock.advanceTo(3600 * SEC)
+    expect(amb.ecgAt).toHaveLength(0)
+  })
+})

@@ -11,6 +11,9 @@
  *   - (W3) A pixel-ratio change is DEFERRED while you walk and move: it resizes the canvas and the composer (a hitch) and changes the
  *     sharpness in one frame (a pop). It is applied when you stop, when you leave walk mode, or after 6 s (./dprDefer.ts). While one
  *     waits, a 100 ms poll asks again; nothing runs per frame.
+ *   - Presentation mode (C) asks for one notch more (ladder.ts `presentDpr`: the display's full ratio, up to 2, on the top rung). That change,
+ *     and the one back on leaving, is applied AT ONCE (the camera cuts to the walkthrough there anyway); the ladder's later step-downs while
+ *     presenting wait like a walk's (dprDefer.ts: presenting counts as moving).
  *   - The AO rung is applied by Effects.tsx, which watches the same store; the fx rung ('lite' drops the floor reflection) by the daylight
  *     driver, which reads it every frame. Both are uniforms or flags: they apply at once, never deferred.
  *
@@ -21,9 +24,10 @@ import { useStore } from '@react-three/fiber'
 import { probeEnabled } from '@/app/DevProbe'
 import { walkBody } from '@/scene/player/state'
 import { sim, simGeneration } from '@/sim'
+import { presentActive, usePresentation } from '@/ui/present/presentation.store'
 import { DprDeferral } from './dprDefer'
 import { setFrameSink } from './frameTiming'
-import { QualityLadder, appliedDpr } from './ladder'
+import { QualityLadder, appliedDpr, presentDpr } from './ladder'
 import { useRenderStore } from './render.store'
 
 /** How often a waiting pixel-ratio change asks again whether the player has stopped (ms). */
@@ -67,18 +71,26 @@ export function Quality({ ready = true }: QualityProps) {
     return () => setFrameSink(null)
   }, [ladder])
 
-  // the pixel ratio
+  // the pixel ratio (presentation mode: one notch sharper, up to the display's full ratio, ladder.ts PRESENT_DPR)
   useEffect(() => {
     const deferral = new DprDeferral()
     let poll = 0
-    const apply = () => {
-      const want = appliedDpr(useRenderStore.getState().step, window.devicePixelRatio || 1)
+    /** `now`: entering or leaving presentation mode, the one moment the ratio changes at once (the camera is cutting anyway); else deferred while moving. */
+    const apply = (now = false) => {
+      const rs = useRenderStore.getState()
+      const device = window.devicePixelRatio || 1
+      const want = presentActive() ? presentDpr(rs.level, device) : appliedDpr(rs.step, device)
       const state = store.getState()
-      const decision = deferral.decide(state.viewport.dpr, want, { mode: sim.player?.mode, live: walkBody.live, stillFor: walkBody.stillFor }, performance.now())
+      if (now) deferral.reset()
+      const decision = now
+        ? state.viewport.dpr === want
+          ? 'none'
+          : 'apply'
+        : deferral.decide(state.viewport.dpr, want, { mode: sim.player?.mode, live: walkBody.live, stillFor: walkBody.stillFor }, performance.now())
       if (decision === 'apply') state.setDpr(want)
       // a change that waits for the player to stop asks again until it can go; one that is done (or never was) stops asking
       if (decision === 'wait') {
-        if (poll === 0) poll = window.setInterval(apply, POLL_MS)
+        if (poll === 0) poll = window.setInterval(later, POLL_MS)
       } else if (poll !== 0) {
         window.clearInterval(poll)
         poll = 0
@@ -87,17 +99,22 @@ export function Quality({ ready = true }: QualityProps) {
       const have = store.getState().viewport.dpr
       if (useRenderStore.getState().dpr !== have) useRenderStore.getState().setApplied(have)
     }
-    apply()
-    const unsubStore = store.subscribe(apply)
+    const later = () => apply()
+    apply(true) // the first ratio is set at mount, behind the loading screen (with `?view=present` it is already the presentation's)
+    const unsubStore = store.subscribe(later)
     const unsubLevel = useRenderStore.subscribe((s, prev) => {
       if (s.level !== prev.level) apply()
     })
-    window.addEventListener('resize', apply)
+    const unsubPresent = usePresentation.subscribe((s, prev) => {
+      if (s.on !== prev.on) apply(true)
+    })
+    window.addEventListener('resize', later)
     return () => {
       if (poll !== 0) window.clearInterval(poll)
       unsubStore()
       unsubLevel()
-      window.removeEventListener('resize', apply)
+      unsubPresent()
+      window.removeEventListener('resize', later)
     }
   }, [store])
 

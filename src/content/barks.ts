@@ -68,6 +68,8 @@ export const TALK_FIELDS = {
   'ward.dischargeSigned': [],
   'ward.leaving': [],
   'ward.up': [],
+  // F-29: a patient who is nil by mouth (content/diet.ts); the first line is DIET.nilByMouth.bark (checked in barks.test.ts)
+  'ward.nilByMouth': [],
   // an imaging outpatient
   'outpatient.checkIn': [],
   'outpatient.waiting': ['modality'],

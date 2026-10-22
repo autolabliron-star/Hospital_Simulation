@@ -33,6 +33,7 @@ import { Cloaked, Hidden, PresentationControls } from '@/ui/present/Presentation
 import { DevProbe, ProbeOverlay, probeEnabled } from './DevProbe'
 import { ErrorBoundary, ReloadCard } from './ErrorBoundary'
 import { PowerLoop } from './PowerLoop'
+import { useDayEnd } from '@/ui/dayEnd'
 
 const FOV = 35
 /** Camera elevation above the horizon (the plan's Sims-style 50° look-in). */
@@ -159,6 +160,7 @@ function useSimRecovery(): void {
 
 export function App() {
   useSimRecovery()
+  useDayEnd()
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       {/* M5: frameloop "never": PowerLoop drives every frame (the cap, pauses, no fast-forward); Quality owns the real pixel ratio */}

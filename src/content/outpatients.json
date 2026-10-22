@@ -58,7 +58,7 @@
   { "id": "op-57", "name": "Leonard Sedgwick", "age": 86, "time": "15:50", "protocol": "xr-hip", "reason": "Hip replacement follow-up film" },
   { "id": "op-58", "name": "Peggy Tattersall", "age": 72, "time": "16:05", "protocol": "mri-lumbar", "reason": "Leg weakness, planned spine scan" },
   { "id": "op-59", "name": "Kit Upfold", "age": 40, "time": "16:15", "protocol": "ct-head", "reason": "Memory change, planned head scan" },
-  { "id": "op-60", "name": "Reginald Venables", "age": 81, "time": "16:15", "protocol": "us-abdo", "reason": "Upper abdominal pain, planned scan" },
+  { "id": "op-60", "name": "Reginald Venables", "age": 81, "time": "16:15", "protocol": "us-abdo", "reason": "Upper abdominal pain, liver and pancreas check" },
   { "id": "op-61", "name": "Florence Wolstenholme", "age": 63, "time": "16:30", "protocol": "mri-brain", "reason": "Hearing loss in one ear" },
   { "id": "op-62", "name": "Dudley Yardley", "age": 22, "time": "16:30", "protocol": "xr-ankle", "reason": "Ankle sprain, healing review" },
   { "id": "op-63", "name": "Una Appleyard", "age": 85, "time": "16:40", "protocol": "us-renal", "reason": "Kidney check, hypertension review" },

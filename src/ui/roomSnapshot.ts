@@ -87,7 +87,8 @@ export interface QueuedBooking {
 /** What the viewer needs from `sim.imaging`: the scanner states, the demo button and (if the sim has it) the waiting lists. */
 export interface ImagingSimLike {
   scanners: Record<ImagingModality, ScannerState>
-  startDemoScan(m: ImagingModality): void
+  startDemoScan(m: ImagingModality): boolean
+  hasOperator?(m: ImagingModality): boolean
   queues?: Record<ImagingModality, { readonly waiting: readonly QueuedBooking[] }>
 }
 

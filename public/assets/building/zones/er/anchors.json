@@ -1,0 +1,374 @@
+{
+ "zone": "er",
+ "level": 1,
+ "levelY": 0,
+ "frame": "plan metres as drawn, y absolute",
+ "anchors": [
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -60.725,
+    1.95,
+    -21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -59.255,
+    1.53,
+    -21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -60.935,
+    0.46,
+    -20.85
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -56.275,
+    1.95,
+    -21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -54.805,
+    1.53,
+    -21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -56.485,
+    0.46,
+    -20.85
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -51.825,
+    1.95,
+    -21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -50.355,
+    1.53,
+    -21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -52.035,
+    0.46,
+    -20.85
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -47.375,
+    1.95,
+    -21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -45.905,
+    1.53,
+    -21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -47.585,
+    0.46,
+    -20.85
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -59.4667,
+    1.95,
+    21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -60.8367,
+    1.53,
+    21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    -61.0213,
+    1.785,
+    21.15
+   ],
+   "node": null,
+   "w": 0.384,
+   "h": 0.257
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -56.5,
+    1.95,
+    21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -57.87,
+    1.53,
+    21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -53.5333,
+    1.95,
+    21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -54.9033,
+    1.53,
+    21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -50.5667,
+    1.95,
+    21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -51.9367,
+    1.53,
+    21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -47.6,
+    1.95,
+    21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -48.97,
+    1.53,
+    21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -44.6333,
+    1.95,
+    21.9
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -46.0033,
+    1.53,
+    21.795
+   ],
+   "node": null
+  },
+  {
+   "name": "screen0",
+   "p": [
+    -58.5375,
+    1.0965,
+    8.0335
+   ],
+   "node": null,
+   "w": 0.524,
+   "h": 0.304
+  },
+  {
+   "name": "screen1",
+   "p": [
+    -57.4125,
+    1.0965,
+    8.0335
+   ],
+   "node": null,
+   "w": 0.524,
+   "h": 0.304
+  },
+  {
+   "name": "screen2",
+   "p": [
+    -56.2875,
+    1.0965,
+    8.0335
+   ],
+   "node": null,
+   "w": 0.524,
+   "h": 0.304
+  },
+  {
+   "name": "screen3",
+   "p": [
+    -55.1625,
+    1.0965,
+    8.0335
+   ],
+   "node": null,
+   "w": 0.524,
+   "h": 0.304
+  },
+  {
+   "name": "seat",
+   "p": [
+    -58.3075,
+    0.48,
+    7.0994
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -56.7075,
+    0.48,
+    7.0994
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -55.0925,
+    0.48,
+    7.0994
+   ],
+   "node": null
+  },
+  {
+   "name": "screen:erBoard",
+   "p": [
+    -56.4,
+    1.78,
+    6.188
+   ],
+   "node": null,
+   "w": 1.86,
+   "h": 1.03,
+   "facing": "+z"
+  },
+  {
+   "name": "seat",
+   "p": [
+    -60.59,
+    0.47,
+    -13.25
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -60.59,
+    0.47,
+    -11.75
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    -61.35,
+    1.1885,
+    -14.488
+   ],
+   "node": null,
+   "w": 0.224,
+   "h": 0.157
+  },
+  {
+   "name": "trolley:patient",
+   "p": [
+    -60.8,
+    0.76,
+    14.8
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -60.9532,
+    0.52,
+    -6.8899
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -60.148,
+    0.52,
+    -6.8899
+   ],
+   "node": null
+  }
+ ]
+}

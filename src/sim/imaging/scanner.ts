@@ -612,7 +612,8 @@ export class Scanner {
             s.stationSent = false
             this.startSequence(s.seq + 1)
           } else if (s.stepT > gap + CONFIG.imaging.stuckSeconds) {
-            this.force('gap')
+            // F-14: say where the radiographer was, so a repeat is diagnosed from the log (the line still starts "xray stuck in gap")
+            this.force(`gap (radiographer ${op.mode}, done ${op.done}, ${dist(op.pos, a.station.at).toFixed(1)} m from the booth, sent ${s.stationSent}, patient ${p ? p.mode : 'none'})`)
             this.forceTo(op, a.station.at, a.station.heading)
             s.stationSent = false
             this.startSequence(s.seq + 1)

@@ -190,6 +190,13 @@ export const CONFIG = {
     minorCareShare: 0.4,
     /** Priority 1-2 need more of the nurse and the doctor (monitor, oxygen, a second line; a longer, more careful assessment). */
     seriousScale: 1.4,
+    /**
+     * F-27: a patient at least this urgent whose complaint needs a CT (stroke, collapse, a fit) has the scan ordered right after the nurse's care,
+     * in parallel with the wait for the doctor (door-to-CT: bay wait plus the care step, not the assessment). Less urgent scans follow the assessment.
+     */
+    earlyScanMaxAcuity: 2,
+    /** F-27: a chest pain waiting for a bay (a priority 1-2 walk-in has no triage) has the ECG recorded this long after arrival (sim seconds). */
+    triageEcgSeconds: 180,
     /** A world with no lab (a bare test world): the bedside bloods come back after this long. */
     resultsSeconds: [1200, 2400] as readonly [number, number],
     /** Chance of admission by acuity 1..5, drawn AFTER the results (Wave 1: priority 1-2 are nearly always admitted). */
@@ -215,12 +222,15 @@ export const CONFIG = {
 
   visitors: {
     /** Visiting parties arriving per hour by clock hour (linear between points). */
-    /** Wave 1: visiting from 11:00 (after the morning round and handover), none before. */
+    /**
+     * Wave 1: visiting from 11:00 (after the morning round and handover), none before. F-32: no lunchtime peak (visitors keep away from the
+     * meal trays); the real peaks are 14:00-16:00 and 18:00-19:30, in `day.visitorPartiesPerHour`.
+     */
     partiesPerHour: [
       [11.0, 4],
-      [11.5, 16],
-      [12.0, 26],
-      [12.75, 22],
+      [11.5, 8],
+      [12.0, 10],
+      [12.75, 8],
       [13.5, 0],
     ] as readonly (readonly [number, number])[],
     /** Chance a party is two people, and chance someone carries flowers or a bag. */
@@ -584,8 +594,9 @@ export const CONFIG = {
       [6.5, 2], [7.5, 3], [8.5, 4], [9.5, 5], [10.5, 6.5], [11.5, 5.5], [12.5, 5], [14.0, 5], [16.0, 5], [18.0, 6], [20.0, 6], [22.0, 3], [23.5, 2],
     ] as readonly (readonly [number, number])[],
     ambulanceLastHour: 23.5,
+    // F-32: no lunchtime peak (11:00-13:00 stays small); the peaks are 14:00-16:00 and 18:00-19:30 with a dip between them; none after 20:00
     visitorPartiesPerHour: [
-      [11.0, 4], [11.5, 16], [12.0, 26], [12.75, 20], [13.0, 6], [14.0, 8], [14.5, 30], [15.0, 40], [19.0, 40], [19.5, 20], [20.0, 0],
+      [11.0, 4], [11.5, 8], [12.0, 10], [12.75, 8], [13.0, 3], [13.5, 1], [14.0, 14], [14.25, 34], [14.5, 40], [16.0, 40], [16.5, 18], [17.0, 8], [17.5, 10], [18.0, 32], [18.25, 40], [19.0, 40], [19.5, 36], [19.75, 10], [20.0, 0],
     ] as readonly (readonly [number, number])[],
     ambient: {
       lobby: [[6.5, 0.2], [7.5, 0.35], [8.5, 0.6], [9.5, 0.88], [10.0, 0.93], [11.5, 0.93], [12.5, 0.8], [13.0, 0.6], [14.0, 0.7], [16.0, 0.85], [19.0, 0.8], [21.0, 0.5], [23.5, 0.3]] as readonly (readonly [number, number])[],
@@ -602,7 +613,8 @@ export const CONFIG = {
     beforeNoon: 2,
     /** The family arrives this long after the discharge is signed; changing into everyday clothes in the bathroom pod. */
     familyArrivesSeconds: [1800, 5400] as readonly [number, number],
-    dischargeTeachSeconds: [35, 50] as readonly [number, number],
+    /** F-32: a real discharge talk (medicines, follow-up, warning signs) takes 2-5 minutes (was 35-50 s). */
+    dischargeTeachSeconds: [120, 300] as readonly [number, number],
     changeSeconds: [90, 150] as readonly [number, number],
     /** The cleaner's room clean and the porter's linen change. */
     roomCleanSeconds: [1800, 2700] as readonly [number, number],

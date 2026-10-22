@@ -9,6 +9,7 @@
  *   kidneyL      left flank, posterior axillary          the head end               through the kidney
  *   spleen       left intercostal                        the head end               across the spleen
  *   bladder      suprapubic, transverse                  patient's right            head to foot through the bladder
+ *   pancreas     epigastric, transverse, tipped up       patient's right            tilting from the head of the gland to its tail
  *
  * A probe frame is the face centre on the skin (LPS mm), the beam direction (into the body) and the array axis (image +x), all unit
  * vectors, plus skin contact 0..1. Between views the probe glides over the skin to the next window (in contact when it is near, lifted
@@ -18,7 +19,7 @@ import type { V3 } from './body'
 import type { PatientParams } from './params'
 import { outlineAt } from './regions/abdomen'
 
-export type UsViewId = 'liver' | 'gallbladder' | 'kidneyR' | 'kidneyL' | 'spleen' | 'bladder'
+export type UsViewId = 'liver' | 'gallbladder' | 'kidneyR' | 'kidneyL' | 'spleen' | 'bladder' | 'pancreas'
 
 export interface ProbeFrame {
   ox: number
@@ -73,6 +74,11 @@ export function viewSpec(view: UsViewId, p: PatientParams): ViewSpec {
       // left flank at the posterior axillary line, a coronal-oblique long axis, the beam angled forward and up toward the hilum under the
       // lung base; 11-12 cm deep (tuned over many patients for the most spleen and the least rib and lung in the fan)
       return { target: [p.spleen.c[0], p.spleen.c[1] - 6, p.spleen.c[2] - 40], beam: unit([-1, -0.45, 0.55]), array: [0, 0.4, 1], fan: [-10, 10], depth: 115 }
+    case 'pancreas': {
+      // the epigastrium, a transverse plane with the beam going back and tipped up toward the head, so it passes under the stomach's air and
+      // through the left lobe of the liver; the fan tilts it along the gland (the same body as phantom/regions/abdomen.ts: neck to tail)
+      return { target: [14 * p.width, -14 * p.depth, 267 * p.height], beam: unit([0, 1, 0.35]), array: [1, 0, 0], fan: [-16, 6], depth: 130 }
+    }
     case 'bladder': {
       const f = Math.cbrt(p.bladderFill)
       return { target: [0, (-36 + 6 * (1 - f)) * p.depth, (28 + 20 * f) * p.height], beam: unit([0, 0.86, -0.5]), array: [1, 0, 0], fan: [-15, 15], depth: 140 }

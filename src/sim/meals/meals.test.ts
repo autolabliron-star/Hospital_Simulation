@@ -231,8 +231,10 @@ describe('meal service: warm starts', () => {
 
     const after = new Simulation(5, { startHour: 12 + 40 / 60, population: false })
     after.preRoll(30)
-    expect(trays(after).length).toBe(inBed(after).length)
-    expect(trays(after).length).toBeGreaterThanOrEqual(14)
+    // F-29: a patient who is nil by mouth (an ER admission for a stroke work-up, say) has no tray: every other bed does
+    const mayEat = inBed(after).filter((id) => !after.meals.nilByMouth(id))
+    expect(trays(after).map((r) => r.roomId).sort()).toEqual(mayEat)
+    expect(trays(after).length).toBeGreaterThanOrEqual(13)
     expect([...after.life.rooms.values()].filter((r) => r.meal === 'eaten').length).toBeGreaterThan(8)
     for (const r of trays(after)) expect(r.recline).toBe(r.meal === 'served' ? 1 : 0)
     expect(botsOnFloor(after)).toHaveLength(0)

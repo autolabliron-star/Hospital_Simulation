@@ -321,7 +321,7 @@ export const AREAS: Area[] = [
   { id: 'xray', label: 'X-ray', subtitle: 'Radiography', rect: { x0: -40, x1: -34, z0: 2, z1: 12 }, kind: 'clinical', mapLabel: true },
   { id: 'ultrasound', label: 'Ultrasound', subtitle: '', rect: { x0: -34, x1: -28, z0: 2, z1: 12 }, kind: 'clinical', mapLabel: true },
   { id: 'diagnostics', label: 'Blood draw centre', subtitle: 'Robot blood draws and changing cubicles', rect: { x0: -28, x1: -22, z0: 2, z1: 12 }, kind: 'clinical', mapLabel: true },
-  { id: 'command', label: 'Command center', subtitle: 'Every pod, room and order, live', rect: { x0: -22, x1: -12, z0: -12, z1: 12 }, kind: 'staff', mapLabel: true },
+  { id: 'command', label: 'Command centre', subtitle: 'Every pod, room and order, live', rect: { x0: -22, x1: -12, z0: -12, z1: 12 }, kind: 'staff', mapLabel: true },
   { id: 'core', label: 'Pharmacy core', subtitle: 'MedVend dispensing wall and MedPods', rect: CORE, kind: 'robot', mapLabel: true },
   { id: 'atrium', label: 'Healing atrium', subtitle: 'Garden, café and daylight', rect: { x0: 12, x1: 40, z0: -12, z1: 12 }, kind: 'public', mapLabel: true },
   { id: 'corridorA', label: 'Ward A corridor', subtitle: '', rect: corridorRect('A'), kind: 'public', ward: 'A', mapLabel: false },
@@ -342,7 +342,7 @@ export const AREAS: Area[] = [
   { id: 'l2Staff', label: 'Theatre staff room', subtitle: '', rect: { x0: l2(-62), x1: l2(-53), z0: -10, z1: -2 }, kind: 'staff', mapLabel: false },
   { id: 'l2Sterile', label: 'Sterile supply', subtitle: 'Instrument trays and drapes', rect: { x0: l2(-53), x1: l2(-44), z0: -10, z1: -2 }, kind: 'service', mapLabel: true },
   { id: 'l2Hall', label: 'Theatre hall', subtitle: 'Scrub sinks', rect: { x0: l2(-62), x1: l2(-44), z0: -2, z1: 2 }, kind: 'staff', mapLabel: false },
-  { id: 'l2Or', label: 'Robotic OR', subtitle: 'da Vinci 5 surgical system', rect: { x0: l2(-53), x1: l2(-44), z0: 2, z1: 10 }, kind: 'clinical', mapLabel: true },
+  { id: 'l2Or', label: 'Robotic theatre', subtitle: 'da Vinci 5 surgical system', rect: { x0: l2(-53), x1: l2(-44), z0: 2, z1: 10 }, kind: 'clinical', mapLabel: true },
   { id: 'l2Pacu', label: 'Recovery', subtitle: 'Post-anaesthesia care (PACU), three bays', rect: { x0: l2(-53), x1: l2(-44), z0: 10, z1: 22 }, kind: 'clinical', mapLabel: true },
   { id: 'l2Lounge', label: 'Family lounge', subtitle: 'Level 2: waiting and day-case discharge', rect: { x0: l2(-62), x1: l2(-53), z0: 2, z1: 22 }, kind: 'public', mapLabel: true },
   ...ROOMS.map(

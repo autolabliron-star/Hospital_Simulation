@@ -6,16 +6,29 @@ reception desk with an oak top, modular upholstered benches on the sim's seat ro
 restrained wayfinding in the floor lines' colours (door frames, a directory panel).
 
 Every piece of furniture stands on the procedural layout's anchors (plan.json `furniture`), so the sim's seat points and collision stay true.
+
+Zone 'lobby' (tools/arch/zones.json, status 'designed', APPROVED look: the style for the whole building). Moved here unchanged from
+tools/arch/lobby.py (the pilot); only the entry point became build(ctx) and the shell settings module-level names (zones/__init__.py).
 """
 import math
 
 import furniture as fu
 from common import Frame
-from shell import glazing_spans, line_box
+from shell import line_box, paving
 
 LOBBY = (-62.0, -44.0, -6.0, 6.0)
 SPINE = (-44.0, -40.0, -16.0, 16.0)
 CH = 3.0
+
+# --- shell settings (zones/__init__.py) ---
+HERO = [LOBBY, SPINE]
+OWN_CEILINGS = ('lobby', 'spine')
+FLOORS = {'lobby': 'Terrazzo', 'spine': 'Terrazzo'}
+SKIP_DOORS = ('entrance',)
+# review stills (plan x, z) -> look at (x, z), eye 1.6 m, 24 mm: the four of docs/screenshots/lobby-blender-{1..4}.jpg
+POSES = [((-61.0, 0.0), (-44.0, 0.0)), ((-48.5, 1.5), (-51.5, -3.0)), ((-46.5, 0.0), (-62.0, 0.0)), ((-55.5, 0.5), (-59.6, 5.3))]
+# the reflection probe (env_lobby.hdr): the lobby centre at eye height
+PROBE = (-53.0, 1.6, 0.0)
 
 # accent swatches (materials.json Accent.palette): 0 ward A blue, 1 ward B green, 2 emergency red, 3 atrium orange, 4 diagnostics purple, 5 text grey
 DOOR_ACCENT = {'triage': 'Accent:2', 'er': 'Accent:2', 'imaging': 'Accent:4'}
@@ -28,6 +41,10 @@ DOWNLIGHTS = [(x, -5.45) for x in (-60.6, -58.6, -56.6, -54.6, -52.6)] + [(x, 5.
 def in_lobby_facade(w, a, b):
     """True for a glazing span of the west façade inside the lobby: the hero curtain wall replaces the ribbon glazing there."""
     return (not w['alongX']) and abs(w['c'] + 62.0) < 1e-6 and a >= LOBBY[2] - 0.2 and b <= LOBBY[3] + 0.2
+
+
+def skip_glazing(w, a, b):
+    return in_lobby_facade(w, a, b)
 
 
 def door_accent(d):
@@ -104,7 +121,7 @@ def curtain_wall(geo, pl):
     for w in pl.walls():
         if w['cls'] != 'glassCut':
             continue
-        for a, b in glazing_spans(pl, w):
+        for a, b in pl.spans(w):
             if not in_lobby_facade(w, a, b):
                 continue
             line_box(geo, 'Mullion', w, a, b, 0.0, 0.06, 0.16)              # sill profile
@@ -187,9 +204,14 @@ def wayfinding(geo, pl):
     fu.exit_sign(geo, -60.9, -1.5)
 
 
-def build(geo, pl, plan):
+def build(ctx):
+    geo, pl = ctx.geo, ctx.pl
     ceiling(geo)
     curtain_wall(geo, pl)
-    furniture(geo, plan)
+    furniture(geo, ctx.plan)
     feature_wall(geo, pl)
     wayfinding(geo, pl)
+    # the forecourt in front of the west façade (the pilot's extent: 14 m out, 8 m past the region north and south)
+    paving(geo, -76.5, -62.0 - pl.T / 2, -24.5, 24.5)
+    for (x, z) in DOWNLIGHTS:
+        ctx.downlight(x, z, CH)

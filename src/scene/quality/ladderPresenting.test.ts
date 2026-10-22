@@ -1,7 +1,7 @@
 /** F-41: presentation mode is the show. The ladder never steps UP while it is on (it still steps down), and a deferred pixel-ratio change waits like a walk. */
 import { describe, expect, it } from 'vitest'
 import { DprDeferral, MAX_DEFER_MS } from './dprDefer'
-import { DEFAULT_LADDER_CONFIG, QualityLadder } from './ladder'
+import { DEFAULT_LADDER_CONFIG, MAX_LEVEL, PRESENT_DPR_CAP, QUALITY_STEPS, QualityLadder, appliedDpr, presentDpr } from './ladder'
 
 const FRAME = 1000 / 60
 
@@ -75,5 +75,29 @@ describe('a deferred pixel-ratio change while presenting', () => {
   it('control: not presenting and standing still applies at once', () => {
     const d = new DprDeferral(undefined, undefined, () => false)
     expect(d.decide(1.5, 1, still, 0)).toBe('apply')
+  })
+})
+
+describe('the pixel ratio while presenting', () => {
+  it('is the full Retina ratio on the top rung, one notch above the walk on the others, and steps down in order', () => {
+    expect(presentDpr(0, 2)).toBe(2)
+    expect(presentDpr(1, 2)).toBe(1.5)
+    expect(presentDpr(2, 2)).toBe(1.25)
+    expect(presentDpr(3, 2)).toBe(1)
+    let last = Infinity
+    for (let l = 0; l <= MAX_LEVEL; l++) {
+      const d = presentDpr(l, 2)
+      expect(d).toBeLessThanOrEqual(last)
+      expect(d).toBeGreaterThanOrEqual(appliedDpr(QUALITY_STEPS[l], 2)) // never blurrier than the walk on the same rung
+      last = d
+    }
+  })
+
+  it('never exceeds the display or the cap, never goes below 1', () => {
+    expect(presentDpr(0, 1)).toBe(1)
+    expect(presentDpr(0, 1.5)).toBe(1.5)
+    expect(presentDpr(0, 3)).toBe(PRESENT_DPR_CAP)
+    expect(presentDpr(0, Number.NaN)).toBe(1)
+    expect(presentDpr(99, 2)).toBe(1)
   })
 })

@@ -58,6 +58,18 @@ describe('Go to… menu model', () => {
   })
 })
 
+describe('Go to… menu words (F-33): from content, in UK English', () => {
+  it('takes the group titles and fixed rows from goTo.json, and says "centre" and "theatre"', () => {
+    const groups = buildGoToGroups()
+    expect(groups.map((g) => g.title)).toEqual(['Imaging', 'Blood & lab', SURGERY_UI.goTo.group, 'Ward A', 'Ward B', 'Pharmacy core', 'Emergency', 'Triage', 'Entrance', 'Atrium & café', 'Command centre', 'Nurse hubs'])
+    const command = groups.find((g) => g.id === 'command')!
+    expect(command.items).toEqual([{ area: 'command', label: 'Command centre', detail: 'Every pod, room and order, live' }])
+    expect(flattenItems(groups).map((i) => `${i.label} ${i.detail}`).join(' ')).not.toMatch(/center|\bOR\b/)
+    expect(flattenItems(filterGoToGroups(groups, 'command centre')).map((i) => i.area)).toContain('command')
+    expect(flattenItems(filterGoToGroups(groups, 'theatre')).map((i) => i.area)).toContain('l2Or')
+  })
+})
+
 describe('Go to… menu: Level 2 · Surgery (R2)', () => {
   const l2Map = AREAS.filter((a) => a.mapLabel && levelOf(a.rect.x0) === 2).map((a) => a.id)
 
@@ -72,7 +84,7 @@ describe('Go to… menu: Level 2 · Surgery (R2)', () => {
 
   it('names the robotic OR and recovery for what they are', () => {
     const items = buildGoToGroups().find((g) => g.id === 'level2')!.items
-    expect(items.find((i) => i.area === 'l2Or')).toMatchObject({ label: 'Robotic OR', detail: 'da Vinci 5 surgical system' })
+    expect(items.find((i) => i.area === 'l2Or')).toMatchObject({ label: 'Robotic theatre', detail: 'da Vinci 5 surgical system' })
     expect(items.find((i) => i.area === 'l2Pacu')!.label).toBe('Recovery')
   })
 

@@ -10,7 +10,7 @@
  */
 import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute, Uint32BufferAttribute } from 'three'
 import { CHUNK_COUNT, CHUNK_EDGES, chunkOfX } from '../../layout/walk/chunks'
-import type { CeilingPiece, QuadPlacement, WalkBox, WalkBoxMat, WalkDoor, WalkLayout } from '../../layout/walk/types'
+import type { CeilingPiece, QuadPlacement, WalkBox, WalkBoxMat, WalkDoor, WalkLayout, WalkPart } from '../../layout/walk/types'
 import type { PackedAtlas } from './signAtlas'
 
 class Buf {
@@ -145,7 +145,7 @@ export function doorCounts(doors: readonly WalkDoor[]): DoorCounts {
 }
 
 /** `hide` (Wave 3, `?building=model`): boxes (mat, centre x, z) and ceiling tiles the authored model replaces are left out. Undefined hides nothing. */
-export function compileWalk(layout: WalkLayout, atlas: PackedAtlas, hide?: (mat: WalkBoxMat | 'ceiling', x: number, z: number) => boolean): CompiledWalk {
+export function compileWalk(layout: WalkLayout, atlas: PackedAtlas, hide?: (mat: WalkBoxMat | 'ceiling', x: number, z: number, part?: WalkPart) => boolean): CompiledWalk {
   const wall: Buf[] = []
   const frame: Buf[] = []
   const ceil: Buf[] = []
@@ -161,7 +161,7 @@ export function compileWalk(layout: WalkLayout, atlas: PackedAtlas, hide?: (mat:
     glass: () => glass,
   }
   for (const box of layout.boxes) {
-    if (hide?.(box.mat, (box.x0 + box.x1) / 2, (box.z0 + box.z1) / 2)) continue
+    if (hide?.(box.mat, (box.x0 + box.x1) / 2, (box.z0 + box.z1) / 2, box.part)) continue
     for (const part of box.mat === 'glass' ? [box] : cutAtChunkEdges(box)) {
       const buf = byMat[part.mat](chunkOfX((part.x0 + part.x1) / 2))
       buf.box(part.x0, part.x1, part.y0, part.y1, part.z0, part.z1)

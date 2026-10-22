@@ -1,0 +1,91 @@
+{
+ "zone": "atrium",
+ "level": 1,
+ "levelY": 0,
+ "frame": "plan metres as drawn, y absolute",
+ "anchors": [
+  {
+   "name": "screen.till",
+   "p": [
+    34.8348,
+    1.3392,
+    2.5
+   ],
+   "node": null,
+   "w": 0.284,
+   "h": 0.194
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    -2.19
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    -1.01
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    0.81
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    1.99
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    3.81
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    4.99
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    6.81
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    38.95,
+    0.45,
+    7.99
+   ],
+   "node": null
+  }
+ ]
+}

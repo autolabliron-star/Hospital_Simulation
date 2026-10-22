@@ -1,0 +1,44 @@
+{
+ "zone": "core",
+ "level": 1,
+ "levelY": 0,
+ "frame": "plan metres as drawn, y absolute",
+ "anchors": [
+  {
+   "name": "seat",
+   "p": [
+    -17.6,
+    0.48,
+    -6.0
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -17.6,
+    0.48,
+    -2.0
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -17.6,
+    0.48,
+    2.0
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -17.6,
+    0.48,
+    6.0
+   ],
+   "node": null
+  }
+ ]
+}

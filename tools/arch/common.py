@@ -56,9 +56,13 @@ def _rot_x(p, a, pivot):
 
 
 class Geo:
-    def __init__(self):
+    """One bmesh per material. `y0` lifts everything on finalize (a level's floor height: design and shell code always build with y = 0 at
+    their own level's floor, so level 2 is written exactly like level 1)."""
+
+    def __init__(self, y0=0.0):
         self.bms = {}
         self.smooth = {}
+        self.y0 = y0
 
     def bm(self, mat):
         """The bmesh of a material. 'Accent:<i>' is the Accent material's swatch i (a face int layer 'swatch', see materials.palette_uv)."""
@@ -152,17 +156,19 @@ class Geo:
             self._tag(b, [b.faces.new(list(reversed(q)) if down else q)])
 
     # --- out --------------------------------------------------------------------------------------------------------------------------------
-    def finalize(self, col, materials):
-        """One object per material (name arch_<Material>), vertices in world coordinates, the node at the origin."""
+    def finalize(self, col, materials, prefix='arch_'):
+        """One object per material (name <prefix><Material>), vertices in world coordinates, the node at the origin."""
         out = {}
         for mat, b in sorted(self.bms.items()):
             if not b.faces:
                 continue
-            me = bpy.data.meshes.new('arch_' + mat)
+            if self.y0:
+                bmesh.ops.translate(b, verts=b.verts, vec=(0.0, 0.0, self.y0))
+            me = bpy.data.meshes.new(prefix + mat)
             b.to_mesh(me)
             b.free()
             me.materials.append(materials[mat])
-            o = bpy.data.objects.new('arch_' + mat, me)
+            o = bpy.data.objects.new(prefix + mat, me)
             col.objects.link(o)
             out[mat] = o
         self.bms = {}

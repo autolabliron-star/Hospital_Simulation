@@ -277,8 +277,17 @@ export class ImagingDepartment {
     return b
   }
 
-  /** The presenter's "start a scan now": a demo patient appears in the hall within a few seconds, at the front of the queue. */
-  startDemoScan(m: ImagingModality): void {
+  /** Is somebody on duty to run this scanner (MRI and ultrasound have nobody after 18:00)? */
+  hasOperator(m: ImagingModality): boolean {
+    return this.machines[m].operator !== null
+  }
+
+  /**
+   * The presenter's "start a scan now": a demo patient appears in the hall within a few seconds, at the front of the queue.
+   * Returns false, books nobody and spawns nobody when no operator is on duty for the scanner (F-06): the viewer says so.
+   */
+  startDemoScan(m: ImagingModality): boolean {
+    if (!this.hasOperator(m)) return false
     const list = DEMO_PROTOCOLS[m]
     const proto = protocolById(list[this.demoCount++ % list.length])
     const id = this.world.id('demo')
@@ -300,6 +309,14 @@ export class ImagingDepartment {
     }
     this.enqueue(b)
     this.pendingDemos.push({ at: this.t + CONFIG.imaging.demoArrivalSeconds, booking: b, name, id })
+    return true
+  }
+
+  /** A demo booking whose operator left before the patient appeared: take it out of the queue and the books. */
+  private cancelDemo(d: Due): void {
+    this.queues[d.booking.modality].remove(d.booking)
+    const i = this.bookings.indexOf(d.booking)
+    if (i >= 0) this.bookings.splice(i, 1)
   }
 
   private enqueue(b: Booking): void {
@@ -312,7 +329,11 @@ export class ImagingDepartment {
   step(t: number, dt: number): void {
     this.t = t
     while (this.pendingOutpatients.length > 0 && this.pendingOutpatients[0].at <= t) this.spawnOutpatient(this.pendingOutpatients.shift()!.index)
-    while (this.pendingDemos.length > 0 && this.pendingDemos[0].at <= t) this.spawnDemo(this.pendingDemos.shift()!)
+    while (this.pendingDemos.length > 0 && this.pendingDemos[0].at <= t) {
+      const d = this.pendingDemos.shift()!
+      if (this.hasOperator(d.booking.modality)) this.spawnDemo(d)
+      else this.cancelDemo(d) // the operator went off shift in the few seconds since the press: never park a patient
+    }
     for (const m of MODALITIES) {
       const sc = this.machines[m]
       if (sc.free) {

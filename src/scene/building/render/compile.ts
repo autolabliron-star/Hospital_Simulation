@@ -228,7 +228,8 @@ interface TreeInstances {
   canopies: InstancedSpec | null
 }
 
-function treeInstances(trees: TreeSpec[]): TreeInstances {
+/** `trees` with the index each had in the layout (the blob arrangement is seeded by it, so splitting by cell leaves every tree as it was); `cellKey` is `|cell=<id>` or ''. */
+function treeInstances(trees: { t: TreeSpec; i: number }[], cellKey = ''): TreeInstances {
   if (trees.length === 0) return { trunks: null, canopies: null }
   const blobsPerTree = 5
   const trunkM = new Float32Array(trees.length * 16)
@@ -236,8 +237,8 @@ function treeInstances(trees: TreeSpec[]): TreeInstances {
   const canC = new Float32Array(trees.length * blobsPerTree * 3)
   const col = new Color()
   const base = new Color()
-  trees.forEach((t, i) => {
-    const rnd = mulberry32(Math.floor(t.seed * 1e6) + i * 7919)
+  trees.forEach(({ t, i: layoutIndex }, i) => {
+    const rnd = mulberry32(Math.floor(t.seed * 1e6) + layoutIndex * 7919)
     const trunkH = t.height * 0.5
     _q.identity()
     _p.set(t.x, trunkH / 2, t.z)
@@ -264,8 +265,8 @@ function treeInstances(trees: TreeSpec[]): TreeInstances {
     }
   })
   return {
-    trunks: { key: 'tree-trunks', mat: 'trunk', geometry: unitTrunk, count: trees.length, matrices: trunkM, colors: null, castShadow: true, receiveShadow: false },
-    canopies: { key: 'tree-canopies', mat: 'tinted', geometry: unitBlob, count: trees.length * blobsPerTree, matrices: canM, colors: canC, castShadow: true, receiveShadow: true },
+    trunks: { key: `tree-trunks${cellKey}`, mat: 'trunk', geometry: unitTrunk, count: trees.length, matrices: trunkM, colors: null, castShadow: true, receiveShadow: false },
+    canopies: { key: `tree-canopies${cellKey}`, mat: 'tinted', geometry: unitBlob, count: trees.length * blobsPerTree, matrices: canM, colors: canC, castShadow: true, receiveShadow: true },
   }
 }
 
@@ -283,8 +284,18 @@ export function labelsOfLevel(labels: readonly LabelSpec[], level: LevelId): Lab
  * walk-only prims (booms, light heads) are their own meshes, shown only while walking, as the overview-only ones are shown only in the overview.
  * Trees and the command wall belong to level 1.
  */
-/** `hide` (Wave 3, `?building=model`): prims the authored model replaces are left out. Undefined hides nothing. */
-export function compileLayout(layout: BuildingLayout, level: LevelId = 1, hide?: (p: Prim) => boolean): CompiledBuilding {
+/**
+ * `hide` (Wave 3, `?building=model`): what the authored model does with a prim. `true` leaves it out; a string is the zone CELL it belongs to
+ * (src/scene/building/model/region.ts): it is compiled into meshes of that cell's own, keyed `...|cell=<id>`, which are drawn until the zone's
+ * model is (src/scene/building/model/cells.ts finds them by that key); false / null / undefined compile it as usual. Undefined hides nothing.
+ */
+export function compileLayout(
+  layout: BuildingLayout,
+  level: LevelId = 1,
+  hide?: (p: Prim) => boolean | string | null,
+  /** The zone cell a layout tree belongs to (it stands in an `area:` rect of a zone), or null: trees of a cell are their own instanced meshes, keyed `...|cell=<id>`. */
+  treeCell?: (x: number, z: number) => string | null,
+): CompiledBuilding {
   const groups = new Map<string, { mat: MatKey; cast: boolean; recv: boolean; overview: boolean; walk: boolean; parts: BufferGeometry[] }>()
   const inst = new Map<string, { mat: MatKey; geometry: BufferGeometry; cast: boolean; recv: boolean; prims: Prim[] }>()
   const quads: Prim[] = []
@@ -292,20 +303,22 @@ export function compileLayout(layout: BuildingLayout, level: LevelId = 1, hide?:
 
   for (const p of layout.prims) {
     if (levelOf(p.position[0]) !== level) continue
-    if (hide?.(p)) continue
+    const cell = hide?.(p)
+    if (cell === true) continue
+    const cellKey = typeof cell === 'string' ? `|cell=${cell}` : ''
     if (p.shape === 'quad') {
       quads.push(p)
       continue
     }
     if (isTinted(p)) {
       const { geometry } = baseOf(p, true)
-      const key = `${p.mat}|${p.shape}|${geometry.uuid}|${castOf(p) ? 1 : 0}${p.receiveShadow ? 1 : 0}`
+      const key = `${p.mat}|${p.shape}|${geometry.uuid}|${castOf(p) ? 1 : 0}${p.receiveShadow ? 1 : 0}${cellKey}`
       const g = inst.get(key) ?? { mat: p.mat, geometry, cast: castOf(p), recv: p.receiveShadow, prims: [] }
       g.prims.push(p)
       inst.set(key, g)
       continue
     }
-    const key = `${p.mat}|${castOf(p) ? 1 : 0}${p.receiveShadow ? 1 : 0}${p.overviewOnly ? '|overview' : ''}${p.walkOnly ? '|walk' : ''}`
+    const key = `${p.mat}|${castOf(p) ? 1 : 0}${p.receiveShadow ? 1 : 0}${p.overviewOnly ? '|overview' : ''}${p.walkOnly ? '|walk' : ''}${cellKey}`
     const g = groups.get(key) ?? { mat: p.mat, cast: castOf(p), recv: p.receiveShadow, overview: p.overviewOnly === true, walk: p.walkOnly === true, parts: [] }
     g.parts.push(bake(p))
     groups.set(key, g)
@@ -340,9 +353,20 @@ export function compileLayout(layout: BuildingLayout, level: LevelId = 1, hide?:
       return { key, mat: g.mat, geometry: g.geometry, count: g.prims.length, matrices, colors, castShadow: g.cast, receiveShadow: g.recv }
     })
 
-  const trees = treeInstances(level === 1 ? layout.trees : [])
-  if (trees.trunks) instanced.push(trees.trunks)
-  if (trees.canopies) instanced.push(trees.canopies)
+  const treeGroups = new Map<string, { t: TreeSpec; i: number }[]>()
+  if (level === 1)
+    layout.trees.forEach((t, i) => {
+      const cell = treeCell?.(t.x, t.z) ?? null
+      const key = cell ? `|cell=${cell}` : ''
+      const list = treeGroups.get(key) ?? []
+      list.push({ t, i })
+      treeGroups.set(key, list)
+    })
+  for (const [cellKey, list] of [...treeGroups].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const trees = treeInstances(list, cellKey)
+    if (trees.trunks) instanced.push(trees.trunks)
+    if (trees.canopies) instanced.push(trees.canopies)
+  }
 
   return {
     merged,

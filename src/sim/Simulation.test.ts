@@ -45,17 +45,22 @@ describe('Simulation (doctors, pods, nurses together)', () => {
   it('pods never wait for people: the rail is above the floor, so no pod ever stops for a person, you or a MealBot', () => {
     let overlaps = 0
     let podSteps = 0
+    let podMoving = 0
     let strayAmber = 0
     const at: PathPoint = { x: 0, z: 0, heading: 0 }
     const reasons = new Set<string>()
-    // two seeds, 40 sim minutes each (breakfast included): enough walkers under the rail that "never" is not vacuous
+    // two seeds, 40 sim minutes each from 07:45: enough walkers under the rail that "never" is not vacuous. Wave 1 made the doses real: the
+    // dose waves are 06/08/12/14/18/20/22, so between the 07:30 backlog and the 08:00 wave few pods are out and a run from
+    // 07:30 (08:00 wave only in its last 10 minutes) measured no pod over any walker in these two seeds. From 07:45 the 08:00 wave (and breakfast,
+    // and the morning round going out) is inside the 40 minutes, with the pods out on the rail over the corridors.
     for (const seed of [777, 778]) {
-      const sim = new Simulation(seed)
+      const sim = new Simulation(seed, { startHour: 7.75 })
       const n = Math.round((40 * 60) / DT)
       for (let i = 0; i < n; i++) {
         sim.step(DT)
         for (const d of sim.meds.fleet.drivers) {
           podSteps++
+          if (d.pod.speed > 0.1) podMoving++
           if (d.pod.waitingFor !== null) reasons.add(d.pod.waitingFor)
           // the amber light means "held up behind the pod ahead" and nothing else
           if (d.pod.light === 'amber' && d.pod.waitingFor !== 'pod') strayAmber++
@@ -74,6 +79,8 @@ describe('Simulation (doctors, pods, nurses together)', () => {
       }
     }
     expect(podSteps).toBeGreaterThan(0)
+    // pods were really out on the rail (a run with every pod parked would pass the overlap check for nothing)
+    expect(podMoving).toBeGreaterThan(0)
     // 'person' is never a reason for a pod to stop (any other reason is allowed)
     expect([...reasons].filter((r) => r === 'person')).toEqual([])
     expect(strayAmber).toBe(0)

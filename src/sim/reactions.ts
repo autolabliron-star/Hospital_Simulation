@@ -50,6 +50,7 @@ import { ROOMS } from './places'
 import { Ambient } from './population/ambient'
 import { Visitor } from './population/visitor'
 import type { Meals } from './meals'
+import { isNilByMouthWardReason } from './meals/plan'
 import type { Person } from './person'
 import type { Rng } from './rng'
 import type { ImagingModality, LivingDayView, PlayerMode, Vec3 } from './types'
@@ -705,6 +706,8 @@ export class Reactions {
     if (!p.inBed) return { key: 'ward.up', fields: none }
     if (e.mood === 'happy' && e.emote === 'heart') return { key: 'ward.medsGiven', fields: none }
     const status = this.deps.life?.rooms.get(roomId)
+    // F-29: nil by mouth gets no tray and says so (never "Lunch was lovely"); the medicines in the drawer still come first
+    if (isNilByMouthWardReason(status?.patientReason) && this.deps.meds?.drawers.get(roomId)?.state !== 'loaded') return { key: 'ward.nilByMouth', fields: none }
     const tray = this.deps.meals?.tray(roomId) ?? null
     if (status !== undefined && tray !== null) {
       if (status.meal === 'served') {

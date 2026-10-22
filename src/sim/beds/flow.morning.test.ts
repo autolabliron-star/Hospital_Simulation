@@ -207,7 +207,8 @@ describe('visitors', () => {
       const ok = (names.get(m[2]) ?? []).some((o) => o.name === m[1] && e.t >= o.from && e.t <= o.to)
       expect(ok, e.text + ' at ' + e.t.toFixed(0)).toBe(true)
     }
-    expect(regular).toBeGreaterThan(20)
+    // (F-32: visiting is concentrated at 14:00-16:00 and 18:00-19:30, so the late morning has only a trickle: 13 in this run)
+    expect(regular).toBeGreaterThan(8)
     // a visitor may still arrive just as the patient leaves (a minute's walk), but it is rare
     expect(rec.events.filter((e) => e.type === 'visitorLeft' && /had gone home/.test(e.text)).length).toBeLessThanOrEqual(4)
   })

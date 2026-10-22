@@ -1,0 +1,45 @@
+{
+  "patient": {
+    "arrived": "{patient} arrived at the ER: {reason}.",
+    "ambulanceArrived": "Ambulance arrival: {patient}, {reason}.",
+    "checkedInDesk": "{patient} checked in at the reception desk.",
+    "checkedInKiosk": "{patient} checked in at the kiosk.",
+    "triagedCritical": "{patient} is very unwell: priority {priority}, straight to a bay.",
+    "triaged": "{nurse} triaged {patient}: priority {priority}.",
+    "triageEcg": "The triage nurse recorded an ECG for {patient} at triage: a chest pain gets its ECG within minutes, whether or not a bay is free.",
+    "care": "{nurse} is taking {items} from {patient} in ER bay {bay}.",
+    "seenByDoctor": "{doctor} is seeing {patient} in ER bay {bay}.",
+    "resultsBack": "{patient}'s results are back.",
+    "review": "{doctor} is going over the results with {patient}.",
+    "scanOrdered": "{doctor} ordered the {scan} for {patient}.",
+    "scanOrderedEarly": "{nurse} asked for the {scan} for {patient} straight away: priority {priority}, so the scan does not wait for the doctor.",
+    "discharged": "{patient} was discharged home after {minutes} min.",
+    "leftWithoutBeingSeen": "{patient} left without being seen after {minutes} min.",
+    "admittedRoom": "{patient} was admitted to ward {ward}, room {room}.",
+    "admittedUpstairs": "{patient} was admitted to a ward upstairs.",
+    "tubesSent": "{patient}'s bloods are on their way to the lab by pneumatic tube."
+  },
+  "careItems": {
+    "observations": "observations",
+    "cannula": "a cannula",
+    "ecg": "an ECG",
+    "bloods": "bloods",
+    "and": "and"
+  },
+  "porter": {
+    "toDiagnostics": "{porter} is taking {patient} to Lab & imaging.",
+    "toImaging": "{porter} is taking {patient} to {place}.",
+    "fromImaging": "{porter} is bringing {patient} back to ER bay {bay}.",
+    "toRoom": "{porter} is taking {patient} to room {room}.",
+    "toLift": "{porter} is taking {patient} to the lift for a ward upstairs."
+  },
+  "scanPlaces": {
+    "mri": "the MRI scanner",
+    "ct": "the CT scanner",
+    "xray": "X-ray",
+    "us": "ultrasound"
+  },
+  "cleaner": {
+    "bayCleaned": "ER bay {bay} is clean and ready."
+  }
+}

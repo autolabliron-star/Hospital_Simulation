@@ -7,7 +7,7 @@
  * same blood pressure on their bedside monitor. What changes it:
  *
  *   triage   a spot check: the white-coat offset on top (like the triage nurse's reading), one NIBP when the cuff goes on
- *   er       the acuity (1 most urgent): a faster heart and breathing, a little less SpO2, settling over the first hour in the bay; NIBP every 15
+ *   er       the complaint when the reason has vitals shifts (content/erVitals.json, via the profile); otherwise the acuity (1 most urgent): a faster heart and breathing, a little less SpO2, settling over the first hour in the bay; NIBP every 15
  *            minutes for acuity 1-2, every 30 for the rest
  *   preop    a little nervous: +6 bpm and the white coat; NIBP every 30 minutes
  *   or       awake on the table, then anaesthetised (slower heart, lower pressure, on the ventilator, SpO2 99-100), the CO2 climbing for about 15
@@ -35,10 +35,16 @@ export interface Baseline {
   tempC: number
   whiteCoatSys: number
   whiteCoatDia: number
+  /**
+   * F-24: the patient's ER reason has its own vitals shifts (content/erVitals.json): they are already in hr, sys, dia, spo2 and tempC (the profile
+   * applied them), and `rrShift` is the respiratory rate's. The ER monitor then follows the complaint, not just the triage acuity.
+   */
+  reasoned: boolean
+  rrShift: number
 }
 
 export function baselineFrom(p: Profile, seed: number): Baseline {
-  return { seed, age: p.age, hr: p.pulse, sys: p.sys, dia: p.dia, spo2: p.spo2, tempC: p.tempC, whiteCoatSys: p.whiteCoatSys, whiteCoatDia: p.whiteCoatDia }
+  return { seed, age: p.age, hr: p.pulse, sys: p.sys, dia: p.dia, spo2: p.spo2, tempC: p.tempC, whiteCoatSys: p.whiteCoatSys, whiteCoatDia: p.whiteCoatDia, reasoned: p.reasoned, rrShift: p.rrShift }
 }
 
 /** Where the patient is and what is happening there (sim times). Filled by occupancy.ts, mutated in place. */
@@ -89,7 +95,7 @@ export function newVitals(): VitalsNow {
 /** The ranges every value stays in (synthetic adults; the tests hold every context to them). */
 export const RANGES = {
   hr: [42, 150],
-  spo2: [90, 100],
+  spo2: [84, 100],
   sys: [85, 190],
   dia: [45, 115],
   temp: [35.2, 38.6],
@@ -156,6 +162,13 @@ export function vitalsAt(b: Baseline, s: Situation, t: number, out: VitalsNow): 
       rr = 16
       break
     case 'er': {
+      if (b.reasoned) {
+        // F-24: the complaint decides (a breathless patient: low SpO2, fast breathing and pulse, from the profile's shifts); no acuity add-on on top
+        rr = 15 + b.rrShift
+        sys += 0.5 * b.whiteCoatSys
+        dia += 0.5 * b.whiteCoatDia
+        break
+      }
       const a = Math.max(1, Math.min(5, Math.round(s.acuity))) - 1
       const f = 0.55 + 0.45 * Math.exp(-Math.max(0, since) / 2400)
       hr += ACUITY_HR[a] * f

@@ -1,0 +1,503 @@
+{
+ "zone": "wardB",
+ "level": 1,
+ "levelY": 0,
+ "frame": "plan metres as drawn, y absolute",
+ "anchors": [
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -23.03,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -21.66,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    -21.2,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    -21.65,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -20.7347,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -24.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -18.03,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -16.66,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    -16.2,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    -16.65,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -15.7347,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -19.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -13.03,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -11.66,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    -11.2,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    -11.65,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "iv:hook0",
+   "p": [
+    -12.4793,
+    2.0,
+    17.0907
+   ],
+   "node": null
+  },
+  {
+   "name": "iv:hook1",
+   "p": [
+    -12.6207,
+    2.0,
+    17.0907
+   ],
+   "node": null
+  },
+  {
+   "name": "iv:hook2",
+   "p": [
+    -12.6207,
+    2.0,
+    16.9493
+   ],
+   "node": null
+  },
+  {
+   "name": "iv:hook3",
+   "p": [
+    -12.4793,
+    2.0,
+    16.9493
+   ],
+   "node": null
+  },
+  {
+   "name": "iv:pump",
+   "p": [
+    -12.55,
+    1.19,
+    17.217
+   ],
+   "node": null,
+   "w": 0.09,
+   "h": 0.07
+  },
+  {
+   "name": "seat",
+   "p": [
+    -10.7347,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -14.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    -8.03,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    -6.66,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    -6.2,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    -6.65,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -5.7347,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    -9.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    6.97,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    8.34,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    8.8,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    8.35,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    9.2653,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    6.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    11.97,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    13.34,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    13.8,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    13.35,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    14.2653,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    11.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    16.97,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    18.34,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    18.8,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    18.35,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    19.2653,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    16.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:monitorMount",
+   "p": [
+    21.97,
+    1.95,
+    16.1
+   ],
+   "node": null
+  },
+  {
+   "name": "headwall:o2",
+   "p": [
+    23.34,
+    1.53,
+    16.205
+   ],
+   "node": null
+  },
+  {
+   "name": "screen",
+   "p": [
+    23.8,
+    1.8548,
+    16.7807
+   ],
+   "node": null,
+   "w": 0.344,
+   "h": 0.237
+  },
+  {
+   "name": "table:top",
+   "p": [
+    23.35,
+    0.996,
+    17.7
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    24.2653,
+    0.47,
+    21.051
+   ],
+   "node": null
+  },
+  {
+   "name": "seat",
+   "p": [
+    21.0,
+    0.49,
+    20.6
+   ],
+   "node": null
+  }
+ ]
+}

@@ -27,7 +27,7 @@ import type { MealKind, RoomId, Vec2, WardId } from '../types'
 import { WARDS } from '../types'
 import { BotUnit, crowdOf, type BotEnv } from './bot'
 import { WardHost } from './host'
-import { MEAL_WINDOWS, STOPS_OF, clockHour, dishFor, liftBotSpot, liftHostSpot, simTimeOf, type MealWindow } from './plan'
+import { MEAL_WINDOWS, STOPS_OF, clockHour, dietSignFor, dishFor, isNilByMouthWardReason, liftBotSpot, liftHostSpot, simTimeOf, type MealWindow } from './plan'
 import { RoomMeals, holdsPatient, servableBed } from './rooms'
 import { Run, type RunMode, type RunServices } from './run'
 
@@ -123,11 +123,23 @@ export class Meals implements RunServices {
   // The patient's choice (for the bedside screen) and the room checks the runs use
   // ---------------------------------------------------------------------------------------------
 
-  /** The dish the patient in `roomId` chose for `meal` (null for an empty bed). */
+  /** The dish the patient in `roomId` chose for `meal` (null for an empty bed, and for a patient who is nil by mouth: F-29). */
   chosenDish(meal: MealKind, roomId: RoomId): Dish | null {
     const st = this.deps.life.rooms.get(roomId)
-    if (!st || st.patientId === null) return null
+    if (!st || st.patientId === null || isNilByMouthWardReason(st.patientReason)) return null
     return dishFor(this.seed, meal, st.patientId)
+  }
+
+  /** F-29: is the patient in `roomId` nil by mouth? No tray is served and the patient says so. */
+  nilByMouth(roomId: RoomId): boolean {
+    const st = this.deps.life.rooms.get(roomId)
+    return !!st && st.patientId !== null && isNilByMouthWardReason(st.patientReason)
+  }
+
+  /** F-29: the sign text for the bedside screen ("Nil by mouth"), or null when the patient may eat. */
+  dietSign(roomId: RoomId): string | null {
+    const st = this.deps.life.rooms.get(roomId)
+    return st && st.patientId !== null ? dietSignFor(st.patientReason) : null
   }
 
   /** The tray on a room's table, or null. */
@@ -144,6 +156,8 @@ export class Meals implements RunServices {
   servable(roomId: RoomId): boolean {
     const st = this.deps.life.rooms.get(roomId)
     if (!st || !servableBed(st.bed) || st.patientId === null || st.meal !== 'none') return false
+    // F-29: nil by mouth (a stroke work-up, a drowsy or vomiting patient, a possible hip fracture): the host passes the room, there is no tray
+    if (isNilByMouthWardReason(st.patientReason)) return false
     // a patient we can see who is not lying in the bed (away for a scan, up and about) gets no tray
     const p = this.patientOf(roomId)
     if (p) {

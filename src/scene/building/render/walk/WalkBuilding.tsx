@@ -26,6 +26,7 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BoxGeometry, Color, DynamicDrawUsage, Group, InstancedMesh, Mesh, PlaneGeometry, type BufferGeometry, type Material } from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { registerBlockers, type BlockerSource } from '@/scene/blockers'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { levelView } from '@/scene/levels/levelView'
@@ -37,7 +38,8 @@ import { CONFIG } from '@/sim/config'
 import { levelOf, type LevelId } from '@/sim/levels'
 import { getLayout } from '../../layout'
 import { BUILDING_MODEL_ON } from '../../model/flags'
-import { hidesWalkPart } from '../../model/region'
+import { registerCellObjects } from '../../model/cells'
+import { getCoverage, walkPartCell } from '../../model/region'
 import { buildWalkLayout, walkLayoutOfLevel, type WalkLayout } from '../../layout/walk'
 import { BUILDING_VISIBILITY_PRIORITY, level1WalkVisible, level2WalkVisible } from '../levelVisibility'
 import { BARS_PER_AUTO_LEAF, compileWalk, disposeWalk } from './walkGeometry'
@@ -105,15 +107,56 @@ function releaseShared(): void {
   }
 }
 
+/** One mesh per material of the geometries given (merged; the parts are disposed), or null when there are none. */
+function mergedOrNull(parts: (BufferGeometry | null)[]): BufferGeometry | null {
+  const list = parts.filter((g): g is BufferGeometry => g !== null)
+  if (list.length === 0) return null
+  const merged = list.length === 1 ? list[0].clone() : mergeGeometries(list)
+  for (const g of list) g.dispose()
+  return merged
+}
+
+/**
+ * `?building=model`: the walk parts of each zone cell (model/region.ts) compiled apart, one mesh per material per cell, named `...|cell=<id>`
+ * and registered with model/cells.ts, which shows them until the zone's model is drawn. The shared part leaves every cell's parts out.
+ */
+function buildCellMeshes(layout: WalkLayout, packed: PackedAtlas, mats: WalkMaterials): { cell: string; meshes: Mesh[] }[] {
+  const cov = getCoverage()
+  if (!cov) return []
+  const out: { cell: string; meshes: Mesh[] }[] = []
+  for (const cell of cov.cells) {
+    const part = compileWalk(layout, packed, (mat, x, z, part) => walkPartCell(mat, x, z, part) !== cell)
+    part.signs?.dispose() // the signs are the shared part's
+    const meshes: Mesh[] = []
+    const wall = mergedOrNull(part.chunks.map((c) => c.wall))
+    const frame = mergedOrNull(part.chunks.map((c) => c.frame))
+    const ceiling = mergedOrNull(part.chunks.map((c) => c.ceiling))
+    if (wall) meshes.push(mesh(wall, MAT.wall, `walk-wall|cell=${cell}`))
+    if (frame) meshes.push(mesh(frame, MAT.frame, `walk-frame|cell=${cell}`))
+    if (ceiling) meshes.push(mesh(ceiling, mats.ceiling, `walk-ceiling|cell=${cell}`))
+    if (part.glass) {
+      const glass = mesh(part.glass, MAT.glass, `walk-glazing|cell=${cell}`)
+      glass.renderOrder = 3
+      meshes.push(glass)
+    }
+    if (meshes.length) out.push({ cell, meshes })
+  }
+  return out
+}
+
 function buildWalkScene(level: LevelId) {
   const sh = acquireShared()
   const layout = walkLayoutOfLevel(sh.layout, level)
-  const compiled = compileWalk(layout, sh.packed, level === 1 && BUILDING_MODEL_ON ? hidesWalkPart : undefined)
+  const zoned = BUILDING_MODEL_ON && getCoverage() !== null
+  const compiled = compileWalk(layout, sh.packed, zoned ? (mat, x, z, part) => walkPartCell(mat, x, z, part) !== null : undefined)
   const mats = sh.mats
 
   const group = new Group()
   group.name = level === 1 ? 'walk-building' : 'walk-building-l2'
   group.visible = false
+
+  const cells = zoned ? buildCellMeshes(layout, sh.packed, mats) : []
+  for (const c of cells) group.add(...c.meshes)
 
   for (const ch of compiled.chunks) {
     if (ch.wall) group.add(mesh(ch.wall, MAT.wall, `walk-wall-${ch.index}`))
@@ -160,6 +203,7 @@ function buildWalkScene(level: LevelId) {
 
   const dispose = (): void => {
     disposeWalk(compiled)
+    for (const c of cells) for (const m of c.meshes) m.geometry.dispose()
     glassLeaves.dispose()
     bars.dispose()
     leaves.dispose()
@@ -167,7 +211,7 @@ function buildWalkScene(level: LevelId) {
   }
   // the leaves as solid boxes for your body (rewritten every frame in walk mode, count 0 in the overview)
   const blockers: BlockerSource = { name: level === 1 ? 'walk doors' : 'walk doors (level 2)', count: 0, data: new Float64Array(leafBlockerCount(doors) * 6) }
-  return { level, group, bank, doors, blockers, lead: newLead(), writeDoors, shared: sh, mats, dispose, pendingWrite: false, wasWalking: false }
+  return { level, group, bank, doors, blockers, lead: newLead(), writeDoors, shared: sh, mats, cells, dispose, pendingWrite: false, wasWalking: false }
 }
 
 export function WalkBuilding({ level = 1 }: { level?: LevelId }) {
@@ -193,6 +237,7 @@ export function WalkBuilding({ level = 1 }: { level?: LevelId }) {
       )
     }
     const offBlockers = registerBlockers(built.blockers)
+    for (const c of built.cells) offs.push(registerCellObjects(c.cell, c.meshes))
     return () => {
       if (modeSwitch.walk === built.group) modeSwitch.walk = null
       for (const off of offs) off()

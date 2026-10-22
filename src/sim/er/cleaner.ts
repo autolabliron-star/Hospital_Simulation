@@ -7,6 +7,7 @@
  * pushes the cart into the room, cleans beside the bed for 6-9 minutes (the porter brings fresh linen meanwhile) and the
  * bed is ready. One cleaner at a time takes a room, so the other is always free for an ER bay.
  */
+import { erLine } from '@/content/erEvents'
 import type { StaffMember } from '@/content/staff'
 import { CONFIG } from '../config'
 import { bedsideSpot } from '../beds/spots'
@@ -128,7 +129,7 @@ export class Cleaner extends Actor {
         if (this.timer <= 0) {
           const bay = this.bay!
           this.world.er.finishClean(bay, this.world.t)
-          this.world.say('bayCleaned', `ER bay ${bay.index + 1} is clean and ready.`, { actorId: this.staff.id })
+          this.world.say('bayCleaned', erLine('cleaner.bayCleaned', { bay: bay.index + 1 }), { actorId: this.staff.id })
           this.bay = null
           this.entity.anim = 'idle'
           this.timer = 1

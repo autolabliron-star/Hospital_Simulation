@@ -139,8 +139,29 @@ export const BLOOM = { intensity: 0.45, threshold: 1.0 } as const
  *   grade       the colour-grade LUT's opacity is multiplied by this (0: off, the picture is what the tone mapper makes it)
  *   vignette    the vignette's darkness is multiplied by this (a light vignette: 0.12 of darkness at full walk look)
  *   bloom       intensity and threshold, above
+ *   agx         how far the tone mapper moves from three's AgX to Blender's (PRESENT_EXPOSURE, below)
  */
-export const PRESENT_LOOK = { grade: 0, vignette: 0.5, bloomIntensity: 0.2, bloomThreshold: 1.35, seconds: 0.6 } as const
+export const PRESENT_LOOK = { grade: 0, vignette: 0.5, bloomIntensity: 0.2, bloomThreshold: 1.35, agx: 1, seconds: 0.6 } as const
+
+/**
+ * Presentation mode's tone mapping (C; `TONE_MAP` 'agx' only): Blender's own AgX image (view "AgX", look "AgX - Base Contrast", the review stills'
+ * transform) from a LUT sampled out of Blender (src/scene/lighting/agxBlenderLut.ts, src/scene/lighting/presentToneMapping.ts), blended in by
+ * `PRESENT_LOOK.agx` (1 = all Blender, 0 = three's AgX as in the game), at this tone-mapping exposure.
+ *
+ * TUNING KNOB `PRESENT_EXPOSURE`: derived, not eyeballed. The stills are rendered at +1.2 EV over the scene's radiance, and the game's baked
+ * lobby IS that radiance: a lightmapped surface is lightMap x (lightmapScale x PI) x albedo / PI = the bake's radiance x albedo
+ * (src/scene/building/model/lightmaps.ts), and the reflection probe is the same Blender scene's radiance. So 2^1.2 = 2.297 puts the lobby's
+ * greys and whites where the stills have them: Blender's AgX maps scene 0.18 to display 0.46 at exposure 1, so at 2.3 a mid-grey surface (0.18)
+ * reads 0.63, a white wall in light (0.7) 0.83, a lit white desk (1.4) 0.90. People and live objects (lit by the live lights and the probe, not
+ * the bake) come out about 0.08 brighter in the mid-tones than in the walk look (three's AgX at 1.31 puts 0.18 at 0.55). Raise it if the lobby
+ * reads darker than lobby-blender-*.jpg, lower it if the people look washed out; the walk and overview are untouched either way.
+ */
+export const PRESENT_EXPOSURE = 2.3
+
+/** The Blender image's exposure as a multiple of the renderer's (the walk look's exposure x TONE_EXPOSURE_SCALE), so presenting lands on PRESENT_EXPOSURE. */
+export function presentExposureGain(): number {
+  return PRESENT_EXPOSURE / (LOOK_WALK.exposure * TONE_EXPOSURE_SCALE)
+}
 
 /** The vignette's offset (constant; only the darkness moves). With darkness 0 the vignette is exactly the identity at any offset up to 1. */
 export const VIGNETTE_OFFSET = 0.5

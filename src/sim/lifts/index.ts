@@ -78,14 +78,23 @@ class Car {
   }
 }
 
+/** How many trips `LiftBank.history` keeps (a day makes well under this; older ones are folded into counters). */
+export const HISTORY_CAP = 200
+
 export class LiftBank implements LiftsPort, TripHost {
   readonly state: LiftsState
   readonly gates: LobbyGate[]
   readonly cars: Car[] = []
   /** Trips that are not yet released (queued, walking, riding, or holding their arrival slots). */
   readonly trips: LiftTrip[] = []
-  /** Every trip ever made, in order (the tests read waits and times from here). */
+  /**
+   * The latest trips made, in order (the tests read waits and times from here). Capped at HISTORY_CAP (F-17): each trip holds
+   * references to its people, so an unbounded list would keep every ride of every Jump alive. Older finished trips are folded into
+   * `servedBefore` and `longestWaitBefore`, which `served` and `longestWait` add back.
+   */
   readonly history: LiftTrip[] = []
+  private servedBefore = 0
+  private longestWaitBefore = 0
   t = 0
   /** Safety nets that fired (a bug if not zero) and what they were. */
   stuckFixes = 0
@@ -145,7 +154,29 @@ export class LiftBank implements LiftsPort, TripHost {
     const trip = new LiftTrip(this.tripSeq++, spec, this.t)
     this.trips.push(trip)
     this.history.push(trip)
+    this.trimHistory()
     return trip
+  }
+
+  /** Drop the oldest finished trips beyond the cap, keeping their numbers (a trip still under way is never dropped). */
+  private trimHistory(): void {
+    const h = this.history
+    let excess = h.length - HISTORY_CAP
+    if (excess <= 0) return
+    let keep = 0
+    for (let i = 0; i < h.length; i++) {
+      const t = h[i]
+      if (excess > 0 && t.done) {
+        excess--
+        if (!t.ghost && !Number.isNaN(t.arrivedAt)) {
+          this.servedBefore++
+          this.longestWaitBefore = Math.max(this.longestWaitBefore, t.arrivedAt - t.requestedAt)
+        }
+        continue
+      }
+      h[keep++] = t
+    }
+    h.length = keep
   }
 
   stuck(msg: string): void {
@@ -351,13 +382,13 @@ export class LiftBank implements LiftsPort, TripHost {
 
   /** Trips that reached their destination, and the longest time from asking to arriving (s). */
   get served(): number {
-    let n = 0
+    let n = this.servedBefore
     for (const t of this.history) if (!t.ghost && !Number.isNaN(t.arrivedAt)) n++
     return n
   }
 
   get longestWait(): number {
-    let m = 0
+    let m = this.longestWaitBefore
     for (const t of this.history) if (!t.ghost && !Number.isNaN(t.arrivedAt)) m = Math.max(m, t.arrivedAt - t.requestedAt)
     return m
   }

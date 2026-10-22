@@ -160,6 +160,8 @@ export function buildPatientRoom(b: LayoutBuilder, room: RoomSpec): void {
   bedSeat(f, room, bu, bv)
   overBedTable(f, id, bu, bv)
   headwall(f, bu)
+  // overhead (no collision): lets an authored ward zone replace the procedural headwall (REPLACES footprint:A* / B*)
+  f.rect(`${id}:headwall`, bu, 0.17, 1.1, 0.12, { overhead: true })
   bedsideScreen(f, id, bu)
   ceilingSensor(f, id, bu, bv)
   visitorChair(f, id, room, chairL.lx, chairL.lz, bu, bv)

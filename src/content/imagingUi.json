@@ -20,7 +20,8 @@
       "kidneyR": "RT KIDNEY  LONG",
       "kidneyL": "LT KIDNEY  LONG",
       "spleen": "SPLEEN  LONG",
-      "bladder": "BLADDER  TRANS"
+      "bladder": "BLADDER  TRANS",
+      "pancreas": "PANCREAS  TRANS"
     }
   },
   "image": "Im {n}/{total}",

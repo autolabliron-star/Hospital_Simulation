@@ -45,6 +45,7 @@ const primExtent = (p: Prim) => {
 const nearest = (x: number, z: number): { id: string; d: number } => {
   let best = { id: '', d: Infinity }
   for (const f of upperFootprints) {
+    if (f.overhead) continue // walked under (rails, rug markers): never an obstacle for a spot on the floor
     const d = footprintDistance(f, x, z)
     if (d < best.d) best = { id: f.id, d }
   }

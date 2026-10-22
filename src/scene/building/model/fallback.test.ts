@@ -1,11 +1,13 @@
 /**
  * F-45 / F-46: `?building=model` must never leave the lobby without walls, and must not compile the model on the first lobby frame.
- * The order of the describes matters: the last one re-opens the procedural region for good (module state), as it does on the page.
+ * The pilot's prims live in their own cell meshes (./region.ts, ./cells.ts): drawn until the pilot is, kept when it fails.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Texture, type WebGLRenderer } from 'three'
+import { compileLayout } from '../render/compile'
+import { bindCellsUnder, cellOfName, resetCells, setCellReplaced } from './cells'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { clearWarmGates, clearWarmSources, warmGatesPending, warmSourceNames } from '@/scene/warmup/registry'
@@ -13,7 +15,7 @@ import { buildLayout } from '../layout'
 import { lightmapNameOf } from './lightmaps'
 import { ensurePilotModel, loadPilotModel, notifyModelCommitted, resetPilotModelForTests, type PilotLoaders } from './loader'
 import { getModelStatus, resetModelStatus } from './modelStatus'
-import { hidesPrim, hidesWalkPart } from './region'
+import { PILOT_CELL, hidesPrim, hidesWalkPart, pilotCoverage, primCell, setCoverage, walkPartCell } from './region'
 
 const DIR = join(process.cwd(), 'public/assets/building')
 const GLB = join(DIR, 'pilot-lobby.glb')
@@ -124,20 +126,32 @@ describe('the warm-up gate waits for the commit (F-46)', () => {
 describe('a failed model leaves the procedural region visible (F-45)', () => {
   const layout = buildLayout()
   const lobbyFloor = layout.prims.find((p) => p.shape === 'plane' && p.position[1] <= 0.01 && Math.hypot(p.position[0] + 53, p.position[2]) <= 0.01)
-  const hiddenCount = () => layout.prims.filter((p) => hidesPrim(p.mat, p.position[0], p.position[2])).length
 
   beforeEach(() => {
     clearWarmGates()
     clearWarmSources()
     resetPilotModelForTests()
     resetModelStatus()
+    resetCells()
+    setCoverage(pilotCoverage())
+  })
+  afterEach(() => {
+    setCoverage(null)
+    resetCells()
   })
 
-  it('hides the region while the model is expected, and shows every prim again once it failed, with one warning', async () => {
+  it('compiles the pilot region into its own cell meshes, drawn until the pilot is, and kept drawn when it fails, with one warning', async () => {
     expect(lobbyFloor).toBeDefined()
-    expect(hidesPrim(lobbyFloor!.mat, lobbyFloor!.position[0], lobbyFloor!.position[2])).toBe(true)
-    expect(hiddenCount()).toBeGreaterThan(20)
-    expect(hidesWalkPart('ceiling', -53, 0)).toBe(true)
+    expect(primCell(lobbyFloor!.mat, lobbyFloor!.position[0], lobbyFloor!.position[2])).toBe(PILOT_CELL)
+    const compiled = compileLayout(layout, 1, (p) => primCell(p.mat, p.position[0], p.position[2]))
+    const cellMeshes = compiled.merged.filter((m) => cellOfName(m.key) === PILOT_CELL).map((m) => new Mesh(m.geometry))
+    expect(cellMeshes.length).toBeGreaterThan(3)
+    const root = new Group()
+    root.add(...cellMeshes.map((m, i) => Object.assign(m, { name: compiled.merged.filter((x) => cellOfName(x.key) === PILOT_CELL)[i].key })))
+    bindCellsUnder(root)
+    // while the model loads, the procedural lobby is drawn (no hole behind the loading screen or after it)
+    expect(cellMeshes.every((m) => m.visible)).toBe(true)
+    expect(hidesPrim(lobbyFloor!.mat, lobbyFloor!.position[0], lobbyFloor!.position[2])).toBe(false)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const seen: string[] = []
     const { subscribeModelStatus } = await import('./modelStatus')
@@ -146,8 +160,9 @@ describe('a failed model leaves the procedural region visible (F-45)', () => {
     expect(m).toBeNull()
     expect(getModelStatus()).toBe('failed')
     expect(seen).toContain('failed')
-    expect(hiddenCount()).toBe(0)
+    expect(cellMeshes.every((x) => x.visible)).toBe(true)
     // walk mode too: the lobby keeps its procedural ceilings and upper walls
+    expect(walkPartCell('ceiling', -53, 0)).toBe(PILOT_CELL)
     expect(hidesWalkPart('ceiling', -53, 0)).toBe(false)
     expect(hidesWalkPart('wall', -62, 3)).toBe(false)
     expect(warn).toHaveBeenCalledTimes(1)
@@ -160,5 +175,20 @@ describe('a failed model leaves the procedural region visible (F-45)', () => {
     await Promise.resolve()
     await Promise.resolve()
     expect(warmGatesPending()).toBe(0)
+  })
+
+  it('hides the cell in one call once the pilot is drawn, and shows it again if the pilot goes', () => {
+    const compiled = compileLayout(layout, 1, (p) => primCell(p.mat, p.position[0], p.position[2]))
+    const root = new Group()
+    for (const mm of compiled.merged) root.add(Object.assign(new Mesh(mm.geometry), { name: mm.key }))
+    bindCellsUnder(root)
+    const cell = root.children.filter((o) => cellOfName(o.name) === PILOT_CELL)
+    const rest = root.children.filter((o) => cellOfName(o.name) === null)
+    setCellReplaced(PILOT_CELL, true)
+    expect(cell.every((o) => !o.visible)).toBe(true)
+    expect(rest.every((o) => o.visible)).toBe(true)
+    expect(hidesWalkPart('ceiling', -53, 0)).toBe(true)
+    setCellReplaced(PILOT_CELL, false)
+    expect(cell.every((o) => o.visible)).toBe(true)
   })
 })

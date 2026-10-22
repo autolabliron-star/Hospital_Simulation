@@ -37,6 +37,9 @@ export interface Profile {
   whiteCoatDia: number
   /** The content panel the ER reason maps to (its shifts were applied), or null. */
   panel: string | null
+  /** F-24: true when the ER reason has its own vitals shifts (erVitals.json, already in the values above), and the respiratory-rate shift (breaths a minute) the bedside monitor adds. */
+  reasoned: boolean
+  rrShift: number
 }
 
 /** What the caller knows about the person. Anything missing is drawn from the seeded profile stream. */
@@ -98,7 +101,8 @@ export function profileFor(id: string, name: string, hint: ProfileHint, rng: Rng
   let tempC = pairDraw(r, base.tempC, L.tempC[0], L.tempC[1])
   const panel = hint.panel ?? (hint.reason ? erPanelFor(hint.reason) : null)
   // F-24: every acute reason has its own vitals shift (erVitals.json); the lab panel's shift is the fallback for a panel given without a reason
-  const shift = (hint.reason ? erVitalsShiftFor(hint.reason) : null) ?? (panel ? LAB_CATALOGUE.panelShifts[panel] : undefined)
+  const reasonShift = hint.reason ? erVitalsShiftFor(hint.reason) : null
+  const shift = reasonShift ?? (panel ? LAB_CATALOGUE.panelShifts[panel] : undefined)
   if (shift) {
     sys = clamp(sys + (shift.sys ?? 0), L.sys[0], L.sys[1])
     dia = clamp(dia + (shift.dia ?? 0), L.dia[0], L.dia[1])
@@ -124,6 +128,8 @@ export function profileFor(id: string, name: string, hint: ProfileHint, rng: Rng
     whiteCoatSys,
     whiteCoatDia: whiteCoatSys * CONFIG.vitals.whiteCoatDiaShare,
     panel,
+    reasoned: reasonShift !== null,
+    rrShift: reasonShift?.rr ?? 0,
   }
 }
 

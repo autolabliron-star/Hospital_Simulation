@@ -1,0 +1,12 @@
+{
+  "reception": "reception",
+  "triage": "triage",
+  "erDoctor": "the ER",
+  "erNurse": "the ER",
+  "porter": "transport",
+  "cleaner": "housekeeping",
+  "imaging": "imaging",
+  "command": "the command centre",
+  "wardNurse": "the ward",
+  "wardDoctor": "the wards"
+}

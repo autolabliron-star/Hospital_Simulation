@@ -3,7 +3,8 @@
  * `userData`); the lightmap UVs are the mesh's second set (TEXCOORD_1, `uv1`), so the texture's `channel` is 1. Pure over a resolver, so node can test it
  * without any decoder.
  */
-import { Material, Mesh, MeshStandardMaterial, SRGBColorSpace, type Object3D, type Texture } from 'three'
+import { Material, Mesh, MeshStandardMaterial, SRGBColorSpace, ShaderChunk, type Object3D, type Texture } from 'three'
+import { IBL_RADIANCE_BOX_CALL, IBL_RADIANCE_CALL, isReflectiveFloor, patchBoxProjection } from './reflections'
 
 /** Read the lightmap file a node names, or null. */
 export function lightmapNameOf(o: Object3D): string | null {
@@ -24,20 +25,35 @@ export function lightmapIntensityOf(o: Object3D): number {
  * The baked look: a lightmapped surface already holds the sun, the sky, the ceiling panels and the bounce light, so the live lights must not
  * add theirs on top (the old double lighting). Diffuse becomes albedo x lightmap only (direct lights and the hemisphere/ambient/probe
  * irradiance are dropped, and so is the environment's diffuse term); the environment's specular stays, so floors and glass still reflect.
+ *
+ * (Presentation) the environment's specular is also box-projected onto the lobby and read at the probe's true brightness while presenting
+ * (./reflections.ts): uniforms only, compiled in from the start, so the cache key carries `|box` (and `|floor` for the reflective floors, which
+ * also read the roughness multiplier).
  */
 export const BAKED_LOOK_KEY = 'baked-look'
+/** `lights_fragment_maps` with the IBL radiance call swapped for the box-projected one. */
+const LIGHTS_MAPS_BOX = ShaderChunk.lights_fragment_maps.replace(IBL_RADIANCE_CALL, IBL_RADIANCE_BOX_CALL)
 const BAKED_FRAGMENT = `
 reflectedLight.directDiffuse = vec3( 0.0 );
 reflectedLight.directSpecular = vec3( 0.0 );
 irradiance = vec3( 0.0 );
-#include <lights_fragment_maps>
+${LIGHTS_MAPS_BOX}
 iblIrradiance = vec3( 0.0 );
 `
 
-const bakeShader = (shader: { fragmentShader: string }): void => {
-  shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_maps>', BAKED_FRAGMENT)
+/** The program cache key of a baked material: one program for the floors, one for the rest (per three's own parameters). */
+export function bakedLookKey(m: Material): string {
+  return `${BAKED_LOOK_KEY}|box${isReflectiveFloor(m) ? '|floor' : ''}`
 }
-const bakedKey = (): string => BAKED_LOOK_KEY
+
+// `function`, not an arrow: three calls both as methods of the material, which is how they tell a floor from a wall
+function bakeShader(this: Material, shader: { uniforms: Record<string, unknown>; vertexShader: string; fragmentShader: string }): void {
+  shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_maps>', BAKED_FRAGMENT)
+  patchBoxProjection(shader, isReflectiveFloor(this))
+}
+function bakedKey(this: Material): string {
+  return bakedLookKey(this)
+}
 
 /** Idempotent per instance (a clone does not carry the hooks over, so it is patched again). */
 export function applyBakedLook(m: MeshStandardMaterial): void {

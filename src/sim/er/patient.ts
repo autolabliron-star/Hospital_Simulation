@@ -7,6 +7,7 @@
  */
 import { staffName } from '@/content/staff'
 import { admitChanceFor } from '@/content/admissions'
+import { erLine, ER_EVENTS, joinCareItems } from '@/content/erEvents'
 import { hasTests, protocolById, testForReason, type ErTest } from '@/content/imaging'
 import { CONFIG } from '../config'
 import type { BedAssignment } from '../beds/board'
@@ -194,7 +195,15 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
     const scan = test.imaging !== null && init.world.imaging !== null
     this.protocolId = scan ? test.imaging : null
     this.testBloods = test.bloods
-    this.bundle = { chance: test.chance, bloods: test.bloods !== null, ecg: test.ecg, imaging: scan }
+    this.bundle = {
+      chance: test.chance,
+      bloods: test.bloods !== null,
+      ecg: test.ecg,
+      imaging: scan,
+      // F-27: a CT for a stroke, collapse or fit is ordered early for priority 1-2; a chest pain gets its ECG at triage (an ambulance crew has done its own)
+      imagingEarly: scan && protocolById(test.imaging!).modality === 'ct',
+      triageEcg: test.triageEcg === true && !init.ambulance,
+    }
     this.testKind = scan ? 'imaging' : hasTests(test) && test.chance > 0 ? 'blood' : 'none'
     this.c = newCase({
       id: init.id,
@@ -244,11 +253,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
     if (state.startsWith('tests.') || state === 'inBay.waitingCare' || state === 'inBay.care' || state === 'decision') c.doctorId = null
     switch (state) {
       case 'arriving':
-        w.say(
-          'patientArrived',
-          c.ambulance ? `Ambulance arrival: ${c.name}, ${lcFirst(c.reason)}.` : `${c.name} arrived at the ER: ${lcFirst(c.reason)}.`,
-          { subjectId: c.id },
-        )
+        w.say('patientArrived', erLine(c.ambulance ? 'patient.ambulanceArrived' : 'patient.arrived', { patient: c.name, reason: lcFirst(c.reason) }), { subjectId: c.id })
         break
       case 'checkIn.queueing':
         this.entity.mood = 'waiting'
@@ -259,7 +264,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
         break
       case 'waitingTriage':
         this.leaveQueue()
-        w.say('checkedIn', `${c.name} checked in at the ${this.queueKey === 'reception' ? 'reception desk' : 'kiosk'}.`, { subjectId: c.id })
+        w.say('checkedIn', erLine(this.queueKey === 'reception' ? 'patient.checkedInDesk' : 'patient.checkedInKiosk', { patient: c.name }), { subjectId: c.id })
         this.entity.mood = 'waiting'
         this.showEmote('hourglass', w.t)
         // S1 warm start: already seated where they wait, and no kiosk detour for somebody who has been here a while
@@ -286,10 +291,10 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
           c.from = this.pos
         } else if (c.critical) {
           // priority 1-2 walk-in: no triage queue; they sit in the ER rows (the `think` loop makes them ready) until a bay is theirs
-          w.say('triaged', `${c.name} is very unwell: priority ${c.acuity}, straight to a bay.`, { subjectId: c.id })
+          w.say('triaged', erLine('patient.triagedCritical', { patient: c.name, priority: c.acuity }), { subjectId: c.id })
           if (!this.warmed) this.seekSeat('er')
         } else {
-          w.say('triaged', `${staffName(c.nurseId ?? 'nurse-T1')} triaged ${c.name}: priority ${c.acuity}.`, {
+          w.say('triaged', erLine('patient.triaged', { nurse: staffName(c.nurseId ?? 'nurse-T1'), patient: c.name, priority: c.acuity }), {
             subjectId: c.id,
             actorId: c.nurseId ?? undefined,
           })
@@ -312,17 +317,19 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
       case 'inBay.care': {
         const nurse = staffName(c.careBy ?? 'nurse-ER1')
         // F-26: a cannula only when the visit needs one (bloods, a scan with contrast) or the patient is priority 1-3; a cold or a cut finger gets observations
-        const parts = ['observations']
-        if (ctx.needsBloods || ctx.needsImaging || c.acuity <= 3) parts.push('a cannula')
-        if (ctx.needsEcg) parts.push('an ECG')
-        if (ctx.needsBloods) parts.push('bloods')
-        w.say('testsOrdered', `${nurse} is taking ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')} from ${c.name} in ER bay ${c.bay + 1}.`, {
+        const parts: string[] = [ER_EVENTS.careItems.observations]
+        if (ctx.needsBloods || ctx.needsImaging || c.acuity <= 3) parts.push(ER_EVENTS.careItems.cannula)
+        // F-27: the ECG was already recorded at triage or in the waiting area: not done twice
+        const ecgNow = ctx.needsEcg && !ctx.ecgDone
+        if (ecgNow) parts.push(ER_EVENTS.careItems.ecg)
+        if (ctx.needsBloods) parts.push(ER_EVENTS.careItems.bloods)
+        w.say('testsOrdered', erLine('patient.care', { nurse, items: joinCareItems(parts), patient: c.name, bay: c.bay + 1 }), {
           subjectId: c.id,
           actorId: c.careBy ?? undefined,
         })
         // a priority 1-2 walk-in is triaged in the bay by the same nurse
         if (c.critical) w.vitals?.recordTriage(c.id, c.name, c.careBy ?? 'nurse-ER1')
-        this.showEmote(ctx.needsEcg ? 'scan' : 'none', w.t)
+        this.showEmote(ecgNow ? 'scan' : 'none', w.t)
         break
       }
       case 'inBay.waitingExam':
@@ -332,7 +339,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
         if (ctx.needsBloods) this.drawBedsideBloods()
         break
       case 'inBay.exam':
-        w.say('seenByDoctor', `${staffName(c.doctorId ?? 'doc-ER1')} is seeing ${c.name} in ER bay ${c.bay + 1}.`, {
+        w.say('seenByDoctor', erLine('patient.seenByDoctor', { doctor: staffName(c.doctorId ?? 'doc-ER1'), patient: c.name, bay: c.bay + 1 }), {
           subjectId: c.id,
           actorId: c.doctorId ?? undefined,
         })
@@ -340,10 +347,10 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
         break
       case 'inBay.waitingReview':
         this.showEmote('bed', w.t)
-        w.say('resultsBack', `${c.name}'s results are back.`, { subjectId: c.id })
+        w.say('resultsBack', erLine('patient.resultsBack', { patient: c.name }), { subjectId: c.id })
         break
       case 'inBay.review':
-        w.say('seenByDoctor', `${staffName(c.doctorId ?? 'doc-ER1')} is going over the results with ${c.name}.`, {
+        w.say('seenByDoctor', erLine('patient.review', { doctor: staffName(c.doctorId ?? 'doc-ER1'), patient: c.name }), {
           subjectId: c.id,
           actorId: c.doctorId ?? undefined,
         })
@@ -352,10 +359,19 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
       case 'tests.waitingPorter': {
         // only the scan takes the patient out of the bay (the bloods were drawn at the bedside)
         const proto = protocolById(this.protocolId!)
-        w.say('testsOrdered', `${staffName(c.doctorId ?? 'doc-ER1')} ordered the ${proto.name} for ${c.name}.`, {
-          subjectId: c.id,
-          actorId: c.doctorId ?? undefined,
-        })
+        if (ctx.earlyScan) {
+          // F-27: ordered by the nurse as the care step ends, before the doctor has seen the patient; the bloods she drew go to the tube too
+          w.say('testsOrdered', erLine('patient.scanOrderedEarly', { nurse: staffName(c.careBy ?? 'nurse-ER1'), scan: proto.name, patient: c.name, priority: c.acuity }), {
+            subjectId: c.id,
+            actorId: c.careBy ?? undefined,
+          })
+          if (ctx.needsBloods) this.drawBedsideBloods()
+        } else {
+          w.say('testsOrdered', erLine('patient.scanOrdered', { doctor: staffName(c.doctorId ?? 'doc-ER1'), scan: proto.name, patient: c.name }), {
+            subjectId: c.id,
+            actorId: c.doctorId ?? undefined,
+          })
+        }
         this.booking = w.imaging!.requestErExam(this, proto.id)
         this.showEmote('hourglass', w.t)
         break
@@ -380,7 +396,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
         break
       case 'leaving.home': {
         const mins = Math.max(1, Math.round((w.t - c.arrivedAt) / 60))
-        w.say('discharged', `${c.name} was discharged home after ${mins} min.`, { subjectId: c.id })
+        w.say('discharged', erLine('patient.discharged', { patient: c.name, minutes: mins }), { subjectId: c.id })
         w.er.finish(c, 'discharged', w.t)
         this.outcome = 'discharged'
         this.entity.mood = 'happy'
@@ -391,7 +407,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
       }
       case 'leaving.lwbs': {
         const mins = Math.max(1, Math.round((w.t - c.arrivedAt) / 60))
-        w.say('leftWithoutBeingSeen', `${c.name} left without being seen after ${mins} min.`, { subjectId: c.id })
+        w.say('leftWithoutBeingSeen', erLine('patient.leftWithoutBeingSeen', { patient: c.name, minutes: mins }), { subjectId: c.id })
         w.er.finish(c, 'lwbs', w.t)
         this.outcome = 'lwbs'
         this.entity.mood = 'unwell'
@@ -405,11 +421,11 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
         // the bed manager looks for a ward bed; with none (or no bed board) the patient goes upstairs as in M3
         this.bed = w.beds !== null && c.bay >= 0 ? w.beds.requestBed(c.id, c.name, c.bay, w.t) : null
         if (this.bed) {
-          w.say('admitted', `${c.name} was admitted to ward ${roomById(this.bed.roomId).ward}, room ${this.bed.roomId}.`, { subjectId: c.id, roomId: this.bed.roomId })
+          w.say('admitted', erLine('patient.admittedRoom', { patient: c.name, ward: roomById(this.bed.roomId).ward, room: this.bed.roomId }), { subjectId: c.id, roomId: this.bed.roomId })
           // already in a gown on the trolley: no change of clothes when they reach the bed
           this.entity.outfit = 'gown'
         } else {
-          w.say('admitted', `${c.name} was admitted to a ward upstairs.`, { subjectId: c.id })
+          w.say('admitted', erLine('patient.admittedUpstairs', { patient: c.name }), { subjectId: c.id })
         }
         w.er.finish(c, 'admitted', w.t)
         this.outcome = 'admitted'
@@ -424,6 +440,13 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
       case 'gone':
         break
     }
+  }
+
+  /** F-27 (host): the triage nurse has recorded the ECG of a chest pain, at triage or in the waiting area. */
+  triageEcg(_ctx: PathwayContext): void {
+    const w = this.world
+    this.world.say('testsOrdered', erLine('patient.triageEcg', { patient: this.c.name }), { subjectId: this.c.id })
+    this.showEmote('scan', w.t, 8)
   }
 
   // --- called by the world, staff and porters ------------------------------------------------------------
@@ -522,7 +545,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
     if (this.tubesSent || this.bloodOrder === null) return
     this.tubesSent = true
     this.world.bedside.send(this.bloodOrder)
-    this.world.say('samplesSent', `${this.c.name}'s bloods are on their way to the lab by pneumatic tube.`, { subjectId: this.c.id })
+    this.world.say('samplesSent', erLine('patient.tubesSent', { patient: this.c.name }), { subjectId: this.c.id })
   }
 
   /** The lab verified every test of the bedside bloods. */

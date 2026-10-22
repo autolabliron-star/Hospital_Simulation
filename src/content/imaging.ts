@@ -31,6 +31,8 @@ export interface ErTest {
   bloods: string | null
   ecg: boolean
   imaging: string | null
+  /** F-27: a chest pain gets its ECG at triage (or in the waiting area), not only at the bay: the nurse records it within minutes of arrival. */
+  triageEcg?: boolean
 }
 
 /** Does the bundle hold any test at all? */
@@ -130,12 +132,14 @@ const ErTestInput = z.strictObject({
   bloods: z.string().min(1).nullable().default(null),
   ecg: z.boolean().default(false),
   imaging: z.string().min(1).nullable().default(null),
+  triageEcg: z.boolean().optional(),
 })
 
 export const ErTestSchema: z.ZodType<ErTest, z.input<typeof ErTestInput>> = ErTestInput.superRefine((t, ctx) => {
   if (t.redFlag && t.chance !== 1) ctx.addIssue({ code: 'custom', message: 'a red flag always gets its tests (chance 1)' })
   if (t.redFlag && !(t.bloods !== null || t.ecg || t.imaging !== null)) ctx.addIssue({ code: 'custom', message: 'a red flag has at least one test' })
   if (t.chance > 0 && !(t.bloods !== null || t.ecg || t.imaging !== null)) ctx.addIssue({ code: 'custom', message: 'a chance above 0 needs a test' })
+  if (t.triageEcg === true && !(t.ecg && t.chance === 1)) ctx.addIssue({ code: 'custom', message: 'an ECG at triage needs the ECG test, and chance 1' })
 })
 
 export const OutpatientSchema: z.ZodType<Outpatient> = z.strictObject({

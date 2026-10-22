@@ -1,0 +1,1061 @@
+{
+ "version": 1,
+ "generatedBy": "tools/arch/optimize.mjs",
+ "frame": "plan metres AS DRAWN: x east, z south, y up; level 2 stands over the west block at y = 4.2 (its sim x = drawn x + 150)",
+ "budgets": {
+  "perZone": {
+   "draws": 40,
+   "tris": 200000,
+   "lightmapMB": 16
+  },
+  "sharedMaterialTexturesMB": 48
+ },
+ "zones": [
+  {
+   "id": "lobby",
+   "level": 1,
+   "label": "Entrance, lobby and spine",
+   "status": "designed",
+   "quality": "final",
+   "glb": "zones/lobby/lobby.glb",
+   "lightmaps": [
+    "zones/lobby/lm_Accent.ktx2",
+    "zones/lobby/lm_AcousticTile.ktx2",
+    "zones/lobby/lm_CeilingGrid.ktx2",
+    "zones/lobby/lm_CeilingPlaster.ktx2",
+    "zones/lobby/lm_Concrete.ktx2",
+    "zones/lobby/lm_DoorFrame.ktx2",
+    "zones/lobby/lm_Fabric.ktx2",
+    "zones/lobby/lm_FabricAccent.ktx2",
+    "zones/lobby/lm_Leaf.ktx2",
+    "zones/lobby/lm_Matting.ktx2",
+    "zones/lobby/lm_Mullion.ktx2",
+    "zones/lobby/lm_Oak.ktx2",
+    "zones/lobby/lm_Paving.ktx2",
+    "zones/lobby/lm_ShadowGap.ktx2",
+    "zones/lobby/lm_SheetVinyl.ktx2",
+    "zones/lobby/lm_Soil.ktx2",
+    "zones/lobby/lm_SolidSurface.ktx2",
+    "zones/lobby/lm_Steel.ktx2",
+    "zones/lobby/lm_Terrazzo.ktx2",
+    "zones/lobby/lm_WallClinical.ktx2",
+    "zones/lobby/lm_WallPaint.ktx2"
+   ],
+   "materials": [
+    "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+    "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/FabricAccent_diff-ae32f837-etc1s.ktx2",
+    "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
+    "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+    "materials/Matting_diff-5cc1b8a3-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/Paving_diff-cb8424a9-etc1s.ktx2",
+    "materials/Terrazzo_arm-738c0309-linear.ktx2",
+    "materials/Terrazzo_diff-601c8c77-etc1s.ktx2",
+    "materials/Terrazzo_nor-28d59e30-linear.ktx2",
+    "materials/set_speckle_diff-6aa27c00-etc1s.ktx2"
+   ],
+   "bounds": {
+    "x0": -76.5,
+    "x1": -39.884,
+    "z0": -24.5,
+    "z1": 24.5,
+    "y0": -0.06,
+    "y1": 3.32
+   },
+   "draws": 24,
+   "tris": 27982,
+   "lightmapMB": 15.44,
+   "probe": "zones/lobby/env_lobby.hdr",
+   "probeAt": [
+    -53,
+    1.6,
+    0
+   ],
+   "nodes": [],
+   "bakeSeconds": 799,
+   "bakedAt": "2026-10-22T14:17:26.954Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 43
+   },
+   "withinBudget": true
+  },
+  {
+   "id": "er",
+   "level": 1,
+   "label": "Triage and emergency department",
+   "status": "todo",
+   "quality": "final",
+   "glb": "zones/er/er.glb",
+   "lightmaps": [
+    "zones/er/lm_Accent.ktx2",
+    "zones/er/lm_AcousticTile.ktx2",
+    "zones/er/lm_CeilingGrid.ktx2",
+    "zones/er/lm_CeilingPlaster.ktx2",
+    "zones/er/lm_CrashRail.ktx2",
+    "zones/er/lm_Curtain.ktx2",
+    "zones/er/lm_DoorFrame.ktx2",
+    "zones/er/lm_KitPlastic.ktx2",
+    "zones/er/lm_Linen.ktx2",
+    "zones/er/lm_Mullion.ktx2",
+    "zones/er/lm_Oak.ktx2",
+    "zones/er/lm_PowderWhite.ktx2",
+    "zones/er/lm_Rubber.ktx2",
+    "zones/er/lm_Screen.ktx2",
+    "zones/er/lm_ShadowGap.ktx2",
+    "zones/er/lm_SheetVinyl.ktx2",
+    "zones/er/lm_SolidSurface.ktx2",
+    "zones/er/lm_Stainless.ktx2",
+    "zones/er/lm_Steel.ktx2",
+    "zones/er/lm_TheatreFloor.ktx2",
+    "zones/er/lm_VinylGrey.ktx2",
+    "zones/er/lm_VinylTeal.ktx2",
+    "zones/er/lm_WallClinical.ktx2",
+    "zones/er/lm_WallPaint.ktx2"
+   ],
+   "materials": [
+    "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+    "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+    "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+    "materials/set_leather_nor-f07406a1-linear.ktx2",
+    "materials/set_speckle_diff-6aa27c00-etc1s.ktx2",
+    "materials/set_weave_diff-08d6903d-etc1s.ktx2",
+    "materials/set_weave_nor-778a2d79-linear.ktx2"
+   ],
+   "bounds": {
+    "x0": -71.5,
+    "x1": -44,
+    "z0": -22.1,
+    "z1": 22.1,
+    "y0": -0.05,
+    "y1": 3.52
+   },
+   "draws": 27,
+   "tris": 168148,
+   "lightmapMB": 15,
+   "probe": "zones/er/env_er.hdr",
+   "probeAt": [
+    -53,
+    1.6,
+    14
+   ],
+   "anchors": "zones/er/anchors.json",
+   "proxy": {
+    "glb": "zones/er/er.proxy.glb",
+    "tris": 41244,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 2.137,
+    "kb": 862
+   },
+   "nodes": [],
+   "replaces": [
+    "footprint:er:*",
+    "footprint:triage:*"
+   ],
+   "visibleFrom": [
+    "lobby"
+   ],
+   "bakeSeconds": 787,
+   "bakedAt": "2026-10-22T20:10:00.923Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 36
+   },
+   "withinBudget": true
+  },
+  {
+   "id": "imaging",
+   "level": 1,
+   "label": "Imaging (MRI, CT, X-ray, ultrasound)",
+   "status": "todo",
+   "quality": "draft",
+   "glb": "zones/imaging/imaging.glb",
+   "lightmaps": [
+    "zones/imaging/lm_Accent.ktx2",
+    "zones/imaging/lm_AcousticTile.ktx2",
+    "zones/imaging/lm_CeilingGrid.ktx2",
+    "zones/imaging/lm_Concrete.ktx2",
+    "zones/imaging/lm_DoorFrame.ktx2",
+    "zones/imaging/lm_Fabric.ktx2",
+    "zones/imaging/lm_FabricAccent.ktx2",
+    "zones/imaging/lm_KitPlastic.ktx2",
+    "zones/imaging/lm_Leaf.ktx2",
+    "zones/imaging/lm_Linen.ktx2",
+    "zones/imaging/lm_Mullion.ktx2",
+    "zones/imaging/lm_Oak.ktx2",
+    "zones/imaging/lm_PowderWhite.ktx2",
+    "zones/imaging/lm_ShadowGap.ktx2",
+    "zones/imaging/lm_SheetVinyl.ktx2",
+    "zones/imaging/lm_Soil.ktx2",
+    "zones/imaging/lm_SolidSurface.ktx2",
+    "zones/imaging/lm_Stainless.ktx2",
+    "zones/imaging/lm_Steel.ktx2",
+    "zones/imaging/lm_VinylGrey.ktx2",
+    "zones/imaging/lm_VinylTeal.ktx2",
+    "zones/imaging/lm_WallClinical.ktx2",
+    "zones/imaging/lm_WallPaint.ktx2",
+    "zones/imaging/lm_WallTintBlue.ktx2",
+    "zones/imaging/lm_WallTintLilac.ktx2"
+   ],
+   "materials": [
+    "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+    "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/FabricAccent_diff-ae32f837-etc1s.ktx2",
+    "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
+    "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+    "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+    "materials/set_leather_nor-f07406a1-linear.ktx2",
+    "materials/set_speckle_diff-6aa27c00-etc1s.ktx2",
+    "materials/set_weave_diff-08d6903d-etc1s.ktx2",
+    "materials/set_weave_nor-778a2d79-linear.ktx2"
+   ],
+   "bounds": {
+    "x0": -40.097,
+    "x1": -21.903,
+    "z0": -12.1,
+    "z1": 12.1,
+    "y0": -0.05,
+    "y1": 3.06
+   },
+   "draws": 28,
+   "tris": 63420,
+   "lightmapMB": 3.58,
+   "nodes": [],
+   "replaces": [
+    "footprint:imaging:seatsN1",
+    "footprint:imaging:seatsS1",
+    "footprint:imaging:booking",
+    "footprint:imaging:plant*",
+    "footprint:imaging:sideTable",
+    "footprint:imaging:mri:console",
+    "footprint:imaging:mri:lockers",
+    "footprint:imaging:mri:coils",
+    "footprint:imaging:mri:cabinet",
+    "footprint:imaging:ct:console",
+    "footprint:imaging:ct:cabinet",
+    "footprint:imaging:ct:aprons",
+    "footprint:imaging:ct:supplies",
+    "footprint:imaging:xray:screen",
+    "footprint:imaging:xray:console",
+    "footprint:imaging:xray:stool",
+    "footprint:imaging:xray:aprons",
+    "footprint:imaging:xray:cabinet",
+    "footprint:imaging:us:couch",
+    "footprint:imaging:us:counter",
+    "footprint:imaging:us:cabinet",
+    "footprint:imaging:us:stool",
+    "footprint:imaging:sink",
+    "footprint:draw:bench",
+    "footprint:imaging:cubicles:bench*",
+    "rect:-23.6,-23.3,3.8,8.2"
+   ],
+   "visibleFrom": [
+    "lobby",
+    "core"
+   ],
+   "bakeSeconds": 83,
+   "bakedAt": "2026-10-22T19:20:37.874Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 49
+   },
+   "withinBudget": true
+  },
+  {
+   "id": "wardA",
+   "level": 1,
+   "label": "Ward A and corridor A",
+   "status": "todo",
+   "quality": "final",
+   "glb": "zones/wardA/wardA.glb",
+   "lightmaps": [
+    "zones/wardA/lm_Accent.ktx2",
+    "zones/wardA/lm_AcousticTile.ktx2",
+    "zones/wardA/lm_CeilingGrid.ktx2",
+    "zones/wardA/lm_CeilingPlaster.ktx2",
+    "zones/wardA/lm_Concrete.ktx2",
+    "zones/wardA/lm_CrashRail.ktx2",
+    "zones/wardA/lm_Curtain.ktx2",
+    "zones/wardA/lm_DoorFrame.ktx2",
+    "zones/wardA/lm_Fabric.ktx2",
+    "zones/wardA/lm_FabricAccent.ktx2",
+    "zones/wardA/lm_KitPlastic.ktx2",
+    "zones/wardA/lm_Leaf.ktx2",
+    "zones/wardA/lm_Linen.ktx2",
+    "zones/wardA/lm_Mullion.ktx2",
+    "zones/wardA/lm_Oak.ktx2",
+    "zones/wardA/lm_PowderWhite.ktx2",
+    "zones/wardA/lm_Rubber.ktx2",
+    "zones/wardA/lm_Screen.ktx2",
+    "zones/wardA/lm_ShadowGap.ktx2",
+    "zones/wardA/lm_SheetVinyl.ktx2",
+    "zones/wardA/lm_Soil.ktx2",
+    "zones/wardA/lm_SolidSurface.ktx2",
+    "zones/wardA/lm_Stainless.ktx2",
+    "zones/wardA/lm_Steel.ktx2",
+    "zones/wardA/lm_VinylTeal.ktx2",
+    "zones/wardA/lm_WallClinical.ktx2",
+    "zones/wardA/lm_WallTintBlue.ktx2",
+    "zones/wardA/lm_WallTintSand.ktx2"
+   ],
+   "materials": [
+    "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+    "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/FabricAccent_diff-ae32f837-etc1s.ktx2",
+    "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
+    "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+    "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+    "materials/set_leather_nor-f07406a1-linear.ktx2",
+    "materials/set_speckle_diff-6aa27c00-etc1s.ktx2",
+    "materials/set_weave_diff-08d6903d-etc1s.ktx2",
+    "materials/set_weave_nor-778a2d79-linear.ktx2"
+   ],
+   "bounds": {
+    "x0": -41.2,
+    "x1": 40.1,
+    "z0": -22.1,
+    "z1": -11.884,
+    "y0": -0.05,
+    "y1": 3.06
+   },
+   "draws": 31,
+   "tris": 194162,
+   "lightmapMB": 15.33,
+   "probe": "zones/wardA/env_wardA.hdr",
+   "probeAt": [
+    0,
+    1.6,
+    -14
+   ],
+   "anchors": "zones/wardA/anchors.json",
+   "proxy": {
+    "glb": "zones/wardA/wardA.proxy.glb",
+    "tris": 41639,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 1.543,
+    "kb": 1090
+   },
+   "nodes": [],
+   "replaces": [
+    "footprint:A*",
+    "footprint:hubA:*",
+    "footprint:staff:*",
+    "footprint:lounge:*"
+   ],
+   "visibleFrom": [
+    "lobby",
+    "imaging",
+    "core",
+    "atrium"
+   ],
+   "bakeSeconds": 458,
+   "bakedAt": "2026-10-22T20:28:01.555Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 49
+   },
+   "withinBudget": true
+  },
+  {
+   "id": "wardB",
+   "level": 1,
+   "label": "Ward B, corridor B, lab and supply",
+   "status": "todo",
+   "quality": "final",
+   "glb": "zones/wardB/wardB.glb",
+   "lightmaps": [
+    "zones/wardB/lm_Accent.ktx2",
+    "zones/wardB/lm_AcousticTile.ktx2",
+    "zones/wardB/lm_CeilingGrid.ktx2",
+    "zones/wardB/lm_CeilingPlaster.ktx2",
+    "zones/wardB/lm_Concrete.ktx2",
+    "zones/wardB/lm_CrashRail.ktx2",
+    "zones/wardB/lm_Curtain.ktx2",
+    "zones/wardB/lm_DoorFrame.ktx2",
+    "zones/wardB/lm_KitPlastic.ktx2",
+    "zones/wardB/lm_Leaf.ktx2",
+    "zones/wardB/lm_Linen.ktx2",
+    "zones/wardB/lm_Mullion.ktx2",
+    "zones/wardB/lm_Oak.ktx2",
+    "zones/wardB/lm_PowderWhite.ktx2",
+    "zones/wardB/lm_Rubber.ktx2",
+    "zones/wardB/lm_Screen.ktx2",
+    "zones/wardB/lm_ShadowGap.ktx2",
+    "zones/wardB/lm_SheetVinyl.ktx2",
+    "zones/wardB/lm_Soil.ktx2",
+    "zones/wardB/lm_SolidSurface.ktx2",
+    "zones/wardB/lm_Stainless.ktx2",
+    "zones/wardB/lm_Steel.ktx2",
+    "zones/wardB/lm_VinylSage.ktx2",
+    "zones/wardB/lm_WallClinical.ktx2",
+    "zones/wardB/lm_WallTintSage.ktx2"
+   ],
+   "materials": [
+    "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+    "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+    "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+    "materials/set_leather_nor-f07406a1-linear.ktx2",
+    "materials/set_speckle_diff-6aa27c00-etc1s.ktx2",
+    "materials/set_weave_diff-08d6903d-etc1s.ktx2",
+    "materials/set_weave_nor-778a2d79-linear.ktx2"
+   ],
+   "bounds": {
+    "x0": -44.097,
+    "x1": 40.1,
+    "z0": 11.884,
+    "z1": 22.1,
+    "y0": -0.05,
+    "y1": 3.06
+   },
+   "draws": 28,
+   "tris": 198294,
+   "lightmapMB": 14.83,
+   "probe": "zones/wardB/env_wardB.hdr",
+   "probeAt": [
+    0,
+    1.6,
+    14
+   ],
+   "anchors": "zones/wardB/anchors.json",
+   "proxy": {
+    "glb": "zones/wardB/wardB.proxy.glb",
+    "tris": 45210,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 1.56,
+    "kb": 1142
+   },
+   "nodes": [],
+   "replaces": [
+    "footprint:B*",
+    "footprint:hubB:*",
+    "footprint:quiet:*",
+    "footprint:supply:*"
+   ],
+   "visibleFrom": [
+    "lobby",
+    "imaging",
+    "core",
+    "atrium"
+   ],
+   "bakeSeconds": 437,
+   "bakedAt": "2026-10-22T20:45:34.095Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 40
+   },
+   "withinBudget": true
+  },
+  {
+   "id": "core",
+   "level": 1,
+   "label": "Command centre and pharmacy core",
+   "status": "todo",
+   "quality": "draft",
+   "glb": "zones/core/core.glb",
+   "lightmaps": [
+    "zones/core/lm_CeilingPlaster.ktx2",
+    "zones/core/lm_Concrete.ktx2",
+    "zones/core/lm_Fabric.ktx2",
+    "zones/core/lm_KitPlastic.ktx2",
+    "zones/core/lm_Leaf.ktx2",
+    "zones/core/lm_Oak.ktx2",
+    "zones/core/lm_PowderWhite.ktx2",
+    "zones/core/lm_Rubber.ktx2",
+    "zones/core/lm_Screen.ktx2",
+    "zones/core/lm_ShadowGap.ktx2",
+    "zones/core/lm_Soil.ktx2",
+    "zones/core/lm_SolidSurface.ktx2",
+    "zones/core/lm_Stainless.ktx2",
+    "zones/core/lm_Steel.ktx2",
+    "zones/core/lm_Terrazzo.ktx2",
+    "zones/core/lm_VinylGrey.ktx2",
+    "zones/core/lm_VinylSage.ktx2"
+   ],
+   "materials": [
+    "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
+    "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/Terrazzo_arm-738c0309-linear.ktx2",
+    "materials/Terrazzo_diff-601c8c77-etc1s.ktx2",
+    "materials/Terrazzo_nor-28d59e30-linear.ktx2",
+    "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+    "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+    "materials/set_leather_nor-f07406a1-linear.ktx2"
+   ],
+   "bounds": {
+    "x0": -22,
+    "x1": 12.055,
+    "z0": -12,
+    "z1": 12.08,
+    "y0": -0.05,
+    "y1": 3.05
+   },
+   "draws": 18,
+   "tris": 52932,
+   "lightmapMB": 2.92,
+   "probe": "zones/core/env_core.hdr",
+   "probeAt": [
+    0,
+    1.6,
+    0
+   ],
+   "anchors": "zones/core/anchors.json",
+   "nodes": [],
+   "replaces": [
+    "footprint:command:desk*",
+    "footprint:command:chair*",
+    "footprint:command:stool*",
+    "footprint:command:plant*",
+    "footprint:command:table"
+   ],
+   "visibleFrom": [
+    "wardA",
+    "wardB",
+    "atrium",
+    "imaging"
+   ],
+   "bakeSeconds": 55,
+   "bakedAt": "2026-10-22T15:16:31.228Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 41
+   },
+   "withinBudget": true
+  },
+  {
+   "id": "atrium",
+   "level": 1,
+   "label": "Healing atrium and cafe",
+   "status": "todo",
+   "quality": "draft",
+   "glb": "zones/atrium/atrium.glb",
+   "lightmaps": [
+    "zones/atrium/lm_Concrete.ktx2",
+    "zones/atrium/lm_KitPlastic.ktx2",
+    "zones/atrium/lm_Leaf.ktx2",
+    "zones/atrium/lm_Mullion.ktx2",
+    "zones/atrium/lm_Oak.ktx2",
+    "zones/atrium/lm_Paving.ktx2",
+    "zones/atrium/lm_Screen.ktx2",
+    "zones/atrium/lm_ShadowGap.ktx2",
+    "zones/atrium/lm_Soil.ktx2",
+    "zones/atrium/lm_SolidSurface.ktx2",
+    "zones/atrium/lm_Stainless.ktx2",
+    "zones/atrium/lm_Steel.ktx2",
+    "zones/atrium/lm_Terrazzo.ktx2"
+   ],
+   "materials": [
+    "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/Paving_diff-cb8424a9-etc1s.ktx2",
+    "materials/Terrazzo_arm-738c0309-linear.ktx2",
+    "materials/Terrazzo_diff-601c8c77-etc1s.ktx2",
+    "materials/Terrazzo_nor-28d59e30-linear.ktx2",
+    "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "materials/set_brushed_diff-26efc0dd-etc1s.ktx2"
+   ],
+   "bounds": {
+    "x0": 12,
+    "x1": 40.08,
+    "z0": -12.226,
+    "z1": 12.076,
+    "y0": -0.05,
+    "y1": 5.159
+   },
+   "draws": 16,
+   "tris": 146239,
+   "lightmapMB": 2.58,
+   "probe": "zones/atrium/env_atrium.hdr",
+   "probeAt": [
+    26,
+    1.6,
+    0
+   ],
+   "anchors": "zones/atrium/anchors.json",
+   "nodes": [],
+   "replaces": [
+    "footprint:atrium:*",
+    "area:atrium"
+   ],
+   "visibleFrom": [
+    "wardA",
+    "wardB",
+    "core"
+   ],
+   "bakeSeconds": 2985,
+   "bakedAt": "2026-10-22T19:18:58.049Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 27
+   },
+   "withinBudget": true
+  },
+  {
+   "id": "theatres",
+   "level": 2,
+   "label": "Level 2: theatres, pre-op, recovery",
+   "status": "todo",
+   "quality": "draft",
+   "glb": "zones/theatres/theatres.glb",
+   "lightmaps": [
+    "zones/theatres/lm_Accent.ktx2",
+    "zones/theatres/lm_AcousticTile.ktx2",
+    "zones/theatres/lm_CeilingGrid.ktx2",
+    "zones/theatres/lm_CeilingPlaster.ktx2",
+    "zones/theatres/lm_Concrete.ktx2",
+    "zones/theatres/lm_CrashRail.ktx2",
+    "zones/theatres/lm_Curtain.ktx2",
+    "zones/theatres/lm_DoorFrame.ktx2",
+    "zones/theatres/lm_Fabric.ktx2",
+    "zones/theatres/lm_FabricAccent.ktx2",
+    "zones/theatres/lm_KitPlastic.ktx2",
+    "zones/theatres/lm_Leaf.ktx2",
+    "zones/theatres/lm_Linen.ktx2",
+    "zones/theatres/lm_Mullion.ktx2",
+    "zones/theatres/lm_Oak.ktx2",
+    "zones/theatres/lm_PowderWhite.ktx2",
+    "zones/theatres/lm_Rubber.ktx2",
+    "zones/theatres/lm_Screen.ktx2",
+    "zones/theatres/lm_ShadowGap.ktx2",
+    "zones/theatres/lm_SheetVinyl.ktx2",
+    "zones/theatres/lm_Soil.ktx2",
+    "zones/theatres/lm_SolidSurface.ktx2",
+    "zones/theatres/lm_Stainless.ktx2",
+    "zones/theatres/lm_Steel.ktx2",
+    "zones/theatres/lm_Terrazzo.ktx2",
+    "zones/theatres/lm_TheatreFloor.ktx2",
+    "zones/theatres/lm_VinylTeal.ktx2",
+    "zones/theatres/lm_WallClinical.ktx2",
+    "zones/theatres/lm_WallPaint.ktx2",
+    "zones/theatres/lm_WallTintSage.ktx2",
+    "zones/theatres/lm_WallTintSand.ktx2"
+   ],
+   "materials": [
+    "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+    "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/FabricAccent_diff-ae32f837-etc1s.ktx2",
+    "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
+    "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "materials/Terrazzo_arm-738c0309-linear.ktx2",
+    "materials/Terrazzo_diff-601c8c77-etc1s.ktx2",
+    "materials/Terrazzo_nor-28d59e30-linear.ktx2",
+    "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+    "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+    "materials/set_leather_nor-f07406a1-linear.ktx2",
+    "materials/set_speckle_diff-6aa27c00-etc1s.ktx2",
+    "materials/set_weave_diff-08d6903d-etc1s.ktx2",
+    "materials/set_weave_nor-778a2d79-linear.ktx2"
+   ],
+   "bounds": {
+    "x0": -62.1,
+    "x1": -39.9,
+    "z0": -22.1,
+    "z1": 22.1,
+    "y0": 4.15,
+    "y1": 7.26
+   },
+   "draws": 34,
+   "tris": 173182,
+   "lightmapMB": 3.46,
+   "probe": "zones/theatres/env_theatres.hdr",
+   "probeAt": [
+    -57.5,
+    5.800000000000001,
+    12
+   ],
+   "anchors": "zones/theatres/anchors.json",
+   "nodes": [],
+   "replaces": [
+    "footprint:l2:preop:bed*",
+    "footprint:l2:preop:div*",
+    "footprint:l2:preop:desk",
+    "footprint:l2:preop:waiting",
+    "footprint:l2:preop:table",
+    "footprint:l2:preop:plant",
+    "footprint:l2:preop:supply",
+    "footprint:l2:pacu:bed*",
+    "footprint:l2:pacu:div*",
+    "footprint:l2:pacu:island",
+    "footprint:l2:pacu:supply",
+    "footprint:l2:pacu:plant",
+    "footprint:l2:lounge:*",
+    "footprint:l2:staff:*",
+    "footprint:l2:sterile:*",
+    "footprint:l2:hall:scrub",
+    "footprint:l2:hall:cabinet",
+    "footprint:l2:corridor:bench*"
+   ],
+   "bakeSeconds": 73,
+   "bakedAt": "2026-10-22T15:11:25.274Z",
+   "validator": {
+    "errors": 0,
+    "warnings": 57
+   },
+   "withinBudget": true
+  }
+ ],
+ "materials": {
+  "files": [
+   "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+   "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+   "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+   "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+   "materials/Concrete_nor-efe140d4-linear.ktx2",
+   "materials/FabricAccent_diff-ae32f837-etc1s.ktx2",
+   "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
+   "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+   "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+   "materials/Matting_diff-5cc1b8a3-etc1s.ktx2",
+   "materials/Oak_arm-6da71c2b-linear.ktx2",
+   "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+   "materials/Oak_nor-58a88f7c-linear.ktx2",
+   "materials/Paving_diff-cb8424a9-etc1s.ktx2",
+   "materials/Terrazzo_arm-738c0309-linear.ktx2",
+   "materials/Terrazzo_diff-601c8c77-etc1s.ktx2",
+   "materials/Terrazzo_nor-28d59e30-linear.ktx2",
+   "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+   "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+   "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+   "materials/set_leather_nor-f07406a1-linear.ktx2",
+   "materials/set_speckle_diff-6aa27c00-etc1s.ktx2",
+   "materials/set_weave_diff-08d6903d-etc1s.ktx2",
+   "materials/set_weave_nor-778a2d79-linear.ktx2"
+  ],
+  "mb": 16.84,
+  "details": [
+   {
+    "file": "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
+    "w": 64,
+    "h": 16,
+    "mb": 0,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Accent"
+    ]
+   },
+   {
+    "file": "materials/CeilingPlaster_diff-e72bb4b3-etc1s.ktx2",
+    "w": 1024,
+    "h": 1024,
+    "mb": 1.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "CeilingPlaster",
+     "WallClinical",
+     "WallTintBlue",
+     "WallTintLilac",
+     "WallTintSage",
+     "WallTintSand"
+    ]
+   },
+   {
+    "file": "materials/CeilingPlaster_nor-117e7268-linear.ktx2",
+    "w": 1024,
+    "h": 1024,
+    "mb": 1.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "CeilingPlaster",
+     "WallClinical",
+     "WallTintBlue",
+     "WallTintLilac",
+     "WallTintSage",
+     "WallTintSand"
+    ]
+   },
+   {
+    "file": "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Concrete"
+    ]
+   },
+   {
+    "file": "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Concrete"
+    ]
+   },
+   {
+    "file": "materials/FabricAccent_diff-ae32f837-etc1s.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "FabricAccent"
+    ]
+   },
+   {
+    "file": "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Fabric"
+    ]
+   },
+   {
+    "file": "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Fabric",
+     "FabricAccent",
+     "Matting"
+    ]
+   },
+   {
+    "file": "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "w": 128,
+    "h": 16,
+    "mb": 0,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "KitPlastic"
+    ]
+   },
+   {
+    "file": "materials/Matting_diff-5cc1b8a3-etc1s.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Matting"
+    ]
+   },
+   {
+    "file": "materials/Oak_arm-6da71c2b-linear.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Oak"
+    ]
+   },
+   {
+    "file": "materials/Oak_diff-1245e4ae-etc1s.ktx2",
+    "w": 1024,
+    "h": 1024,
+    "mb": 1.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Oak"
+    ]
+   },
+   {
+    "file": "materials/Oak_nor-58a88f7c-linear.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Oak"
+    ]
+   },
+   {
+    "file": "materials/Paving_diff-cb8424a9-etc1s.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Paving"
+    ]
+   },
+   {
+    "file": "materials/Terrazzo_arm-738c0309-linear.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Terrazzo"
+    ]
+   },
+   {
+    "file": "materials/Terrazzo_diff-601c8c77-etc1s.ktx2",
+    "w": 2048,
+    "h": 2048,
+    "mb": 5.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Terrazzo"
+    ]
+   },
+   {
+    "file": "materials/Terrazzo_nor-28d59e30-linear.ktx2",
+    "w": 1024,
+    "h": 1024,
+    "mb": 1.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Terrazzo"
+    ]
+   },
+   {
+    "file": "materials/set_brushed_arm-fbb2e539-linear.ktx2",
+    "w": 256,
+    "h": 256,
+    "mb": 0.08,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Stainless"
+    ]
+   },
+   {
+    "file": "materials/set_brushed_diff-26efc0dd-etc1s.ktx2",
+    "w": 256,
+    "h": 256,
+    "mb": 0.08,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Stainless"
+    ]
+   },
+   {
+    "file": "materials/set_leather_diff-cc1a3c64-etc1s.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "VinylGrey",
+     "VinylSage",
+     "VinylTeal"
+    ]
+   },
+   {
+    "file": "materials/set_leather_nor-f07406a1-linear.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "VinylGrey",
+     "VinylSage",
+     "VinylTeal"
+    ]
+   },
+   {
+    "file": "materials/set_speckle_diff-6aa27c00-etc1s.ktx2",
+    "w": 1024,
+    "h": 1024,
+    "mb": 1.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "AcousticTile",
+     "SheetVinyl",
+     "TheatreFloor"
+    ]
+   },
+   {
+    "file": "materials/set_weave_diff-08d6903d-etc1s.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Curtain",
+     "Linen"
+    ]
+   },
+   {
+    "file": "materials/set_weave_nor-778a2d79-linear.ktx2",
+    "w": 512,
+    "h": 512,
+    "mb": 0.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Curtain",
+     "Linen"
+    ]
+   }
+  ]
+ },
+ "totals": {
+  "draws": 206,
+  "tris": 1024359,
+  "lightmapMB": 73.14,
+  "textureMB": 93.97,
+  "proxies": 3,
+  "proxyTris": 128093,
+  "proxyMB": 3.99,
+  "withinBudget": true
+ }
+}

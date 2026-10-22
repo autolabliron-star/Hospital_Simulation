@@ -55,6 +55,17 @@ export type Stage =
 
 const ROOM_SET: ReadonlySet<string> = new Set(ROOM_PHASES)
 
+/**
+ * F-30: the WHO surgical safety checklist, said at the phase boundaries a live run walks through (a warm start is silent, as for the other
+ * events): sign-in as the induction begins, time-out as the first port goes in, sign-out as the patient is about to leave theatre.
+ * The recovery discharge criteria are said where the patient leaves recovery (`beginPhase2`, `beginWard`). The lines are `SURGERY_COPY.checklist`.
+ */
+const WHO_AT: Partial<Record<RoomPhase, { type: SimEventType; line: 'signIn' | 'timeOut' | 'signOut' }>> = {
+  induction: { type: 'whoSignIn', line: 'signIn' },
+  ports: { type: 'whoTimeOut', line: 'timeOut' },
+  out: { type: 'whoSignOut', line: 'signOut' },
+}
+
 export function casePhaseOf(stage: Stage): CasePhase {
   switch (stage) {
     case 'scheduled':
@@ -676,6 +687,15 @@ export class SurgeryCase {
     this.enter(phase, t)
     this.until = t + this.plan.phases[phase]
     this.starts[phase] = t
+    const who = WHO_AT[phase]
+    if (who !== undefined && this.patient !== null) {
+      this.host.say(who.type, `${this.patientName}: ${SURGERY_COPY.checklist[who.line]}`, { subjectId: this.patient.entity.id })
+    }
+  }
+
+  /** The recovery discharge criteria, said as the patient leaves recovery. */
+  private sayRecoveryDischarge(): void {
+    this.host.say('pacuDischarge', `${this.patientName}: ${SURGERY_COPY.checklist.recoveryDischarge}`, { subjectId: this.patient!.entity.id })
   }
 
   private stepRoom(t: number, _dt: number): void {
@@ -836,6 +856,7 @@ export class SurgeryCase {
     p.standUp()
     this.enter('phase2', t)
     this.until = t + this.plan.phase2Seconds
+    this.sayRecoveryDischarge()
     h.say('pacuOut', surgeryLine('pacuOut', { patient: this.patientName, minutes: fmtMin(t - (this.pacuInAt ?? t)) }), { subjectId: p.entity.id })
   }
 
@@ -1002,6 +1023,7 @@ export class SurgeryCase {
 
   private beginWard(t: number): void {
     this.pacuOutAt = t
+    this.sayRecoveryDischarge()
     this.host.say('pacuOut', surgeryLine('pacuOut', { patient: this.patientName, minutes: fmtMin(t - (this.pacuInAt ?? t)) }), { subjectId: this.patient!.entity.id })
     this.enter('wardFetch', t)
   }

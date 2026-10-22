@@ -1,0 +1,33 @@
+{
+  "groups": {
+    "imaging": "Imaging",
+    "bloodLab": "Blood & lab",
+    "wardA": "Ward A",
+    "wardB": "Ward B",
+    "pharmacy": "Pharmacy core",
+    "emergency": "Emergency",
+    "triage": "Triage",
+    "entrance": "Entrance",
+    "atrium": "Atrium & café",
+    "command": "Command centre",
+    "hubs": "Nurse hubs"
+  },
+  "items": {
+    "mri": { "label": "MRI", "detail": "Magnetic resonance imaging" },
+    "ct": { "label": "CT", "detail": "Computed tomography" },
+    "xray": { "label": "X-ray", "detail": "Radiography" },
+    "ultrasound": { "label": "Ultrasound", "detail": "Live sonography" },
+    "imagingHall": { "label": "Imaging corridor", "detail": "Waiting seats" },
+    "core": { "label": "Pharmacy core", "detail": "MedVend wall and MedPods" },
+    "er": { "label": "Emergency", "detail": "Six treatment bays" },
+    "triage": { "label": "Triage", "detail": "Four assessment bays" },
+    "lobby": { "label": "Entrance", "detail": "Self check-in and reception" },
+    "atrium": { "label": "Healing atrium", "detail": "Garden, café and daylight" },
+    "command": { "label": "Command centre", "detail": "Every pod, room and order, live" },
+    "hubA": { "label": "Nurse hub A", "detail": "Ward A" },
+    "hubB": { "label": "Nurse hub B", "detail": "Ward B" }
+  },
+  "areaWords": {
+    "l2Or": { "label": "Robotic theatre", "detail": "da Vinci 5 surgical system" }
+  }
+}

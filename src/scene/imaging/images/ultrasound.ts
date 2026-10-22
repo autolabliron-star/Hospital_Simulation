@@ -6,13 +6,14 @@
 import { mulberry32 } from '@/sim/rng'
 import { clamp01, lerp, smooth } from './shapes'
 
-export type UsView = 'liver' | 'gallbladder' | 'kidneyR' | 'kidneyL' | 'spleen' | 'bladder'
+export type UsView = 'liver' | 'gallbladder' | 'kidneyR' | 'kidneyL' | 'spleen' | 'bladder' | 'pancreas'
 
-export const US_VIEWS: readonly UsView[] = ['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder'] as const
+export const US_VIEWS: readonly UsView[] = ['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder', 'pancreas'] as const
 
 /** The view a sweep's name asks for ("Right kidney sweep" -> kidneyR). Falls back on the body part. */
 export function usViewOf(sweepName: string, bodyPart?: string): UsView {
   const n = sweepName.toLowerCase()
+  if (n.includes('pancreas')) return 'pancreas'
   if (n.includes('gallbladder')) return 'gallbladder'
   if (n.includes('bladder')) return 'bladder'
   if (n.includes('spleen')) return 'spleen'
@@ -76,8 +77,9 @@ const TITLES: Record<UsView, string> = {
   kidneyL: 'Left kidney',
   spleen: 'Spleen',
   bladder: 'Bladder',
+  pancreas: 'Pancreas',
 }
-const DEPTH: Record<UsView, number> = { liver: 16, gallbladder: 12, kidneyR: 14, kidneyL: 14, spleen: 14, bladder: 12 }
+const DEPTH: Record<UsView, number> = { liver: 16, gallbladder: 12, kidneyR: 14, kidneyL: 14, spleen: 14, bladder: 12, pancreas: 13 }
 
 /**
  * Fill `out` with the structures of `view` for this exam seed, probe phase and time. The structures glide sideways as the probe sweeps and
@@ -149,6 +151,21 @@ export function usScene(out: UsScene, view: UsView, seed: number, phase: number,
       put(out, sx + 0.1, 0.45 + breathe, 0.016, 0.07, -0.3, 0.02, 0.7)
       put(out, sx - 0.18, 0.78 + breathe, 0.2, 0.05, 0.3, 0.95) // gas in the stomach and bowel
       put(out, 0, 0.94 + breathe, 0.6, 0.02, 0, 0.9)
+      break
+    }
+    case 'pancreas': {
+      // the epigastric transverse view: the left lobe of the liver in front, the gland as a slightly bright band, the splenic vein running
+      // along its back, the SMV and SMA below the neck, the aorta and IVC behind them and the spine casting its shadow at the bottom
+      const sh = sweep * 0.1
+      put(out, -0.2, 0.26 + breathe, 0.36, 0.13, 0.12, 0.5) // the left lobe of the liver
+      put(out, 0.3, 0.27 + breathe, 0.12, 0.05, 0.3, 0.95) // gas in the stomach
+      put(out, sh * 0.4, 0.46 + breathe, 0.34, 0.07, -0.06, 0.64) // the pancreas: head, neck, body
+      put(out, sh * 0.4 + 0.02, 0.54 + breathe, 0.26, 0.015, -0.06, 0.02, 0.6) // the splenic vein
+      put(out, sh * 0.4 - 0.02, 0.58 + breathe, 0.034, 0.03, 0, 0.02, 0.7) // the SMV
+      put(out, sh * 0.4 - 0.09, 0.6 + breathe, 0.02, 0.02, 0, 0.02, 0.95) // the SMA, with its bright wall
+      put(out, -0.07, 0.72 + breathe, 0.04, 0.04, 0, 0.02, 0.8) // the aorta
+      put(out, 0.1, 0.71 + breathe, 0.05, 0.035, 0, 0.02, 0.5) // the IVC
+      put(out, 0, 0.9 + breathe, 0.2, 0.05, 0, 1, 0, -1) // the spine, with its shadow
       break
     }
     case 'bladder': {

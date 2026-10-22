@@ -98,14 +98,24 @@ describe('what the drawers react to, in the real simulation', () => {
   it('a drawer holds at most as many packs as the tray shows, for a normal order', () => {
     const sim = new Simulation(3)
     const items = [{ medId: 'paracetamol', qty: 1 }, { medId: 'omeprazole', qty: 1 }, { medId: 'amlodipine', qty: 1 }, { medId: 'cetirizine', qty: 1 }]
-    expect(sim.prescribe('B2', items).ok).toBe(true)
+    const r = sim.prescribe('B2', items)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
     let max = 0
+    let maxAll = 0
     for (let step = 0; step < 60 * 400; step++) {
       sim.step(CONFIG.sim.step)
       const d = sim.meds.drawers.get('B2')!
-      max = Math.max(max, d.items.reduce((n, it) => n + it.qty, 0))
+      const packs = d.items.reduce((n, it) => n + it.qty, 0)
+      maxAll = Math.max(maxAll, packs)
+      // the drawer holds only this order's packs (Wave 1: the 08:00 dose wave puts the room's own scheduled order in the drawer at about
+      // 2 min too, so the drawer may hold the two orders at once: that stacking is checked separately below)
+      if (d.orderIds.length === 1 && d.orderIds[0] === r.order.id) max = Math.max(max, packs)
     }
     expect(max).toBe(4)
     expect(max).toBeLessThanOrEqual(SLOTS_PER_DRAWER)
+    // a scheduled order may stack on top of it (4 + 1 packs measured): the tray still has a slot for every pack
+    expect(maxAll).toBeGreaterThanOrEqual(max)
+    expect(maxAll).toBeLessThanOrEqual(SLOTS_PER_DRAWER)
   })
 })

@@ -1,7 +1,8 @@
 /**
  * The healing atrium: raised grass beds, stone walks linking both corridor openings and the café, an oak café deck with a
  * counter at ATRIUM.cafe and tables along the east glass, benches, low planting, a long reflecting pool along the pharmacy
- * glass and six low-poly trees (instanced by the renderer).
+ * glass and six low-poly trees (instanced by the renderer; the trees are not prims, so while the atrium zone's model is drawn they are
+ * hidden by the zone's `area:atrium` key instead: building/model/region.ts `cellOfTree`, compile.ts, cells.ts).
  *
  * The atrium's nav lattice crosses the hall in every direction, so everything solid sits in the pockets between routes:
  * the perimeter bands, a few mid-hall pockets and the café counter (a station: `serves` the café node). Beds, paths and the

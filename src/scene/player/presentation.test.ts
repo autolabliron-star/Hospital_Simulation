@@ -89,7 +89,7 @@ describe('turning presentation on and off', () => {
     expect(r.sim.player!.speed).toBeCloseTo(CONFIG.player.hurrySpeed, 1)
   })
 
-  it('walks at 0.6 of the pace and Shift does not run', () => {
+  it('walks and runs at the game pace (the owner wants full speed while presenting)', () => {
     const r = make()
     r.sys.placeAt(-61, 0, Math.PI / 2)
     usePresentation.getState().setOn(true)
@@ -97,7 +97,8 @@ describe('turning presentation on and off', () => {
     r.sys.input.keyDown('KeyW')
     r.sys.input.keyDown('ShiftLeft')
     run(r, 1.5)
-    expect(r.sim.player!.speed).toBeCloseTo(CONFIG.player.walkSpeed * PRESENT.speedScale, 2)
+    expect(PRESENT.speedScale).toBe(1)
+    expect(r.sim.player!.speed).toBeCloseTo(CONFIG.player.hurrySpeed, 2)
     // no head bob in the walkthrough: the camera stays at the eye height while walking
     expect(r.camera.position.y).toBeCloseTo(PRESENT.eyeHeight, 6)
   })

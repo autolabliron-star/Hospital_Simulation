@@ -23,8 +23,17 @@
       "text": "Queried: {med} can weaken the effect of {with} and strain the kidneys."
     }
   ],
+  "allergy": {
+    "text": "ALLERGY: {patient} has a recorded {agent} {type} ({reaction}, {severity}). {med} is {className}.",
+    "classes": [
+      { "id": "penicillin", "name": "a penicillin", "meds": ["amoxicillin"] },
+      { "id": "nsaid", "name": "an NSAID", "meds": ["ibuprofen"] },
+      { "id": "statin", "name": "a statin", "meds": ["atorvastatin"] }
+    ]
+  },
   "ui": {
     "queryTitle": "Pharmacist query",
+    "allergyTitle": "Allergy alert: pharmacist query",
     "heldNote": "Held for your decision. Nothing is dispensed until you confirm or cancel.",
     "queriedNotice": "The pharmacist queried the order for {room}. Confirm or cancel it below.",
     "confirm": "Confirm order",

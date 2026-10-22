@@ -37,6 +37,7 @@
  */
 import { HOSTS, NIGHT_STAFF, STAFF, type StaffMember } from '@/content/staff'
 import { fillDayTemplate } from '@/content/day'
+import { POST_LABEL_COPY } from '@/content/postLabels'
 import { CONFIG } from '../config'
 import { HANDOVER, NURSE_HUB, ROOMS, roomById, type Spot } from '../places'
 import type { Rng } from '../rng'
@@ -102,18 +103,7 @@ export function visitingOpen(hour: number): boolean {
 /** What a post is, for the handover sentence ("took over {label} from ...") and for the kit that builds its controller. */
 export type PostKind = 'reception' | 'triage' | 'erDoctor' | 'erNurse' | 'porter' | 'cleaner' | 'imaging' | 'command' | 'wardNurse' | 'wardDoctor'
 
-export const POST_LABELS: Record<PostKind, string> = {
-  reception: 'reception',
-  triage: 'triage',
-  erDoctor: 'the ER',
-  erNurse: 'the ER',
-  porter: 'transport',
-  cleaner: 'housekeeping',
-  imaging: 'imaging',
-  command: 'the command center',
-  wardNurse: 'the ward',
-  wardDoctor: 'the wards',
-}
+export const POST_LABELS: Record<PostKind, string> = POST_LABEL_COPY
 
 export interface PostRef {
   kind: PostKind

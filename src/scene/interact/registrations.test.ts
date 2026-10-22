@@ -113,7 +113,7 @@ describe('the bedside', () => {
     const { byId, calls } = build()
     const bed = get(byId, 'bedside:A3')
     expect(bed.enabled!()).toBe(true)
-    expect(labelOf(bed, false)).toBe('Prescribe for Grace Adeyemi')
+    expect(labelOf(bed, false)).toBe('Tablet for Grace Adeyemi')
     bed.onInteract()
     expect(calls).toEqual(['rx:A3'])
   })
@@ -133,7 +133,7 @@ describe('the bedside', () => {
     expect(bed.enabled!()).toBe(false)
     patients.set('B6', { id: 'p', name: 'Tomás Rivera' })
     expect(bed.enabled!()).toBe(true)
-    expect(labelOf(bed, false)).toBe('Prescribe for Tomás Rivera')
+    expect(labelOf(bed, false)).toBe('Tablet for Tomás Rivera')
   })
 
   it('is measured from the bed, a short step inside the door', () => {

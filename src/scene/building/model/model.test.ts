@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { BoxGeometry, BufferAttribute, Group, Mesh, MeshStandardMaterial, Texture } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
@@ -12,20 +12,30 @@ import type { Prim } from '../layout/types'
 import { parseBuildingFlag } from './flags'
 import { applyLightmaps, hasBakedLook } from './lightmaps'
 import { checkModelAgainstPlan } from './checkModelAgainstPlan'
-import { hidesPrim, hidesWalkPart, inPilotRegion } from './region'
+import { resetCells, setCellReplaced } from './cells'
+import { PILOT_CELL, hidesPrim, hidesWalkPart, inPilotRegion, pilotCoverage, setCoverage } from './region'
 
 describe('?building flag', () => {
-  it('is procedural unless building=model', () => {
-    expect(parseBuildingFlag('')).toBe('procedural')
+  it('is the authored model unless building=procedural', () => {
+    expect(parseBuildingFlag('')).toBe('model')
     expect(parseBuildingFlag('?building=model')).toBe('model')
-    expect(parseBuildingFlag('?seed=3&building=model&probe=1')).toBe('model')
+    expect(parseBuildingFlag('?seed=3&probe=1')).toBe('model')
     expect(parseBuildingFlag('?building=procedural')).toBe('procedural')
-    expect(parseBuildingFlag('?building=MODEL')).toBe('procedural')
+    expect(parseBuildingFlag('?building=junk')).toBe('model')
   })
 })
 
 describe('pilot region filters', () => {
   const layout = buildLayout()
+  // the pilot path, with the pilot drawn: its cell is hidden
+  beforeAll(() => {
+    setCoverage(pilotCoverage())
+    setCellReplaced(PILOT_CELL, true)
+  })
+  afterAll(() => {
+    setCoverage(null)
+    resetCells()
+  })
   const hidden = (p: Prim) => hidesPrim(p.mat, p.position[0], p.position[2])
   const near = (p: Prim, x: number, z: number, r: number) => Math.hypot(p.position[0] - x, p.position[2] - z) <= r
 

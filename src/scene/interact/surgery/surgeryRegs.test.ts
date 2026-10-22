@@ -60,7 +60,7 @@ describe('the surgery interactions', () => {
     const { host: h } = host()
     const [teach, win, desk, pacu] = buildSurgeryInteractables(h, env().env)
     expect(labelOf(teach, false)).toBe('Sit at the teaching console')
-    expect(labelOf(win, false)).toBe('Watch the OR through the window')
+    expect(labelOf(win, false)).toBe('Watch the theatre through the window')
     expect(labelOf(desk, false)).toBe('Open the pre-op desk')
     expect(labelOf(pacu, false)).toBe('Open the recovery island')
     for (const s of [SURGERY_UI.console.prompt, SURGERY_UI.prompts.viewingWindow, SURGERY_UI.prompts.preOpDesk, SURGERY_UI.prompts.pacuIsland]) expect(bare(s).startsWith('E')).toBe(false)

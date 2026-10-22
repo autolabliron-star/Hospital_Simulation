@@ -133,6 +133,7 @@ const EXPECTED: Array<[id: string, modality: string, bodyPart: string, sequences
       ['Right kidney', 'sweep', 'none', 90, 3],
       ['Left kidney', 'sweep', 'none', 90, 3],
       ['Spleen', 'sweep', 'none', 60, 2],
+      ['Pancreas', 'sweep', 'none', 75, 3],
     ],
   ],
   [

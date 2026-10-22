@@ -811,7 +811,7 @@ export class PlayerSystem {
     this.glide.cancel()
     this.chase.setPresenting(on)
     this.body.speedScale = on ? PRESENT.speedScale : 1
-    this.body.noRun = on
+    this.body.noRun = false // the owner wants to run while presenting too
     const flying = this.phase === 'walk' || this.phase === 'toWalk'
     if (on) {
       if (flying) {

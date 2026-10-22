@@ -1,11 +1,24 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
+import { useThree } from '@react-three/fiber'
+import { bindCellsUnder } from './model/cells'
 import { BUILDING_MODEL_ON } from './model/flags'
-import { getModelStatus, subscribeModelStatus } from './model/modelStatus'
 import { BuildingModel } from './model/PilotModel'
+import { getBuildingSource, getManifest, startBuildingSource, subscribeBuildingSource } from './model/source'
+import { ZonesModel } from './model/ZonesModel'
 import { BuildingMeshes } from './render/BuildingMeshes'
 import { Level2Building } from './render/Level2Building'
 import { RoofCap } from './render/RoofCapLayer'
 import { WalkBuilding } from './render/walk/WalkBuilding'
+
+// the authored building (the default; `?building=procedural` opts out): decide at once between the zone manifest and the pilot
+if (BUILDING_MODEL_ON) void startBuildingSource(import.meta.env.BASE_URL)
+
+/** Finds the procedural building's per-zone cell meshes (`|cell=<id>`) once they are in the scene (an effect after its earlier siblings'). */
+function CellBinder() {
+  const scene = useThree((s) => s.scene)
+  useEffect(() => bindCellsUnder(scene), [scene])
+  return null
+}
 
 /**
  * The building: floors, walls at the section cut, glazing, smart patient rooms, nurse hubs, command center, atrium,
@@ -17,19 +30,25 @@ import { WalkBuilding } from './render/walk/WalkBuilding'
  *
  * R2 level 2: `Level2Building` is the robotic surgery storey (its cut shell and its own walk building) in one group 4.2 m up, hidden unless the
  * screen shows level 2 (`levelView`); `RoofCap` is the roof that closes the open-topped hospital below it while you walk on level 2.
+ *
+ * The authored building (./model): the source is decided first (./model/source.ts: the zone manifest, else the pilot lobby), because it picks
+ * which procedural prims go into per-zone cell meshes (./model/region.ts) before the procedural building compiles; the procedural building
+ * mounts once that is known (one small fetch, behind the loading screen). Each cell is drawn until its zone's model is, so a zone that is
+ * still streaming or failed keeps its procedural region and nothing is ever rebuilt (F-45, per zone).
  */
 export function Building() {
-  // `?building=model`: when the authored lobby cannot load, the pilot region's procedural prims are shown again (./model/modelStatus.ts re-opens the
-  // filter, the new key rebuilds the meshes that were compiled without them), so the lobby never loses its walls (F-45)
-  const modelFailed = useSyncExternalStore(subscribeModelStatus, () => getModelStatus() === 'failed')
-  const source = modelFailed ? 'procedural-fallback' : 'default'
+  const source = useSyncExternalStore(subscribeBuildingSource, getBuildingSource)
+  if (source === 'pending') return <RoofCap />
+  const manifest = source === 'zones' ? getManifest() : null
   return (
     <>
-      <BuildingMeshes key={source} />
-      <WalkBuilding key={source} />
+      <BuildingMeshes />
+      <WalkBuilding />
       <Level2Building />
       <RoofCap />
-      {BUILDING_MODEL_ON && <BuildingModel />}
+      {source !== 'procedural' && <CellBinder />}
+      {source === 'pilot' && <BuildingModel />}
+      {manifest && <ZonesModel manifest={manifest} />}
     </>
   )
 }

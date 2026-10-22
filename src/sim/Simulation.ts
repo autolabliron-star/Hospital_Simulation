@@ -114,6 +114,10 @@ export class Simulation {
   private playerWalker: Walker | null = null
   private readonly ctx: PeopleContext
   private readonly leaving: Person[] = []
+  /** The people as they were at the start of this step's people loop (F-19). */
+  private readonly stepList: Person[] = []
+  /** People taken out while the people loop runs: the snapshot loop must not update them any more. */
+  private readonly removedInStep = new Set<Person>()
 
   constructor(seed: number = CONFIG.sim.worldSeed, options: SimulationOptions = {}) {
     this.seed = seed
@@ -276,6 +280,7 @@ export class Simulation {
     const i = this.people.indexOf(p)
     if (i < 0) return
     this.people.splice(i, 1)
+    if (this.stepList.length > 0) this.removedInStep.add(p)
     if (this.entities.get(p.entity.id) === p.entity) this.entities.delete(p.entity.id)
     p.walker.remove()
     p.onRemoved(this.world)
@@ -303,9 +308,15 @@ export class Simulation {
       this.openingScript.step(this.t)
       if (this.openingScript.done) this.openingScript = null
     }
-    const people = this.people
+    // F-19: a person may leave or arrive while another updates (a shift swap): walk a snapshot, so nobody skips a step
+    // when the splice shifts the rest down. The snapshot array is reused (no allocation per step).
+    const people = this.stepList
+    const live = this.people
+    people.length = live.length
+    for (let i = 0; i < live.length; i++) people[i] = live[i]
     for (let i = 0; i < people.length; i++) {
       const p = people[i]
+      if (this.removedInStep.size > 0 && this.removedInStep.has(p)) continue // removed earlier in this very step
       p.snapshot()
       p.update(dt, this.ctx)
       // a greeting or a talk with you shows the talking pose, also for staff whose controller rewrote `anim` (W1)
@@ -313,6 +324,8 @@ export class Simulation {
       p.stepFade(dt)
       if (p.gone) this.leaving.push(p)
     }
+    people.length = 0
+    this.removedInStep.clear()
     this.world.placeRiders()
     if (this.leaving.length > 0) {
       for (const p of this.leaving) this.removePerson(p)

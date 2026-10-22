@@ -76,7 +76,7 @@ describe('surgeryUi.json', () => {
     expect(SURGERY_UI.console.prompt).toBe('E · Sit at the teaching console')
     expect(SURGERY_UI.console.subtitle).toBe('view only · Simulated')
     expect(SURGERY_UI.console.leave).toBe('E, Esc or a move key to stand up')
-    expect(SURGERY_UI.prompts.viewingWindow).toBe('E · Watch the OR through the window')
+    expect(SURGERY_UI.prompts.viewingWindow).toBe('E · Watch the theatre through the window')
     expect(SURGERY_UI.prompts.preOpDesk).toMatch(/^E · /)
     expect(SURGERY_UI.prompts.pacuIsland).toMatch(/^E · /)
     expect(SURGERY_UI.panel.watch).toBe('Watch the endoscope view')

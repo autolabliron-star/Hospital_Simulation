@@ -7,7 +7,7 @@
  *                 owns your input (`walkCam.inputBlocked`: you stand still), and, in walk mode with nothing open, pick the best
  *                 target (picker.ts) from the registered interactables, the free seats and the people around you
  *   4 Hz          follow your order (yourOrder.ts) and write the objective line
- *   10 Hz         write the prompt ("E · Prescribe for Grace Adeyemi") when it changed
+ *   10 Hz         write the prompt ("E · Tablet for Grace Adeyemi") when it changed
  *   E             `press()` runs the target: an interactable's action, sit down, or talk
  *   a Jump        (`generation` changed) forget the prompt, the objective, your order and your seat
  *

@@ -1,6 +1,6 @@
 {
   "prompt": {
-    "prescribe": "Prescribe for {patient}",
+    "prescribe": "Tablet for {patient}",
     "bedEmpty": "{room} has no patient right now",
     "talk": "Talk to {name}",
     "console": "Open the {device} console",

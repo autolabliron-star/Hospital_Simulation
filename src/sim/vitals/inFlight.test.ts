@@ -67,7 +67,13 @@ describe('kiosks already mid-session at the opening', () => {
     const day = open(5, 60, { startHour: 10 })
     expect(day.vitals.kiosks.filter((k) => k.phase !== 'idle').length).toBe(1)
     expect(day.vitals.kiosks[day.vitals.heldKiosk].phase).toBe('idle')
-    const night = open(5, 60, { startHour: 22.5 })
+    // after the walk-up hours nothing is PLACED (no walk-up, none in the line): right after the build both kiosks are idle. During the 60 s pre-roll
+    // an ER walk-in may still check in at a kiosk for its short triage session (kind 'vitals'; the ER takes arrivals until late, and which seed's
+    // patient turns up in that minute is luck), which is real ER flow and not a placed walk-up.
+    const night = new Simulation(5, { inFlight: true, opening: 'showcase', startHour: 22.5 })
     expect(night.vitals.kiosks.every((k) => k.phase === 'idle')).toBe(true)
+    night.preRoll(60)
+    expect(night.vitals.walkUps.size).toBe(0)
+    expect(night.vitals.kiosks.every((k) => k.phase === 'idle' || k.kind === 'vitals')).toBe(true)
   })
 })

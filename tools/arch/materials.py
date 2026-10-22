@@ -11,6 +11,12 @@ All maps read UVMap (TEXCOORD_0), written by `project_uvs` as a world-space box 
 The CC0 photos (docs/handover/look-textures.md) are recoloured here, once, with numpy (tint, contrast, saturation, roughness remap; the terrazzo's
 0.25 m joints are removed so it reads as 1 m slabs), written at the export resolution to assets-src/arch/out/tex/ and cached by a key of the
 source files and the settings. A material whose texture files are missing falls back to its flat colour.
+
+Shared material library (docs/handover/rollout-kit.md): materials.json also has `textureSets` (a processed texture set several materials share, so
+its GPU memory counts once) and `roles` (what each surface of the building uses). A material with `"set": "<set>"` (or `"@<Material>"`, the maps of
+that material) reads the set's images and multiplies the colour by a constant (Mix MULTIPLY, factor 1 = glTF baseColorFactor) so that its mean is
+`color`; the set is processed bright, so a factor <= 1 reaches every tint. A set may be `generate`d here (numpy, seeded: our own output, no download).
+Palette materials (`palette`) can have up to 32 swatches (`paletteSlots`, default 8 = the Accent strip).
 """
 import hashlib
 import json
@@ -31,8 +37,8 @@ CACHE = os.path.join(ROOT, 'assets-src', 'arch', 'out', 'tex')
 MAPS = {'diff': 'diff', 'nor': 'nor_gl', 'arm': 'arm'}
 
 
-def _src(tex_id, kind):
-    d = os.path.join(TEX_DIR, tex_id)
+def _src(tex_id, kind, base=None):
+    d = os.path.join(base or TEX_DIR, tex_id)
     if not os.path.isdir(d):
         return None
     for f in sorted(os.listdir(d)):
@@ -98,11 +104,71 @@ def _remove_joints(px, rj, scale):
     return px
 
 
+def _remove_all_joints(px, rj):
+    """Every tile joint gone (sheet vinyl from the terrazzo photo): roll half a period so no joint sits on the image border, then copy aggregate
+    across each joint. The result stays seamless."""
+    period = rj['period']
+    half = max(1, int(round(rj['half'])))
+    shift = max(half * 2 + 1, int(round(rj['shift'])))
+    p2 = period // 2
+    px = np.roll(np.roll(px, p2, axis=0), p2, axis=1)       # the joints now sit at p2 + k * period, none on the border
+    n = px.shape[0]
+    k = 0
+    while p2 + k * period < n:
+        c = p2 + k * period
+        lo, hi = max(0, c - half), min(n, c + half)
+        src = (lo + shift, hi + shift) if hi + shift <= n else (lo - shift, hi - shift)
+        px[:, lo:hi] = px[:, src[0]:src[1]]
+        px[lo:hi, :] = px[src[0]:src[1], :]
+        k += 1
+    return px
+
+
+GEN_DIR = os.path.join(CACHE, 'gen')
+
+
+def _generate(kind_spec):
+    """Procedural source images (seeded numpy, our own output): 'brushed' = brushed stainless (streaks along U); written once as
+    gen/<id>/<id>_{diff,arm}_gen.png in the layout _src expects. Returns the id."""
+    g = kind_spec['generate']
+    size = int(kind_spec.get('size', 512))
+    gid = f'gen_{g}_{size}'
+    d = os.path.join(GEN_DIR, gid)
+    if os.path.exists(os.path.join(d, f'{gid}_arm_gen.png')):
+        return gid
+    os.makedirs(d, exist_ok=True)
+    rs = np.random.RandomState(kind_spec.get('seed', 7))
+    if g == 'brushed':
+        n = rs.normal(0, 1, (size, size)).astype(np.float32)
+        # streaks: a long box blur along U (wraps, so the tile stays seamless), plus a few deeper scratches
+        k = max(8, size // 2)
+        c = np.cumsum(np.concatenate([n, n[:, :k]], axis=1), axis=1)
+        st = (c[:, k:] - c[:, :-k])[:, :size] / k
+        st = st / (st.std() or 1.0)
+        rows = rs.normal(0, 1, (size, 1)).astype(np.float32)
+        rows = (rows + np.roll(rows, 1, 0) + np.roll(rows, -1, 0)) / 3.0      # soften the row-to-row steps
+        st = 0.6 * st + 0.4 * rows
+        st = st / (st.std() or 1.0)
+        diff = np.clip(0.5 + 0.06 * st, 0, 1)
+        _write(np.repeat(diff[..., None], 3, axis=2), os.path.join(d, f'{gid}_diff_gen.png'), 'Non-Color')
+        arm = np.zeros((size, size, 3), dtype=np.float32)
+        arm[..., 0] = 1.0
+        arm[..., 1] = np.clip(0.5 + 0.12 * st, 0, 1)
+        arm[..., 2] = 1.0
+        _write(arm, os.path.join(d, f'{gid}_arm_gen.png'), 'Non-Color')
+    else:
+        raise ValueError(f'unknown generated texture {g}')
+    return gid
+
+
 def _process(name, spec, tex_id):
     """Recolour/rescale the texture set of one material; returns {kind: png path} for the maps it uses."""
     pr = spec.get('process', {})
     res = spec.get('res', {})
-    srcs = {k: _src(tex_id, k) for k in MAPS}
+    base = None
+    if spec.get('generate'):
+        tex_id, base = _generate(spec), GEN_DIR
+    srcs = {k: _src(tex_id, k, base) for k in MAPS}
     if not srcs['diff']:
         return {}
     key = hashlib.sha1(json.dumps([name, spec, [os.path.getsize(s) if s else 0 for s in srcs.values()]], sort_keys=True).encode()).hexdigest()[:10]
@@ -119,7 +185,10 @@ def _process(name, spec, tex_id):
         # read at full size (joints are found at the source scale), then scale down
         px = _read(srcs[kind], 0)
         if 'removeJoints' in pr:
-            px = _remove_joints(px, pr['removeJoints'], 1.0)
+            if pr['removeJoints'].get('keepEvery', 1) == 0:
+                px = _remove_all_joints(px, pr['removeJoints'])
+            else:
+                px = _remove_joints(px, pr['removeJoints'], 1.0)
         if size != px.shape[0]:
             img = bpy.data.images.new('tmp', px.shape[1], px.shape[0], alpha=False, float_buffer=True)
             img.colorspace_settings.name = 'Non-Color'
@@ -140,6 +209,17 @@ def _process(name, spec, tex_id):
             detail = 1.0 + pr.get('contrast', 1.0) * (lum / max(m, 1e-4) - 1.0)
             chroma = (lin - lum[..., None]) / max(m, 1e-4) * tl * pr.get('saturation', 0.0)
             lin = tint[None, None, :] * detail[..., None] + chroma
+            if pr.get('hueRamp'):
+                # the photo's luminance picks the hue between a cool and a warm colour (lawn: dark patches blue-green, blades yellow-green);
+                # the mean luminance stays the tint's, so brightness is as before
+                cool = np.array(srgb_to_linear(pr['hueRamp'][0]), dtype=np.float32)
+                warm = np.array(srgb_to_linear(pr['hueRamp'][1]), dtype=np.float32)
+                cool = cool / max(float(_luma(cool)), 1e-4)
+                warm = warm / max(float(_luma(warm)), 1e-4)
+                d = lum / max(m, 1e-4) - 1.0
+                z = d / max(float(d.std()), 1e-4)
+                w = np.clip(0.5 + pr.get('hueSpread', 0.15) * z, 0.0, 1.0)[..., None]
+                lin = tl * np.maximum(detail, 0.05)[..., None] * (cool[None, None, :] * (1.0 - w) + warm[None, None, :] * w)
             px = _to_srgb(lin)
             _write(px, path, 'sRGB')
         elif kind == 'arm':
@@ -147,7 +227,7 @@ def _process(name, spec, tex_id):
             mean, spread = pr.get('roughness', [spec.get('roughness', 0.5), 0.05])
             sd = float(g.std()) or 1.0
             px[:, :, 1] = np.clip(mean + (g - float(g.mean())) / sd * spread * 0.5, 0.02, 1.0)
-            px[:, :, 2] = 0.0                      # no metal in these sets
+            px[:, :, 2] = pr.get('metal', 0.0)     # no metal in the photo sets; 1 for the generated steel
             px[:, :, 0] = 1.0 - (1.0 - px[:, :, 0]) * 0.6   # soften the photo AO (the lightmap holds the real occlusion)
             _write(px, path, 'Non-Color')
         else:
@@ -175,22 +255,22 @@ def _image_node(nt, path, colorspace, x, y):
     return n
 
 
-def _palette_image(colors):
-    """A small swatch strip for the Accent material: 8 px per colour, 16 px tall."""
-    w, h = 8 * 8, 16
+def _palette_image(colors, name='Accent', slots=8):
+    """A small swatch strip: 8 px per colour, 16 px tall, `slots` swatches wide (the Accent strip: 8 slots, 64 x 16)."""
+    w, h = 8 * slots, 16
     px = np.ones((h, w, 4), dtype=np.float32)
     for i, c in enumerate(colors):
         h_ = c.lstrip('#')
         px[:, i * 8:(i + 1) * 8, :3] = [int(h_[k:k + 2], 16) / 255 for k in (0, 2, 4)]
-    path = os.path.join(CACHE, 'Accent_palette.png')
+    path = os.path.join(CACHE, f'{name}_palette.png')
     os.makedirs(CACHE, exist_ok=True)
     _write(px[:, :, :3], path, 'sRGB')
     return path
 
 
-def palette_uv(i):
-    """UV of swatch i in the Accent palette (its centre)."""
-    return ((i * 8 + 4) / 64.0, 0.5)
+def palette_uv(i, slots=8):
+    """UV of swatch i in a palette strip of `slots` swatches (its centre)."""
+    return ((i * 8 + 4) / (8.0 * slots), 0.5)
 
 
 def build_material(name, spec):
@@ -212,18 +292,37 @@ def build_material(name, spec):
         bsdf.inputs['Emission Strength'].default_value = spec.get('strength', 1.0)
         bsdf.inputs['Base Color'].default_value = (*srgb_to_linear(spec['emission']), 1)
     if spec.get('palette'):
-        n = _image_node(nt, _palette_image(spec['palette']), 'sRGB', -500, 300)
+        slots = int(spec.get('paletteSlots', 8))
+        n = _image_node(nt, _palette_image(spec['palette'], name, slots), 'sRGB', -500, 300)
         n.interpolation = 'Closest'
         nt.links.new(n.outputs['Color'], bsdf.inputs['Base Color'])
         m['palette'] = True
+        m['paletteSlots'] = slots
     if spec.get('glass'):
         _glass(m, spec)
     tex = spec.get('texture')
     maps = _process(name, spec, tex) if tex else {}
+    factor = None
+    if spec.get('set'):
+        set_name, set_spec = _set_spec(spec['set'])
+        maps = _process(set_name, set_spec, set_spec.get('texture')) if (set_spec.get('texture') or set_spec.get('generate')) else {}
+        maps = {k: v for k, v in maps.items() if k in spec.get('maps', ('diff', 'nor', 'arm'))}
+        if 'diff' in maps:
+            factor = _factor(spec.get('color', '#cccccc'), set_spec.get('process', {}).get('tint', '#808080'))
     m['textured'] = bool(maps)
     if 'diff' in maps:
         n = _image_node(nt, maps['diff'], 'sRGB', -600, 300)
-        nt.links.new(n.outputs['Color'], bsdf.inputs['Base Color'])
+        if factor is not None and any(abs(c - 1.0) > 1e-4 for c in factor):
+            mix = nt.nodes.new('ShaderNodeMix')
+            mix.data_type = 'RGBA'
+            mix.blend_type = 'MULTIPLY'
+            mix.location = (-300, 300)
+            mix.inputs['Factor'].default_value = 1.0
+            nt.links.new(n.outputs['Color'], mix.inputs[6])
+            mix.inputs[7].default_value = (*factor, 1)
+            nt.links.new(mix.outputs[2], bsdf.inputs['Base Color'])
+        else:
+            nt.links.new(n.outputs['Color'], bsdf.inputs['Base Color'])
     if 'arm' in maps:
         n = _image_node(nt, maps['arm'], 'Non-Color', -800, 0)
         sep = nt.nodes.new('ShaderNodeSeparateColor')
@@ -244,6 +343,26 @@ def build_material(name, spec):
         nt.links.new(nm.outputs['Normal'], bsdf.inputs['Normal'])
         m['normalNode'] = nm.name
     return m
+
+
+def _set_spec(ref):
+    """A texture set: '@Material' = that material's own inline maps (same images, so they are exported once), else SPEC['textureSets'][ref]."""
+    if ref.startswith('@'):
+        return ref[1:], SPEC['materials'][ref[1:]]
+    return 'set_' + ref, SPEC['textureSets'][ref]
+
+
+def _factor(color, tint):
+    """The constant that turns a set processed to mean `tint` into mean `color` (linear, per channel). glTF factors are <= 1: a brighter
+    target is scaled down as a whole (hue kept) and reported."""
+    c = srgb_to_linear(color)
+    t = srgb_to_linear(tint)
+    f = [ci / max(ti, 1e-4) for ci, ti in zip(c, t)]
+    k = max(f)
+    if k > 1.0:
+        print(f'materials: {color} is brighter than its set ({tint}); clamped', flush=True)
+        f = [x / k for x in f]
+    return tuple(f)
 
 
 def _glass(m, spec):
@@ -302,6 +421,11 @@ def build_all():
     return {name: build_material(name, spec) for name, spec in SPEC['materials'].items()}
 
 
+def role(r):
+    """The material name for a building role (materials.json `roles`, e.g. role('floor.ward') -> 'SheetVinyl')."""
+    return SPEC['roles'][r]
+
+
 def bevel_of(name):
     return SPEC['materials'][name].get('bevel', [0, 0])
 
@@ -328,7 +452,7 @@ def project_uvs(o, palette_index=None):
     for p in me.polygons:
         if m.get('palette'):
             i = palette_index(p) if palette_index else 0
-            u, v = palette_uv(i)
+            u, v = palette_uv(i, int(m.get('paletteSlots', 8)))
             for li in p.loop_indices:
                 data[li].uv = (u, v)
             continue

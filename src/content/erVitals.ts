@@ -15,6 +15,8 @@ export const VitalsShiftSchema = z.strictObject({
   pulse: z.number().min(-20).max(50).optional(),
   spo2: z.number().min(-20).max(0).optional(),
   tempC: z.number().min(-2).max(3).optional(),
+  /** Breaths a minute (the bedside monitor's respiratory rate; the kiosks do not measure it). */
+  rr: z.number().min(-4).max(20).optional(),
 })
 export type VitalsShift = z.infer<typeof VitalsShiftSchema>
 

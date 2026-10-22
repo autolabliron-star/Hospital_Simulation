@@ -80,6 +80,27 @@ export function appliedDpr(step: QualityStep, deviceDpr: number): number {
   return Math.max(1, Math.min(step.dpr, d))
 }
 
+/**
+ * Presentation mode (C) renders sharper: the pixel ratio a rung asks for while presenting, by rung index (rungs past the end keep their own). The
+ * top rung goes to the display's full ratio (capped at PRESENT_DPR_CAP: a Retina laptop's 2), and every pixel-ratio rung sits one notch higher
+ * than in the walk, so a machine that has to step down while presenting still steps 2 -> 1.5 -> 1.25 -> 1.0 rather than falling from 2 to 1.25.
+ * The switch happens once, on entering (Quality.tsx applies it at once, not deferred); the ladder still never steps UP while presenting (F-41) and
+ * still steps down when the frames are late. The composer keeps its 4x MSAA at every ratio (Effects.tsx): at 2 that is 16 samples per CSS pixel,
+ * which holds the oak slats' thin edges without a post-process AA pass.
+ *
+ * TUNING KNOBS: PRESENT_DPR (the ratios by rung) and PRESENT_DPR_CAP (the ceiling; 2 on the laptop, which is devicePixelRatio there).
+ */
+export const PRESENT_DPR: readonly number[] = [2, 1.5, 1.25]
+export const PRESENT_DPR_CAP = 2
+
+/** The pixel ratio rung `level` renders at while presenting, on a display of `deviceDpr`: never above the display or the cap, never below 1. */
+export function presentDpr(level: number, deviceDpr: number): number {
+  const d = Number.isFinite(deviceDpr) && deviceDpr > 0 ? deviceDpr : 1
+  const l = clampLevel(level)
+  const want = l < PRESENT_DPR.length ? PRESENT_DPR[l] : QUALITY_STEPS[l].dpr
+  return Math.max(1, Math.min(want, d, PRESENT_DPR_CAP))
+}
+
 export interface LadderConfig {
   /** Drawn frames per measuring window. */
   windowFrames: number

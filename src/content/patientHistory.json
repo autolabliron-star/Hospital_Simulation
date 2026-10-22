@@ -1,0 +1,871 @@
+{
+  "_comment": "The patient record on the bedside tablet: synthetic past history, allergies and a plausible story of the stay so far, drawn per patient from a hash of their id and name (src/sim/records). Demo content only, written to be clinically sensible and conservative; items marked review:true are for clinician review. Nothing here drives the simulation: the only use outside the record is the pharmacist's allergy query on the presenter's own orders.",
+  "demoDate": "2026-10-22",
+  "mrn": { "prefix": "SYN", "label": "Synthetic MRN" },
+  "allergyChance": 0.22,
+  "secondAllergyChance": 0.15,
+  "allergens": [
+    {
+      "id": "penicillin",
+      "agent": "Penicillin",
+      "kind": "drug",
+      "classId": "penicillin",
+      "weight": 10,
+      "reactions": [
+        { "type": "allergy", "text": "Rash", "severity": "mild", "weight": 6 },
+        { "type": "allergy", "text": "Hives and lip swelling", "severity": "moderate", "weight": 3 },
+        { "type": "allergy", "text": "Anaphylaxis", "severity": "severe", "weight": 1 }
+      ]
+    },
+    {
+      "id": "nsaid",
+      "agent": "NSAIDs (ibuprofen)",
+      "kind": "drug",
+      "classId": "nsaid",
+      "weight": 4,
+      "reactions": [
+        { "type": "allergy", "text": "Bronchospasm (wheeze)", "severity": "severe", "weight": 2 },
+        { "type": "intolerance", "text": "Indigestion and stomach pain", "severity": "mild", "weight": 3 }
+      ]
+    },
+    {
+      "id": "codeine",
+      "agent": "Codeine",
+      "kind": "drug",
+      "classId": null,
+      "weight": 5,
+      "reactions": [{ "type": "intolerance", "text": "Vomiting", "severity": "mild", "weight": 1 }]
+    },
+    {
+      "id": "morphine",
+      "agent": "Morphine",
+      "kind": "drug",
+      "classId": null,
+      "weight": 2,
+      "reactions": [{ "type": "intolerance", "text": "Itching and nausea", "severity": "mild", "weight": 1 }]
+    },
+    {
+      "id": "trimethoprim",
+      "agent": "Trimethoprim",
+      "kind": "drug",
+      "classId": null,
+      "weight": 2,
+      "reactions": [{ "type": "allergy", "text": "Rash", "severity": "mild", "weight": 1 }]
+    },
+    {
+      "id": "statin",
+      "agent": "Statins (atorvastatin)",
+      "kind": "drug",
+      "classId": "statin",
+      "weight": 2,
+      "reactions": [{ "type": "intolerance", "text": "Muscle aches", "severity": "mild", "weight": 1 }]
+    },
+    {
+      "id": "latex",
+      "agent": "Latex",
+      "kind": "other",
+      "classId": null,
+      "weight": 2,
+      "reactions": [
+        { "type": "allergy", "text": "Contact dermatitis", "severity": "mild", "weight": 3 },
+        { "type": "allergy", "text": "Hives", "severity": "moderate", "weight": 1 }
+      ]
+    },
+    {
+      "id": "plasters",
+      "agent": "Adhesive dressings",
+      "kind": "other",
+      "classId": null,
+      "weight": 2,
+      "reactions": [{ "type": "intolerance", "text": "Skin blistering", "severity": "mild", "weight": 1 }]
+    },
+    {
+      "id": "contrast",
+      "agent": "Iodinated contrast",
+      "kind": "drug",
+      "classId": null,
+      "weight": 1,
+      "reactions": [{ "type": "allergy", "text": "Hives", "severity": "moderate", "weight": 1 }]
+    },
+    {
+      "id": "peanut",
+      "agent": "Peanuts",
+      "kind": "food",
+      "classId": null,
+      "weight": 1,
+      "reactions": [{ "type": "allergy", "text": "Anaphylaxis", "severity": "severe", "weight": 1 }]
+    }
+  ],
+  "pinnedAllergies": {
+    "pt-A2": [{ "allergen": "penicillin", "reaction": 0 }],
+    "pt-B7": [{ "allergen": "codeine", "reaction": 0 }]
+  },
+  "conditions": [
+    { "id": "htn", "name": "High blood pressure (hypertension)", "minAge": 40, "meds": ["amlodipine"], "random": 6 },
+    { "id": "hyperlipidaemia", "name": "Raised cholesterol", "minAge": 40, "meds": ["atorvastatin"], "random": 4 },
+    { "id": "t2dm", "name": "Type 2 diabetes", "minAge": 35, "meds": ["metformin", "atorvastatin"], "random": 3 },
+    { "id": "ihd", "name": "Ischaemic heart disease (stable angina)", "minAge": 50, "meds": ["atorvastatin"], "random": 2 },
+    { "id": "hf", "name": "Chronic heart failure", "minAge": 45, "meds": ["furosemide", "bisoprolol"], "random": 0 },
+    { "id": "af", "name": "Atrial fibrillation", "minAge": 50, "meds": ["apixaban", "bisoprolol"], "random": 0 },
+    { "id": "asthma", "name": "Asthma", "minAge": 5, "maxAge": 60, "meds": ["salbutamol"], "random": 2, "avoidWith": ["bisoprolol"] },
+    { "id": "copd", "name": "COPD (chronic obstructive pulmonary disease)", "minAge": 50, "meds": ["salbutamol"], "random": 2, "smokers": true },
+    { "id": "hypothyroid", "name": "Underactive thyroid (hypothyroidism)", "minAge": 25, "meds": ["levothyroxine"], "random": 1, "femaleRandom": 3 },
+    { "id": "gord", "name": "Acid reflux (GORD)", "minAge": 18, "meds": ["omeprazole"], "random": 3 },
+    { "id": "oa", "name": "Osteoarthritis", "minAge": 50, "meds": ["paracetamol"], "random": 4 },
+    { "id": "osteoporosis", "name": "Osteoporosis", "minAge": 60, "meds": ["colecalciferol"], "random": 0.3, "femaleRandom": 3 },
+    { "id": "vitd", "name": "Low vitamin D", "minAge": 0, "meds": ["colecalciferol"], "random": 1 },
+    { "id": "hayfever", "name": "Hay fever", "minAge": 5, "meds": ["cetirizine"], "random": 2 },
+    { "id": "constipation", "name": "Chronic constipation", "minAge": 60, "meds": ["macrogol"], "random": 1 },
+    { "id": "migraine", "name": "Migraine", "minAge": 18, "maxAge": 65, "meds": [], "random": 1 },
+    { "id": "gout", "name": "Gout", "minAge": 45, "meds": [], "random": 1 }
+  ],
+  "conditionCount": [
+    { "maxAge": 39, "weights": [70, 25, 5, 0] },
+    { "maxAge": 64, "weights": [35, 40, 20, 5] },
+    { "maxAge": 120, "weights": [15, 35, 35, 15] }
+  ],
+  "chronicMeds": [
+    { "med": "apixaban", "anyOf": ["af"] },
+    { "med": "bisoprolol", "anyOf": ["hf", "af", "ihd", "htn"] },
+    { "med": "furosemide", "anyOf": ["hf"] },
+    { "med": "metformin", "anyOf": ["t2dm"] },
+    { "med": "atorvastatin", "anyOf": ["ihd", "t2dm", "hyperlipidaemia"] },
+    { "med": "amlodipine", "anyOf": ["htn"] },
+    { "med": "levothyroxine", "anyOf": ["hypothyroid"] },
+    { "med": "salbutamol", "anyOf": ["asthma", "copd"] },
+    { "med": "cetirizine", "anyOf": ["hayfever"] },
+    { "med": "omeprazole", "anyOf": ["gord"] },
+    { "med": "colecalciferol", "anyOf": ["osteoporosis", "vitd"] }
+  ],
+  "procedures": [
+    { "id": "appendicectomy", "name": "Appendicectomy", "ageAt": [8, 35], "weight": 5 },
+    { "id": "tonsillectomy", "name": "Tonsillectomy", "ageAt": [4, 14], "weight": 3 },
+    { "id": "wisdom", "name": "Wisdom teeth removal", "ageAt": [18, 28], "weight": 3 },
+    { "id": "caesarean", "name": "Caesarean section", "sex": "female", "ageAt": [22, 42], "weight": 4 },
+    { "id": "hysterectomy", "name": "Hysterectomy", "sex": "female", "ageAt": [40, 58], "weight": 2 },
+    { "id": "turp", "name": "Prostate operation (TURP)", "sex": "male", "ageAt": [58, 80], "weight": 2 },
+    { "id": "hernia", "name": "Inguinal hernia repair", "ageAt": [25, 75], "weight": 3 },
+    { "id": "lapchole", "name": "Gallbladder removal (laparoscopic cholecystectomy)", "ageAt": [30, 70], "weight": 3 },
+    { "id": "cataract", "name": "Cataract surgery", "side": true, "ageAt": [62, 88], "weight": 4 },
+    { "id": "tkr", "name": "Total knee replacement", "side": true, "ageAt": [58, 84], "weight": 2 },
+    { "id": "thr", "name": "Total hip replacement", "side": true, "ageAt": [58, 84], "weight": 2 },
+    { "id": "arthroscopy", "name": "Knee arthroscopy", "side": true, "ageAt": [20, 55], "weight": 2 },
+    { "id": "carpal", "name": "Carpal tunnel release", "side": true, "ageAt": [35, 70], "weight": 2 },
+    { "id": "varicose", "name": "Varicose vein surgery", "ageAt": [35, 65], "weight": 1 },
+    { "id": "polyp", "name": "Colonoscopy with polyp removal", "ageAt": [50, 75], "weight": 2 },
+    { "id": "pci", "name": "Coronary stent (PCI)", "ageAt": [45, 78], "weight": 3, "requires": ["ihd"] },
+    { "id": "cabg", "name": "Coronary artery bypass graft (CABG)", "ageAt": [52, 78], "weight": 2, "requires": ["ihd"] }
+  ],
+  "procedureCount": [
+    { "maxAge": 29, "weights": [60, 35, 5, 0] },
+    { "maxAge": 59, "weights": [35, 40, 20, 5] },
+    { "maxAge": 120, "weights": [15, 35, 35, 15] }
+  ],
+  "sides": ["left", "right"],
+  "social": {
+    "smoking": [
+      { "kind": "never", "text": "Never smoked", "weight": 55 },
+      { "kind": "ex", "text": "Ex-smoker, stopped in {year} (about {packs} pack-years)", "weight": 30 },
+      { "kind": "current", "text": "Smokes about {n} cigarettes a day", "weight": 15 }
+    ],
+    "alcohol": [
+      { "text": "Does not drink alcohol", "weight": 30 },
+      { "text": "Drinks within recommended limits (about {n} units a week)", "weight": 60 },
+      { "text": "Drinks above recommended limits (about {n} units a week)", "weight": 10 }
+    ],
+    "living": [
+      { "maxAge": 64, "options": ["Lives with partner", "Lives with family", "Lives alone"] },
+      { "maxAge": 84, "options": ["Lives with partner", "Lives alone, independent", "Lives with family"] },
+      { "maxAge": 120, "options": ["Lives alone, carers twice a day", "Lives with partner", "Lives in a residential home"] }
+    ],
+    "mobility": [
+      { "maxAge": 64, "options": ["Independent"] },
+      { "maxAge": 79, "options": ["Independent", "Walks with a stick"] },
+      { "maxAge": 120, "options": ["Walks with a stick", "Walks with a frame", "Independent"] }
+    ]
+  },
+  "immunisations": [
+    { "name": "Influenza (this autumn)", "fromAge": 0, "chance": [0.35, 0.75], "olderFrom": 65, "given": "Given {month} {year}", "missing": "Not recorded" },
+    { "name": "COVID-19 booster (this autumn)", "fromAge": 0, "chance": [0.2, 0.7], "olderFrom": 75, "given": "Given {month} {year}", "missing": "Not recorded" },
+    { "name": "Pneumococcal", "fromAge": 65, "chance": [0.7, 0.7], "olderFrom": 65, "given": "Given {pastYear}", "missing": "Not recorded" }
+  ],
+  "codeStatus": {
+    "full": "For resuscitation",
+    "dnacpr": "DNACPR (documented; for clinician review)",
+    "dnacprFromAge": 85,
+    "dnacprChance": 0.4
+  },
+  "isolation": {
+    "none": "None",
+    "chance": 0.04,
+    "flag": "Contact precautions (MRSA carrier)"
+  },
+  "falls": { "high": "High falls risk", "moderate": "Moderate falls risk", "low": "Low falls risk", "highFromAge": 80, "moderateFromAge": 65 },
+  "routes": {
+    "er": "Arrived at the ER: {arrival}",
+    "ambulance": "Arrived by ambulance: {arrival}",
+    "gp": "Referred by the GP to the acute medical unit: {arrival}",
+    "elective": "Planned admission: {arrival}",
+    "clinic": "Arrived for an outpatient appointment: {arrival}"
+  },
+  "triageLabels": ["", "Immediate", "Very urgent", "Urgent", "Standard", "Non-urgent"],
+  "stays": [
+    {
+      "id": "chest-infection",
+      "match": ["chest infection", "pneumonia", "cough and fever"],
+      "team": "Respiratory medicine",
+      "route": "er",
+      "triage": 3,
+      "arrival": "cough, fever and breathlessness for five days",
+      "diagnosis": "Community-acquired pneumonia (right lower lobe)",
+      "tests": [
+        { "kind": "bloods", "name": "Full blood count, kidney function, CRP", "summary": "White cells and CRP raised; kidney function normal" },
+        { "kind": "imaging", "name": "Chest X-ray", "summary": "Right lower zone consolidation" },
+        { "kind": "micro", "name": "Sputum culture", "summary": "Usual respiratory organisms only", "day": 3 }
+      ],
+      "problems": ["Community-acquired pneumonia, improving"],
+      "plan": ["Complete the course of oral antibiotics", "Encourage fluids and walking", "Home when observations stay settled"],
+      "round": "Feels better and eating well. Chest clearer, temperature settled. Continue the plan.",
+      "obs": { "tempC": 1.3, "pulse": 20, "rr": 7, "spo2": -5, "sys": -8, "o2Days": 1 }
+    },
+    {
+      "id": "heart-failure",
+      "match": ["heart failure"],
+      "team": "Cardiology",
+      "route": "er",
+      "triage": 3,
+      "arrival": "more breathless and ankles swelling over a week",
+      "diagnosis": "Worsening of chronic heart failure (fluid overload)",
+      "tests": [
+        { "kind": "bloods", "name": "Kidney function, electrolytes, NT-proBNP", "summary": "NT-proBNP raised; kidney function stable" },
+        { "kind": "imaging", "name": "Chest X-ray", "summary": "Small fluid collections at both lung bases" },
+        { "kind": "ecg", "name": "ECG", "summary": "Sinus rhythm, no acute changes" },
+        { "kind": "other", "name": "Echocardiogram", "summary": "Reduced pumping function of the left ventricle", "day": 2, "review": true }
+      ],
+      "problems": ["Fluid overload from heart failure, improving with diuretics"],
+      "plan": ["Daily weights and fluid balance chart", "Kidney function and potassium tomorrow morning", "Heart failure nurse review before discharge"],
+      "round": "Breathing easier and weight down since admission. Ankles less swollen. Continue the diuretic and daily weights.",
+      "pending": ["Kidney function and potassium (tomorrow 06:00)"],
+      "obs": { "rr": 6, "spo2": -4, "pulse": 14, "sys": 10, "o2Days": 1 },
+      "conditions": ["hf"]
+    },
+    {
+      "id": "asthma",
+      "match": ["asthma"],
+      "team": "Respiratory medicine",
+      "route": "er",
+      "triage": 2,
+      "arrival": "wheeze and breathlessness not settling with own inhaler",
+      "diagnosis": "Asthma flare (moderate)",
+      "tests": [
+        { "kind": "other", "name": "Peak flow", "summary": "Improved after nebulisers" },
+        { "kind": "bloods", "name": "Full blood count", "summary": "Normal" },
+        { "kind": "imaging", "name": "Chest X-ray", "summary": "Lungs clear; no collapsed lung" }
+      ],
+      "problems": ["Asthma flare, settling"],
+      "plan": ["Peak flow before and after inhalers", "Inhaler technique check", "Asthma nurse review and a written action plan"],
+      "round": "Much less wheezy. Peak flow improving. Inhaler technique checked.",
+      "obs": { "rr": 8, "spo2": -4, "pulse": 22, "o2Days": 0 },
+      "conditions": ["asthma"]
+    },
+    {
+      "id": "af",
+      "match": ["atrial fibrillation"],
+      "team": "Cardiology",
+      "route": "er",
+      "triage": 3,
+      "arrival": "palpitations and feeling light-headed",
+      "diagnosis": "Atrial fibrillation with a fast heart rate",
+      "tests": [
+        { "kind": "ecg", "name": "ECG", "summary": "Atrial fibrillation, about 130 beats a minute" },
+        { "kind": "bloods", "name": "Thyroid function, kidney function, electrolytes", "summary": "Normal" },
+        { "kind": "other", "name": "Echocardiogram", "summary": "Valves look normal; left atrium mildly enlarged", "day": 3, "review": true }
+      ],
+      "problems": ["Atrial fibrillation, heart rate now controlled"],
+      "plan": ["Continue rate control and anticoagulation", "Heart monitor until the rate has been settled for a day", "Cardiology clinic follow-up"],
+      "round": "Heart rate now 70 to 85 at rest. No palpitations. Continue the current medicines.",
+      "obs": { "pulse": 45, "sys": -5, "rr": 3 },
+      "conditions": ["af"],
+      "falls": true
+    },
+    {
+      "id": "diabetes",
+      "match": ["diabetes"],
+      "team": "Diabetes and endocrinology",
+      "route": "gp",
+      "triage": 3,
+      "arrival": "high sugar readings and very thirsty",
+      "diagnosis": "Type 2 diabetes, poorly controlled",
+      "tests": [
+        { "kind": "bloods", "name": "HbA1c, kidney function, ketones", "summary": "HbA1c high; ketones normal; kidney function normal" },
+        { "kind": "other", "name": "Finger-prick glucose before meals", "summary": "Readings coming down" }
+      ],
+      "problems": ["Type 2 diabetes, glucose improving"],
+      "plan": ["Finger-prick glucose before meals and at bedtime", "Diabetes specialist nurse review", "Dietitian advice before discharge"],
+      "round": "Glucose readings now mostly in range. Eating well. Continue.",
+      "obs": { "pulse": 8, "rr": 2 },
+      "conditions": ["t2dm"]
+    },
+    {
+      "id": "hypertension",
+      "match": ["blood pressure"],
+      "team": "General medicine",
+      "route": "gp",
+      "triage": 3,
+      "arrival": "very high blood pressure at the GP surgery, with a headache",
+      "diagnosis": "Severe high blood pressure, no sign of organ damage",
+      "tests": [
+        { "kind": "bloods", "name": "Kidney function, electrolytes", "summary": "Normal" },
+        { "kind": "ecg", "name": "ECG", "summary": "Sinus rhythm; possible thickening of the heart muscle", "review": true },
+        { "kind": "other", "name": "Urine dipstick", "summary": "No blood or protein" }
+      ],
+      "problems": ["High blood pressure, coming down on the new tablets"],
+      "plan": ["Blood pressure every four hours", "Kidney function after the change in tablets", "GP blood pressure check in a week"],
+      "round": "Blood pressure lower today and the headache has gone. Continue.",
+      "obs": { "sys": 42, "pulse": 6 },
+      "conditions": ["htn"]
+    },
+    {
+      "id": "nausea-reflux",
+      "match": ["nausea", "reflux"],
+      "team": "Gastroenterology",
+      "route": "er",
+      "triage": 4,
+      "arrival": "nausea, vomiting and burning chest pain after meals",
+      "diagnosis": "Gastritis with reflux",
+      "tests": [
+        { "kind": "bloods", "name": "Full blood count, liver function, amylase", "summary": "Normal" },
+        { "kind": "ecg", "name": "ECG", "summary": "Normal" }
+      ],
+      "problems": ["Nausea and reflux, settling"],
+      "plan": ["Anti-sickness medicine when needed", "Build up food and fluids", "Outpatient endoscopy if it carries on"],
+      "round": "Nausea easing; managing small meals. Continue.",
+      "obs": { "pulse": 12 },
+      "conditions": ["gord"]
+    },
+    {
+      "id": "fall-constipation",
+      "match": ["constipation"],
+      "team": "General medicine",
+      "route": "er",
+      "triage": 4,
+      "arrival": "a fall at home, then constipation and abdominal pain while less mobile",
+      "diagnosis": "Constipation with reduced mobility after a fall",
+      "tests": [
+        { "kind": "imaging", "name": "X-ray of the hip and pelvis", "summary": "No fracture" },
+        { "kind": "imaging", "name": "X-ray of the abdomen", "summary": "Constipation; no blockage" },
+        { "kind": "bloods", "name": "Calcium, kidney function, thyroid function", "summary": "Normal" }
+      ],
+      "problems": ["Constipation, improving", "Reduced mobility after a fall"],
+      "plan": ["Regular laxatives and fluids", "Physiotherapy for walking", "Falls assessment before discharge"],
+      "round": "Bowels opened. Walking further with the physiotherapist. Continue.",
+      "obs": { "pulse": 6 },
+      "falls": true
+    },
+    {
+      "id": "thyroid",
+      "match": ["thyroid"],
+      "team": "Medicine for older people",
+      "route": "gp",
+      "triage": 4,
+      "arrival": "tiredness, low mood and a fall",
+      "diagnosis": "Underactive thyroid not fully treated; low vitamin D",
+      "tests": [
+        { "kind": "bloods", "name": "Thyroid function, vitamin D, bone profile", "summary": "TSH raised; vitamin D low" },
+        { "kind": "imaging", "name": "DEXA bone density scan", "summary": "Osteoporosis at the hip", "day": 3, "review": true }
+      ],
+      "problems": ["Underactive thyroid, dose adjusted", "Bone health: osteoporosis"],
+      "plan": ["Thyroid blood test again in six weeks (GP)", "Vitamin D and calcium", "Falls and bone health clinic"],
+      "round": "A little more energy. Walking with the physiotherapist.",
+      "obs": { "pulse": -6 },
+      "conditions": ["hypothyroid", "osteoporosis"],
+      "falls": true
+    },
+    {
+      "id": "knee-ligament",
+      "match": ["knee surgery"],
+      "maxAge": 54,
+      "team": "Orthopaedics",
+      "route": "elective",
+      "triage": null,
+      "arrival": "knee ligament reconstruction",
+      "diagnosis": "Torn anterior cruciate ligament (sports injury)",
+      "procedure": { "name": "Knee ligament (ACL) reconstruction", "day": 1, "note": "General anaesthetic; uncomplicated." },
+      "tests": [
+        { "kind": "bloods", "name": "Pre-operative bloods", "summary": "Normal" },
+        { "kind": "imaging", "name": "Knee X-ray after surgery", "summary": "Fixation in a good position", "day": 2 }
+      ],
+      "problems": ["Recovering after knee ligament surgery", "Pain controlled"],
+      "plan": ["Physiotherapy: crutches and stairs", "Wound check before discharge", "Physiotherapy clinic in one week"],
+      "round": "Pain controlled. Walking with crutches. Wound clean and dry.",
+      "obs": { "pulse": 8, "tempC": 0.4 },
+      "excludesPast": ["arthroscopy"]
+    },
+    {
+      "id": "knee-replacement",
+      "match": ["knee surgery"],
+      "team": "Orthopaedics",
+      "route": "elective",
+      "triage": null,
+      "arrival": "knee replacement",
+      "diagnosis": "Osteoarthritis of the knee",
+      "procedure": { "name": "Total knee replacement", "day": 1, "note": "Spinal anaesthetic; uncomplicated." },
+      "tests": [
+        { "kind": "bloods", "name": "Pre-operative bloods, group and save", "summary": "Normal" },
+        { "kind": "imaging", "name": "Knee X-ray after surgery", "summary": "Implant in a good position", "day": 2 },
+        { "kind": "bloods", "name": "Haemoglobin after surgery", "summary": "Slight drop, as expected", "day": 2 }
+      ],
+      "problems": ["Recovering after knee replacement", "Pain controlled"],
+      "plan": ["Physiotherapy: stairs assessment", "Wound check before discharge", "Clips out at the GP practice in two weeks"],
+      "round": "Pain controlled. Walking with crutches. Wound clean and dry.",
+      "obs": { "pulse": 8, "tempC": 0.4 },
+      "conditions": ["oa"],
+      "excludesPast": ["tkr", "arthroscopy"]
+    },
+    {
+      "id": "abdominal-surgery",
+      "match": ["abdominal surgery"],
+      "team": "General surgery",
+      "route": "er",
+      "triage": 2,
+      "arrival": "abdominal pain moving to the lower right side, with fever",
+      "diagnosis": "Acute appendicitis",
+      "procedure": { "name": "Laparoscopic appendicectomy", "day": 1, "note": "Inflamed appendix removed; uncomplicated." },
+      "tests": [
+        { "kind": "bloods", "name": "Full blood count, CRP, kidney function", "summary": "White cells and CRP raised" },
+        { "kind": "imaging", "name": "CT abdomen and pelvis", "summary": "Inflamed appendix, no abscess" }
+      ],
+      "problems": ["Recovering after appendix removal"],
+      "plan": ["Eat and drink as able", "Wound check", "Home when eating, passing urine and pain controlled"],
+      "round": "Eating and drinking. Pain controlled with simple painkillers. Wounds clean.",
+      "obs": { "tempC": 1.2, "pulse": 18, "rr": 3 },
+      "excludesPast": ["appendicectomy"]
+    },
+    {
+      "id": "hip-fracture",
+      "match": ["hip fracture"],
+      "team": "Orthogeriatrics",
+      "route": "ambulance",
+      "triage": 2,
+      "arrival": "fall at home, unable to stand, pain in the right hip",
+      "diagnosis": "Broken right hip (fractured neck of femur)",
+      "procedure": { "name": "Hip fracture repair (right hemiarthroplasty)", "day": 2, "note": "Spinal anaesthetic; uncomplicated." },
+      "tests": [
+        { "kind": "imaging", "name": "X-ray of the right hip", "summary": "Fracture of the femoral neck" },
+        { "kind": "bloods", "name": "Full blood count, kidney function, group and save", "summary": "Mild anaemia" },
+        { "kind": "ecg", "name": "ECG", "summary": "Sinus rhythm" },
+        { "kind": "imaging", "name": "Hip X-ray after surgery", "summary": "Implant in a good position", "day": 3 },
+        { "kind": "bloods", "name": "Haemoglobin after surgery", "summary": "Stable", "day": 3 }
+      ],
+      "problems": ["Recovering after hip fracture repair", "High falls risk"],
+      "plan": ["Physiotherapy: walking with a frame", "Occupational therapy home assessment", "Bone health review"],
+      "round": "Comfortable. Walked to the chair with a frame and the physiotherapist.",
+      "obs": { "pulse": 16, "sys": -6 },
+      "conditions": ["osteoporosis"],
+      "falls": true,
+      "mobility": "Walking with a frame since the operation",
+      "excludesPast": ["thr"]
+    },
+    {
+      "id": "breathing",
+      "match": ["breathing support", "breathless"],
+      "team": "Respiratory medicine",
+      "route": "ambulance",
+      "triage": 2,
+      "arrival": "severe breathlessness",
+      "diagnosis": "COPD flare with a chest infection (working diagnosis)",
+      "tests": [
+        { "kind": "bloods", "name": "Blood gas, full blood count, CRP", "summary": "CRP raised; blood gas for the doctor to review", "review": true },
+        { "kind": "imaging", "name": "Chest X-ray", "summary": "Over-inflated lungs; no collapsed lung" }
+      ],
+      "problems": ["Breathlessness: COPD flare with infection (working)"],
+      "plan": ["Oxygen to the target saturation on the chart", "Nebulisers and antibiotics", "Respiratory team review"],
+      "round": "Breathing a little easier. Oxygen being weaned.",
+      "obs": { "rr": 9, "spo2": -7, "pulse": 20, "tempC": 0.8, "o2Days": 2 },
+      "conditions": ["copd"]
+    },
+    {
+      "id": "collapse",
+      "match": ["collapse", "fainting", "fainted"],
+      "team": "General medicine",
+      "route": "ambulance",
+      "triage": 2,
+      "arrival": "collapsed, slow to respond at first",
+      "diagnosis": "Collapse: cause under investigation",
+      "tests": [
+        { "kind": "ecg", "name": "ECG", "summary": "Sinus rhythm" },
+        { "kind": "bloods", "name": "Full blood count, electrolytes, glucose, troponin", "summary": "Normal" },
+        { "kind": "imaging", "name": "CT head", "summary": "No acute abnormality", "review": true }
+      ],
+      "problems": ["Collapse, cause under investigation"],
+      "plan": ["Heart monitor for 24 hours", "Lying and standing blood pressure", "Review medicines that can cause dizziness"],
+      "round": "No further episodes overnight. Heart monitor quiet so far.",
+      "obs": { "sys": -14, "pulse": 10 },
+      "falls": true
+    },
+    {
+      "id": "chest-pain",
+      "match": ["chest pain"],
+      "team": "Cardiology",
+      "route": "ambulance",
+      "triage": 2,
+      "arrival": "central chest pain spreading to the arm",
+      "diagnosis": "Chest pain: possible heart cause (working diagnosis)",
+      "tests": [
+        { "kind": "ecg", "name": "ECG", "summary": "No acute changes", "review": true },
+        { "kind": "bloods", "name": "Troponin, full blood count, kidney function", "summary": "First troponin for the doctor to review", "review": true }
+      ],
+      "problems": ["Chest pain under assessment"],
+      "plan": ["Repeat troponin and ECG", "Heart monitor", "Cardiology review"],
+      "round": "Pain free since admission. Awaiting the repeat troponin.",
+      "pending": ["Repeat troponin"],
+      "obs": { "pulse": 14, "sys": 12 },
+      "conditions": ["ihd"]
+    },
+    {
+      "id": "stroke",
+      "match": ["stroke"],
+      "team": "Stroke medicine",
+      "route": "ambulance",
+      "triage": 1,
+      "arrival": "sudden weakness down one side",
+      "diagnosis": "Suspected stroke (working diagnosis)",
+      "tests": [
+        { "kind": "imaging", "name": "CT head", "summary": "For the stroke team to review", "review": true },
+        { "kind": "bloods", "name": "Full blood count, glucose, clotting", "summary": "Normal" }
+      ],
+      "problems": ["Weakness on one side: stroke workup"],
+      "plan": ["Swallow screen before food or drink", "Neurological observations", "MRI brain and neck artery scan"],
+      "round": "Stable overnight. Weakness unchanged. Swallow screen passed.",
+      "pending": ["MRI brain", "Neck artery (carotid) ultrasound"],
+      "obs": { "sys": 30, "pulse": 6 },
+      "falls": true
+    },
+    {
+      "id": "confusion",
+      "match": ["fit or confusion", "confusion", "confused"],
+      "team": "General medicine",
+      "route": "ambulance",
+      "triage": 2,
+      "arrival": "confused and drowsy",
+      "diagnosis": "Confusion (delirium): cause under investigation",
+      "tests": [
+        { "kind": "bloods", "name": "Full blood count, electrolytes, calcium, glucose, CRP", "summary": "For the doctor to review", "review": true },
+        { "kind": "imaging", "name": "CT head", "summary": "No acute abnormality", "review": true }
+      ],
+      "problems": ["Confusion, cause under investigation"],
+      "plan": ["Delirium screen", "Neurological observations", "Family asked to bring glasses and hearing aids"],
+      "round": "More alert this morning. Knows where they are.",
+      "obs": { "pulse": 10, "acvpu": "C" },
+      "falls": true
+    },
+    {
+      "id": "fever",
+      "match": ["fever"],
+      "team": "Acute medicine",
+      "route": "er",
+      "triage": 2,
+      "arrival": "high fever since yesterday",
+      "diagnosis": "Fever with infection, source under investigation",
+      "tests": [
+        { "kind": "bloods", "name": "Full blood count, CRP, lactate", "summary": "CRP raised; lactate normal" },
+        { "kind": "micro", "name": "Blood cultures", "summary": "No growth so far", "day": 2 },
+        { "kind": "imaging", "name": "Chest X-ray", "summary": "Lungs clear" }
+      ],
+      "problems": ["Fever, source under investigation"],
+      "plan": ["Fluids and antibiotics as prescribed", "Chase the blood cultures", "Observations every four hours"],
+      "round": "Temperature coming down. Drinking well.",
+      "pending": ["Blood cultures (final report)"],
+      "obs": { "tempC": 1.6, "pulse": 22, "rr": 5, "sys": -12 }
+    },
+    {
+      "id": "abdominal-pain",
+      "match": ["abdominal pain"],
+      "team": "General surgery",
+      "route": "er",
+      "triage": 3,
+      "arrival": "severe abdominal pain and vomiting",
+      "diagnosis": "Abdominal pain: cause under investigation",
+      "tests": [
+        { "kind": "bloods", "name": "Full blood count, liver function, amylase, CRP", "summary": "For the surgical team to review", "review": true },
+        { "kind": "imaging", "name": "Ultrasound abdomen", "summary": "For the surgical team to review", "review": true }
+      ],
+      "problems": ["Abdominal pain under investigation"],
+      "plan": ["Clear fluids until the surgical review", "Pain relief and anti-sickness medicine", "Surgical team review"],
+      "round": "Pain easing. Tolerating fluids.",
+      "obs": { "pulse": 16, "tempC": 0.5 }
+    },
+    {
+      "id": "dizziness",
+      "match": ["dizziness", "dizzy"],
+      "team": "General medicine",
+      "route": "er",
+      "triage": 3,
+      "arrival": "dizzy and vomiting since the morning",
+      "diagnosis": "Vertigo, probably from the inner ear (working)",
+      "tests": [
+        { "kind": "bloods", "name": "Full blood count, electrolytes, glucose", "summary": "Normal" },
+        { "kind": "ecg", "name": "ECG", "summary": "Normal" }
+      ],
+      "problems": ["Vertigo with vomiting, settling"],
+      "plan": ["Anti-sickness medicine", "Walk with supervision", "Review at once if headache or new weakness"],
+      "round": "Dizziness better. Walked to the bathroom with help.",
+      "obs": { "pulse": 8 },
+      "falls": true
+    },
+    {
+      "id": "headache",
+      "match": ["headache"],
+      "team": "Acute medicine",
+      "route": "er",
+      "triage": 3,
+      "arrival": "severe headache",
+      "diagnosis": "Headache under assessment",
+      "tests": [
+        { "kind": "imaging", "name": "CT head", "summary": "For senior review", "review": true },
+        { "kind": "bloods", "name": "Full blood count, CRP", "summary": "Normal" }
+      ],
+      "problems": ["Headache under assessment"],
+      "plan": ["Neurological observations", "Pain relief", "Senior review of the CT report"],
+      "round": "Headache easing with simple painkillers.",
+      "obs": { "sys": 10, "pulse": 6 }
+    },
+    {
+      "id": "allergic-reaction",
+      "match": ["allergic reaction"],
+      "team": "Acute medicine",
+      "route": "er",
+      "triage": 2,
+      "arrival": "face and lips swelling after a new food",
+      "diagnosis": "Allergic reaction (swelling), treated",
+      "tests": [{ "kind": "bloods", "name": "Mast cell tryptase", "summary": "Sent to the reference lab", "review": true }],
+      "problems": ["Allergic reaction, settling"],
+      "plan": ["Observe for 6 to 12 hours after treatment", "Adrenaline auto-injector training if prescribed", "Allergy clinic referral"],
+      "round": "Swelling settled. No breathing difficulty.",
+      "pending": ["Mast cell tryptase"],
+      "obs": { "pulse": 18, "sys": -10 },
+      "allergy": { "agent": "Suspected food trigger (under investigation)", "kind": "food", "type": "allergy", "reaction": "Swelling of the face and lips", "severity": "severe" }
+    },
+    {
+      "id": "urine-infection",
+      "match": ["urine infection"],
+      "team": "Acute medicine",
+      "route": "er",
+      "triage": 3,
+      "arrival": "burning when passing urine, with fever",
+      "diagnosis": "Urinary tract infection",
+      "tests": [
+        { "kind": "micro", "name": "Urine culture", "summary": "Sensitivities for the doctor to review", "day": 2, "review": true },
+        { "kind": "bloods", "name": "Full blood count, kidney function, CRP", "summary": "CRP raised; kidney function normal" }
+      ],
+      "problems": ["Urinary tract infection, improving"],
+      "plan": ["Antibiotics as prescribed", "Fluids", "Check the urine culture result"],
+      "round": "Temperature settled. Drinking well.",
+      "obs": { "tempC": 1.1, "pulse": 14 }
+    },
+    {
+      "id": "fall",
+      "match": ["after a fall", "fall"],
+      "team": "Medicine for older people",
+      "route": "er",
+      "triage": 3,
+      "arrival": "a fall at home",
+      "diagnosis": "Fall; no fracture found",
+      "tests": [
+        { "kind": "imaging", "name": "X-ray of the painful area", "summary": "No fracture seen" },
+        { "kind": "bloods", "name": "Full blood count, electrolytes", "summary": "Normal" }
+      ],
+      "problems": ["Fall, mobility being assessed"],
+      "plan": ["Physiotherapy and occupational therapy assessment", "Lying and standing blood pressure", "Falls prevention review"],
+      "round": "Walking with the physiotherapist. Pain controlled.",
+      "obs": { "pulse": 8 },
+      "falls": true
+    },
+    {
+      "id": "robotic-surgery",
+      "match": ["cholecystectomy", "hysterectomy", "prostatectomy"],
+      "team": "Surgery",
+      "route": "elective",
+      "triage": null,
+      "arrival": "planned robotic operation",
+      "diagnosis": "Planned surgery",
+      "procedure": { "name": "{reason}", "day": 1, "note": "Robot-assisted; synthetic operation record." },
+      "tests": [{ "kind": "bloods", "name": "Pre-operative bloods", "summary": "Normal" }],
+      "problems": ["Recovering after planned surgery"],
+      "plan": ["Recovery observations", "Eat and drink as able", "Home or ward as planned"],
+      "round": "Recovering well after surgery.",
+      "obs": { "pulse": 6 }
+    },
+    {
+      "id": "outpatient",
+      "match": ["outpatient"],
+      "team": "Outpatients",
+      "route": "clinic",
+      "triage": null,
+      "arrival": "booked appointment",
+      "diagnosis": "Outpatient investigation",
+      "tests": [],
+      "problems": ["Outpatient investigation"],
+      "plan": ["Results to the referring clinician"],
+      "round": "Seen in clinic.",
+      "obs": {}
+    },
+    {
+      "id": "general",
+      "match": [],
+      "team": "General medicine",
+      "route": "er",
+      "triage": 4,
+      "arrival": "{reason}",
+      "diagnosis": "{reason}",
+      "tests": [{ "kind": "bloods", "name": "Full blood count, kidney function", "summary": "Normal" }],
+      "problems": ["{reason}"],
+      "plan": ["Observations every six hours", "Review on the ward round"],
+      "round": "Comfortable. Plan unchanged.",
+      "obs": {}
+    }
+  ],
+  "text": {
+    "triaged": "Triage category {n} ({label})",
+    "seenEr": "Seen by the ER doctor. Working diagnosis: {diagnosis}",
+    "seenClinic": "Seen in clinic. {diagnosis}",
+    "testDone": "{name}: {summary}",
+    "admitDecision": "Decision to admit under {team}",
+    "electiveAdmit": "Admitted for planned surgery under {team}",
+    "toWard": "Moved to Ward {ward}, room {room}",
+    "charted": "Medicines charted: {meds}",
+    "homeContinued": "Home medicines continued: {meds}",
+    "medRec": "Pharmacist medicines reconciliation: {n} home medicines checked",
+    "medRecGap": "Home medicines not on the ward chart: {meds}. For review.",
+    "toTheatre": "To theatre: {name}",
+    "operation": "Operation: {name}. {note}",
+    "backOnWard": "Back on the ward from recovery",
+    "round": "Ward round ({doctor}): {note}",
+    "roundPlan": "Plan: {plan}",
+    "roundFirst": "Post-take review. Working diagnosis: {diagnosis}.",
+    "roundPreOp": "Seen before the operation: consent confirmed, fasting from midnight.",
+    "review": "Review ({doctor}): {note}",
+    "handover": "Handover, night to day: {note}",
+    "handoverNote": "Settled night. Observations stable. No new concerns.",
+    "obsRound": "Observations",
+    "doseRound": "{time} medicines given: {meds}",
+    "erStayMissing": "Earlier ER events are no longer in memory",
+    "roleTriage": "Triage nurse",
+    "roleErDoctor": "ER doctor",
+    "roleTheatre": "Theatre team",
+    "roleNight": "Night nurse",
+    "you": "You",
+    "teamEr": "ER team",
+    "teamSurgery": "Surgical team",
+    "teamClinic": "Clinic",
+    "labTaken": "to be taken",
+    "labOnWay": "on its way to the lab",
+    "labAtLab": "at the lab",
+    "scanActive": "in progress",
+    "scanWaiting": "waiting",
+    "surgeryReason": "Robotic {procedure}",
+    "outpatientReason": "Outpatient {protocol}"
+  },
+  "ui": {
+    "recordTab": "Record",
+    "prescribeTab": "Prescribe",
+    "recordTitle": "Patient record",
+    "syntheticNote": "Synthetic demo patient. Not a real person or real clinical data.",
+    "sections": { "summary": "Summary", "stay": "This stay", "history": "History" },
+    "filters": { "all": "All", "med": "Meds", "obs": "Obs", "result": "Results", "imaging": "Imaging", "note": "Notes", "movement": "Movements" },
+    "banner": {
+      "years": "{age} y",
+      "female": "Female",
+      "male": "Male",
+      "day": "Day {n} of stay",
+      "admitted": "Admitted {when}",
+      "team": "{team} · {doctor}",
+      "code": "Code status",
+      "isolation": "Isolation",
+      "weight": "{kg} kg",
+      "height": "{cm} cm",
+      "nkda": "No known drug allergies",
+      "allergies": "Allergies",
+      "bodyLabel": "Weight · height"
+    },
+    "headings": {
+      "alerts": "Alerts",
+      "obs": "Latest observations",
+      "problems": "Active problems",
+      "meds": "Current medicines",
+      "pending": "Pending",
+      "plan": "Plan for today",
+      "pmh": "Past medical history",
+      "psh": "Past procedures",
+      "homeMeds": "Usual (home) medicines",
+      "social": "Social",
+      "immunisations": "Immunisations",
+      "allergyDetail": "Allergies and intolerances"
+    },
+    "vitals": { "rr": "RR", "spo2": "SpO₂", "sys": "BP", "pulse": "Pulse", "tempC": "Temp", "acvpu": "ACVPU" },
+    "units": { "rr": "/min", "spo2": "%", "spo2O2": "% on O₂", "sys": "mmHg", "pulse": "/min", "tempC": "°C" },
+    "obsLine": "RR {rr} · SpO₂ {spo2} · BP {bp} · Pulse {pulse} · Temp {temp} · ACVPU {acvpu} · NEWS2 {news}",
+    "news2": "NEWS2 {score}",
+    "news2Note": "Display only",
+    "news2Partial": "partial: {missing} not recorded",
+    "noObs": "No observations recorded yet",
+    "noEntries": "Nothing recorded in this group yet",
+    "nothing": "None",
+    "nextDue": "next {time}",
+    "dueNow": "due now ({time})",
+    "prn": "as needed",
+    "prnLast": "as needed · last {time}",
+    "held": "held: pharmacist query",
+    "oneOff": "one-off",
+    "onChart": "on the ward chart",
+    "notCharted": "not on the ward chart: for review",
+    "review": "for clinician review",
+    "allergyAlert": "{agent}: {reaction} ({severity})",
+    "intolerance": "intolerance",
+    "anticoagulated": "On an anticoagulant ({med})",
+    "openQuery": "Pharmacist query open: {meds}",
+    "dischargeToday": "Planned discharge today at {time}",
+    "dischargeSigned": "Discharge signed: medicines and family on the way",
+    "roundDue": "Ward round expected about {time}",
+    "noPatient": "No patient in this bed right now.",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "gap": "Some earlier events are no longer in memory.",
+    "by": "by {who}",
+    "triageObs": "Triage observations",
+    "kioskObs": "Health kiosk observations",
+    "labResult": "{panel}: {summary}",
+    "labAllNormal": "all within the usual range",
+    "labOutside": "{n} outside the usual range ({list})",
+    "labPending": "{panel}: {stage}",
+    "imagingReport": "{protocol} report: images reviewed; findings not modelled in this demo",
+    "imagingPending": "{protocol}: {state}",
+    "prescribed": "Prescribed {meds}",
+    "given": "Given {meds}",
+    "cancelled": "Not given (cancelled): {meds}",
+    "due": "{meds} due {time}",
+    "queried": "Pharmacist query: {reasons}",
+    "queryConfirmed": "You confirmed the queried order",
+    "queryCancelled": "Queried order cancelled",
+    "sourceSim": "ward round",
+    "sourceSchedule": "regular dose",
+    "sourceDischarge": "take-home",
+    "sourcePresenter": "you, from the tablet",
+    "locWard": "{room} · Ward {ward}",
+    "locEr": "ER",
+    "locSurgery": "Level 2 · Surgery",
+    "locImaging": "Imaging",
+    "allergyMedBadge": "Allergy",
+    "allergyMedTitle": "Recorded allergy or intolerance: the pharmacist will query this order",
+    "obsWard": "Ward observations",
+    "tomorrow": "tomorrow",
+    "newThisStay": "new this stay",
+    "smoking": "Smoking",
+    "alcohol": "Alcohol",
+    "living": "Home",
+    "mobility": "Mobility",
+    "sectionsLabel": "Record sections",
+    "filtersLabel": "Show",
+    "tabsLabel": "Tablet"
+  }
+}

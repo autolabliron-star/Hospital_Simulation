@@ -54,6 +54,22 @@
         "127.0.0.1"
       ],
       "port": 5181
+    },
+    {
+      "name": "hospital-check",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--outDir",
+        "/private/tmp/claude-501/hospital-check",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181
     }
   ]
 }

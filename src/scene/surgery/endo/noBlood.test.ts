@@ -26,8 +26,10 @@ describe('the tiers', () => {
 
 describe('safeTissue', () => {
   it('turns every colour of the cube into one that is neither tier A nor tier B, even after rounding to 8 bits', () => {
+    // ~230k colours: collect the first few failures instead of 1.1 M expect() calls (which timed out on a loaded machine)
     const c: Rgb = { r: 0, g: 0, b: 0 }
     let changed = 0
+    const bad: string[] = []
     for (let r = 0; r <= 255; r += 3) {
       for (let g = 0; g <= 255; g += 5) {
         for (let b = 0; b <= 255; b += 5) {
@@ -39,14 +41,12 @@ describe('safeTissue', () => {
           const G = Math.round(c.g)
           const B = Math.round(c.b)
           if (G !== g || B !== b) changed++
-          expect(isTierA(R, G, B), `${r},${g},${b} -> ${R},${G},${B}`).toBe(false)
-          expect(isTierB(R, G, B), `${r},${g},${b} -> ${R},${G},${B}`).toBe(false)
-          expect(c.r).toBe(r)
-          expect(G).toBeGreaterThanOrEqual(g)
-          expect(B).toBeGreaterThanOrEqual(b)
+          const ok = !isTierA(R, G, B) && !isTierB(R, G, B) && c.r === r && G >= g && B >= b
+          if (!ok && bad.length < 5) bad.push(`${r},${g},${b} -> ${c.r},${G},${B}`)
         }
       }
     }
+    expect(bad).toEqual([])
     expect(changed).toBeGreaterThan(1000)
   })
 

@@ -64,7 +64,7 @@ describe('arrival curves', () => {
     expect(c).not.toEqual(a)
   })
 
-  it('visitors start at 11:00 (none before), dip in the quiet hour, peak in the afternoon and stop at 20:00', () => {
+  it('visitors start at 11:00 (none before), keep lunchtime small, dip in the quiet hour, peak at 14:00-16:00 and 18:00-19:30, and stop at 20:00 (F-32)', () => {
     for (const seed of [3, 4, 5, 6]) {
       const ts = times(new ArrivalProcess(new Rng(seed).fork('v'), CONFIG.day.visitorPartiesPerHour), 1e9)
       expect(ts.length).toBeGreaterThan(50)
@@ -72,13 +72,38 @@ describe('arrival curves', () => {
       expect(Math.min(...ts), `seed ${seed}`).toBeGreaterThanOrEqual(timeAtHour(11))
       const perHour = (h0: number, h1: number) => ts.filter((t) => hourAt(t) >= h0 && hourAt(t) < h1).length
       expect(perHour(6, 11)).toBe(0)
-      // the quiet hour (13:00-14:00, CONFIG.day.quietHours) is far below the lunchtime peak and the afternoon
-      expect(perHour(...(CONFIG.day.quietHours as [number, number]))).toBeLessThan(perHour(12, 13))
-      expect(perHour(13, 14)).toBeLessThan(perHour(15, 16) / 2)
-      expect(perHour(15, 19) / 4).toBeGreaterThan(perHour(13, 14))
+      // no lunchtime peak: 12:00-13:00 is a trickle beside both peaks
+      expect(perHour(12, 13), `seed ${seed}: lunch`).toBeLessThan(perHour(14, 16) / 4)
+      expect(perHour(12, 13), `seed ${seed}: lunch`).toBeLessThan(perHour(18, 19.5) / 3)
+      // the quiet hour (13:00-14:00, CONFIG.day.quietHours) is below the afternoon peak
+      expect(perHour(...(CONFIG.day.quietHours as [number, number]))).toBeLessThan(perHour(15, 16) / 2)
+      // two peaks with a dip between them
+      expect(perHour(16.5, 17.5), `seed ${seed}: the dip`).toBeLessThan(perHour(15, 16) / 1.5)
+      expect(perHour(16.5, 17.5), `seed ${seed}: the dip`).toBeLessThan(perHour(18, 19) / 1.5)
       // visiting hours: no party after 20:00 (they leave by 20:30)
       expect(perHour(20, 40)).toBe(0)
     }
+  })
+
+  it('the visitor curve peaks only at 14:00-16:00 and 18:00-19:30, with no lunchtime peak (the tables, F-32)', () => {
+    for (const [name, table] of [['day', CONFIG.day.visitorPartiesPerHour], ['morning', CONFIG.visitors.partiesPerHour]] as const) {
+      const rate = (h: number) => rateAt(table, h)
+      // the lunch hours stay small in both tables
+      for (let h = 11; h <= 13; h += 0.25) expect(rate(h), `${name} ${h}`).toBeLessThanOrEqual(12)
+    }
+    const table = CONFIG.day.visitorPartiesPerHour
+    const grid: [number, number][] = []
+    for (let h = 11; h <= 20; h += 0.05) grid.push([h, rateAt(table, h)])
+    const max = Math.max(...grid.map(([, r]) => r))
+    // every hour within 3 % of the maximum is inside one of the two peak windows (the ramps up and down are outside the plateau)
+    for (const [h, r] of grid) if (r >= 0.97 * max) expect((h >= 14 - 1e-6 && h <= 16 + 1e-6) || (h >= 18 - 1e-6 && h <= 19.5 + 1e-6), `rate ${r} at ${h}`).toBe(true)
+    // both peaks reach the maximum range, the lunchtime is far below, and the dip between is below both
+    const peak = (from: number, to: number) => Math.max(...grid.filter(([h]) => h >= from && h <= to).map(([, r]) => r))
+    expect(peak(14, 16)).toBeGreaterThanOrEqual(0.9 * max)
+    expect(peak(18, 19.5)).toBeGreaterThanOrEqual(0.9 * max)
+    expect(peak(11, 13.5)).toBeLessThan(0.3 * max)
+    expect(rateAt(table, 17)).toBeLessThan(0.4 * max)
+    expect(rateAt(table, 20)).toBe(0)
   })
 
   it('keeps the visitor tables to the visiting hours: nothing before 11:00 in either table, and the quiet hour dips in the full-day one', () => {

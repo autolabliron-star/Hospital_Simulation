@@ -4,8 +4,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { CasePhase } from '@/sim/types'
+import { AMBULANCE_REASONS, ER_REASONS } from '@/content/roster'
+import { Rng } from '@/sim/rng'
+import { profileFor } from '@/sim/vitals/model'
 import { baselineOf } from './testkit'
-import { insufflationRise, newNibp, newSituation, newVitals, nibpAt, nibpInterval, NIBP_FIRST, RANGES, vitalsAt, wander, type MonitorContext, type Situation } from './vitals'
+import { baselineFrom, insufflationRise, newNibp, newSituation, newVitals, nibpAt, nibpInterval, NIBP_FIRST, RANGES, vitalsAt, wander, type MonitorContext, type Situation } from './vitals'
 
 const CONTEXTS: MonitorContext[] = ['or', 'pacu', 'preop', 'er', 'triage']
 const PHASES: CasePhase[] = ['in', 'induction', 'positioning', 'ports', 'docking', 'console', 'undocking', 'closing', 'emergence', 'out']
@@ -117,6 +120,49 @@ describe('the vitals behind a monitor', () => {
     }
     expect(fast - calm).toBeGreaterThan(30 * 15)
     expect(rrFast).toBeGreaterThan(rrCalm)
+  })
+
+  it('in the ER the monitor follows the complaint (F-24): a priority-1 breathless patient shows low SpO2, a fast pulse and fast breathing', () => {
+    const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length
+    const at = (reason: string, acuity: number) => {
+      const out = { hr: [] as number[], rr: [] as number[], spo2: [] as number[], temp: [] as number[], sys: [] as number[] }
+      for (let p = 0; p < 40; p++) {
+        const b = baselineFrom(profileFor(`m-${p}`, 'Test Person', { age: 60, reason }, new Rng(p + 3)), p + 5)
+        const v = vitalsAt(b, sit('er', { acuity }), 1100 + p * 13, newVitals())
+        out.hr.push(v.hr)
+        out.rr.push(v.rr)
+        out.spo2.push(v.spo2)
+        out.temp.push(v.temp)
+        out.sys.push(v.sys)
+      }
+      return out
+    }
+    const breathless = at('Breathless and struggling to speak', 1)
+    const cold = at('Mild cold symptoms for days', 5)
+    expect(mean(breathless.spo2)).toBeLessThan(90)
+    expect(mean(breathless.spo2)).toBeLessThan(mean(cold.spo2) - 6)
+    expect(mean(breathless.rr)).toBeGreaterThan(26)
+    expect(mean(cold.rr)).toBeLessThan(18)
+    expect(mean(breathless.hr)).toBeGreaterThan(mean(cold.hr) + 20)
+    expect(mean(at('High fever since yesterday', 3).temp)).toBeGreaterThan(mean(cold.temp) + 0.8)
+    expect(mean(at('Collapsed, not fully conscious', 1).sys)).toBeLessThan(mean(cold.sys) - 15)
+  })
+
+  it('every ER and ambulance reason stays inside the plausible ranges on the monitor', () => {
+    const v = newVitals()
+    for (const r of [...ER_REASONS, ...AMBULANCE_REASONS]) {
+      for (let p = 0; p < 12; p++) {
+        const b = baselineFrom(profileFor(`r-${p}`, 'Test Person', { age: 30 + p * 5, reason: r.text }, new Rng(p + 1)), p + 2)
+        for (let t = 1000; t < 1000 + 3 * 3600; t += 311) {
+          vitalsAt(b, sit('er', { acuity: r.acuity }), t, v)
+          for (const key of Object.keys(RANGES) as (keyof typeof RANGES)[]) {
+            expect(v[key], `${r.text} ${key}`).toBeGreaterThanOrEqual(RANGES[key][0])
+            expect(v[key], `${r.text} ${key}`).toBeLessThanOrEqual(RANGES[key][1])
+          }
+          expect(v.sys - v.dia).toBeGreaterThanOrEqual(20)
+        }
+      }
+    }
   })
 
   it('takes the cuff reading on its schedule: 5 min in theatre, 15 in recovery, 30 in pre-op, by acuity in the ER, once at triage', () => {

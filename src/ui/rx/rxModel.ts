@@ -1,5 +1,5 @@
 /**
- * The prescribing tablet's model (F-25): what each medicine row says (dose, route and frequency from the catalogue), what the
+ * The prescribing tablet's model (F-25; the allergy query of the patient record): what each medicine row says (dose, route and frequency from the catalogue), what the
  * pharmacist's queries look like, and what a Send does. Pure functions over a small sim interface, so the node tests prove them.
  * The words are in src/content/pharmacistQueries.json and the presenter copy (src/content/presenter.json).
  */
@@ -39,6 +39,8 @@ export interface QueryView {
   meds: string
   reasons: string[]
   heldNote: string
+  /** The pharmacist queried an allergy (patient record): the card is shown as an allergy alert. */
+  allergy: boolean
 }
 
 export function queryView(q: PharmacistQuery): QueryView {
@@ -47,8 +49,10 @@ export function queryView(q: PharmacistQuery): QueryView {
     roomId: q.roomId,
     title: fillQuery(UI.queryFor, { patient: q.patientName, room: q.roomId }),
     meds: q.medIds.map((id) => `${medicineById(id).name} ${medicineById(id).strength}`).join(', '),
-    reasons: q.reasons.map((r) => r.text),
+    // the allergy reasons first (the sim lists them first too)
+    reasons: [...q.reasons.filter((r) => r.kind === 'allergy'), ...q.reasons.filter((r) => r.kind !== 'allergy')].map((r) => r.text),
     heldNote: UI.heldNote,
+    allergy: q.reasons.some((r) => r.kind === 'allergy'),
   }
 }
 
@@ -95,4 +99,4 @@ export function decideQuery(sim: RxSim, query: Pick<QueryView, 'orderId' | 'room
 }
 
 /** The button words, from the content. */
-export const RX_WORDS = { queryTitle: UI.queryTitle, confirm: UI.confirm, cancel: UI.cancel } as const
+export const RX_WORDS = { queryTitle: UI.queryTitle, allergyTitle: UI.allergyTitle, confirm: UI.confirm, cancel: UI.cancel } as const

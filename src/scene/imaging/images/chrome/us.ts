@@ -48,6 +48,7 @@ const MARKER: Record<UsViewId, [number, number, number]> = {
   kidneyL: [0.94, 0.45, Math.PI / 2],
   spleen: [0.9, 0.36, 1.25],
   bladder: [0.5, 0.86, 0],
+  pancreas: [0.5, 0.3, 0],
 }
 
 /** The overlay: everything that does not change from frame to frame of a sweep. */

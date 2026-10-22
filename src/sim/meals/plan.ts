@@ -2,6 +2,8 @@
  * Pure helpers of the meal service: the serving windows, the dish a patient chose, and the spots the MealBot and its
  * ward host use at a stop and at the service lift. Nothing here touches the simulation state.
  */
+import { ADMISSION_PROFILES } from '@/content/admissions'
+import { DIET, isNilByMouth } from '@/content/diet'
 import { dishesFor, type Dish } from '@/content/meals'
 import { CONFIG } from '../config'
 import { MEAL_STOPS, SERVICE_LIFT, wardSign, type MealStop, type Spot } from '../places'
@@ -38,6 +40,28 @@ export function dishFor(seed: number, meal: MealKind, patientId: string): Dish {
   const dishes = dishesFor(meal)
   const h = mixSeed(seed, hashString(`${meal}:${patientId}`))
   return dishes[h % dishes.length]
+}
+
+/**
+ * F-29: the ward reasons (`RoomStatus.patientReason`, the admission profile's `wardReason`) of patients kept nil by mouth: a reason whose
+ * admission profile follows only ER reasons that `content/diet.ts` lists. A profile id is not on the room status, but its ward reason is,
+ * and each profile has its own: this is the cleanest read-only path from a bed to the patient's original ER reason. Planned inpatients
+ * (content/patients.json) have no profile, so they are never nil by mouth.
+ */
+const NBM_WARD_REASONS: ReadonlySet<string> = (() => {
+  const byReason = new Map<string, boolean>()
+  for (const p of ADMISSION_PROFILES) byReason.set(p.wardReason, (byReason.get(p.wardReason) ?? true) && p.reasons.every(isNilByMouth))
+  return new Set([...byReason].filter(([, nbm]) => nbm).map(([reason]) => reason))
+})()
+
+/** Is the patient with this ward reason kept nil by mouth (no tray, and they say so)? */
+export function isNilByMouthWardReason(reason: string | null | undefined): boolean {
+  return reason !== null && reason !== undefined && NBM_WARD_REASONS.has(reason)
+}
+
+/** The bedside sign for a nil-by-mouth patient ("Nil by mouth"), or null. */
+export function dietSignFor(reason: string | null | undefined): string | null {
+  return isNilByMouthWardReason(reason) ? DIET.nilByMouth.sign : null
 }
 
 /** Where the host stands behind a parked bot (the cabinet door is at the back), and how far behind (m). */

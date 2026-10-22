@@ -4,6 +4,7 @@
  * patient room is listed.
  */
 import { patientInRoom } from '@/content/catalogue'
+import { GO_TO_COPY } from '@/content/goTo'
 import { SURGERY_UI } from '@/content/surgeryUi'
 import { levelOf } from '@/sim/levels'
 import { AREAS, ROOMS, areaById, type AreaId } from '@/sim/places'
@@ -24,9 +25,11 @@ export interface GoToGroup {
   items: GoToItem[]
 }
 
-function item(area: AreaId, label?: string, detail?: string): GoToItem {
+/** One menu row: the words of `goTo.json` (the fixed rooms, then the UK replacements for the layout's own words), else the area's own label and subtitle. */
+function item(area: AreaId): GoToItem {
   const a = areaById(area)
-  return { area, label: label ?? a.label, detail: detail ?? a.subtitle }
+  const words = GO_TO_COPY.items[area] ?? GO_TO_COPY.areaWords[area]
+  return { area, label: words?.label ?? a.label, detail: words?.detail ?? a.subtitle }
 }
 
 /**
@@ -40,7 +43,7 @@ function roomDetail(roomId: RoomId, rooms?: ReadonlyMap<RoomId, RoomStatus>): st
 }
 
 function wardItems(ward: 'A' | 'B', rooms?: ReadonlyMap<RoomId, RoomStatus>): GoToItem[] {
-  return ROOMS.filter((r) => r.ward === ward).map((r) => item(`room:${r.id}`, r.id, roomDetail(r.id, rooms)))
+  return ROOMS.filter((r) => r.ward === ward).map((r) => ({ area: `room:${r.id}` as AreaId, label: r.id, detail: roomDetail(r.id, rooms) }))
 }
 
 /**
@@ -57,31 +60,22 @@ function level2Items(): GoToItem[] {
  * `life.rooms` so the ward names follow the beds as they turn over; without it the menu shows the demo roster.
  */
 export function buildGoToGroups(rooms?: ReadonlyMap<RoomId, RoomStatus>): GoToGroup[] {
+  const g = GO_TO_COPY.groups
   return [
-    {
-      id: 'imaging',
-      title: 'Imaging',
-      items: [
-        item('mri', 'MRI', 'Magnetic resonance imaging'),
-        item('ct', 'CT', 'Computed tomography'),
-        item('xray', 'X-ray', 'Radiography'),
-        item('ultrasound', 'Ultrasound', 'Live sonography'),
-        item('imagingHall', 'Imaging corridor', 'Waiting seats'),
-      ],
-    },
+    { id: 'imaging', title: g.imaging, items: [item('mri'), item('ct'), item('xray'), item('ultrasound'), item('imagingHall')] },
     // W4: the robot draw centre and the automated lab it sends its tubes to
-    { id: 'bloodLab', title: 'Blood & lab', items: [item('diagnostics'), item('lab')] },
+    { id: 'bloodLab', title: g.bloodLab, items: [item('diagnostics'), item('lab')] },
     // R2: level 2, the robotic surgery suite
     { id: 'level2', title: SURGERY_UI.goTo.group, items: level2Items() },
-    { id: 'wardA', title: 'Ward A', items: wardItems('A', rooms) },
-    { id: 'wardB', title: 'Ward B', items: wardItems('B', rooms) },
-    { id: 'pharmacy', title: 'Pharmacy core', items: [item('core', 'Pharmacy core', 'MedVend wall and MedPods')] },
-    { id: 'emergency', title: 'Emergency', items: [item('er', 'Emergency', 'Six treatment bays')] },
-    { id: 'triage', title: 'Triage', items: [item('triage', 'Triage', 'Four assessment bays')] },
-    { id: 'entrance', title: 'Entrance', items: [item('lobby', 'Entrance', 'Self check-in and reception')] },
-    { id: 'atrium', title: 'Atrium & café', items: [item('atrium', 'Healing atrium', 'Garden, café and daylight')] },
-    { id: 'command', title: 'Command center', items: [item('command', 'Command center', 'Every pod, room and order, live')] },
-    { id: 'hubs', title: 'Nurse hubs', items: [item('hubA', 'Nurse hub A', 'Ward A'), item('hubB', 'Nurse hub B', 'Ward B')] },
+    { id: 'wardA', title: g.wardA, items: wardItems('A', rooms) },
+    { id: 'wardB', title: g.wardB, items: wardItems('B', rooms) },
+    { id: 'pharmacy', title: g.pharmacy, items: [item('core')] },
+    { id: 'emergency', title: g.emergency, items: [item('er')] },
+    { id: 'triage', title: g.triage, items: [item('triage')] },
+    { id: 'entrance', title: g.entrance, items: [item('lobby')] },
+    { id: 'atrium', title: g.atrium, items: [item('atrium')] },
+    { id: 'command', title: g.command, items: [item('command')] },
+    { id: 'hubs', title: g.hubs, items: [item('hubA'), item('hubB')] },
   ]
 }
 

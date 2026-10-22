@@ -17,6 +17,7 @@
 import type { StaffMember } from '@/content/staff'
 import { staffName } from '@/content/staff'
 import { bloodText } from '@/content/bloodCopy'
+import { ER_EVENTS, erLine } from '@/content/erEvents'
 import { CONFIG } from '../config'
 import { linenSpot, porterSpot } from '../beds/spots'
 import type { PeopleContext } from '../person'
@@ -31,8 +32,6 @@ import type { PorterJob } from './porterBoard'
 import { headingTo, LINEN_DROPS, LINEN_PICKUP, PORTER_BASES, type Post } from './spots'
 import type { World } from './world'
 
-/** Where an imaging job goes, for the event line. */
-const SCAN_PLACE = { mri: 'the MRI scanner', ct: 'the CT scanner', xray: 'X-ray', us: 'ultrasound' } as const
 
 type State =
   | 'idle'
@@ -431,20 +430,20 @@ export class Porter extends Actor {
     switch (this.job!.kind) {
       case 'toDiagnostics':
         if (p.liveBlood) w.say('porterJob', bloodText('porterToDraw', { porter: me, name }), { subjectId: p.c.id, actorId: this.staff.id })
-        else w.say('porterJob', `${me} is taking ${name} to Lab & imaging.`, { subjectId: p.c.id, actorId: this.staff.id })
+        else w.say('porterJob', erLine('porter.toDiagnostics', { porter: me, patient: name }), { subjectId: p.c.id, actorId: this.staff.id })
         break
       case 'toImaging':
-        w.say('porterJob', `${me} is taking ${name} to ${SCAN_PLACE[p.booking?.modality ?? 'ct']}.`, { subjectId: p.c.id, actorId: this.staff.id })
+        w.say('porterJob', erLine('porter.toImaging', { porter: me, patient: name, place: ER_EVENTS.scanPlaces[p.booking?.modality ?? 'ct'] }), { subjectId: p.c.id, actorId: this.staff.id })
         break
       case 'fromDiagnostics':
       case 'fromImaging':
         if (this.job!.kind === 'fromDiagnostics' && p.liveBlood && p.loungeActive) w.say('porterJob', bloodText('porterToLounge', { porter: me, name }), { subjectId: p.c.id, actorId: this.staff.id })
         else if (this.job!.kind === 'fromDiagnostics' && p.liveBlood) w.say('porterJob', bloodText('porterFromDraw', { porter: me, name, bay: p.c.bay + 1 }), { subjectId: p.c.id, actorId: this.staff.id })
-        else w.say('porterJob', `${me} is bringing ${name} back to ER bay ${p.c.bay + 1}.`, { subjectId: p.c.id, actorId: this.staff.id })
+        else w.say('porterJob', erLine('porter.fromImaging', { porter: me, patient: name, bay: p.c.bay + 1 }), { subjectId: p.c.id, actorId: this.staff.id })
         break
       case 'admit':
-        if (p.bed) w.say('porterJob', `${me} is taking ${name} to room ${p.bed.roomId}.`, { subjectId: p.c.id, actorId: this.staff.id, roomId: p.bed.roomId })
-        else w.say('porterJob', `${me} is taking ${name} to the lift for a ward upstairs.`, { subjectId: p.c.id, actorId: this.staff.id })
+        if (p.bed) w.say('porterJob', erLine('porter.toRoom', { porter: me, patient: name, room: p.bed.roomId }), { subjectId: p.c.id, actorId: this.staff.id, roomId: p.bed.roomId })
+        else w.say('porterJob', erLine('porter.toLift', { porter: me, patient: name }), { subjectId: p.c.id, actorId: this.staff.id })
         break
     }
   }

@@ -14,11 +14,15 @@
  * for the demo catalogue's clear interactions (src/content/pharmacistQueries.json). A queried order is held at 'prescribed': it is not
  * verified, picked or sent until the presenter confirms it (`confirmQuery`) or cancels it (`cancelQuery`). The sim decides nothing
  * clinical: it only raises the query, and nothing resolves it but the presenter (or the patient leaving the bed, which cancels it).
+ *
+ * Patient record: a presenter order for a medicine of the class of a recorded allergy or intolerance (amoxicillin with a penicillin allergy) raises
+ * an "allergy" query, listed first, through the same hold: nothing is dispensed until the presenter confirms or cancels.
  */
 import { medicineById, minDoseGapSeconds, PATIENTS, patientInRoom } from '@/content/catalogue'
-import { findInteractions, fillQuery, PHARMACIST_QUERIES, type QueryReason } from '@/content/pharmacistQueries'
+import { findAllergyConflicts, findInteractions, fillQuery, PHARMACIST_QUERIES, type QueryReason } from '@/content/pharmacistQueries'
 import { CONFIG } from '../config'
 import type { EventLog } from '../events'
+import { allergiesOf } from '../records/history'
 import { ROOMS, roomById } from '../places'
 import type { Drawer, Order, OrderItem, OrderStage, RoomId, WardId } from '../types'
 import { CIRCUITS, drawerS } from './circuit'
@@ -59,8 +63,11 @@ export interface StaffNames {
  */
 export interface Occupancy {
   occupantOf(roomId: RoomId): { id: string; name: string } | null
-  /** The ward record of the patient in the bed (their reason for the stay and usual medicines), for the pharmacist's checks. */
-  recordOf?(roomId: RoomId): { reason: string; usualMeds: readonly string[] } | null
+  /**
+   * The ward record of the patient in the bed (their reason for the stay and usual medicines, and their age), for the pharmacist's checks. The
+   * allergy check draws the patient's recorded allergies from it (src/sim/records/history.ts).
+   */
+  recordOf?(roomId: RoomId): { reason: string; usualMeds: readonly string[]; age?: number } | null
 }
 
 /** Per-pod job memory. */
@@ -311,6 +318,15 @@ export class MedSystem {
       })
     }
     const record = this.occupancy?.recordOf?.(roomId) ?? PATIENTS.find((p) => p.id === patient.id) ?? null
+    // the allergy check comes first: the patient record's allergies (a pure draw from the patient, src/sim/records/history.ts)
+    const allergies = allergiesOf({
+      id: patient.id,
+      name: patient.name,
+      age: record?.age ?? 60,
+      reason: record?.reason ?? '',
+      usualMeds: record?.usualMeds ?? [],
+    })
+    out.unshift(...findAllergyConflicts(items.map((i) => i.medId), allergies, patient.name))
     const patientMeds = new Set<string>(record?.usualMeds ?? [])
     for (const o of history ?? []) {
       if (o.cancelledAt !== undefined || o.source === 'discharge' || o.createdAt < this.now - 24 * 3600) continue

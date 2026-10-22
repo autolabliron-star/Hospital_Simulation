@@ -51,6 +51,11 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/drawCentre/liveTexture.ts': { count: 1, via: 'mounted', where: 'DrawCentreLayer: the three robot screens (draw-screens), made at mount by createDrawRig; imaging-monitor settings, shared program' },
   'src/scene/surgery/liveEndoscope.ts': { count: 1, via: 'mounted', where: 'SurgeryLayer: the four endoscope screens (surgery-live-screens: vision cart, wall monitor, console viewers), made at mount by createLiveResources; imaging-monitor settings, shared program' },
   'src/scene/robots/faceMaterial.ts': { count: 1, via: 'mounted', where: 'PodsLayer: the pod face screens' },
+  'src/scene/building/model/farModel.ts': {
+    count: 1,
+    via: 'mounted',
+    where: "ZonesModel: each zone's overview proxy, loaded behind the building-zones gate and mounted hidden (also in the building-zones warm source); one unlit program for all",
+  },
   'src/scene/monitors/mesh.ts': {
     count: 1,
     via: 'mounted',

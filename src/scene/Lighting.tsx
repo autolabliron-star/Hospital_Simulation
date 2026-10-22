@@ -4,8 +4,8 @@
  *     same way from the hospital's own things (src/scene/lighting/env): both rendered once into a 256 PMREM at mount, so the lit programs
  *     are the same either way; the daylight driver says which is bound (the hospital's while walking, `liveLook.hospitalEnv`) and this
  *     component swaps `scene.environment` between frames, no allocation, no recompile;
- *   - (presentation) with `?building=model`, a third environment: the lobby's baked HDR (src/scene/lighting/env/lobbyProbe.ts), PMREM'd once behind a
- *     warm gate and bound while the camera is in the pilot region (`liveLook.lobbyEnv`); a missing file changes nothing;
+ *   - with the authored building, each zone's baked HDR probe (src/scene/lighting/env/lobbyProbe.ts), PMREM'd once behind a warm gate and bound
+ *     while the camera is in that zone (`liveLook.lobbyEnv`, `zoneProbeTexture`); a missing file changes nothing;
  *   - (W3) the light volume's bake starts here, behind the loading screen (a warm gate, src/scene/lighting/volume/texture.ts), and the
  *     textures of the realistic light are registered with the warm-up so they upload before the Enter button;
  *   - after a lost and restored WebGL context (a GPU reset, a display plugged in) the environments and the shadow map are rebuilt (F-44, glContext.ts);
@@ -23,7 +23,7 @@ import { watchContextRestore } from '@/scene/glContext'
 import { LIGHT_NOON } from '@/scene/daylight/lightAt'
 import { createCeilingTexture } from '@/scene/lighting/ceilingMap'
 import { buildHospitalEnvironment, disposeEnvironment } from '@/scene/lighting/env/hospitalEnvironment'
-import { loadLobbyEnvironment, lobbyProbe } from '@/scene/lighting/env/lobbyProbe'
+import { loadZoneProbes, zoneProbeTexture } from '@/scene/lighting/env/lobbyProbe'
 import { createGradeLut } from '@/scene/lighting/grade'
 import { liveLook } from '@/scene/lighting/liveLook'
 import { ensureLightVolume } from '@/scene/lighting/volume/texture'
@@ -70,7 +70,7 @@ export function Lighting() {
   // the sun's target must live in the scene so its world matrix (and so the shadow box) follows it
   const [target] = useState(() => new Object3D())
   // the environments, once built (the overview's RoomEnvironment, the hospital's, and with ?building=model the lobby's baked probe)
-  const envs = useRef<{ room: Texture | null; hospital: Texture | null; lobby: Texture | null }>({ room: null, hospital: null, lobby: null })
+  const envs = useRef<{ room: Texture | null; hospital: Texture | null; lobby: Texture | null; zones: Texture[] }>({ room: null, hospital: null, lobby: null, zones: [] })
   // F-44: counts the WebGL context restores. A restored context has lost the environments (they only lived on the GPU), so the effects below
   // that build them depend on it and run again; the static shadow map is asked for afresh too.
   const [restores, setRestores] = useState(0)
@@ -90,39 +90,39 @@ export function Lighting() {
     const hospital = pmrem.fromScene(hospitalScene, 0.04)
     disposeEnvironment(hospitalScene)
     pmrem.dispose()
-    envs.current = { room: room.texture, hospital: hospital.texture, lobby: envs.current.lobby }
+    envs.current = { room: room.texture, hospital: hospital.texture, lobby: envs.current.lobby, zones: envs.current.zones }
     scene.environment = liveLook.hospitalEnv ? hospital.texture : room.texture
     scene.environmentIntensity = LIGHT_NOON.envIntensity
     return () => {
-      envs.current = { room: null, hospital: null, lobby: envs.current.lobby }
+      envs.current = { room: null, hospital: null, lobby: envs.current.lobby, zones: envs.current.zones }
       scene.environment = null
       room.dispose()
       hospital.dispose()
     }
   }, [gl, scene, restores])
 
-  // the lobby's reflection probe (?building=model): loaded and PMREM'd behind the loading screen; nothing happens if the file is not there
+  // every zone's reflection probe (the authored building, manifest.json): loaded and PMREM'd behind the loading screen, one after the other; the
+  // camera's zone's probe is bound below (lobbyProbe.ts selectZoneProbe). A missing file changes nothing (the zone keeps the hospital environment)
   useEffect(() => {
     if (!BUILDING_MODEL_ON) return
     let alive = true
-    let target: { texture: Texture; dispose(): void } | null = null
-    const work = loadLobbyEnvironment(gl, import.meta.env.BASE_URL).then((t) => {
-      if (!t) return
+    let probes: { textures: Texture[]; dispose(): void } | null = null
+    const work = loadZoneProbes(gl, import.meta.env.BASE_URL).then((p) => {
       if (!alive) {
-        t.dispose()
+        p.dispose()
         return
       }
-      target = t
-      envs.current.lobby = t.texture
-      lobbyProbe.ready = true
+      probes = p
+      envs.current.zones = p.textures
+      envs.current.lobby = p.textures[0] ?? null
     })
-    const unregister = registerWarmGate('lobby-env', work)
+    const unregister = registerWarmGate('zone-probes', work)
     return () => {
       alive = false
       unregister()
-      lobbyProbe.ready = false
+      envs.current.zones = []
       envs.current.lobby = null
-      target?.dispose()
+      probes?.dispose()
     }
   }, [gl, restores])
 
@@ -135,7 +135,7 @@ export function Lighting() {
         const list: Texture[] = [volumeTexture, createCeilingTexture(), createGradeLut()]
         if (envs.current.room) list.push(envs.current.room)
         if (envs.current.hospital) list.push(envs.current.hospital)
-        if (envs.current.lobby) list.push(envs.current.lobby)
+        for (const t of envs.current.zones) list.push(t)
         return list
       },
     })
@@ -145,7 +145,8 @@ export function Lighting() {
   // the intensity for the environment it chose, in its own frame callback just before this one
   useFrame(() => {
     const e = envs.current
-    const want = liveLook.lobbyEnv && e.lobby ? e.lobby : liveLook.hospitalEnv ? e.hospital : e.room
+    const zone = liveLook.lobbyEnv ? zoneProbeTexture() : null
+    const want = zone ?? (liveLook.lobbyEnv && e.lobby ? e.lobby : liveLook.hospitalEnv ? e.hospital : e.room)
     if (want && scene.environment !== want) scene.environment = want
   }, FRAME_PRIORITY.sim + 3)
 

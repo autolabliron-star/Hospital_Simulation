@@ -17,6 +17,8 @@ describe('ultrasound geometry', () => {
     expect(usViewOf('Bladder sweep')).toBe('bladder')
     expect(usViewOf('Spleen sweep')).toBe('spleen')
     expect(usViewOf('Liver sweep')).toBe('liver')
+    expect(usViewOf('Pancreas sweep')).toBe('pancreas')
+    expect(usViewOf('Pancreas')).toBe('pancreas')
   })
 
   it('is deterministic for the same seed, phase and time', () => {

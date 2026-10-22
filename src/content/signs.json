@@ -14,7 +14,7 @@
     "command": { "label": "Command centre", "detail": "Every pod, room and order", "accent": "neutral" },
     "atrium": { "label": "Healing atrium", "detail": "Garden and café", "accent": "atrium" },
     "l2PreOp": { "label": "Pre-op", "detail": "Admissions and four bays", "accent": "neutral" },
-    "l2Or": { "label": "Robotic OR", "detail": "da Vinci 5 suite", "accent": "diagnostics" },
+    "l2Or": { "label": "Robotic theatre", "detail": "da Vinci 5 suite", "accent": "diagnostics" },
     "l2Pacu": { "label": "Recovery", "detail": "Three monitored bays", "accent": "wardB" },
     "l2Lounge": { "label": "Family lounge", "detail": "Waiting and day-case discharge", "accent": "atrium" },
     "l2Sterile": { "label": "Sterile supply", "detail": "Instrument trays and drapes", "accent": "neutral" },
@@ -63,7 +63,7 @@
       "l2Hall": { "label": "Theatre hall" },
       "l2Sterile": { "label": "Sterile supply" },
       "l2Staff": { "label": "Theatre staff" },
-      "l2Or": { "label": "Robotic OR" },
+      "l2Or": { "label": "Robotic theatre" },
       "l2Lounge": { "label": "Family lounge" },
       "l2Pacu": { "label": "Recovery" }
     }

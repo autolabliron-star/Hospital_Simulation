@@ -114,14 +114,14 @@ function faceASeat(r: Rig) {
 }
 
 describe('the bedside', () => {
-  it('prompts "E · Prescribe for <patient>" when you face the bed, and E opens the tablet on that room', () => {
+  it('prompts "E · Tablet for <patient>" when you face the bed, and E opens the tablet on that room', () => {
     const r = rig()
     const id = occupiedRoom(r.sim)
     const room = roomById(id)
     r.place(room.bedside.x, room.bedside.z, room.bedsideHeading)
     r.frame()
     expect(r.system.target).toEqual({ id: `bedside:${id}`, kind: 'item', enabled: true })
-    expect(useWalk.getState().prompt).toBe(`E · Prescribe for ${r.sim.meds.occupant(id)!.name}`)
+    expect(useWalk.getState().prompt).toBe(`E · Tablet for ${r.sim.meds.occupant(id)!.name}`)
     expect(r.system.press()).toBe(true)
     expect(r.calls).toEqual([`rx:${id}`])
   })

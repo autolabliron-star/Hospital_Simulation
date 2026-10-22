@@ -58,3 +58,14 @@ export const useJump = create<JumpState>(
     busy: () => useLiftRide.getState().phase !== 'idle',
   }),
 )
+
+/**
+ * A Jump with its own words on the cover ("A new day") instead of the moment's label. Same flow, same refusals: returns false (and
+ * does nothing) while another jump or skip runs or during a lift ride.
+ */
+export function jumpWithCaption(hour: number, caption: string): boolean {
+  if (!useJump.getState().jump(hour)) return false
+  const target = useJump.getState().target
+  if (target) useJump.setState({ target: { ...target, label: caption } })
+  return true
+}
