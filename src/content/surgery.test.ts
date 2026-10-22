@@ -74,7 +74,7 @@ describe('surgery.json', () => {
   it('has a label for every case phase, plus the theatre idle and turnover states, and each label is a short phrase', () => {
     expect(sorted(Object.keys(SURGERY_COPY.phases))).toEqual(sorted([...CASE_PHASES, ...THEATRE_ONLY]))
     expect(sorted(THEATRE_PHASE_KEYS)).toEqual(sorted([...CASE_PHASES, ...THEATRE_ONLY]))
-    expect(SURGERY_COPY.phases.induction).toBe('Anaesthesia induction')
+    expect(SURGERY_COPY.phases.induction).toBe('Sign-in, anaesthesia induction')
     expect(SURGERY_COPY.phases.docking).toBe('Docking the robot')
     expect(SURGERY_COPY.phases.console).toBe('Console time')
     for (const [path, text] of strings(SURGERY_COPY.phases)) {
@@ -108,6 +108,18 @@ describe('surgery.json', () => {
         expect(text.slice(m.index, m.index + 'da Vinci 5 (simulated)'.length), path).toBe('da Vinci 5 (simulated)')
       }
     }
+  })
+
+  it('names the WHO checklist steps at the phase boundaries and the recovery discharge criteria (F-30)', () => {
+    expect(SURGERY_COPY.phases.induction).toMatch(/sign-in/i)
+    expect(SURGERY_COPY.phases.ports).toMatch(/time-out/i)
+    expect(SURGERY_COPY.phases.out).toMatch(/sign-out/i)
+    expect(SURGERY_COPY.phases.closing).toMatch(/counts/i)
+    expect(SURGERY_COPY.checklist.signIn).toMatch(/^Sign-in/)
+    expect(SURGERY_COPY.checklist.timeOut).toMatch(/^Time-out/)
+    expect(SURGERY_COPY.checklist.signOut).toMatch(/^Sign-out/)
+    expect(SURGERY_COPY.checklist.recoveryDischarge).toMatch(/discharge criteria/i)
+    for (const text of Object.values(SURGERY_COPY.checklist)) expect(placeholders(text)).toEqual([])
   })
 
   it('has the two outcomes the contract names', () => {

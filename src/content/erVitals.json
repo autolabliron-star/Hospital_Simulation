@@ -1,0 +1,139 @@
+{
+  "_comment": "F-24: display-only shifts (added to the age baseline) of the vital signs for every ER and ambulance reason. Synthetic, no clinical decision is made from them. SpO2 is clamped to 100 by the model.",
+  "shifts": {
+    "Severe difficulty breathing": {
+      "spo2": -9,
+      "pulse": 28,
+      "sys": 8,
+      "dia": 4
+    },
+    "Breathless and struggling to speak": {
+      "spo2": -10,
+      "pulse": 30,
+      "sys": 10,
+      "dia": 5
+    },
+    "Collapsed, not fully conscious": {
+      "sys": -35,
+      "dia": -20,
+      "pulse": 25,
+      "spo2": -4
+    },
+    "Collapsed at home, slow to respond": {
+      "sys": -35,
+      "dia": -20,
+      "pulse": 25,
+      "spo2": -5
+    },
+    "Chest pain spreading to arm": {
+      "pulse": 10,
+      "sys": 12,
+      "spo2": -1
+    },
+    "Chest pain at rest, sweating": {
+      "pulse": 14,
+      "sys": 16,
+      "dia": 6,
+      "spo2": -2
+    },
+    "Sudden weakness down one side": {
+      "sys": 40,
+      "dia": 15,
+      "pulse": 5
+    },
+    "Confused and very drowsy today": {
+      "pulse": 8,
+      "tempC": 0.8,
+      "spo2": -2
+    },
+    "Fit that has now stopped": {
+      "pulse": 22,
+      "spo2": -3,
+      "tempC": 0.5
+    },
+    "Allergic reaction, face swollen": {
+      "sys": -18,
+      "dia": -10,
+      "pulse": 30,
+      "spo2": -4
+    },
+    "Fall at home, hip pain": {
+      "pulse": 10,
+      "sys": 10
+    },
+    "High fever since yesterday": {
+      "tempC": 1.4,
+      "pulse": 18
+    },
+    "Severe abdominal pain, vomiting": {
+      "pulse": 16,
+      "sys": -6,
+      "tempC": 0.4
+    },
+    "Fainted at work this morning": {
+      "sys": -10,
+      "pulse": 6
+    },
+    "Asthma getting worse, wheezing": {
+      "spo2": -5,
+      "pulse": 24,
+      "sys": 4
+    },
+    "Dizzy and vomiting since morning": {
+      "pulse": 6,
+      "sys": -6
+    },
+    "Severe headache, feels unwell": {
+      "sys": 14,
+      "dia": 8
+    },
+    "Confused after a fall": {
+      "pulse": 8,
+      "sys": 6
+    },
+    "Minor car bump, neck sore": {
+      "pulse": 10,
+      "sys": 8
+    },
+    "Ankle swollen after a fall": {
+      "pulse": 4
+    },
+    "Rash and itchy eyes": {},
+    "Ear pain for three days": {
+      "tempC": 0.3
+    },
+    "Sore throat and swollen glands": {
+      "tempC": 0.8,
+      "pulse": 8
+    },
+    "Back pain after lifting boxes": {
+      "pulse": 6,
+      "sys": 8
+    },
+    "Burning feeling when passing urine": {
+      "tempC": 0.6
+    },
+    "Cough and fever for a week": {
+      "tempC": 1.2,
+      "pulse": 14,
+      "spo2": -3
+    },
+    "Twisted ankle playing football": {
+      "pulse": 4
+    },
+    "Cut finger needing stitches": {
+      "pulse": 4
+    },
+    "Prescription running out, needs review": {},
+    "Sprained wrist from a bike fall": {
+      "pulse": 4
+    },
+    "Mild cold symptoms for days": {
+      "tempC": 0.3
+    },
+    "Sunburn, feels sore and hot": {
+      "tempC": 0.4,
+      "pulse": 6
+    }
+  }
+}

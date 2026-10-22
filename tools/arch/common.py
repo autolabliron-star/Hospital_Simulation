@@ -116,7 +116,7 @@ class Geo:
         self.fbox(f, mat, lx - w / 2, ly0, lz - d / 2, lx + w / 2, ly0 + h, lz + d / 2, drop, tilt, pivot)
 
     # --- round things -----------------------------------------------------------------------------------------------------------------------
-    def cyl(self, f, mat, lx, ly0, lz, r, h, seg=24, top=True, bottom=True, r_top=None, smooth=True):
+    def cyl(self, f, mat, lx, ly0, lz, r, h, seg=24, top=True, bottom=True, r_top=None, smooth=True, inward=False):
         """A vertical cylinder (or a cone frustum with r_top) in frame f."""
         b = self.bm(mat)
         rt = r if r_top is None else r_top
@@ -127,7 +127,8 @@ class Geo:
             hi.append(b.verts.new(P(*f.pt(lx + rt * math.cos(t), ly0 + h, lz + rt * math.sin(t)))))
         for i in range(seg):
             j = (i + 1) % seg
-            fc = b.faces.new([lo[i], hi[i], hi[j], lo[j]])
+            q = [lo[i], hi[i], hi[j], lo[j]]
+            fc = b.faces.new(list(reversed(q)) if inward else q)
             fc.smooth = smooth
         if top:
             b.faces.new(list(reversed(hi)))
@@ -147,8 +148,8 @@ class Geo:
         c = [b.verts.new(P(*f.pt(lx + r1 * math.cos(2 * math.pi * i / seg), ly, lz + r1 * math.sin(2 * math.pi * i / seg)))) for i in range(seg)]
         for i in range(seg):
             j = (i + 1) % seg
-            q = [a[i], a[j], c[j], c[i]]
-            b.faces.new(q if down else list(reversed(q)))
+            q = [a[i], a[j], c[j], c[i]]          # wound upward (inner -> outer, counter-clockwise from above)
+            self._tag(b, [b.faces.new(list(reversed(q)) if down else q)])
 
     # --- out --------------------------------------------------------------------------------------------------------------------------------
     def finalize(self, col, materials):

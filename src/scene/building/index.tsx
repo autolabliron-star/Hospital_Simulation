@@ -1,4 +1,6 @@
+import { useSyncExternalStore } from 'react'
 import { BUILDING_MODEL_ON } from './model/flags'
+import { getModelStatus, subscribeModelStatus } from './model/modelStatus'
 import { BuildingModel } from './model/PilotModel'
 import { BuildingMeshes } from './render/BuildingMeshes'
 import { Level2Building } from './render/Level2Building'
@@ -17,10 +19,14 @@ import { WalkBuilding } from './render/walk/WalkBuilding'
  * screen shows level 2 (`levelView`); `RoofCap` is the roof that closes the open-topped hospital below it while you walk on level 2.
  */
 export function Building() {
+  // `?building=model`: when the authored lobby cannot load, the pilot region's procedural prims are shown again (./model/modelStatus.ts re-opens the
+  // filter, the new key rebuilds the meshes that were compiled without them), so the lobby never loses its walls (F-45)
+  const modelFailed = useSyncExternalStore(subscribeModelStatus, () => getModelStatus() === 'failed')
+  const source = modelFailed ? 'procedural-fallback' : 'default'
   return (
     <>
-      <BuildingMeshes />
-      <WalkBuilding />
+      <BuildingMeshes key={source} />
+      <WalkBuilding key={source} />
       <Level2Building />
       <RoofCap />
       {BUILDING_MODEL_ON && <BuildingModel />}

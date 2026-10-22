@@ -25,19 +25,19 @@
   "phases": {
     "scheduled": "Scheduled",
     "arrived": "Arrived on Level 2",
-    "preOp": "Pre-op checks",
+    "preOp": "Pre-op checks (consent, allergies)",
     "toTheatre": "On the way to theatre",
     "in": "Wheeled in",
-    "induction": "Anaesthesia induction",
+    "induction": "Sign-in, anaesthesia induction",
     "positioning": "Positioning and draping",
-    "ports": "Placing the ports",
+    "ports": "Time-out, then the ports",
     "docking": "Docking the robot",
     "console": "Console time",
     "undocking": "Undocking the robot",
-    "closing": "Closing up",
+    "closing": "Closing up, counts checked",
     "emergence": "Waking up",
-    "out": "Wheeled out",
-    "pacu": "In recovery",
+    "out": "Sign-out, wheeled out",
+    "pacu": "In recovery (observations)",
     "phase2": "Resting in the lounge",
     "leaving": "Leaving",
     "done": "Done",
@@ -68,6 +68,12 @@
     "theatreOut": "{patient} is wheeled out after {minutes} min in the robotic theatre.",
     "pacuOut": "{patient} left recovery after {minutes} min.",
     "turnoverDone": "The robotic theatre is clean and ready after {minutes} min."
+  },
+  "checklist": {
+    "signIn": "Sign-in (before anaesthesia): identity, consent, operation site, allergies and airway risk confirmed.",
+    "timeOut": "Time-out (before the first cut): the whole team agrees the patient, the operation, the site, antibiotics given and the images on screen.",
+    "signOut": "Sign-out (before the patient leaves theatre): the operation recorded, the swab, needle and instrument counts correct, specimens labelled, recovery plan stated.",
+    "recoveryDischarge": "Recovery discharge criteria: awake and orientated, steady breathing, pulse and pressure, pain and sickness controlled, dressing dry, passed to the ward or home with a nurse."
   },
   "outcomes": {
     "home": "Day case: home today",

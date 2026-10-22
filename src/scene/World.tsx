@@ -1,6 +1,7 @@
 import { SimKeyed } from '@/app/SimKeyed'
 import { People } from './actors'
 import { Building } from './building'
+import { Exterior } from './landscape/grounds'
 import { Daylight } from './daylight'
 import { Drawers } from './drawers'
 import { Effects } from './Effects'
@@ -37,6 +38,7 @@ export function World() {
       {/* the walk and presentation look's sky: one sphere behind everything, hidden in the overview (the flat background shows there) */}
       <SkyDome />
       <Building />
+      <Exterior />
       {/* R2 levels: writes `levelView` (your level while walking, the overview switch in the overview) before anything draws by level */}
       <LevelsFrame />
       {/* the ground floor's rigs hide while you walk on level 2 (both overviews keep them: level 2 sits only over the west block) */}

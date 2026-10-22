@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { KIOSK_UI } from '@/content/kioskUi'
+import { closableOverlayOpen, closeOverlays } from '@/scene/interact/overlays'
 import { sim } from '@/sim'
 import { DEFAULT_KEYMAP } from '@/sim/types'
 import { usePoll } from '@/ui/usePoll'
@@ -68,17 +69,19 @@ export function HealthCardView({ v, onClose }: { v: CardView; onClose: () => voi
 function Body({ kiosk }: { kiosk: number }) {
   const read = useCallback(() => readCard(sim, kiosk), [kiosk])
   const close = useCallback(() => useHealthCard.getState().close(), [])
-  // Esc closes the card (like the drawer card): consumed, so the overview's own Esc never sees it
+  // Esc closes the card (like the drawer card): consumed, so the overview's own Esc never sees it. A menu above it (Jump, Go to, a lift ride) has
+  // the first claim on Esc (F-38): then this stays out of the way, and the menu closes on the first press. Closing goes through `closeOverlays`.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.code !== DEFAULT_KEYMAP.overview || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
-      close()
+      if (!closableOverlayOpen()) return
+      closeOverlays()
       e.preventDefault()
       e.stopPropagation()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [close])
+  }, [])
   return <HealthCardView v={usePoll(read)} onClose={close} />
 }
 

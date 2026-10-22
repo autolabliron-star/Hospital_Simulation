@@ -15,6 +15,7 @@
  */
 import { staffName } from '@/content/staff'
 import { surgeryLine, SURGERY_COPY } from '@/content/surgery'
+import { syntheticNameOf } from '@/content/roster'
 import { CONFIG } from '../config'
 import type { World } from '../er/world'
 import type { LiftBank } from '../lifts'
@@ -28,6 +29,7 @@ import type {
   SimEventType,
   SurgeryBayState,
   SurgeryCaseView,
+  SurgeryProcedure,
   SurgeryState,
   TheatreKpis,
 } from '../types'
@@ -47,6 +49,13 @@ export { SurgeryCase, casePhaseOf, type Stage } from './case'
 
 /** The team is on level 2 this long before the scrub nurse's lead ahead of the first case's drape. */
 const TEAM_EARLY_SECONDS = 600
+
+/** F-21: the sex a procedure implies for the patient (cholecystectomy: either). */
+const SEX_OF_PROCEDURE: Readonly<Record<SurgeryProcedure, 'female' | 'male' | null>> = {
+  cholecystectomy: null,
+  hysterectomy: 'female',
+  prostatectomy: 'male',
+}
 
 /** A porter who went up with a ward patient comes back this way. */
 interface Away {
@@ -157,8 +166,22 @@ export class Surgery implements SurgeryPort, CaseHost {
     this.teamFrom = Number.isFinite(firstDrape) ? Math.min(CONFIG.surgery.teamFromHour, hourAt(firstDrape - SCRUB_NURSE_LEAD - TEAM_EARLY_SECONDS)) : CONFIG.surgery.teamFromHour
     // names are drawn once for the day and held until their owners leave
     this.names.length = 0
-    for (let i = 0; i < this.plan.length; i++) this.names.push({ patient: this.world.uniqueName(this.nameRng), companion: this.world.uniqueName(this.nameRng) })
+    for (let i = 0; i < this.plan.length; i++) this.names.push({ patient: this.patientNameFor(this.plan[i].procedure), companion: this.world.uniqueName(this.nameRng) })
     this.settle(t0)
+  }
+
+  /**
+   * F-21: the patient's name follows the procedure (a hysterectomy is a woman, a prostatectomy a man: the avatar's sex follows the first
+   * name). A procedure that is not sex-specific keeps the plain draw. Names already held by today's list are not reused.
+   */
+  private patientNameFor(procedure: SurgeryProcedure): string {
+    const sex = SEX_OF_PROCEDURE[procedure]
+    if (!sex) return this.world.uniqueName(this.nameRng)
+    const held = (n: string): boolean => this.names.some((x) => x.patient === n || x.companion === n)
+    let name = syntheticNameOf(this.nameRng, sex)
+    for (let i = 0; i < 12 && held(name); i++) name = syntheticNameOf(this.nameRng, sex)
+    this.world.claimName(name)
+    return name
   }
 
   /** A day that starts at `hour` (a Jump): every case, the robot, the bays and the team are placed from the plan. */

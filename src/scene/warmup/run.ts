@@ -14,7 +14,12 @@
  *   linking     first-use work of every program: three looks up the uniform and attribute locations the first time a program is used, which
  *               the first draw would otherwise pay (a few ms each for the lit programs), so it is done here, once per distinct program
  *   textures    `initTexture` for every texture of the scene: canvas textures, atlases, the pose data texture (found in the uniforms the renderer
- *               built, not on the material), the environment map
+ *               built, not on the material), the environment map. Then (F-12) the geometry: a compile builds programs but uploads no vertex
+ *               or instance buffer, and three uploads those the first time an object is drawn, so the first Tab into the walk, the first
+ *               ride to Level 2 and the first appearance of each avatar band would each pay for theirs. One render of the whole scene with
+ *               everything revealed and frustum culling suspended, into the same tiny stand-in target as the compile (4 x 4 pixels, nothing
+ *               to see and no pixel cost), uploads them all. The static shadow map is switched off for that render, or it would be baked
+ *               with the revealed objects in it.
  *   done        `ready`. A failure or a time limit still ends here: a warm-up that never ends must not keep the presenter out.
  *
  * Extras (registry.ts: the palette) that no mesh holds are compiled through hidden keeper meshes that are never added to the scene.
@@ -41,7 +46,11 @@ export interface WarmupGl {
   /** Missing in an old or restricted context: the warm-up falls back to `compile`. */
   compileAsync?(root: Object3D, camera: Camera, targetScene?: Object3D | null): Promise<unknown>
   initTexture(texture: Texture): void
-  info?: { programs?: readonly unknown[] | null }
+  /** Draws a frame (used once, into the stand-in target, to upload geometry). Missing: that step is skipped. */
+  render?(scene: Scene, camera: Camera): void
+  /** The static shadow map's switches (the geometry render must not consume `needsUpdate`). */
+  shadowMap?: { needsUpdate: boolean; autoUpdate: boolean }
+  info?: { programs?: readonly unknown[] | null; reset?: () => void }
   properties?: PropertiesLike
 }
 
@@ -90,6 +99,8 @@ export interface WarmupStats {
   jobs: number
   /** Distinct programs whose first-use lookups were done. */
   linked: number
+  /** F-12: the geometry upload render ran to its end (false: skipped, or it failed and the buffers upload on first draw as before). */
+  geometryUploaded: boolean
   /** Jobs whose compile threw (the rest carried on). */
   failedJobs: number
   /** Most objects revealed at once around a compile slice (walk-only, overview-only, idle effects). */
@@ -102,6 +113,7 @@ export interface WarmupStats {
   readyMs: number
   linkMs: number
   textureMs: number
+  geometryMs: number
   totalMs: number
 }
 
@@ -124,6 +136,8 @@ export interface WarmupOptions {
   standIn?: { size?: number; samples?: number }
   /** Reveal hidden objects around each compile slice (default true). */
   reveal?: boolean
+  /** Upload every geometry and instance buffer with one hidden-reveal render at the end (default true; F-12). */
+  geometry?: boolean
   /** Longest stretch of compiling or uploading before the page gets a frame, ms. */
   sliceMs?: number
   /**
@@ -176,6 +190,7 @@ const emptyStats = (): WarmupStats => ({
   textures: 0,
   jobs: 0,
   linked: 0,
+  geometryUploaded: false,
   failedJobs: 0,
   revealed: 0,
   passes: [],
@@ -185,6 +200,7 @@ const emptyStats = (): WarmupStats => ({
   readyMs: 0,
   linkMs: 0,
   textureMs: 0,
+  geometryMs: 0,
   totalMs: 0,
 })
 
@@ -518,11 +534,67 @@ export class WarmupRun {
         }
         done++
       }
-      this.advance('textures', done / textures.length)
+      this.advance('textures', (0.85 * done) / textures.length)
       if (done < textures.length) await this.clock.frame()
     }
     this.stat({ textures: done, textureMs: this.clock.now() - t0 })
+    this.advance('textures', 0.85)
+    if (!this.cancelled && !this.expired && this.options.geometry !== false) {
+      await this.clock.frame() // the loading screen paints before the one long synchronous step
+      this.uploadGeometry()
+    }
     this.advance('textures', 1)
+  }
+
+  // --- geometry ------------------------------------------------------------------------------------
+
+  /**
+   * F-12: one render of everything into the stand-in target, so every vertex and instance buffer is on the GPU before the first real frame.
+   * Hidden objects are revealed and frustum culling is switched off (the walk building is far outside the overview's frustum, level 2 too),
+   * all in one synchronous block, and put back exactly. Best effort: a render that throws leaves the buffers to upload on first draw.
+   */
+  private uploadGeometry(): void {
+    const gl = this.gl
+    if (typeof gl.render !== 'function') return
+    const t0 = this.clock.now()
+    const shadow = gl.shadowMap
+    const shadowNeeds = shadow?.needsUpdate
+    const shadowAuto = shadow?.autoUpdate
+    const previous = gl.getRenderTarget()
+    let standIn: WebGLRenderTarget | null = null
+    let revealed: ReturnType<typeof revealHidden> | null = null
+    const uncull: Object3D[] = []
+    let ok = false
+    try {
+      standIn = this.createStandIn()
+      revealed = revealHidden(this.scene)
+      this.scene.traverse((o) => {
+        if (graphical(o) && o.frustumCulled) {
+          o.frustumCulled = false
+          uncull.push(o)
+        }
+      })
+      if (shadow) {
+        shadow.needsUpdate = false
+        shadow.autoUpdate = false
+      }
+      gl.setRenderTarget(standIn)
+      gl.render(this.scene, this.camera)
+      ok = true
+    } catch {
+      /* the buffers upload when each object is first drawn, as they did before this step existed */
+    } finally {
+      for (const o of uncull) o.frustumCulled = true
+      revealed?.restore()
+      if (shadow) {
+        shadow.needsUpdate = shadowNeeds ?? false
+        shadow.autoUpdate = shadowAuto ?? false
+      }
+      gl.setRenderTarget(previous)
+      standIn?.dispose()
+      gl.info?.reset?.() // the probe's per-frame counters should not carry this render
+    }
+    this.stat({ geometryUploaded: ok, geometryMs: this.clock.now() - t0 })
   }
 
   // --- end -----------------------------------------------------------------------------------------

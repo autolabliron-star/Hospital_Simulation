@@ -14,6 +14,8 @@ export const CONFIG = {
     /** S1: steps per frame are capped at max(maxStepsMin, ceil(speed × 2.2)) and by a wall-clock budget; leftover time is dropped. */
     maxStepsMin: 40,
     stepBudgetMs: 6,
+    /** F-01: this many frames in a row with a throwing step pause the sim and ask for a rebuild at the same hour (behind the veil). */
+    maxConsecutiveStepErrors: 3,
   },
 
   /**
@@ -118,6 +120,7 @@ export const CONFIG = {
       gapSeconds: [60, 180] as readonly [number, number],
       afternoonHour: 15.0,
       reviewSeconds: [240, 420] as readonly [number, number],
+      /** Chance a round visit adds one simple symptomatic medicine (the safe list is content/roundAdds.json, F-22), not a random catalogue drug. */
       changeChance: 0.25,
     },
     /** Walking speed factor by age (piecewise linear: [age, factor]): an 88-year-old walks at about 0.75 of a young adult's pace. */
@@ -640,7 +643,7 @@ export const CONFIG = {
    * dose times are in content/medicines.json), this long before each dose hour. The 08:00 round is the biggest of the day.
    */
   doseWaves: {
-    hours: [8.0, 12.0, 14.0, 18.0, 22.0] as readonly number[],
+    hours: [6.0, 8.0, 12.0, 14.0, 18.0, 20.0, 22.0] as readonly number[],
     leadSeconds: 1800,
   },
 

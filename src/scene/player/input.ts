@@ -57,6 +57,9 @@ const KM = DEFAULT_KEYMAP
 /** A press this short (ms) that moved this little (px) is a click, which asks for pointer lock; anything more is a drag. */
 const CLICK = { ms: 400, px: 6 } as const
 
+/** How long to wait before the one retry of a refused pointer lock, ms. */
+export const LOCK_RETRY_MS = 1000
+
 export interface LockTarget {
   requestPointerLock?: () => Promise<void> | void
 }
@@ -76,6 +79,9 @@ export class PlayerInput {
   private moved = 0
   private container: HTMLElement | null = null
   private detach: (() => void) | null = null
+  /** The one retry of a refused pointer lock (F-39): 0 = not used yet, 1 = scheduled or used. A new click starts afresh. */
+  private lockRetry = 0
+  private lockTimer: ReturnType<typeof setTimeout> | null = null
   /** Set by the owner: whether walk keys and the mouse should be heard right now (walking, with no overlay open). */
   listening = false
   /** Called when the pointer lock starts or ends. */
@@ -141,12 +147,17 @@ export class PlayerInput {
     const onContextMenu = (e: Event) => {
       if (this.listening) e.preventDefault()
     }
-    const onLock = () => this.onLockChange?.(this.locked)
+    const onLock = () => {
+      if (this.locked) this.cancelLockRetry()
+      this.onLockChange?.(this.locked)
+    }
+    const onLockError = () => this.scheduleLockRetry()
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     window.addEventListener('blur', onBlur)
     document.addEventListener('visibilitychange', onVisibility)
     document.addEventListener('pointerlockchange', onLock)
+    document.addEventListener('pointerlockerror', onLockError)
     container.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('pointermove', onPointerMove, { passive: true })
     window.addEventListener('pointerup', onPointerUp)
@@ -159,6 +170,8 @@ export class PlayerInput {
       window.removeEventListener('blur', onBlur)
       document.removeEventListener('visibilitychange', onVisibility)
       document.removeEventListener('pointerlockchange', onLock)
+      document.removeEventListener('pointerlockerror', onLockError)
+      this.cancelLockRetry()
       container.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
@@ -239,16 +252,40 @@ export class PlayerInput {
     return click
   }
 
-  /** Ask the browser to lock the pointer to the view (it needs a recent click; a refusal is fine: dragging still looks). */
+  /**
+   * Ask the browser to lock the pointer to the view (it needs a recent click; a refusal is fine: dragging still looks). A refusal (a rejected
+   * promise or `pointerlockerror`: Chrome refuses a request made right after Esc released the lock) is retried ONCE, about a second later.
+   */
   requestLock(): void {
+    this.cancelLockRetry()
+    this.lockRetry = 0
+    this.tryLock()
+  }
+
+  private tryLock(): void {
     const c = this.container as LockTarget | null
     if (!c || typeof c.requestPointerLock !== 'function' || this.locked) return
     try {
       const p = c.requestPointerLock()
-      if (p && typeof (p as Promise<void>).catch === 'function') (p as Promise<void>).catch(() => undefined)
+      if (p && typeof (p as Promise<void>).catch === 'function') (p as Promise<void>).catch(() => this.scheduleLockRetry())
     } catch {
-      /* the browser said no */
+      this.scheduleLockRetry() // the browser said no
     }
+  }
+
+  /** Retry the lock once, 1 s from now. Never more than once per click, and never while one is already waiting. */
+  private scheduleLockRetry(): void {
+    if (this.lockRetry > 0 || this.container === null) return
+    this.lockRetry = 1
+    this.lockTimer = setTimeout(() => {
+      this.lockTimer = null
+      if (this.listening && !walkCam.inputBlocked) this.tryLock()
+    }, LOCK_RETRY_MS)
+  }
+
+  private cancelLockRetry(): void {
+    if (this.lockTimer !== null) clearTimeout(this.lockTimer)
+    this.lockTimer = null
   }
 
   releaseLock(): void {

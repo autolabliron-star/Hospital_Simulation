@@ -9,6 +9,7 @@
  *
  * Everything is display data. Nothing here decides anything about a person: no flag, no "high" or "low" (the UI styles a value from content ranges).
  */
+import { erVitalsShiftFor } from '@/content/erVitals'
 import { LAB_CATALOGUE, erPanelFor, vitalsBaselineFor } from '@/content/lab'
 import { CONFIG } from '../config'
 import type { Rng } from '../rng'
@@ -96,7 +97,8 @@ export function profileFor(id: string, name: string, hint: ProfileHint, rng: Rng
   let spo2 = pairDraw(r, base.spo2, L.spo2[0], L.spo2[1])
   let tempC = pairDraw(r, base.tempC, L.tempC[0], L.tempC[1])
   const panel = hint.panel ?? (hint.reason ? erPanelFor(hint.reason) : null)
-  const shift = panel ? LAB_CATALOGUE.panelShifts[panel] : undefined
+  // F-24: every acute reason has its own vitals shift (erVitals.json); the lab panel's shift is the fallback for a panel given without a reason
+  const shift = (hint.reason ? erVitalsShiftFor(hint.reason) : null) ?? (panel ? LAB_CATALOGUE.panelShifts[panel] : undefined)
   if (shift) {
     sys = clamp(sys + (shift.sys ?? 0), L.sys[0], L.sys[1])
     dia = clamp(dia + (shift.dia ?? 0), L.dia[0], L.dia[1])

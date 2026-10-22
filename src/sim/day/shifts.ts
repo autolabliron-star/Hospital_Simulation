@@ -26,7 +26,7 @@ import { Doctor, Nurse, type Person } from '../people'
 import { ARRIVALS, DEPARTURES, type Spot } from '../places'
 import { hashString, type Rng } from '../rng'
 import type { Vec2 } from '../types'
-import { kitOf, LEAVE_SEAT_LEAD, postSeat, stop } from './kits'
+import { kitOf, LEAVE_SEAT_LEAD, postSeat, resume, stop } from './kits'
 import { POST_LABELS, clockHourAt, handoverPairs, shiftChanges, timeOfClockHour, worksAt, type Change, type RotaEntry } from './roster'
 import { ShiftActor, type ShiftRole, type Step } from './shiftActor'
 import { LOCKER_SPOTS, LOCKER_WAIT, dist, meetSpot } from './spots'
@@ -681,10 +681,33 @@ export class ShiftManager {
     }
   }
 
-  /** Nobody to hand over to in time: the comer takes the post (or the leaver goes) without the talk. */
+  /**
+   * Nobody to hand over to in time: the comer takes the post (or the leaver goes) without the talk.
+   *
+   * The wait asked a busy host to finish what it held and take nothing new (`stop`). A host who stays on (the stayer of a
+   * comeStayer or leaveStayer change) is not leaving: it must take work again, or it would stand idle for the rest of the
+   * shift. The leaver of a relief keeps its stop: it goes when it is at rest (`launchLeaver`).
+   */
   private skipTalk(run: Run): void {
     const c = run.change
     run.talk = 'skipped'
+    const host = run.host
+    run.host = null
+    if (c.kind === 'relief') {
+      // a host already converted to an actor (still walking back to its post) is the leaver: it goes now
+      if (host) {
+        run.leaverAct = host
+        run.leaverLaunched = true
+        host.run(this.leaveSteps(c.leaver!.member.id, host, run.lockerSeconds))
+      }
+    } else {
+      // the stayer stays: a fresh controller if it was already taken off duty, else the one it is, working again
+      if (host) this.toReal(host, c.stayer!)
+      else {
+        const ctl = this.registry.get(c.stayer!.member.id)
+        if (ctl) resume(ctl)
+      }
+    }
     if (c.kind === 'leaveStayer') {
       const a = run.leaverAct!
       run.leaverLaunched = true

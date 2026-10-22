@@ -5,7 +5,7 @@
  *   `<ImagingMachines />`                               mount once inside the Canvas: the animated scanners and the image driver
  *
  * One live canvas per modality. The viewer mounts that very element while it is open and the monitors in 3D use it as a texture, so a
- * picture is drawn once and shown twice. The driver redraws at about 10 Hz for the scanner of the focused room and about 1 Hz for the rest.
+ * picture is drawn once and shown twice. The driver redraws at 4 Hz (F-42: CLAUDE.md allows 2 Hz for canvas screens, and only the focused one goes above it) for the scanner of the focused room and about 1 Hz for the rest.
  */
 import { useFrame } from '@react-three/fiber'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
@@ -18,7 +18,7 @@ import { getLiveCanvas } from './live'
 import { Machines } from './machines'
 
 /** Redraw periods in milliseconds. */
-export const FOCUSED_INTERVAL_MS = 100
+export const FOCUSED_INTERVAL_MS = 250
 export const BACKGROUND_INTERVAL_MS = 1000
 
 /** Negative on purpose: positive priorities take over rendering in R3F. Runs just before the machines (see machines/index.tsx). */

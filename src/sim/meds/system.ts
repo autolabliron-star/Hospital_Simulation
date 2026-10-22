@@ -9,8 +9,14 @@
  * wait for people, so nothing here depends on where people are. People (doctors,
  * nurses, pharmacists) are driven by the Simulation and call in through `prescribe`, `dueDrawers`, `claim`
  * and `give`. Every transition writes one SimEvent with a plain sentence.
+ *
+ * F-25: the presenter's own orders are checked by the pharmacist for a duplicate (already ordered, or inside the dosing interval) and
+ * for the demo catalogue's clear interactions (src/content/pharmacistQueries.json). A queried order is held at 'prescribed': it is not
+ * verified, picked or sent until the presenter confirms it (`confirmQuery`) or cancels it (`cancelQuery`). The sim decides nothing
+ * clinical: it only raises the query, and nothing resolves it but the presenter (or the patient leaving the bed, which cancels it).
  */
-import { medicineById, minDoseGapSeconds, patientInRoom } from '@/content/catalogue'
+import { medicineById, minDoseGapSeconds, PATIENTS, patientInRoom } from '@/content/catalogue'
+import { findInteractions, fillQuery, PHARMACIST_QUERIES, type QueryReason } from '@/content/pharmacistQueries'
 import { CONFIG } from '../config'
 import type { EventLog } from '../events'
 import { ROOMS, roomById } from '../places'
@@ -28,7 +34,20 @@ export interface PrescribeInput {
   doseAt?: number
 }
 
-export type PrescribeResult = { ok: true; order: Order } | { ok: false; reason: string }
+/** A pharmacist's query on a presenter order: why it is held, and how it was settled. */
+export interface PharmacistQuery {
+  orderId: string
+  roomId: RoomId
+  patientName: string
+  medIds: string[]
+  reasons: QueryReason[]
+  raisedAt: number
+  status: 'open' | 'confirmed' | 'cancelled'
+  resolvedAt?: number
+}
+
+/** `query` is set when the pharmacist queried the order: it is held (not dispensed) until the presenter confirms or cancels it. */
+export type PrescribeResult = { ok: true; order: Order; query?: PharmacistQuery } | { ok: false; reason: string }
 
 export interface StaffNames {
   name(actorId: string): string
@@ -40,6 +59,8 @@ export interface StaffNames {
  */
 export interface Occupancy {
   occupantOf(roomId: RoomId): { id: string; name: string } | null
+  /** The ward record of the patient in the bed (their reason for the stay and usual medicines), for the pharmacist's checks. */
+  recordOf?(roomId: RoomId): { reason: string; usualMeds: readonly string[] } | null
 }
 
 /** Per-pod job memory. */
@@ -79,6 +100,8 @@ export class MedSystem {
   private readonly byPatient = new Map<string, Order[]>()
   /** The patient's name at the time each order was written (the bed may hold somebody else by the time it is delivered). */
   private readonly patientNames = new Map<string, string>()
+  /** Every pharmacist query raised, by order id (open ones hold their order). */
+  private readonly queries = new Map<string, PharmacistQuery>()
 
   constructor(
     private readonly log: EventLog,
@@ -161,6 +184,7 @@ export class MedSystem {
       items = input.items.filter((it) => !this.dosedRecently(history, it.medId, doseAt))
       if (items.length === 0) return { ok: false, reason: 'Already ordered or given recently.' }
     }
+    const reasons = input.source === 'presenter' ? this.queryReasons(patient, room.id, items, history, doseAt) : []
     const order: Order = {
       id: `ord-${++this.orderSeq}`,
       ward: room.ward,
@@ -178,9 +202,23 @@ export class MedSystem {
     if (history) history.push(order)
     else this.byPatient.set(patient.id, [order])
     this.patientNames.set(order.id, patient.name)
-    // the presenter's own order is checked before the ward's scheduled backlog (a dose wave of sixteen orders must not hold it up)
-    if (input.source === 'presenter') this.verifyQueue[room.ward].unshift(order)
-    else this.verifyQueue[room.ward].push(order)
+    let query: PharmacistQuery | undefined
+    if (reasons.length > 0) {
+      // held for the presenter: the pharmacist's query comes before anything is checked, picked or sent
+      query = {
+        orderId: order.id,
+        roomId: room.id,
+        patientName: patient.name,
+        medIds: items.map((i) => i.medId),
+        reasons,
+        raisedAt: this.now,
+        status: 'open',
+      }
+      this.queries.set(order.id, query)
+    } else if (input.source === 'presenter') {
+      // the presenter's own order is checked before the ward's scheduled backlog (a dose wave of sixteen orders must not hold it up)
+      this.verifyQueue[room.ward].unshift(order)
+    } else this.verifyQueue[room.ward].push(order)
     const who = input.source === 'presenter' ? 'You' : this.staff.name(input.prescriberId)
     const text =
       input.source === 'presenter'
@@ -189,7 +227,97 @@ export class MedSystem {
           ? `${who} prescribed ${plural(order.items.length, 'take-home medicine')} for ${patient.name} in ${room.id}.`
           : `${who} prescribed ${plural(order.items.length, 'medicine')} for ${patient.name} in ${room.id}.`
     this.log.push(this.now, 'orderCreated', text, { orderId: order.id, roomId: room.id, actorId: input.prescriberId })
-    return { ok: true, order }
+    if (query) {
+      const pharmacist = this.staff.name(this.pharmacist[room.ward])
+      this.log.push(this.now, 'orderCreated', `${pharmacist} queried the order for ${room.id}: ${reasons.map((r) => r.text.replace(/^Queried: /, '')).join(' ')} It is held until you confirm or cancel it.`, {
+        orderId: order.id,
+        roomId: room.id,
+        actorId: this.pharmacist[room.ward],
+      })
+    }
+    return query ? { ok: true, order, query } : { ok: true, order }
+  }
+
+  /** The query on an order (open or settled), if the pharmacist raised one. */
+  queryOf(orderId: string): PharmacistQuery | undefined {
+    return this.queries.get(orderId)
+  }
+
+  /** Queries still waiting for the presenter, oldest first. */
+  openQueries(): PharmacistQuery[] {
+    const out: PharmacistQuery[] = []
+    for (const q of this.queries.values()) if (q.status === 'open') out.push(q)
+    return out
+  }
+
+  /** The presenter confirms a queried order: it goes to the pharmacist's verification like any other, ahead of the backlog. */
+  confirmQuery(orderId: string): boolean {
+    const q = this.queries.get(orderId)
+    const order = this.orders.get(orderId)
+    if (!q || !order || q.status !== 'open') return false
+    q.status = 'confirmed'
+    q.resolvedAt = this.now
+    if (this.isStale(order)) {
+      this.cancel(order)
+      return true
+    }
+    this.verifyQueue[order.ward].unshift(order)
+    this.log.push(this.now, 'orderCreated', `You confirmed the queried order for ${order.roomId}; it goes to the pharmacist to check.`, {
+      orderId,
+      roomId: order.roomId,
+      actorId: order.prescriberId,
+    })
+    return true
+  }
+
+  /** The presenter cancels a queried order: nothing is dispensed. */
+  cancelQuery(orderId: string): boolean {
+    const q = this.queries.get(orderId)
+    const order = this.orders.get(orderId)
+    if (!q || !order || q.status !== 'open') return false
+    q.status = 'cancelled'
+    q.resolvedAt = this.now
+    this.cancel(order)
+    this.log.push(this.now, 'orderCreated', `You cancelled the queried order for ${order.roomId}; nothing will be dispensed.`, {
+      orderId,
+      roomId: order.roomId,
+      actorId: order.prescriberId,
+    })
+    return true
+  }
+
+  /**
+   * What the pharmacist queries about a new presenter order: a medicine already ordered or too soon after the last dose, and the
+   * demo catalogue's interactions with the patient's chart, their open orders and the reason for their stay.
+   */
+  private queryReasons(
+    patient: { id: string; name: string },
+    roomId: RoomId,
+    items: OrderItem[],
+    history: Order[] | undefined,
+    doseAt: number,
+  ): QueryReason[] {
+    const out: QueryReason[] = []
+    for (const it of items) {
+      const kind = this.duplicateKind(history, it.medId, doseAt)
+      if (kind === null) continue
+      const med = medicineById(it.medId)
+      const hours = Math.round((minDoseGapSeconds(it.medId) / 3600) * 10) / 10
+      out.push({
+        id: `duplicate-${kind}`,
+        kind: 'duplicate',
+        medId: it.medId,
+        text: fillQuery(PHARMACIST_QUERIES.duplicate[kind], { med: `${med.name} ${med.strength}`, patient: patient.name, hours }),
+      })
+    }
+    const record = this.occupancy?.recordOf?.(roomId) ?? PATIENTS.find((p) => p.id === patient.id) ?? null
+    const patientMeds = new Set<string>(record?.usualMeds ?? [])
+    for (const o of history ?? []) {
+      if (o.cancelledAt !== undefined || o.source === 'discharge' || o.createdAt < this.now - 24 * 3600) continue
+      for (const i of o.items) patientMeds.add(i.medId)
+    }
+    out.push(...findInteractions({ orderMeds: items.map((i) => i.medId), patientMeds, condition: record?.reason ?? '' }))
+    return out
   }
 
   /** Would a doctor's or scheduled order for this medicine in this room be held back now (pending, or inside its dosing interval)? */
@@ -201,14 +329,21 @@ export class MedSystem {
 
   /** Was this medicine ordered for the patient, not yet given, or due within its dosing interval of `doseAt`? */
   private dosedRecently(history: Order[] | undefined, medId: string, doseAt: number): boolean {
-    if (!history) return false
+    return this.duplicateKind(history, medId, doseAt) !== null
+  }
+
+  /** 'pending' when an order for the medicine has not been given yet, 'recent' when one was due inside its dosing interval. */
+  private duplicateKind(history: Order[] | undefined, medId: string, doseAt: number): 'pending' | 'recent' | null {
+    if (!history) return null
     const gap = minDoseGapSeconds(medId) - 60
+    let kind: 'pending' | 'recent' | null = null
     for (const o of history) {
       if (o.cancelledAt !== undefined || o.source === 'discharge') continue
       if (!o.items.some((i) => i.medId === medId)) continue
-      if (o.stage !== 'given' || Math.abs(o.doseAt - doseAt) < gap) return true
+      if (o.stage !== 'given') return 'pending'
+      if (Math.abs(o.doseAt - doseAt) < gap) kind = 'recent'
     }
-    return false
+    return kind
   }
 
   /** Loaded drawers whose dose is due soon and that no nurse has claimed yet, most urgent first. */
@@ -281,6 +416,7 @@ export class MedSystem {
   /** Advance everything except people (the pods do not depend on them). */
   step(dt: number, now: number): void {
     this.now = now
+    this.dropStaleQueries()
     for (const w of WARD_IDS) {
       this.stepVerification(w, dt)
       this.assignPods(w)
@@ -289,6 +425,23 @@ export class MedSystem {
     for (const d of this.fleet.drivers) this.afterDrive(d, dt)
     for (const w of WARD_IDS) this.dispensers[w].step(dt)
     for (const d of this.drawers.values()) d.lightOn = d.state === 'loaded' && this.earliestDose(d) <= now
+  }
+
+  /** A held order whose patient has left the bed is cancelled: there is nobody to give it to. */
+  private dropStaleQueries(): void {
+    if (this.occupancy === null) return
+    for (const q of this.queries.values()) {
+      if (q.status !== 'open') continue
+      const order = this.orders.get(q.orderId)!
+      if (!this.isStale(order)) continue
+      q.status = 'cancelled'
+      q.resolvedAt = this.now
+      this.cancel(order)
+      this.log.push(this.now, 'orderCreated', `The queried order for ${q.roomId} was cancelled: ${q.patientName} has left the bed.`, {
+        orderId: q.orderId,
+        roomId: q.roomId,
+      })
+    }
   }
 
   private stepVerification(w: WardId, dt: number): void {

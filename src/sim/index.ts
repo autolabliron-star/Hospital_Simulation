@@ -46,7 +46,25 @@ export function buildSimulation(seed: number, startHour: number | undefined, ros
   return s
 }
 
-export let sim = buildSimulation(seedFromUrl(), startFromUrl())
+/**
+ * F-18: built at import, so a throw here (a content edit, a bad `?start=`) would be a white page with no message. Retry with the
+ * default start, then with the default seed too.
+ */
+function buildInitial(): Simulation {
+  try {
+    return buildSimulation(seedFromUrl(), startFromUrl())
+  } catch (error) {
+    console.error('Building the hospital from the URL failed; falling back to the default start.', error)
+  }
+  try {
+    return buildSimulation(seedFromUrl(), undefined)
+  } catch (error) {
+    console.error('Building the hospital with this seed failed; falling back to the default seed.', error)
+  }
+  return buildSimulation(CONFIG.sim.worldSeed, undefined)
+}
+
+export let sim = buildInitial()
 export const loop = new SimLoop(sim, publishWorld)
 /** Bumped on every Jump; React layers that hold per-sim state key on it. */
 export let simGeneration = 0

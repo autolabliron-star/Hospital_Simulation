@@ -7,12 +7,15 @@ import {
   ENV_SWAP_BAND,
   FLOOR_WALK_ROUGHNESS,
   HOSPITAL_ENV_MATCH,
+  LOBBY_ENV_MATCH,
   LOOK_MODEL_WALK,
   LOOK_OVERVIEW,
   LOOK_WALK,
   PANEL_COLOR,
+  TONE_EXPOSURE_SCALE,
   VIGNETTE_DARKNESS,
 } from '@/scene/lighting/look'
+import { skyUniforms } from '@/scene/lighting/env/skyUniforms'
 import { lvUniforms } from '@/scene/lighting/volume/uniforms'
 import { setScreenLevel } from './dim'
 import { DaylightDriver, type DayTargets } from './driver'
@@ -61,7 +64,7 @@ describe('the look the driver writes (W3)', () => {
     const d = new DaylightDriver(parseLightingFlags(''))
     run(d, r, 12, 3, 0)
     const day = lightAt(12)
-    expect(r.renderer.toneMappingExposure).toBe(1)
+    expect(r.renderer.toneMappingExposure).toBeCloseTo(TONE_EXPOSURE_SCALE, 12)
     expect(r.sun.intensity).toBeCloseTo(day.sunIntensity, 12)
     expect(r.hemi.intensity).toBeCloseTo(day.hemiIntensity, 12)
     expect(r.scene.environmentIntensity).toBeCloseTo(day.envIntensity, 12) // no match factor: it is RoomEnvironment's
@@ -84,7 +87,7 @@ describe('the look the driver writes (W3)', () => {
     const d = new DaylightDriver(parseLightingFlags(''))
     run(d, r, 12, 4, 1)
     const day = lightAt(12)
-    expect(r.renderer.toneMappingExposure).toBeCloseTo(LOOK_WALK.exposure, 9)
+    expect(r.renderer.toneMappingExposure).toBeCloseTo(LOOK_WALK.exposure * TONE_EXPOSURE_SCALE, 9)
     expect(r.sun.intensity).toBeCloseTo(day.sunIntensity * LOOK_WALK.sun, 9)
     expect(r.hemi.intensity).toBeCloseTo(day.hemiIntensity * LOOK_WALK.hemi, 9)
     expect(r.scene.environmentIntensity).toBeCloseTo(day.envIntensity * LOOK_WALK.env * HOSPITAL_ENV_MATCH, 9)
@@ -115,17 +118,17 @@ describe('the look the driver writes (W3)', () => {
       expect(r.renderer.toneMappingExposure).toBeGreaterThanOrEqual(last - 1e-12)
       last = r.renderer.toneMappingExposure
     }
-    expect(last).toBeGreaterThan(1)
-    expect(last).toBeLessThan(LOOK_WALK.exposure)
+    expect(last).toBeGreaterThan(TONE_EXPOSURE_SCALE)
+    expect(last).toBeLessThan(LOOK_WALK.exposure * TONE_EXPOSURE_SCALE)
     expect(r.sun.intensity).toBeLessThan(sunDay)
     run(d, r, 12, INDOOR_SECONDS * 14, 1)
-    expect(r.renderer.toneMappingExposure).toBeCloseTo(LOOK_WALK.exposure, 9)
+    expect(r.renderer.toneMappingExposure).toBeCloseTo(LOOK_WALK.exposure * TONE_EXPOSURE_SCALE, 9)
     const writes = d.writes
     run(d, r, 12, 3, 1)
     expect(d.writes).toBe(writes)
     // and back
     run(d, r, 12, INDOOR_SECONDS * 14, 0)
-    expect(r.renderer.toneMappingExposure).toBe(1)
+    expect(r.renderer.toneMappingExposure).toBeCloseTo(TONE_EXPOSURE_SCALE, 12)
     expect(lvUniforms.uLvOn.value).toBe(0)
     for (const f of r.floors) expect(f.material.roughness).toBeCloseTo(0.6, 9)
   })
@@ -197,7 +200,7 @@ describe('the look the driver writes (W3)', () => {
     expect(r.sun.intensity).toBeCloseTo(day.sunIntensity * LOOK_MODEL_WALK.sun, 9)
     expect(r.hemi.intensity).toBeCloseTo(day.hemiIntensity * 1.5, 9)
     expect(r.scene.environmentIntensity).toBeCloseTo(day.envIntensity * 2.2, 9)
-    expect(r.renderer.toneMappingExposure).toBe(1)
+    expect(r.renderer.toneMappingExposure).toBeCloseTo(TONE_EXPOSURE_SCALE, 12)
     expect(lvUniforms.uLvOn.value).toBe(0) // not even the fetch
     expect(lvUniforms.uLvAo.value).toBe(0)
     expect(lvUniforms.uLvReflect.value).toBe(0)
@@ -216,7 +219,7 @@ describe('the look the driver writes (W3)', () => {
     expect(lvUniforms.uLvOn.value).toBe(0)
     expect(lvUniforms.uLvAo.value).toBe(0)
     expect(lvUniforms.uLvReflect.value).toBe(LOOK_WALK.reflect)
-    expect(r.renderer.toneMappingExposure).toBeCloseTo(LOOK_WALK.exposure, 9)
+    expect(r.renderer.toneMappingExposure).toBeCloseTo(LOOK_WALK.exposure * TONE_EXPOSURE_SCALE, 9)
 
     const r2 = rig()
     run(new DaylightDriver(parseLightingFlags('?refl=0')), r2, 12, 4, 1)
@@ -263,5 +266,46 @@ describe('the look the driver writes (W3)', () => {
     run(d, { ...r, targets: bare }, 12, 3, 1)
     expect(r.sun.intensity).toBeCloseTo(lightAt(12).sunIntensity * LOOK_WALK.sun, 9)
     expect(lvUniforms.uLvPanelRad.value.r).toBe(0)
+  })
+})
+
+describe('presentation: the lobby probe and the sky (driver side)', () => {
+  beforeEach(() => setScreenLevel(1))
+
+  it('the lobby environment is announced and its intensity re-written when the camera enters the lobby, and ?env=room / ?look=model refuse it', () => {
+    const r = rig()
+    const d = new DaylightDriver(parseLightingFlags(''))
+    run(d, r, 12, INDOOR_SECONDS * 14, 1)
+    expect(liveLook.lobbyEnv).toBe(false)
+    const before = r.scene.environmentIntensity
+    r.targets.lobbyEnv = true
+    d.frame(1 / 60, () => 12, 0, r.targets, 1)
+    expect(liveLook.lobbyEnv).toBe(true)
+    expect(r.scene.environmentIntensity).toBeCloseTo((before / HOSPITAL_ENV_MATCH) * LOBBY_ENV_MATCH, 9)
+    r.targets.lobbyEnv = false
+    d.frame(1 / 60, () => 12, 0, r.targets, 1)
+    expect(liveLook.lobbyEnv).toBe(false)
+    for (const q of ['?env=room', '?look=model']) {
+      const r2 = rig()
+      const d2 = new DaylightDriver(parseLightingFlags(q))
+      r2.targets.lobbyEnv = true
+      run(d2, r2, 12, 2, 1)
+      expect(liveLook.lobbyEnv).toBe(false)
+    }
+  })
+
+  it('the sky uniforms follow the hour, the day share and the indoor blend', () => {
+    const r = rig()
+    const d = new DaylightDriver(parseLightingFlags(''))
+    run(d, r, 12, 3, 0)
+    expect(skyUniforms.uBlend.value).toBe(0)
+    expect(skyUniforms.uDay.value).toBeCloseTo(1, 6)
+    run(d, r, 12, INDOOR_SECONDS * 14, 1)
+    expect(skyUniforms.uBlend.value).toBe(1)
+    const noon = lightAt(12)
+    expect(skyUniforms.uSky.value.getHex()).toBe(new Color().setRGB(noon.sky[0], noon.sky[1], noon.sky[2], 'srgb').getHex())
+    run(d, r, 2, 3, 1) // a jump to the small hours snaps
+    expect(skyUniforms.uDay.value).toBeCloseTo(0, 6)
+    expect(luminance(skyUniforms.uSky.value)).toBeLessThan(0.05)
   })
 })

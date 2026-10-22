@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STAFF } from '@/content/staff'
-import { PROTOCOLS, ProtocolSchema, protocolById } from './imaging'
+import { PROTOCOLS, ProtocolSchema, protocolById, testForReason } from './imaging'
 
 type Seq = [name: string, plane: string, contrast: string, seconds: number, images: number]
 
@@ -64,7 +64,16 @@ const EXPECTED: Array<[id: string, modality: string, bodyPart: string, sequences
     'chest',
     [
       ['Topogram', 'scout', 'none', 8, 1],
-      ['Arterial phase', 'axial', 'arterial', 8, 60],
+      ['Axial chest', 'axial', 'plain', 8, 60],
+    ],
+  ],
+  [
+    'ct-kub',
+    'ct',
+    'abdomen',
+    [
+      ['Topogram', 'scout', 'none', 8, 1],
+      ['Axial abdomen and pelvis', 'axial', 'plain', 10, 70],
     ],
   ],
   [
@@ -141,7 +150,7 @@ const EXPECTED: Array<[id: string, modality: string, bodyPart: string, sequences
 /** The brief's clinical rules, one reason each. */
 
 describe('protocols', () => {
-  it('defines exactly the protocols in the brief (thirteen, and the R3 knee radiograph)', () => {
+  it('defines exactly the protocols in the brief (thirteen, the R3 knee radiograph and the non-contrast CT KUB)', () => {
     expect(Object.keys(PROTOCOLS).sort()).toEqual(EXPECTED.map(([id]) => id).sort())
   })
 
@@ -165,6 +174,20 @@ describe('protocols', () => {
   })
 })
 
+
+describe('imaging fits the complaint (F-31)', () => {
+  it('a minor car bump with a sore neck gets a C-spine CT only now and then, not nine times in ten', () => {
+    const t = testForReason('Minor car bump, neck sore')
+    expect(t.imaging).toBe('ct-cspine')
+    expect(t.chance).toBeGreaterThan(0)
+    expect(t.chance).toBeLessThanOrEqual(0.35)
+  })
+
+  it('the CT chest and the CT KUB are plain (no contrast phases); the contrast abdomen CT keeps its two phases', () => {
+    for (const id of ['ct-chest', 'ct-kub']) expect(protocolById(id).sequences.every((s) => s.contrast === 'none' || s.contrast === 'plain'), id).toBe(true)
+    expect(protocolById('ct-abdo').sequences.map((s) => s.contrast)).toEqual(['none', 'arterial', 'portal'])
+  })
+})
 
 describe('imaging staff', () => {
   it.each([

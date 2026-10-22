@@ -200,10 +200,12 @@ export const pathwayMachine = setup({
         context.rng.between(!context.tests && context.acuity >= 4 ? CONFIG.er.minorExamSeconds : CONFIG.er.examSeconds) * (context.acuity <= 2 ? CONFIG.er.seriousScale : 1),
     }),
     sampleReview: assign({ reviewSeconds: ({ context }) => context.rng.between(CONFIG.er.reviewSeconds) }),
-    // the draw is always made; a complaint whose admission profile says 0 (a cold, sunburn, a sprain) never leads to a bed
+    // the draw is always made (one per patient). A complaint with an admission chance of its own uses it instead of the acuity table:
+    // 0 (a cold, sunburn, a sprain) never leads to a bed, 1 (a stroke, a fit, confusion) always does.
     drawAdmit: assign({
       admit: ({ context }) => {
-        const hit = context.rng.chance(CONFIG.er.admitChanceByAcuity[Math.min(5, Math.max(1, context.acuity)) - 1])
+        const p = context.admitChance ?? CONFIG.er.admitChanceByAcuity[Math.min(5, Math.max(1, context.acuity)) - 1]
+        const hit = context.rng.chance(p)
         return context.admitChance === 0 ? false : hit
       },
     }),

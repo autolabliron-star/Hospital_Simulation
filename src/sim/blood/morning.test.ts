@@ -1,6 +1,8 @@
 /**
  * A whole simulated morning, 07:30 to 12:30, with the full hospital, checked as it runs: the draw centre keeps its promises
- * (docs/W4-DIAGNOSTICS.md, "Tests"). About a million fixed steps; under a minute.
+ * (docs/W4-DIAGNOSTICS.md, "Tests") for the outpatients. Since Wave 1 the ER nurse draws the ER bloods at the bedside and sends the tubes
+ * by pneumatic tube (src/sim/er/bedside.ts), so ER bloods never reach the draw centre: they are checked where they are taken.
+ * About a million fixed steps; under a minute.
  *
  * The lab is whatever the Simulation has: when it is the real one it completes the orders; `emulateLab` only adds a completion
  * for an order the lab has not completed, so a lab that is still a skeleton cannot hide a stuck patient.
@@ -9,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../config'
 import type { ErPatient } from '../er/patient'
 import { Simulation } from '../Simulation'
+import type { LabOrder } from '../types'
 import { emulateLab } from './testkit'
 
 const DT = CONFIG.sim.step
@@ -32,17 +35,16 @@ describe('a whole morning at the blood draw centre', () => {
     const firstSeen = new Map<string, number>()
     interface ErTrack {
       p: ErPatient
+      /** The bedside order, once the ER nurse has drawn the bloods. */
+      order: LabOrder | null
       awaitingFrom: number | null
       awaitingTo: number | null
       decisionAt: number | null
-      ticket: string | null
     }
+    // every ER patient who needs bloods, from the moment they are seen
     const er = new Map<string, ErTrack>()
     let maxQueue = 0
     let maxChairHolders = 0
-    // the results lounge: discharge-bound ER blood patients wait for the lab in a hall chair, not in a bay
-    const lounge = new Set<string>()
-    const loungeBayFreed: string[] = []
     const end = hour(12.5)
     let steps = 0
     let simMs = 0
@@ -77,7 +79,7 @@ describe('a whole morning at the blood draw centre', () => {
         holders.set(id, p.entity.id)
       }
       maxChairHolders = Math.max(maxChairHolders, holders.size)
-      // no seat in the hospital is held by two bodies (the hall chairs of the lounge included)
+      // no seat in the hospital is held by two bodies
       const seatedBy = new Map<string, string>()
       for (const p of sim.people) {
         const id = p.entity.seated?.seatId
@@ -92,17 +94,14 @@ describe('a whole morning at the blood draw centre', () => {
       for (const v of blood.outpatients) if (!firstSeen.has(v.id)) firstSeen.set(v.id, sim.t)
       for (const p of sim.world.patients.values()) {
         let tr = er.get(p.c.id)
-        if (!tr && p.liveBlood) {
-          tr = { p, awaitingFrom: null, awaitingTo: null, decisionAt: null, ticket: null }
+        if (!tr && p.testBloods !== null) {
+          tr = { p, order: null, awaitingFrom: null, awaitingTo: null, decisionAt: null }
           er.set(p.c.id, tr)
         }
         if (!tr) continue
-        if (p.drawTicket) tr.ticket = p.drawTicket.id
-        if (p.loungeActive) {
-          lounge.add(p.c.id)
-          // off the trolley: the bay is not theirs any more, and the lounge chair is where they are taken back to
-          if (p.state.startsWith('tests') && (p.c.bay !== -1 || p.baySeat !== p.loungeSeat)) loungeBayFreed.push(`${p.c.name} ${p.state} bay ${p.c.bay}`)
-        }
+        // the ER's bloods are drawn at the bedside (Wave 1): no draw-centre ticket, ever
+        if (p.drawTicket !== null && problems.length < 20) problems.push(`${sim.t.toFixed(0)}s ${p.c.name} took a draw-centre ticket`)
+        if (tr.order === null && p.bloodOrder !== null) tr.order = p.bloodOrder
         if (p.state === 'tests.awaitingResults' && tr.awaitingFrom === null) tr.awaitingFrom = sim.t
         if (p.state !== 'tests.awaitingResults' && tr.awaitingFrom !== null && tr.awaitingTo === null) tr.awaitingTo = sim.t
         if (p.state === 'decision' && tr.decisionAt === null) tr.decisionAt = sim.t
@@ -118,32 +117,27 @@ describe('a whole morning at the blood draw centre', () => {
     const nurseShare = records.filter((r) => r.by === 'nurse').length / records.length
     const firstPass = records.filter((r) => r.by === 'robot' && r.attempt === 1).length / records.length
     const finished = [...er.values()].filter((e) => e.p.outcome !== null)
+    const erDrawn = [...er.values()].filter((e) => e.order !== null)
+    const erTubes = erDrawn.filter((e) => e.p.tubesSent)
     const erDraws = records.filter((r) => r.kind === 'er')
     const stepUs = (simMs / steps) * 1000
     const longestNurseQueue = blood.nurse.queued
     console.log(
       `[W4 B] draws ${records.length} (by 10:30: ${by1030.length}), P mean wait ${meanP?.toFixed(1)} min, peak P max ${peakMaxP.toFixed(1)} min, V mean wait ${meanV?.toFixed(1)} min; ` +
         `nurse share ${(nurseShare * 100).toFixed(1)} %, robot first-pass ${(firstPass * 100).toFixed(1)} %, queue max ${maxQueue}, nurse alerts ${blood.nurse.alertsHandled} (trays ${blood.nurse.trays}, hand draws ${blood.nurse.handDraws}); ` +
-        `ER blood patients ${er.size} (${lounge.size} waited in the lounge), finished ${finished.length}, ER draws ${erDraws.length}; outpatients ${blood.outpatientsSpawned} spawned, ${blood.outpatientsHome} home; step ${stepUs.toFixed(1)} µs`,
+        `ER blood patients ${er.size} (bedside draws ${erDrawn.length}, tubes sent ${erTubes.length}), finished ${finished.length}, ER draw-centre draws ${erDraws.length}; ` +
+        `outpatients ${blood.outpatientsSpawned} spawned, ${blood.outpatientsHome} home; step ${stepUs.toFixed(1)} µs`,
     )
     void longestNurseQueue
     for (const e of er.values()) {
-      if (e.ticket === null) continue
-      const t = blood.book.history.find((x) => x.id === e.ticket)!
-      const o = sim.lab.orderById(t.orderId)!
+      if (e.order === null) continue
+      const o = e.order
       console.log(
-        `[W4 B ER] ${e.p.c.name} ${e.ticket} ${o.panel} ordered ${o.orderedAt.toFixed(0)} drawn ${o.drawnAt?.toFixed(0)} received ${o.receivedAt?.toFixed(0)} complete ${firstComplete.get(o.id)?.toFixed(0)} | awaiting ${e.awaitingFrom?.toFixed(0)}-${e.awaitingTo?.toFixed(0)} decision ${e.decisionAt?.toFixed(0)} outcome ${e.p.outcome}`,
+        `[W4 B ER] ${e.p.c.name} ${o.panel} ordered ${o.orderedAt.toFixed(0)} drawn ${o.drawnAt?.toFixed(0)} (${o.drawnBy}) received ${o.receivedAt?.toFixed(0)} complete ${firstComplete.get(o.id)?.toFixed(0)} | awaiting ${e.awaitingFrom?.toFixed(0)}-${e.awaitingTo?.toFixed(0)} decision ${e.decisionAt?.toFixed(0)} outcome ${e.p.outcome}`,
       )
     }
 
     expect(problems).toEqual([])
-    expect(loungeBayFreed).toEqual([])
-    expect(lounge.size).toBeGreaterThanOrEqual(1)
-    for (const id of lounge) {
-      const t = er.get(id)!
-      // a lounge patient is a discharge: nobody who is admitted leaves their bay for the hall
-      if (t.p.outcome !== null) expect(t.p.outcome, `${t.p.c.name}`).toBe('discharged')
-    }
     expect(blood.stuckFixes).toBe(0)
     expect(blood.chairConflicts).toBe(0)
     expect(blood.nurse.stuckFixes).toBe(0)
@@ -154,7 +148,7 @@ describe('a whole morning at the blood draw centre', () => {
     const stillHere = blood.outpatients.filter((v) => (firstSeen.get(v.id) ?? end) < end - 40 * 60).map((v) => `${v.name} ${v.state}`)
     expect(stillHere).toEqual([])
     expect(blood.outpatientsHome).toBeGreaterThan(blood.outpatientsSpawned - 8)
-    // the numbers the plan asked for
+    // the numbers the plan asked for (outpatients only: the ER's bloods never reach the draw centre)
     expect(by1030.length).toBeGreaterThanOrEqual(60)
     expect(peakMaxP).toBeLessThanOrEqual(30)
     expect(meanV).not.toBeNull()
@@ -162,23 +156,29 @@ describe('a whole morning at the blood draw centre', () => {
     expect(nurseShare).toBeGreaterThan(0.01)
     expect(nurseShare).toBeLessThan(0.15)
     expect(maxChairHolders).toBeGreaterThanOrEqual(2)
-    // every ER blood patient who came in good time was through the department (and was drawn) by 12:30
+    expect(erDraws).toEqual([])
+    // every ER blood patient who came in good time was seen, drawn at the bedside, sent to the lab and through the department by 12:30
     expect(er.size).toBeGreaterThan(0)
     const stuck = [...er.values()].filter((e) => e.p.c.arrivedAt < end - 90 * 60 && e.p.outcome === null).map((e) => `${e.p.c.name} ${e.p.state}`)
     expect(stuck).toEqual([])
     for (const e of er.values()) {
-      if (e.ticket === null) continue
-      const t = blood.book.history.find((x) => x.id === e.ticket)!
-      // a drawn patient's ticket is done; a patient still on the way at 12:30 may not be
-      if (e.p.c.arrivedAt < end - 90 * 60) expect(t.state, `${e.p.c.name} ${e.ticket}`).toBe('done')
-      // the results wait for the lab: they leave `awaitingResults` when the order completes (or at the fallback bound)
+      // a patient still on the way at 12:30 may not be done with the bloods yet
+      if (e.order === null) continue
+      // the nurse draws the bloods at the bedside: an 'er' order, drawn by the nurse (never by a robot)
+      expect(e.order.source, e.p.c.name).toBe('er')
+      expect(e.order.drawnBy, e.p.c.name).toBe('nurse')
+      if (e.p.c.arrivedAt < end - 90 * 60) {
+        expect(e.p.tubesSent, `${e.p.c.name} tubes never sent`).toBe(true)
+        expect(firstComplete.has(e.order.id), `${e.p.c.name} bloods never reached the lab`).toBe(true)
+      }
+      // the results wait for the lab: they leave `awaitingResults` when the order completes (or at the fallback bound). A patient with
+      // a scan also waits for the imaging report (`resultsIn` in the pathway machine), so only the bloods-only patients are held to 2 s
       if (e.awaitingFrom !== null && e.awaitingTo !== null) {
-        const order = sim.lab.orderById(t.orderId)!
         const waited = e.awaitingTo - e.awaitingFrom
-        const done = firstComplete.get(order.id)
+        const done = firstComplete.get(e.order.id)
         if (done !== undefined && done > e.awaitingFrom) {
           expect(e.awaitingTo, `${e.p.c.name} left before the lab finished`).toBeGreaterThanOrEqual(done - 0.6)
-          expect(e.awaitingTo - done, `${e.p.c.name} waited on after the lab finished`).toBeLessThanOrEqual(2)
+          if (!e.p.bundle.imaging) expect(e.awaitingTo - done, `${e.p.c.name} waited on after the lab finished`).toBeLessThanOrEqual(2)
         } else expect(waited).toBeGreaterThanOrEqual(0)
       }
     }

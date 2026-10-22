@@ -5,6 +5,10 @@ import { BoxGeometry, BufferAttribute, Group, Mesh, MeshStandardMaterial, Textur
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { buildWallPieces } from '../layout/walls'
+import { buildLayout } from '../layout'
+import { LayoutBuilder } from '../layout/builder'
+import { buildFloors, buildWalls } from '../layout/shell'
+import type { Prim } from '../layout/types'
 import { parseBuildingFlag } from './flags'
 import { applyLightmaps, hasBakedLook } from './lightmaps'
 import { checkModelAgainstPlan } from './checkModelAgainstPlan'
@@ -21,15 +25,88 @@ describe('?building flag', () => {
 })
 
 describe('pilot region filters', () => {
-  it('hide architecture inside, nothing outside, never furniture', () => {
+  const layout = buildLayout()
+  const hidden = (p: Prim) => hidesPrim(p.mat, p.position[0], p.position[2])
+  const near = (p: Prim, x: number, z: number, r: number) => Math.hypot(p.position[0] - x, p.position[2] - z) <= r
+
+  it('hide nothing outside the region, and the region test itself', () => {
     expect(inPilotRegion(-50, 0)).toBe(true)
     expect(inPilotRegion(-20, 0)).toBe(false)
-    expect(hidesPrim('floorTerrazzo', -50, 0)).toBe(true)
-    expect(hidesPrim('wall', -50, 0)).toBe(true)
-    expect(hidesPrim('wall', -20, 0)).toBe(false)
-    expect(hidesPrim('whitePlastic', -50, 0)).toBe(false)
-    expect(hidesWalkPart('ceiling', -50, 0)).toBe(true)
-    expect(hidesWalkPart('frame', -50, 0)).toBe(false)
+    expect(layout.prims.filter((p) => hidden(p) && p.position[0] > -22)).toEqual([])
+  })
+
+  it('hide the architecture the model draws: covered floors, walls, glazing and jambs', () => {
+    const lobbyFloor = layout.prims.find((p) => p.shape === 'plane' && p.position[1] <= 0.01 && near(p, -53, 0, 0.01))
+    expect(lobbyFloor && hidden(lobbyFloor)).toBe(true)
+    // the north lobby wall (z = -6, x -62..-51) and its cap
+    const wall = layout.prims.filter((p) => (p.mat === 'wall' || p.mat === 'wallCap') && Math.abs(p.position[2] + 6) < 0.01 && p.position[0] < -51)
+    expect(wall.length).toBeGreaterThan(0)
+    for (const p of wall) expect(hidden(p)).toBe(true)
+    // the west façade's mullions and glass, even the ones south of the region's edge (the piece's centre is inside, so the model draws it whole)
+    const facade = layout.prims.filter((p) => (p.mat === 'frame' || p.mat === 'glass') && Math.abs(p.position[0] + 62) < 0.01)
+    expect(facade.length).toBeGreaterThan(4)
+    for (const p of facade.filter((p) => p.position[2] > -22 && p.position[2] < 9.2)) expect(hidden(p), `${p.mat} z ${p.position[2]}`).toBe(true)
+    // the triage door's jambs
+    const jambs = layout.prims.filter((p) => p.mat === 'frame' && Math.abs(p.position[2] + 6) < 0.01 && Math.abs(Math.abs(p.position[0] + 50) - 1) < 0.01)
+    expect(jambs.length).toBe(2)
+    for (const p of jambs) expect(hidden(p)).toBe(true)
+  })
+
+  it('keep furniture that only shares an architecture material (triage dividers and desk panel, imaging glass and supply doors)', () => {
+    const shellKeys = (() => {
+      const b = new LayoutBuilder()
+      buildFloors(b)
+      buildWalls(b)
+      return new Set(b.prims.map((p) => `${p.mat}|${p.position.join(',')}`))
+    })()
+    const furniture = layout.prims.filter(
+      (p) => (p.mat === 'wallMint' || p.mat === 'glass' || p.mat === 'wall') && inPilotRegion(p.position[0], p.position[2]) && !shellKeys.has(`${p.mat}|${p.position.join(',')}`),
+    )
+    expect(furniture.length).toBeGreaterThan(5)
+    expect(furniture.filter((p) => hidden(p) && !near(p, -52, -3, 1.7))).toEqual([])
+  })
+
+  it('hide the designed lobby furniture, keep the kiosks, screens and everyone\'s seats', () => {
+    const lobby = layout.footprints.filter((f) => f.area === 'lobby')
+    const fp = (id: string) => {
+      const f = lobby.find((x) => x.id === id)
+      if (!f) throw new Error(id)
+      return f
+    }
+    const inside = (p: Prim, id: string, pad: number) => {
+      const f = fp(id)
+      const dx = p.position[0] - f.x
+      const dz = p.position[2] - f.z
+      const c = Math.cos(f.rotationY)
+      const s = Math.sin(f.rotationY)
+      const lx = dx * c - dz * s
+      const lz = dx * s + dz * c
+      return Math.abs(lx) <= f.hw + pad && Math.abs(lz) <= f.hd + pad
+    }
+    for (const id of ['lobby:seatsN1', 'lobby:seatsN2', 'lobby:seatsS1', 'lobby:seatsS2']) {
+      const prims = layout.prims.filter((p) => inside(p, id, 0.1) && p.position[1] < 1)
+      expect(prims.length, id).toBeGreaterThan(5)
+      for (const p of prims) expect(hidden(p), `${id} ${p.mat}`).toBe(true)
+    }
+    const desk = layout.prims.filter((p) => inside(p, 'lobby:reception', 0.1) && ['whitePlastic', 'woodOak', 'wallMint', 'glowTeal'].includes(p.mat))
+    expect(desk.length).toBeGreaterThan(4)
+    for (const p of desk) expect(hidden(p)).toBe(true)
+    // screens and their bezels stay on the designed desk; kiosks (self check-in and health) stay whole
+    for (const p of layout.prims.filter((p) => inside(p, 'lobby:reception', 0.1) && (p.mat === 'screen' || p.shape === 'quad'))) expect(hidden(p)).toBe(false)
+    for (const id of ['lobby:kiosk0', 'lobby:kiosk1', 'health:tower:0', 'health:tower:1'])
+      for (const p of layout.prims.filter((p) => inside(p, id, 0.05))) expect(hidden(p), `${id} ${p.mat}`).toBe(false)
+    // the seats are sim data: never touched by the model
+    expect(layout.seats.filter((s) => s.area === 'lobby' && s.kind === 'waiting').length).toBe(14)
+  })
+
+  it('walk mode: ceilings of covered areas and frames on covered lines go, sign plates and outside parts stay', () => {
+    expect(hidesWalkPart('ceiling', -53, 0)).toBe(true) // lobby
+    expect(hidesWalkPart('ceiling', -53, -20)).toBe(true) // triage (its centre is in the region)
+    expect(hidesWalkPart('ceiling', 0, -14)).toBe(false) // corridor A: centre outside
+    expect(hidesWalkPart('frame', -51, -6)).toBe(true) // the triage door's jamb line
+    expect(hidesWalkPart('frame', -51, -6 + 0.14)).toBe(false) // a plate on the wall face
+    expect(hidesWalkPart('wall', -20, 0)).toBe(false)
+    expect(hidesWalkPart('glass', -62, -20)).toBe(true) // the façade piece z -22..-1.5 is the model's whole
   })
 })
 
@@ -151,5 +228,33 @@ describe('the authored pilot-lobby.glb', () => {
     })
     expect(lit).toBeGreaterThan(0)
     expect(without).toEqual([])
+  })
+  it.skipIf(!present)('winds every triangle the way its normals face (single-sided materials are culled at runtime)', async () => {
+    const loader = new GLTFLoader()
+    loader.setMeshoptDecoder(MeshoptDecoder)
+    loader.register(() => ({ name: 'KHR_texture_basisu', loadTexture: () => Promise.resolve(new Texture()) }))
+    const buf = readFileSync(GLB)
+    const gltf = await loader.parseAsync(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), '')
+    const bad: string[] = []
+    gltf.scene.traverse((o) => {
+      const mesh = o as Mesh
+      if (!mesh.isMesh) return
+      const pos = mesh.geometry.getAttribute('position')
+      const nor = mesh.geometry.getAttribute('normal')
+      const idx = mesh.geometry.getIndex()
+      if (!pos || !nor || !idx) return
+      let wrong = 0
+      const n = idx.count / 3
+      for (let t = 0; t < n; t++) {
+        const [a, b, c] = [idx.getX(t * 3), idx.getX(t * 3 + 1), idx.getX(t * 3 + 2)]
+        const ux = pos.getX(b) - pos.getX(a), uy = pos.getY(b) - pos.getY(a), uz = pos.getZ(b) - pos.getZ(a)
+        const vx = pos.getX(c) - pos.getX(a), vy = pos.getY(c) - pos.getY(a), vz = pos.getZ(c) - pos.getZ(a)
+        const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx
+        const nx = nor.getX(a) + nor.getX(b) + nor.getX(c), ny = nor.getY(a) + nor.getY(b) + nor.getY(c), nz = nor.getZ(a) + nor.getZ(b) + nor.getZ(c)
+        if (fx * nx + fy * ny + fz * nz < 0) wrong++
+      }
+      if (wrong > n * 0.01) bad.push(`${mesh.name}: ${wrong}/${n}`)
+    })
+    expect(bad).toEqual([])
   })
 })

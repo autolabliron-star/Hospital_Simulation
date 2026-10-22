@@ -8,15 +8,7 @@ import { CONFIG } from '@/sim/config'
 import { PHARMACY } from '@/sim/places'
 import type { MealKind, MedicineForm, SimEventType } from '@/sim/types'
 
-/** Parse a content file, or throw with the file and every failing field named. */
-export function parseOrThrow<T extends z.ZodType>(schema: T, data: unknown, source: string): z.output<T> {
-  const result = schema.safeParse(data)
-  if (!result.success) {
-    const details = result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`).join('; ')
-    throw new Error(`${source} is invalid: ${details}`)
-  }
-  return result.data as z.output<T>
-}
+export { parseOrThrow } from './parse'
 
 const wordCount = (text: string): number => text.trim().split(/\s+/).length
 const allUnique = (values: readonly string[]): boolean => new Set(values).size === values.length

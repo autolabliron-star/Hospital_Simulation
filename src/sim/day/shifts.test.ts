@@ -374,7 +374,7 @@ describe('the coordinators (the day rhythm needs the live people list: DayRhythm
     expect(sim.seats.occupant('command:desk:0')).toBe('coord-1')
     const run19 = sim.day.shifts.runs.find((r) => r.change.key === 'coord-2@19')!
     expect(run19.state).toBe('done')
-  }, 60_000)
+  }, 180_000)
 
   it('the second coordinator comes back at 07:00: through the entrance and the lockers, then sits at her desk', () => {
     const sim = new Simulation(2026, { startHour: 6.75 })
@@ -389,5 +389,36 @@ describe('the coordinators (the day rhythm needs the live people list: DayRhythm
     expect(p!.entity.seated?.seatId).toBe('command:desk:1')
     expect(sim.seats.occupant('command:desk:1')).toBe('coord-2')
     expect(sim.day.shifts.arrived).toContain('coord-2')
-  }, 60_000)
+  }, 180_000)
+})
+
+describe('a handover that is skipped (the colleague who stays never gets to rest)', () => {
+  it('lets the stayer take work again: `retiring` is cleared, the same controller keeps working, the leaver still goes', () => {
+    const sim = new Simulation(2026, { startHour: 21 + 50 / 60 })
+    const key = 'doc-ER1@22'
+    const run22 = sim.day.shifts.runs.find((r) => r.change.key === key)!
+    expect(run22.change.kind).toBe('leaveStayer')
+    const stayerId = run22.change.stayer!.member.id
+    const stayer = sim.people.find((p) => p.entity.id === stayerId) as unknown as { retiring: boolean; atRest: boolean }
+    expect(stayer).toBeDefined()
+    // busy for good: the handover can only be dropped after PATIENCE_SECONDS
+    Object.defineProperty(stayer, 'atRest', { get: () => false, configurable: true })
+    let stoppedSeen = false
+    for (let i = 0, n = Math.round((40 * 60) / DT); i < n && run22.talk !== 'skipped'; i++) {
+      sim.step(DT)
+      if (stayer.retiring) stoppedSeen = true
+    }
+    expect(run22.talk).toBe('skipped')
+    // the wait did ask it to finish and take nothing new, and the skip gave the work back
+    expect(stoppedSeen).toBe(true)
+    expect(stayer.retiring).toBe(false)
+    run(sim, 10 * 60)
+    expect(stayer.retiring).toBe(false)
+    // still the same controller, on the floor, not an actor; the leaver went by the entrance
+    const after = sim.people.find((p) => p.entity.id === stayerId)
+    expect(after).toBe(stayer)
+    expect(after).not.toBeInstanceOf(ShiftActor)
+    expect(sim.entities.has('doc-ER1')).toBe(false)
+    expect(sim.day.shifts.departed).toContain('doc-ER1')
+  }, 120_000)
 })

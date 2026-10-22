@@ -158,6 +158,8 @@ export const SurgeryCopySchema = z.strictObject({
   phases: keyed(THEATRE_PHASE_KEYS, line),
   robotPhases: keyed(ROBOT_PHASE_KEYS, line),
   events: EventsSchema,
+  /** The WHO surgical safety checklist and the recovery discharge criteria, as plain lines (the sim shows them at the phase boundaries; no placeholders). */
+  checklist: z.strictObject({ signIn: line, timeOut: line, signOut: line, recoveryDischarge: line }),
   outcomes: z.strictObject({ home: line, ward: line }),
 })
 

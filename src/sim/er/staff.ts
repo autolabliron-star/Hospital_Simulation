@@ -24,8 +24,6 @@ import type { World } from './world'
 
 type StaffRole = 'receptionist' | 'nurse' | 'doctor'
 
-const RETIRE_IDLE_SECONDS = 1200
-
 abstract class Staff extends Actor {
   constructor(
     readonly world: World,
@@ -44,24 +42,6 @@ abstract class Staff extends Actor {
    * hold and wait at their post to hand over.
    */
   retiring = false
-
-  /**
-   * Safety net: a person told to retire who is still idle at the post 20 minutes later was not relieved (the handover was dropped), so they
-   * go on working; a real leaver is replaced and removed within minutes. Call from `think` with whether they are idle.
-   */
-  protected tickRetire(dt: number, idle: boolean): void {
-    if (!this.retiring || !idle) {
-      this.retiredIdle = 0
-      return
-    }
-    this.retiredIdle += dt
-    if (this.retiredIdle > RETIRE_IDLE_SECONDS) {
-      this.retiring = false
-      this.retiredIdle = 0
-    }
-  }
-
-  private retiredIdle = 0
 
   /** At the post with nothing in hand: the moment the day rhythm may take them off duty. */
   get atRest(): boolean {
@@ -114,7 +94,6 @@ export class TriageNurse extends Staff {
   }
 
   think(dt: number, _ctx: PeopleContext): void {
-    this.tickRetire(dt, this.state === 'idle' && this.done)
     switch (this.state) {
       case 'idle':
         this.entity.anim = 'tablet'
@@ -225,7 +204,6 @@ export class ErNurse extends Staff {
   }
 
   think(dt: number, _ctx: PeopleContext): void {
-    this.tickRetire(dt, this.state === 'idle' && this.done)
     switch (this.state) {
       case 'idle':
         this.entity.anim = 'tablet'
@@ -485,7 +463,6 @@ export class ErDoctor extends Staff {
   }
 
   think(dt: number, _ctx: PeopleContext): void {
-    this.tickRetire(dt, this.state === 'idle' && this.done)
     switch (this.state) {
       case 'idle':
         this.entity.anim = 'idle'

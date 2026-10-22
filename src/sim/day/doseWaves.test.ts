@@ -35,12 +35,13 @@ function harness(beds: Partial<Record<RoomId, RoomStatus['bed']>> = {}) {
 }
 
 describe('dose waves (unit)', () => {
-  it('sends one wave 30 minutes before each dose hour: 08, 12, 14, 18 and 22', () => {
+  it('sends one wave 30 minutes before each dose hour that is still ahead at the 07:30 opening: 08, 12, 14, 18, 20 and 22', () => {
     const h = harness()
     const waves = new DoseWaves(h.deps, 0)
     const lead = CONFIG.doseWaves.leadSeconds
     expect(lead).toBe(1800)
-    expect(CONFIG.doseWaves.hours).toEqual([8, 12, 14, 18, 22])
+    // 06:00 is a dose hour too (levothyroxine) but lies before the 07:30 opening, so a normal day never sends it
+    expect(CONFIG.doseWaves.hours).toEqual([6, 8, 12, 14, 18, 20, 22])
     // the 08:00 wave goes out at the 07:30 opening itself
     waves.step(0)
     expect(waves.fired).toHaveLength(1)
@@ -48,7 +49,7 @@ describe('dose waves (unit)', () => {
     // nothing again until 11:30, and no wave twice
     for (let t = 1; t < T(11.5); t += 97) waves.step(t)
     expect(waves.fired).toHaveLength(1)
-    const expected = [12, 14, 18, 22]
+    const expected = [12, 14, 18, 20, 22]
     for (const hour of expected) {
       waves.step(T(hour) - lead - 1)
       expect(waves.fired.some((f) => f.hour === hour), `${hour} early`).toBe(false)
@@ -57,7 +58,7 @@ describe('dose waves (unit)', () => {
       expect(waves.fired.at(-1)!.doseAt).toBe(T(hour))
     }
     for (let t = T(21.5); t < T(30); t += 60) waves.step(t)
-    expect(waves.fired).toHaveLength(5)
+    expect(waves.fired).toHaveLength(6)
   })
 
   it('writes schedule orders only for the medicines due at the hour, by that ward\'s doctor, one or more per occupied room', () => {
@@ -88,7 +89,8 @@ describe('dose waves (unit)', () => {
     const morning = h.orders.filter((o) => o.doseAt === T(8))
     const med = (room: string) => morning.filter((o) => o.roomId === room).flatMap((o) => o.items.map((i) => i.medId))
     expect(med('A2')).toEqual(['furosemide', 'bisoprolol'])
-    expect(med('B1')).toEqual(['levothyroxine', 'colecalciferol'])
+    // levothyroxine is a 06:00 dose (before breakfast), so it is not on the 08:00 round
+    expect(med('B1')).toEqual(['colecalciferol'])
     expect(morning.some((o) => o.items.some((i) => i.medId === 'atorvastatin'))).toBe(false)
     expect(morning.some((o) => o.items.some((i) => i.medId === 'senna'))).toBe(false)
     const h2 = harness()

@@ -8,6 +8,7 @@
  *     warm gate and bound while the camera is in the pilot region (`liveLook.lobbyEnv`); a missing file changes nothing;
  *   - (W3) the light volume's bake starts here, behind the loading screen (a warm gate, src/scene/lighting/volume/texture.ts), and the
  *     textures of the realistic light are registered with the warm-up so they upload before the Enter button;
+ *   - after a lost and restored WebGL context (a GPU reset, a display plugged in) the environments and the shadow map are rebuilt (F-44, glContext.ts);
  *   - a soft sky/ground hemisphere fill;
  *   - one sun whose shadow map is rendered ONCE for the static building (autoUpdate off), and again only
  *     when a layer calls `invalidateShadows()` (e.g. after it finished building its meshes). Moving things
@@ -18,6 +19,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { type DirectionalLight, type HemisphereLight, Object3D, PMREMGenerator, type Texture } from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { watchContextRestore } from '@/scene/glContext'
 import { LIGHT_NOON } from '@/scene/daylight/lightAt'
 import { createCeilingTexture } from '@/scene/lighting/ceilingMap'
 import { buildHospitalEnvironment, disposeEnvironment } from '@/scene/lighting/env/hospitalEnvironment'
@@ -69,6 +71,17 @@ export function Lighting() {
   const [target] = useState(() => new Object3D())
   // the environments, once built (the overview's RoomEnvironment, the hospital's, and with ?building=model the lobby's baked probe)
   const envs = useRef<{ room: Texture | null; hospital: Texture | null; lobby: Texture | null }>({ room: null, hospital: null, lobby: null })
+  // F-44: counts the WebGL context restores. A restored context has lost the environments (they only lived on the GPU), so the effects below
+  // that build them depend on it and run again; the static shadow map is asked for afresh too.
+  const [restores, setRestores] = useState(0)
+  useEffect(
+    () =>
+      watchContextRestore(gl.domElement, () => {
+        setRestores((n) => n + 1)
+        requestShadow?.()
+      }),
+    [gl],
+  )
 
   useEffect(() => {
     const pmrem = new PMREMGenerator(gl)
@@ -86,7 +99,7 @@ export function Lighting() {
       room.dispose()
       hospital.dispose()
     }
-  }, [gl, scene])
+  }, [gl, scene, restores])
 
   // the lobby's reflection probe (?building=model): loaded and PMREM'd behind the loading screen; nothing happens if the file is not there
   useEffect(() => {
@@ -111,7 +124,7 @@ export function Lighting() {
       envs.current.lobby = null
       target?.dispose()
     }
-  }, [gl])
+  }, [gl, restores])
 
   // the realistic light's textures upload behind the loading screen, and the light volume bakes there too (a warm gate: the warm-up waits)
   useEffect(() => {

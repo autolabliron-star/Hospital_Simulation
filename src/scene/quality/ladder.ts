@@ -16,8 +16,12 @@
  * Up:   `upWindows` windows IN A ROW with next to no late frames and the p95 work under `upWorkShare` of the budget, and the rung
  *       above not banned. This is a trial: the GPU's load cannot be read from here, only whether frames stay on time.
  *
+ * No up-steps while presenting (F-41): presentation mode (C) is the show itself, and a step up is a trial that costs a buffer reallocation
+ * and, if the better rung is too heavy, a bad window and a step back down in front of the audience. The ladder still steps DOWN while
+ * presenting, and the calm streak restarts when the presentation ends.
+ *
  * What keeps it from flickering (hysteresis):
- *   - the thresholds are far apart (5 % late to go down, 1 % late and 60 % of the budget to go up);
+ *   - the thresholds are far apart (5 % late to go down, 1 % late and 70 % of the budget to go up);
  *   - going up takes a long calm run (16 s), going down one bad window (2 s);
  *   - after any move it lets `stepGraceMs` pass before it counts again (the resize and the buffer reallocation are their own hitch);
  *   - a step down within `thrashMs` of a step up means the better rung is too heavy for this machine: it is banned, for
@@ -37,6 +41,8 @@
  * the work budget (nothing late) and the next window's work did not fall by at least 10 %, the step is taken back and the work
  * trigger is switched off for `workGuardMs`. Late frames still count.
  */
+
+import { presentActive } from '@/ui/present/presentation.store'
 
 export type AoLevel = 'full' | 'light' | 'off'
 /** W3: the realistic light's extras. 'lite' drops the floors' ceiling-panel reflection (a uniform: nothing recompiles). */
@@ -122,7 +128,7 @@ export const DEFAULT_LADDER_CONFIG: Readonly<LadderConfig> = {
   lateFactor: 1.2,
   downLateShare: 0.05,
   upLateShare: 0.01,
-  upWorkShare: 0.6,
+  upWorkShare: 0.7,
   upWindows: 8,
   readyGraceMs: 5000,
   jumpGraceMs: 4000,
@@ -162,6 +168,8 @@ export class QualityLadder {
   reason: LadderReason | null = null
   /** Frames set aside as throttling (a covered window), over the whole session: for the probe overlay and tests. */
   throttledFrames = 0
+  /** Is presentation mode on? Up-steps wait while it is. Replaceable for tests. */
+  presenting: () => boolean = presentActive
   /** The last evaluated window, written in place: for the probe overlay. */
   readonly last = { lateShare: 0, workP95: 0, windows: 0 }
 
@@ -310,6 +318,11 @@ export class QualityLadder {
 
     const calm = lateShare <= cfg.upLateShare && workP95 <= cfg.upWorkShare * budget
     if (!calm) {
+      this.goodStreak = 0
+      return null
+    }
+    // presenting: the picture the audience sees is not touched for the sake of a trial (F-41); the calm streak counts again afterwards
+    if (this.presenting()) {
       this.goodStreak = 0
       return null
     }

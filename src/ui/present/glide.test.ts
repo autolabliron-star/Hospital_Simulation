@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GLIDE_MAX_SECONDS, GLIDE_MIN_SECONDS, Glide, catmullRom, glideSeconds, shortestTurn, smootherstep, type GlidePose } from './glide'
+import { GLIDE_MAX_SECONDS, GLIDE_MIN_SECONDS, Glide, catmullRom, glideSeconds, hermite, joinDirection, shortestTurn, smootherstep, type GlidePose } from './glide'
 import { EYE, SHOTS, nextShot, prevShot, shotYaw } from './shots'
 
 const pose = (i: number): GlidePose => ({ x: SHOTS[i].x, z: SHOTS[i].z, yaw: shotYaw(SHOTS[i]), pitch: SHOTS[i].pitch })
@@ -23,6 +23,24 @@ describe('the easing and the spline', () => {
     expect(catmullRom(0, 1, 5, 9, 1)).toBeCloseTo(5, 12)
     // a straight, evenly spaced line stays a straight line
     expect(catmullRom(0, 1, 2, 3, 0.5)).toBeCloseTo(1.5, 12)
+  })
+  it('hermite passes through both ends and is a straight line for chord-length tangents along it', () => {
+    expect(hermite(2, 5, 7, -1, 0)).toBeCloseTo(2, 12)
+    expect(hermite(2, 5, 7, -1, 1)).toBeCloseTo(7, 12)
+    expect(hermite(0, 4, 4, 4, 0.25)).toBeCloseTo(1, 12)
+  })
+  it('the join direction is the bisector going on, the move itself when the neighbour is behind', () => {
+    const o = { x: 0, z: 0 }
+    joinDirection(1, 0, 1, 0, o)
+    expect([o.x, o.z]).toEqual([1, 0])
+    joinDirection(1, 0, 0, 1, o)
+    expect(o.x).toBeGreaterThan(0.7)
+    expect(o.z).toBeGreaterThan(0.3)
+    expect(Math.hypot(o.x, o.z)).toBeCloseTo(1, 12)
+    joinDirection(1, 0, -1, 0, o)
+    expect([o.x, o.z]).toEqual([1, 0])
+    joinDirection(1, 0, -1, 0.05, o) // nearly opposed: still essentially the move itself
+    expect(o.x).toBeGreaterThan(0.99)
   })
   it('the shortest turn goes the short way round', () => {
     expect(shortestTurn(3, -3)).toBeCloseTo(2 * Math.PI - 6, 9)
@@ -70,8 +88,9 @@ describe('a glide between the lobby shots', () => {
         expect(g.x).toBe(SHOTS[j].x)
         expect(g.z).toBe(SHOTS[j].z)
         expect(shortestTurn(g.yaw, shotYaw(SHOTS[j]))).toBeCloseTo(0, 9)
-        // a gentle dolly: never faster than 3.5 m/s (the longest hop is about 13 m, and the peak of the ease is 1.875x the average)
-        expect(maxStep * hz).toBeLessThan(3.5)
+        // a gentle dolly: the peak is the ease's (1.875x the average speed over the chord) plus a little for the bend, never more than 1.3x that
+        const chord = Math.hypot(SHOTS[j].x - SHOTS[i].x, SHOTS[j].z - SHOTS[i].z)
+        expect(maxStep * hz).toBeLessThan(((1.875 * chord) / g.seconds) * 1.3 + 0.05)
         expect(frames / hz).toBeGreaterThanOrEqual(6 - 1 / hz)
         expect(frames / hz).toBeLessThanOrEqual(8 + 1 / hz)
       }

@@ -4,25 +4,17 @@
  * Pinned shape: `{ muted: boolean; unlocked: boolean; setMuted(b); unlock() }`.
  *   - `unlocked` turns true on the first pointer or key event anywhere on the page (the browser only lets audio start
  *     after a user gesture), so a sound engine can wait for it before creating or resuming its AudioContext.
- *   - `muted` is remembered between visits (best effort: storage can be unavailable).
+ *   - `muted` is NOT remembered between visits: a fresh page load always starts with sound on, so a muted test session cannot silently mute the
+ *     demo (F-03). `?mute=1` starts muted on purpose. The M key toggles it (Hud.tsx, `toggleMute`) and shows the state in a notice.
  */
 import { create } from 'zustand'
 
-const STORAGE_KEY = 'ideal-hospital.muted'
-
-function readMuted(): boolean {
+/** Start muted only when the URL says so (`?mute=1`). Pure, so node can test it. */
+export function mutedFromSearch(search: string): boolean {
   try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY) === '1'
+    return new URLSearchParams(search).get('mute') === '1'
   } catch {
     return false
-  }
-}
-
-function writeMuted(muted: boolean): void {
-  try {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, muted ? '1' : '0')
-  } catch {
-    // storage is optional
   }
 }
 
@@ -34,12 +26,9 @@ export interface AudioState {
 }
 
 export const useAudio = create<AudioState>((set) => ({
-  muted: readMuted(),
+  muted: mutedFromSearch(typeof window === 'undefined' ? '' : window.location.search),
   unlocked: false,
-  setMuted: (muted) => {
-    writeMuted(muted)
-    set({ muted })
-  },
+  setMuted: (muted) => set({ muted }),
   unlock: () => set((s) => (s.unlocked ? s : { unlocked: true })),
 }))
 
@@ -57,3 +46,10 @@ export function installAudioUnlock(target: Pick<Window, 'addEventListener' | 're
 }
 
 installAudioUnlock()
+
+/** Flip the mute state and return the new one (true: now muted). */
+export function toggleMute(): boolean {
+  const muted = !useAudio.getState().muted
+  useAudio.getState().setMuted(muted)
+  return muted
+}

@@ -222,7 +222,10 @@ describe('the ER at real durations (Wave 1)', () => {
       expect(stuck.map((c) => `${c.name} ${c.state} since ${(c.arrivedAt / 60).toFixed(0)} min`)).toEqual([])
       expect(outcomes.lwbs / Math.max(1, er.finished.length)).toBeLessThanOrEqual(0.15)
       expect(er.maxCleanWait).toBeLessThanOrEqual(45 * 60)
-      expect(r.sim.world.bedside.sent).toBe(r.sim.world.bedside.ordered)
+      // every drawn bloods order went into the tube; the day ends at an arbitrary moment, so a nurse who has just drawn and is carrying the tubes
+      // to the tube station may still be on the way: only those (patients still in the ER) may be unsent
+      const carrying = [...r.sim.world.patients.values()].filter((p) => p.tubesWaiting).length
+      expect(r.sim.world.bedside.ordered - r.sim.world.bedside.sent, 'orders drawn but never sent').toBe(carrying)
     }
     // left without being seen: about 1 to 5 % over the days
     expect(lwbs / finished).toBeGreaterThanOrEqual(0.005)

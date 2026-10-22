@@ -25,6 +25,17 @@ class Plan:
         self.T = self.WALL['thickness']
         self.DOOR_H = self.WALL['doorHeight']
         self.rx0, self.rx1, self.rz0, self.rz1, self.level = region
+        self.hero = []      # rects (x0, x1, z0, z1) of the hero spaces (lobby.py sets them)
+
+    def wall_mat(self, w):
+        """'WallPaint' for the walls of the hero spaces (their own dense, clean lightmap), 'WallClinical' for the rest."""
+        for (x0, x1, z0, z1) in self.hero:
+            if w['alongX']:
+                if z0 - 0.15 <= w['c'] <= z1 + 0.15 and min(w['b'], x1) - max(w['a'], x0) > 0.05:
+                    return 'WallPaint'
+            elif x0 - 0.15 <= w['c'] <= x1 + 0.15 and min(w['b'], z1) - max(w['a'], z0) > 0.05:
+                return 'WallPaint'
+        return 'WallClinical'
 
     def covers(self, x, z):
         return self.rx0 <= x <= self.rx1 and self.rz0 <= z <= self.rz1
@@ -73,9 +84,11 @@ def floors(geo, pl):
 
 def solid_wall(geo, pl, w):
     T = pl.T
-    a = w['a'] - (0 if w['cutA'] else T / 2)
-    b = w['b'] + (0 if w['cutB'] else T / 2)
-    line_box(geo, 'WallPaint', w, a, b, GAP_H, pl.H, T, drop=('up',))
+    # an un-cut end runs on into the crossing wall to fill the corner, stopping 3 mm short of its far face (no coplanar faces to flicker)
+    a = w['a'] - (0 if w['cutA'] else T / 2 - 0.003)
+    b = w['b'] + (0 if w['cutB'] else T / 2 - 0.003)
+    # walls run 60 mm past the ceiling line, so the ceilings' perimeter shadow gaps look into the wall, not into the plenum
+    line_box(geo, pl.wall_mat(w), w, a, b, GAP_H, pl.H + 0.06, T, drop=('up',))
     line_box(geo, 'ShadowGap', w, a, b, 0.0, GAP_H, T - 2 * GAP_D, drop=('up', 'down'))
 
 
@@ -106,7 +119,7 @@ def ribbon_glazing(geo, pl, w, a, b, sill=0.9):
     """Outer-shell glazing outside the hero space: a painted sill wall, glass to the ceiling, slim mullions on the procedural panel rhythm."""
     T = pl.T
     H = pl.H
-    line_box(geo, 'WallPaint', w, a, b, GAP_H, sill, T, drop=())
+    line_box(geo, pl.wall_mat(dict(w, a=a, b=b)), w, a, b, GAP_H, sill, T, drop=())
     line_box(geo, 'ShadowGap', w, a, b, 0.0, GAP_H, T - 2 * GAP_D, drop=('up', 'down'))
     line_box(geo, 'Mullion', w, a, b, sill, sill + 0.05, 0.1)
     line_box(geo, 'Mullion', w, a, b, H - 0.06, H, 0.1)
@@ -148,9 +161,9 @@ def walls(geo, pl, skip=None):
             glass_partition(geo, pl, w)
 
 
-def door_frame(geo, pl, d, mat='DoorFrame'):
+def door_frame(geo, pl, d, lining='DoorFrame', mat='DoorFrame'):
     """A real door frame: a lining across the wall (centred on the opening's edge like the procedural jambs, so the procedural leaves fit),
-    an architrave on both faces, the head, and a slim stop."""
+    an architrave on both faces, the head, and a slim stop. `lining` may be a wayfinding colour (the reveal), the architraves stay white."""
     T = pl.T
     DH = pl.DOOR_H
     h = d['width'] / 2
@@ -163,7 +176,7 @@ def door_frame(geo, pl, d, mat='DoorFrame'):
     for s in (-1, 1):
         e = mid + s * h
         a, b = sorted((e - s * 0.035, e + s * 0.035))
-        line_box(geo, mat, w, a, b, 0.0, DH + 0.035, lin)
+        line_box(geo, lining, w, a, b, 0.0, DH + 0.035, lin)
         # architraves: 70 mm wide, on both faces, reaching out over the wall
         a2, b2 = sorted((e - s * 0.035, e + s * 0.075))
         for side in (-1, 1):
@@ -171,7 +184,7 @@ def door_frame(geo, pl, d, mat='DoorFrame'):
         # a stop: 15 mm proud of the lining into the opening, 40 mm wide, mid wall
         a3, b3 = sorted((e - s * 0.035, e - s * 0.05))
         line_box(geo, mat, w, a3, b3, 0.0, DH, 0.04)
-    line_box(geo, mat, w, mid - h - 0.035, mid + h + 0.035, DH, DH + 0.035, lin)
+    line_box(geo, lining, w, mid - h - 0.035, mid + h + 0.035, DH, DH + 0.035, lin)
     for side in (-1, 1):
         line_box(geo, mat, w, mid - h - 0.075, mid + h + 0.075, DH + 0.035, DH + 0.075, arc, offset=side * (lin / 2 + arc / 2))
 
@@ -186,7 +199,7 @@ def doors(geo, pl, frame_mat=None, skip=()):
         along_x = d['wallAxis'] == 'x'
         w = {'alongX': along_x, 'c': d['z'] if along_x else d['x']}
         mid = d['x'] if along_x else d['z']
-        line_box(geo, 'WallPaint', w, mid - h - 0.02, mid + h + 0.02, pl.DOOR_H, pl.H, T, drop=('up',))
+        line_box(geo, pl.wall_mat(dict(w, a=mid - h, b=mid + h)), w, mid - h - 0.02, mid + h + 0.02, pl.DOOR_H, pl.H + 0.06, T, drop=('up',))
         door_frame(geo, pl, d, (frame_mat(d) if frame_mat else None) or 'DoorFrame')
 
 
@@ -195,7 +208,6 @@ def grid_ceiling(geo, a, ch):
     2.4 m (the procedural rhythm), the border tiles cut equally on both sides as a ceiling fixer would."""
     r = a['rect']
     x0, x1, z0, z1 = r['x0'], r['x1'], r['z0'], r['z1']
-    geo.box('CeilingGrid', x0, ch, z0, x1, ch + 0.03, z1, drop=('up',))
     m = 0.6
     nx = int(math.floor((x1 - x0) / m))
     nz = int(math.floor((z1 - z0) / m))
@@ -213,6 +225,13 @@ def grid_ceiling(geo, a, ch):
             panels.add((i, j))
             panels.add((i, j + 1))
             geo.box('LightPanel', xs[i] + g, ch - 0.01, zs[j] + g, xs[i + 1] - g, ch, zs[j + 2] - g, drop=('up',))
+    # the exposed T-bar flanges in the reveals (24 mm, 6 mm above the tile faces), and the perimeter angle
+    for xv in xs[1:-1]:
+        geo.box('CeilingGrid', xv - g, ch - 0.002, z0, xv + g, ch + 0.012, z1, drop=('up',))
+    for zv in zs[1:-1]:
+        geo.box('CeilingGrid', x0, ch - 0.0021, zv - g, x1, ch + 0.012, zv + g, drop=('up',))
+    for (ax0, az0, ax1, az1) in ((x0, z0, x1, z0 + g), (x0, z1 - g, x1, z1), (x0, z0, x0 + g, z1), (x1 - g, z0, x1, z1)):
+        geo.box('CeilingGrid', ax0, ch - 0.002, az0, ax1, ch + 0.012, az1, drop=('up',))
     for i in range(len(xs) - 1):
         for j in range(len(zs) - 1):
             if (i, j) in panels:
@@ -233,3 +252,50 @@ def ceilings(geo, pl):
 def paving(geo, pl):
     """Outside, in front of the west façade: stone paving."""
     geo.box('Paving', pl.rx0 - 14, -0.06, pl.rz0 - 8, -62.0 - pl.T / 2, -0.01, pl.rz1 + 8, drop=('down',))
+
+
+def context(geo, pl, x_max=60.0):
+    """Plain stand-ins for what is NOT the model's (walls, floors, ceilings, lintels of the neighbours, west of x_max): present in renders and
+    bakes so no daylight leaks in where the procedural building will stand, never exported."""
+    T, H = pl.T, pl.H
+    for w in pl.plan['walls']:
+        if w['level'] != pl.level or w['cls'] == 'skip':
+            continue
+        mx, mz = ((w['a'] + w['b']) / 2, w['c']) if w['alongX'] else (w['c'], (w['a'] + w['b']) / 2)
+        if pl.covers(mx, mz) or mx > x_max:
+            continue
+        a = w['a'] - (0 if w['cutA'] else T / 2)
+        b = w['b'] + (0 if w['cutB'] else T / 2)
+        if w['cls'] == 'solid':
+            line_box(geo, 'WallClinical', w, a, b, 0.0, H, T)
+        else:
+            sill = 0.9 if w['cls'] == 'glassCut' else 0.0
+            if sill:
+                line_box(geo, 'WallClinical', w, a, b, 0.0, sill, T)
+            line_box(geo, 'Glass', w, a, b, sill, H, 0.012)
+    for d in pl.plan['doors']:
+        if d['level'] != pl.level or pl.covers(d['x'], d['z']) or d['x'] > x_max or d['kind'] in ('opening', 'counter'):
+            continue
+        h = d['width'] / 2
+        along_x = d['wallAxis'] == 'x'
+        w = {'alongX': along_x, 'c': d['z'] if along_x else d['x']}
+        mid = d['x'] if along_x else d['z']
+        line_box(geo, 'WallClinical', w, mid - h, mid + h, pl.DOOR_H, H, T)
+    for a in pl.plan['areas']:
+        r = a['rect']
+        if a['level'] != pl.level or pl.covers((r['x0'] + r['x1']) / 2, (r['z0'] + r['z1']) / 2) or r['x0'] > x_max:
+            continue
+        geo.box('Vinyl', r['x0'], -0.05, r['z0'], r['x1'], 0.0, r['z1'])
+        if a['ceiling'] is not None:
+            geo.box('CeilingTile', r['x0'], a['ceiling'], r['z0'], r['x1'], a['ceiling'] + 0.05, r['z1'])
+
+
+def landscape(geo, pl):
+    """Outside the west façade, for renders and bakes only (never exported; the game has its own grounds): lawn beyond the paving and a
+    low clipped hedge, so the glazing looks out on a place; the HDRI gives the distant landscape."""
+    x_edge = pl.rx0 - 14
+    geo.box('ctxGrass', x_edge - 120, -0.08, pl.rz0 - 80, x_edge, -0.02, pl.rz1 + 80, drop=('down',))
+    geo.box('ctxGrass', pl.rx0 - 14, -0.08, pl.rz1 + 8, -62.2, -0.02, pl.rz1 + 80, drop=('down',))
+    geo.box('ctxGrass', pl.rx0 - 14, -0.08, pl.rz0 - 80, -62.2, -0.02, pl.rz0 - 8, drop=('down',))
+    geo.box('ctxHedge', x_edge - 1.2, -0.02, pl.rz0 - 8, x_edge - 0.2, 0.75, -4.0)
+    geo.box('ctxHedge', x_edge - 1.2, -0.02, 4.0, x_edge - 0.2, 0.75, pl.rz1 + 8)

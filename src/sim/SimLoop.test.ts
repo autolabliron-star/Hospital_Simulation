@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CONFIG } from './config'
 import { maxStepsPerFrame, SimLoop } from './SimLoop'
 import type { Simulation } from './Simulation'
@@ -145,5 +145,92 @@ describe('SimLoop state', () => {
     for (let i = 0; i < 60; i++) loop.frame(1 / 60)
     expect(published()).toBeGreaterThanOrEqual(CONFIG.sim.publishHz - 1)
     expect(published()).toBeLessThanOrEqual(CONFIG.sim.publishHz + 1)
+  })
+})
+
+describe('SimLoop failure containment (F-01, F-16)', () => {
+  function flaky(throwOn: (call: number) => boolean) {
+    const s = { calls: 0, steps: 0, step: () => void (throwOn(++s.calls) ? (() => { throw new Error('boom') })() : s.steps++), sync: () => undefined }
+    return s
+  }
+  function build(sim: ReturnType<typeof flaky>) {
+    let published = 0
+    const loop = new SimLoop(sim as unknown as Simulation, () => void published++)
+    return { loop, published: () => published }
+  }
+
+  it('contains a step that throws once and keeps stepping', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const sim = flaky((n) => n === 3)
+    const { loop } = build(sim)
+    let recovered = 0
+    loop.onRecover = () => void recovered++
+    for (let i = 0; i < 30; i++) loop.frame(1 / 60)
+    expect(sim.steps).toBeGreaterThanOrEqual(25)
+    expect(loop.paused).toBe(false)
+    expect(recovered).toBe(0)
+    expect(loop.errorFrames).toBe(1)
+    expect(errors).toHaveBeenCalledTimes(1)
+    errors.mockRestore()
+  })
+
+  it('N frames in a row with a throw pause the loop and call the recovery hook once; replace resumes it', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const sim = flaky(() => true)
+    const { loop } = build(sim)
+    let recovered = 0
+    loop.onRecover = () => void recovered++
+    const n = CONFIG.sim.maxConsecutiveStepErrors
+    for (let i = 0; i < n - 1; i++) loop.frame(1 / 60)
+    expect(recovered).toBe(0)
+    expect(loop.paused).toBe(false)
+    loop.frame(1 / 60)
+    expect(recovered).toBe(1)
+    expect(loop.paused).toBe(true)
+    for (let i = 0; i < 20; i++) loop.frame(1 / 60) // paused: no more steps, no second call
+    expect(sim.calls).toBe(n)
+    expect(recovered).toBe(1)
+    const next = fakeSim()
+    loop.replace(next as unknown as Simulation)
+    expect(loop.paused).toBe(false)
+    loop.frame(STEP * 2.5)
+    expect(next.steps).toBe(2)
+    errors.mockRestore()
+  })
+
+  it('a good frame in between resets the count', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    // fail on every other call: never N failing frames in a row
+    const sim = flaky((n) => n % 2 === 1)
+    const { loop } = build(sim)
+    let recovered = 0
+    loop.onRecover = () => void recovered++
+    for (let i = 0; i < 40; i++) loop.frame(1 / 60)
+    expect(recovered).toBe(0)
+    expect(loop.paused).toBe(false)
+    errors.mockRestore()
+  })
+
+  it('contains a throwing publish', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const sim = fakeSim()
+    const loop = new SimLoop(sim as unknown as Simulation, () => {
+      throw new Error('publish')
+    })
+    expect(() => {
+      for (let i = 0; i < 60; i++) loop.frame(1 / 60)
+    }).not.toThrow()
+    expect(sim.steps).toBeGreaterThanOrEqual(59)
+    errors.mockRestore()
+  })
+
+  it('ignores NaN, negative and infinite dt, and does not poison the accumulator', () => {
+    const { sim, loop } = make()
+    loop.frame(NaN)
+    loop.frame(-1)
+    loop.frame(Infinity)
+    expect(sim.steps).toBe(0)
+    for (let i = 0; i < 60; i++) loop.frame(1 / 60)
+    expect(Math.abs(sim.steps - 60)).toBeLessThanOrEqual(1)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HOSTS, NIGHT_STAFF, STAFF, staffName } from './staff'
+import { HOSTS, NIGHT_STAFF, STAFF, StaffListsSchema, StaffMemberSchema, THEATRE_STAFF, W4_STAFF, staffName } from './staff'
 
 const SHIFTS = ['day', 'night', 'office']
 
@@ -72,5 +72,18 @@ describe('the new members stay out of the running simulation', () => {
     expect(staffName('host-A')).toBe('Host Ilona')
     expect(staffName('doc-N')).toBe('Dr. Oriel')
     expect(staffName('nurse-N-B')).toBe('Nurse Rhys')
+  })
+})
+
+describe('staff schema (F-34)', () => {
+  it('accepts every staff list as written, each id once', () => {
+    expect(StaffListsSchema.safeParse([STAFF, NIGHT_STAFF, HOSTS, W4_STAFF, THEATRE_STAFF]).success).toBe(true)
+  })
+
+  it('rejects a duplicate id, an unknown role, an unknown shift and a name with no title', () => {
+    expect(StaffListsSchema.safeParse([STAFF, [STAFF[0]]]).success).toBe(false)
+    expect(StaffMemberSchema.safeParse({ ...STAFF[0], role: 'wizard' }).success).toBe(false)
+    expect(StaffMemberSchema.safeParse({ ...STAFF[0], shift: 'evening' }).success).toBe(false)
+    expect(StaffMemberSchema.safeParse({ ...STAFF[0], name: 'Levi' }).success).toBe(false)
   })
 })

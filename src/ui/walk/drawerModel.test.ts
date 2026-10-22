@@ -63,15 +63,18 @@ describe('the drawer card', () => {
     const room = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'].find((r) => sim.meds.occupant(r) !== null)!
     const res = sim.prescribe(room, [{ medId: 'salbutamol', qty: 1 }])
     expect(res.ok).toBe(true)
+    if (!res.ok) return
     expect(readDrawer(sim, room, null).loaded).toBe(false)
-    let loaded = false
-    for (let i = 0; i < 4 * 60 * 60 && !loaded; i++) {
+    // the drawer also takes the room's scheduled doses, so the first load is not necessarily ours: wait until OUR order is in it
+    let ours = false
+    for (let i = 0; i < 4 * 60 * 60 && !ours; i++) {
       sim.step(DT)
-      loaded = readDrawer(sim, room, null).loaded
+      ours = sim.meds.drawers.get(room)?.orderIds.includes(res.order.id) ?? false
     }
-    expect(loaded).toBe(true)
+    expect(ours).toBe(true)
     const v = readDrawer(sim, room, null)
-    expect(v.items.map((i) => i.name)).toEqual(['Salbutamol'])
+    expect(v.loaded).toBe(true)
+    expect(v.items.map((i) => i.name)).toContain('Salbutamol')
     expect(v.locked).toContain(sim.meds.occupant(room)!.name)
   }, 120_000)
 })

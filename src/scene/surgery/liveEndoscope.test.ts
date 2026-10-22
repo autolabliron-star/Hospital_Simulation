@@ -1,6 +1,6 @@
 /**
  * The shared endoscope live texture in node (a recording environment stands in for the canvas): one 384 x 216 (16:9) canvas, standby before the camera is live
- * and once per robot phase, 2 Hz normally and 10 Hz while somebody is in the OR, the procedure's plate and instruments from the theatre, the presence rule,
+ * and once per robot phase, 2 Hz normally and 4 Hz while somebody is in the OR, the procedure's plate and instruments from the theatre, the presence rule,
  * and the live screens' material and 16:9 geometry.
  */
 import { LinearFilter, MeshBasicMaterial, SRGBColorSpace } from 'three'
@@ -80,7 +80,7 @@ describe('the live canvas', () => {
     expect(flagged).toBe(1)
   })
 
-  it('repaints the live picture every 500 ms when nobody is in the OR and every 100 ms when somebody is', () => {
+  it('repaints the live picture every 500 ms when nobody is in the OR and every 250 ms when somebody is', () => {
     const { env } = logEnv()
     const live = new LiveEndoscope(env)
     const r = st(dockedRobot('transverse'))
@@ -99,7 +99,7 @@ describe('the live canvas', () => {
     const hot = live.paints - start
     expect(hot).toBeGreaterThanOrEqual(10000 / HOT_MS - 3)
     expect(hot).toBeLessThanOrEqual(10000 / HOT_MS + 3)
-    expect(HOT_MS).toBe(100)
+    expect(HOT_MS).toBe(250)
     expect(COOL_MS).toBe(500)
   })
 

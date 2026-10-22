@@ -68,7 +68,8 @@ export function installKeys(env: KeyEnv): () => void {
       code: e.code,
       repeat: e.repeat,
       modifier: e.ctrlKey || e.metaKey || e.altKey,
-      typing: env.typing(e.target),
+      // Esc still closes our panels with the tablet's room list focused (F-37): a <select> has no use for it
+      typing: env.typing(e.target) && !(e.code === DEFAULT_KEYMAP.overview && e.target instanceof HTMLSelectElement),
       walking: env.walking(),
       seated: env.seated(),
       overlayOpen: env.overlayOpen(),

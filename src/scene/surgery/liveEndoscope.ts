@@ -1,6 +1,6 @@
 /**
  * R2 (agent O), R3: the shared endoscope live texture. ONE 384 x 216 (16:9) canvas shown on the vision cart's monitor, the wall monitor and both console
- * viewers (four quads, one material, one draw call). It repaints at 2 Hz normally and at 10 Hz while somebody is looking: you standing in the OR (level 2
+ * viewers (four quads, one material, one draw call). It repaints at 2 Hz normally and at 4 Hz while somebody is looking (F-42: not 10 Hz, to stay near CLAUDE.md's 2 Hz canvas limit): you standing in the OR (level 2
  * shown, inside its walls) or the OR focused in the overview. Before the endoscope arm is docked (and whenever the camera is not live) it shows a dim standby
  * picture, painted once per robot phase and never again until the phase changes.
  *
@@ -19,7 +19,7 @@ import { EndoPainter, fillEndoView, newEndoView, paintStandby, type EndoView } f
 export const LIVE_W = 384
 export const LIVE_H = 216
 /** Redraw periods (ms): somebody is looking, and nobody is. */
-export const HOT_MS = 100
+export const HOT_MS = 250
 export const COOL_MS = 500
 
 // ---------------------------------------------------------------------------------------------

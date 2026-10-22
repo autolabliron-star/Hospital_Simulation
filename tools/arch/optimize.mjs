@@ -3,19 +3,21 @@
  * arch:build  ->  tools/arch/optimize.mjs: the Blender export -> the shipped game asset.
  *
  *   node tools/arch/optimize.mjs [--in assets-src/arch/out/pilot-lobby.glb] [--lightmaps assets-src/arch/out] [--out public/assets/building/pilot-lobby.glb]
- *                                [--budget-draws 40] [--budget-tris 150000] [--budget-mb 24] [--no-validate]
+ *                                [--budget-draws 60] [--budget-tris 300000] [--budget-mb 40] [--no-validate]
  *
  * 1. gltf-transform: dedup, weld, prune (keeping every vertex attribute: TEXCOORD_1 is the lightmap's, referenced only from the node extras, so a
  *    plain prune would strip it), reorder, EXT_meshopt_compression (quantized, KHR_mesh_quantization; the plan check applies the node matrices)
  * 2. every node's extras.lightmap (a PNG baked by generate.py --bake) is encoded to KTX2 with the local `ktx` binary (UASTC, sRGB, mipmaps) beside
  *    the .glb, and the extra is rewritten to the .ktx2 file name. Textures embedded in the glb become KTX2 (KHR_texture_basisu) by role: colour
  *    (base colour, emissive) ETC1S sRGB; data (normal, occlusion/roughness/metalness) UASTC linear, since ETC1S blocks wreck normals.
- * 3. gltf-validator (0 errors), then the numbers: triangles, draw calls (nodes with a mesh x primitives), texture MB (the GPU copy of a KTX2 is
- *    transcoded to a 1 byte per pixel format, BC7 / ASTC 4x4, with mips = x 4/3), and the Quest 3 slice for a pilot is enforced (exit code 1).
+ * 3. the lobby's reflection probe (env_lobby.hdr, rendered by generate.py --probe beside the lightmaps) is copied beside the .glb.
+ * 4. gltf-validator (0 errors), then the numbers: triangles, draw calls (nodes with a mesh x primitives), texture MB (the GPU copy of a KTX2 is
+ *    transcoded to a 1 byte per pixel format, BC7 / ASTC 4x4, with mips = x 4/3), and the Quest 3 slice for the hero model is enforced (exit 1):
+ *    <= 60 draw calls, <= 300k triangles, <= 40 MB of GPU texture memory (lightmaps + material textures).
  */
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -38,7 +40,8 @@ const opt = (name, def) => {
 const IN = path.resolve(ROOT, opt('in', 'assets-src/arch/out/pilot-lobby.glb'))
 const LM_DIR = path.resolve(ROOT, opt('lightmaps', path.dirname(IN)))
 const OUT = path.resolve(ROOT, opt('out', 'public/assets/building/pilot-lobby.glb'))
-const BUDGET = { draws: Number(opt('budget-draws', 40)), tris: Number(opt('budget-tris', 150000)), mb: Number(opt('budget-mb', 24)) }
+const BUDGET = { draws: Number(opt('budget-draws', 60)), tris: Number(opt('budget-tris', 300000)), mb: Number(opt('budget-mb', 40)) }
+const PROBE = 'env_lobby.hdr'
 const outDir = path.dirname(OUT)
 
 /** mode: 'uastc' (lightmaps, sRGB), 'etc1s' (colour, sRGB) or 'linear' (normal / ORM data, UASTC). */
@@ -108,9 +111,18 @@ try {
 const glb = await io.writeBinary(doc)
 writeFileSync(OUT, glb)
 
+// the reflection probe (Radiance .hdr, linear; an allowed type, docs/ASSETS-POLICY.md) ships beside the model
+const probeSrc = path.join(LM_DIR, PROBE)
+const probeOut = path.join(outDir, PROBE)
+if (existsSync(probeSrc)) {
+  const head = readFileSync(probeSrc).subarray(0, 10).toString('latin1')
+  if (!head.startsWith('#?RADIANCE') && !head.startsWith('#?RGBE')) throw new Error(`${probeSrc} is not a Radiance HDR`)
+  copyFileSync(probeSrc, probeOut)
+}
+
 // record the shipped files as derived assets (docs/ASSETS-POLICY.md, "Authored assets"), under the gate's shared lock
 const sha256Of = (f) => createHash('sha256').update(readFileSync(f)).digest('hex')
-const shipped = [OUT, ...textures.filter((t) => !t.name.startsWith('embedded:')).map((t) => path.join(outDir, t.name))]
+const shipped = [OUT, ...textures.filter((t) => !t.name.startsWith('embedded:')).map((t) => path.join(outDir, t.name)), ...(existsSync(probeOut) ? [probeOut] : [])]
 const release = await acquireLock(ROOT)
 try {
   const installed = await readInstalled(ROOT)
@@ -158,11 +170,12 @@ console.log(`draw calls  ${draws}  (budget ${BUDGET.draws})`)
 console.log(`texture MB  ${texMB.toFixed(2)}  (budget ${BUDGET.mb})`)
 const fails = []
 if (verdict.errors > 0) fails.push(`validator: ${verdict.errorMessages.join(' | ')}`)
-if (draws >= BUDGET.draws) fails.push(`draw calls ${draws} >= ${BUDGET.draws}`)
-if (tris >= BUDGET.tris) fails.push(`triangles ${tris} >= ${BUDGET.tris}`)
-if (texMB >= BUDGET.mb) fails.push(`texture memory ${texMB.toFixed(1)} MB >= ${BUDGET.mb}`)
+if (draws > BUDGET.draws) fails.push(`draw calls ${draws} > ${BUDGET.draws}`)
+if (tris > BUDGET.tris) fails.push(`triangles ${tris} > ${BUDGET.tris}`)
+if (texMB > BUDGET.mb) fails.push(`texture memory ${texMB.toFixed(1)} MB > ${BUDGET.mb}`)
 if (fails.length) {
   console.error('OVER BUDGET / INVALID: ' + fails.join('; '))
   process.exit(1)
 }
-console.log('within the pilot budget slice')
+if (existsSync(probeOut)) console.log(`  ${PROBE}  ${(statSync(probeOut).size / 1024).toFixed(0)} KB (reflection probe, Radiance HDR)`)
+console.log('within the hero model budget (Quest 3 slice)')

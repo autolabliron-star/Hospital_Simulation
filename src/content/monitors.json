@@ -5,7 +5,7 @@
   "spotCheck": "Spot check",
   "adult": "Adult",
   "beds": {
-    "or": "OR 1 · Robotic",
+    "or": "Theatre 1",
     "pacu": "PACU {n}",
     "preop": "Pre-op {n}",
     "er": "ER {n}",
@@ -37,7 +37,7 @@
     "bpm": "bpm",
     "percent": "%",
     "mmHg": "mmHg",
-    "perMin": "rpm",
+    "perMin": "/min",
     "celsius": "°C"
   },
   "nibp": {

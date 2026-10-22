@@ -6,14 +6,9 @@ import { useEffect } from 'react'
 import { useFocus } from '@/scene/camera/focus.store'
 import { unfocus } from '@/scene/camera/roomFocus'
 import { DEFAULT_KEYMAP } from '@/sim/types'
-import { presentActive } from './present/presentation.store'
 import { useGoTo } from './goTo.store'
-
-function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
-}
+import { hotkeyAllowed } from './hotkeys'
+import { hotkeyContext } from './hotkeyContext'
 
 export function RoomKeys(): null {
   useEffect(() => {
@@ -30,9 +25,9 @@ export function RoomKeys(): null {
         }
         return
       }
-      if (isTyping(e.target)) return
-      // (the Go-to menu is not drawn in presentation mode, so G must not open it behind the scenes)
-      if (e.code === DEFAULT_KEYMAP.goTo && !presentActive()) {
+      // G is heard once the day has started, not while typing, not in presentation mode (the Go-to menu is not drawn there, so it must not
+      // open behind the scenes) and not under the Jump menu; with the Go-to menu itself open it closes it
+      if (e.code === DEFAULT_KEYMAP.goTo && hotkeyAllowed(e.code, hotkeyContext(e.target, goTo.open ? 'goTo' : undefined)) ) {
         e.preventDefault()
         goTo.setOpen(!goTo.open)
       }

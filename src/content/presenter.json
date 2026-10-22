@@ -1,0 +1,27 @@
+{
+  "sound": {
+    "on": "Sound on. Press M to mute.",
+    "off": "Sound off. Press M to turn it on.",
+    "pillOn": "Sound on",
+    "pillOff": "Sound off",
+    "titleOn": "Mute the sound (M)",
+    "titleOff": "Turn the sound on (M)"
+  },
+  "present": {
+    "enter": "Walkthrough on. C or Esc exits, N is the next shot.",
+    "exit": "Walkthrough off."
+  },
+  "time": {
+    "pausedShort": "Paused",
+    "speedShort": "{n}×",
+    "pausedTitle": "The hospital is paused. Press Space to resume.",
+    "speedTitle": "Running at {n}× speed. Press 1 for normal speed."
+  },
+  "rx": {
+    "panelLabel": "Prescribe medicines",
+    "sent": "Order sent to {room}."
+  },
+  "pointer": {
+    "locked": "Esc releases the mouse."
+  }
+}

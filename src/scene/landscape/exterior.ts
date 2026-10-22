@@ -1,29 +1,37 @@
 /**
- * Outside the building: the plinth the model stands on (a large slab with a soft edge), lawns and an apron round the shell,
+ * Outside the building (the architect's model): the plinth the model stands on (a large slab with a soft edge), lawns and an apron round the shell,
  * the west forecourt with the entrance canopy, the ambulance bay outside the ER with its markings and a parked ambulance,
  * and a few trees (instanced by the renderer).
  *
  * The plinth top is 4 cm below the floors, so the building reads as set into it. Nothing here is on a nav route.
+ *
+ * Look-exterior: the model's base (the plinth, the lawns, the apron, the forecourt paving) is OVERVIEW ONLY: while you walk, the real-place
+ * exterior (./grounds, a separate component) is the ground to the horizon. The ambulance bay, the canopies, the planters and the trees stay.
  */
 import { BUILDING, DOORS } from '@/sim/places'
 import { WAYFINDING } from '@/scene/materials'
+import { BUILDING_MODEL_ON } from '@/scene/building/model/flags'
 import type { Frame, LayoutBuilder } from '@/scene/building/layout/builder'
+import { LAYOUT_TREES } from './layoutTrees'
 
 export const PLINTH = { x0: -78, x1: 48, z0: -32, z1: 32, top: -0.04, thickness: 0.7 } as const
+
+/** The architect's model base: hidden while walking (the real ground replaces it). */
+const OV = { overviewOnly: true } as const
 
 const RED = WAYFINDING.emergency
 const WHITE = '#ffffff'
 const YELLOW = '#f2c14e'
 
 function lawn(f: Frame, x0: number, x1: number, z0: number, z1: number): void {
-  f.rbox((x0 + x1) / 2, PLINTH.top - 0.02, (z0 + z1) / 2, x1 - x0, 0.1, z1 - z0, 'grass', { r: 0.04, cast: false })
+  f.rbox((x0 + x1) / 2, PLINTH.top - 0.02, (z0 + z1) / 2, x1 - x0, 0.1, z1 - z0, 'grass', { r: 0.04, cast: false, ...OV })
 }
 
 function plinth(f: Frame): void {
   const { x0, x1, z0, z1, top, thickness } = PLINTH
-  f.rbox((x0 + x1) / 2, top - thickness, (z0 + z1) / 2, x1 - x0, thickness, z1 - z0, 'plinth', { r: 0.3, cast: false })
+  f.rbox((x0 + x1) / 2, top - thickness, (z0 + z1) / 2, x1 - x0, thickness, z1 - z0, 'plinth', { r: 0.3, cast: false, ...OV })
   // a slightly darker base lip, so the slab reads as a model base
-  f.rbox((x0 + x1) / 2, top - thickness - 0.25, (z0 + z1) / 2, x1 - x0 - 0.8, 0.3, z1 - z0 - 0.8, 'concrete', { r: 0.12, cast: false })
+  f.rbox((x0 + x1) / 2, top - thickness - 0.25, (z0 + z1) / 2, x1 - x0 - 0.8, 0.3, z1 - z0 - 0.8, 'concrete', { r: 0.12, cast: false, ...OV })
 }
 
 function groundCover(f: Frame): void {
@@ -34,22 +42,38 @@ function groundCover(f: Frame): void {
   lawn(f, o.x1 + 2.4, 46.4, o.z0 - 2.4, o.z1 + 2.4)
   lawn(f, -74, -63, 5.4, 6.4) // planter strip between the forecourt and the ambulance bay
   // a stone apron round the shell (north, south, east)
-  f.plane(-10, 0.002, o.z0 - 1.2, 106, 2.4, 'stonePath')
-  f.plane(-10, 0.002, o.z1 + 1.2, 106, 2.4, 'stonePath')
-  f.plane(o.x1 + 1.2, 0.002, 0, 2.4, 44, 'stonePath')
+  // (thin boxes, not `plane`: `Frame.plane` does not pass `overviewOnly` on to its prim)
+  const slab = (x: number, z: number, w: number, d: number): Frame => f.box(x, -0.002, z, w, 0.004, d, 'stonePath', { ...OV, cast: false })
+  slab(-10, o.z0 - 1.2, 106, 2.4)
+  slab(-10, o.z1 + 1.2, 106, 2.4)
+  slab(o.x1 + 1.2, 0, 2.4, 44)
   // the forecourt in front of the entrance
-  f.plane(-67.5, 0.002, -2.2, 11, 15.6, 'stonePath')
+  slab(-67.5, -2.2, 11, 15.6)
 }
 
-/** The entrance canopy: a slim slab on four columns with a mint edge. */
-function canopy(f: Frame, id: string, xMin: number, xMax: number, zc: number, depthZ: number): void {
+/**
+ * A canopy: a slim slab on four columns. `y` is the underside. The entrance canopy (Look-exterior) hangs at 3.1 m, the height of the
+ * authored lobby's own porch slab (tools/arch/lobby.py: x -64.8..-62.1, z -2.6..2.6, 3.1..3.32 m); with `?building=model` that porch is the
+ * model's, so the procedural slab leaves exactly its rectangle out (`notch`) instead of fighting it with coplanar faces.
+ */
+function canopy(f: Frame, id: string, xMin: number, xMax: number, zc: number, depthZ: number, y = 3.0, notch?: { x0: number; hz: number }): void {
   const w = xMax - xMin
   const cx = (xMin + xMax) / 2
-  const y = 3.0
-  f.rbox(cx, y, zc, w, 0.22, depthZ, 'whitePlastic', { r: 0.08 })
-  f.rbox(cx, y + 0.22, zc, w + 0.1, 0.04, depthZ + 0.1, 'wallCap', { r: 0.02, cast: false })
-  f.box(cx, y - 0.04, zc - depthZ / 2 + 0.03, w - 0.1, 0.04, 0.06, 'wallMint', { cast: false })
-  f.box(cx, y - 0.04, zc + depthZ / 2 - 0.03, w - 0.1, 0.04, 0.06, 'wallMint', { cast: false })
+  const z0 = zc - depthZ / 2
+  const z1 = zc + depthZ / 2
+  if (notch) {
+    const piece = (a: number, b: number, c: number, d: number): void => {
+      f.rbox((a + b) / 2, y, (c + d) / 2, b - a, 0.22, d - c, 'whitePlastic', { r: 0.03 })
+    }
+    piece(xMin, notch.x0, z0, z1)
+    piece(notch.x0, xMax, z0, zc - notch.hz)
+    piece(notch.x0, xMax, zc + notch.hz, z1)
+  } else {
+    f.rbox(cx, y, zc, w, 0.22, depthZ, 'whitePlastic', { r: 0.08 })
+    f.rbox(cx, y + 0.22, zc, w + 0.1, 0.04, depthZ + 0.1, 'wallCap', { r: 0.02, cast: false })
+    f.box(cx, y - 0.04, zc - depthZ / 2 + 0.03, w - 0.1, 0.04, 0.06, 'wallMint', { cast: false })
+    f.box(cx, y - 0.04, zc + depthZ / 2 - 0.03, w - 0.1, 0.04, 0.06, 'wallMint', { cast: false })
+  }
   let column = 0
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
@@ -104,20 +128,7 @@ function ambulanceBay(f: Frame): void {
 }
 
 function treeSpots(b: LayoutBuilder): void {
-  const trees: [number, number, number, string, number][] = [
-    [-47, -27.2, 5.2, '#a6d49a', 0.05],
-    [-24, -27.6, 4.6, '#b8dca4', 0.35],
-    [4, -27, 5.0, '#a6d49a', 0.6],
-    [28, -27.5, 4.8, '#b8dca4', 0.9],
-    [-50, 29.0, 4.4, '#b8dca4', 0.2],
-    [-8, 29.4, 4.6, '#a6d49a', 0.5],
-    [24, 29.0, 4.4, '#b8dca4', 0.75],
-    [44.4, -12, 5.0, '#a6d49a', 0.15],
-    [44.4, 12, 4.6, '#b8dca4', 0.45],
-    [-70, -12.5, 4.8, '#a6d49a', 0.65],
-    [-71, 26, 4.2, '#b8dca4', 0.3],
-  ]
-  for (const [x, z, height, tint, seed] of trees) b.trees.push({ x, z, height, tint, seed })
+  for (const t of LAYOUT_TREES) b.trees.push({ x: t.x, z: t.z, height: t.height, tint: t.tint, seed: t.seed })
 }
 
 export function buildExterior(b: LayoutBuilder): void {
@@ -126,7 +137,8 @@ export function buildExterior(b: LayoutBuilder): void {
   plinth(f)
   groundCover(f)
   const entrance = DOORS.find((d) => d.id === 'entrance')!
-  canopy(f, 'entrance', -68.6, -62, entrance.center.z, 9)
+  // the authored lobby's own porch slab (x -64.8..-62.1, z +-2.6) is left out of the procedural one when `?building=model` draws it
+  canopy(f, 'entrance', -68.6, -62, entrance.center.z, 9, 3.1, BUILDING_MODEL_ON ? { x0: -64.8, hz: 2.6 } : undefined)
   ambulanceBay(f)
   treeSpots(b)
   // forecourt planters flanking the entrance walk

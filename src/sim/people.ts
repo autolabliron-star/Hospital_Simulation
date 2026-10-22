@@ -13,8 +13,9 @@
  *
  * The base classes (`Person`, `newEntity`) live in person.ts and are re-exported here.
  */
-import { isPrn, MEDICINES, patientInRoom } from '@/content/catalogue'
+import { isPrn, patientInRoom } from '@/content/catalogue'
 import { HUDDLE_TOPICS } from '@/content/day'
+import { ROUND_ADDS } from '@/content/roundAdds'
 import { STAFF, type StaffMember } from '@/content/staff'
 import { recordOfPlan } from './beds/bedBook'
 import { Patient } from './beds/inpatient'
@@ -320,25 +321,19 @@ export class Doctor extends Person {
   }
 
   /**
-   * With probability `changeChance`: an as-needed medicine, or a new regular one added to the patient's list (given from its next dose
-   * hour). Never a medicine the patient already has (MedSystem.prescribe also refuses duplicates and doses inside the interval).
+   * With probability `changeChance`: a simple symptomatic medicine (content/roundAdds.json: paracetamol, a laxative, omeprazole, ondansetron)
+   * is added to the patient's list (a regular one is given from its next dose hour). F-22: never a drug started "at random" from the whole
+   * catalogue. Never a medicine the patient already has (MedSystem.prescribe also refuses duplicates and doses inside the interval).
    */
   private maybeChange(ctx: PeopleContext, roomId: RoomId): void {
     if (!ctx.rng.chance(CONFIG.people.round.changeChance)) return
     const record = ctx.world.beds?.recordOf(roomId) ?? null
     const have: readonly string[] = record ? record.usualMeds : patientInRoom(roomId).usualMeds
-    const as = MEDICINES.filter((m) => isPrn(m.id)).map((m) => m.id)
-    const regular = MEDICINES.filter((m) => !isPrn(m.id) && !have.includes(m.id)).map((m) => m.id)
-    const prn = ctx.rng.chance(0.5) || regular.length === 0 || have.length >= 6
-    if (prn) {
-      const pool = as.filter((id) => ctx.meds.pendingFor(roomId, id) === false)
-      if (pool.length === 0) return
-      ctx.meds.prescribe({ roomId, items: [{ medId: ctx.rng.pick(pool), qty: 1 }], prescriberId: this.staff.id, source: 'sim' })
-      return
-    }
-    const medId = ctx.rng.pick(regular)
+    const pool = ROUND_ADDS.filter((id) => !have.includes(id) && (!isPrn(id) || ctx.meds.pendingFor(roomId, id) === false))
+    if (pool.length === 0) return
+    const medId = ctx.rng.pick(pool)
     const r = ctx.meds.prescribe({ roomId, items: [{ medId, qty: 1 }], prescriberId: this.staff.id, source: 'sim' })
-    if (r.ok && record) record.usualMeds = [...record.usualMeds, medId]
+    if (r.ok && record && !isPrn(medId)) record.usualMeds = [...record.usualMeds, medId]
   }
 }
 

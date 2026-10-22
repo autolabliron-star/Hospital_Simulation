@@ -238,6 +238,13 @@ describe('the ER kiosk detour', () => {
       expect(gone - at, `${id}`).toBeLessThanOrEqual(310)
     }
     expect(kiosks.aborted.length).toBeGreaterThanOrEqual(1)
+    // at real durations (3-7 min of triage per patient, two triage nurses) the line this crowd makes is longer than the window,
+    // so an aborted patient is kept in their place in it; let it drain (no new walk-ins) and every one of them is triaged
+    for (let t = 0; t < 90 * 60 && !kiosks.aborted.every((id) => triaged.has(id)); t += 30 * DT) {
+      for (let k = 0; k < 30; k++) sim.step(DT)
+      kiosks.step(sim.t)
+      for (const p of sim.world.patients.values() as Iterable<ErPatient>) if (p.state === 'triage.walking' || p.state === 'triage.assessing') triaged.add(p.c.id)
+    }
     // every aborted patient went on to triage (their place was kept: nobody was left waiting for the kiosk)
     for (const id of kiosks.aborted) expect(triaged.has(id) || !sim.world.patients.has(id), `${id} got triaged after the abort`).toBe(true)
   }, 300_000)

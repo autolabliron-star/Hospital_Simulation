@@ -143,6 +143,8 @@ describe('MedSystem pipeline', () => {
         const r = w.meds.prescribe({ roomId: room, items, prescriberId: 'doc', source: 'presenter', doseAt: w.now() })
         expect(r.ok).toBe(true)
         if (r.ok) orders.push(r.order.id)
+        // the same patient's usual medicines come round again: the pharmacist queries the repeat, and the presenter confirms it (F-25)
+        if (r.ok && r.query) expect(w.meds.confirmQuery(r.order.id)).toBe(true)
         k++
       }
       w.step({ autoGive: true })

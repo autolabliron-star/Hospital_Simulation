@@ -45,6 +45,11 @@ export function stop(p: Person): void {
   if (stoppable(p)) p.retiring = true
 }
 
+/** Take work again (the handover that asked it to stop was dropped and the person is staying on). */
+export function resume(p: Person): void {
+  if (stoppable(p)) p.retiring = false
+}
+
 function nothing(): void {}
 
 function bareKit(): Pick<Kit, 'release' | 'attach'> {

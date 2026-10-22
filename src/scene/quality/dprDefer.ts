@@ -14,6 +14,8 @@
  * deferred: they are a uniform or an `enabled` flag, no buffer changes.
  */
 
+import { presentActive } from '@/ui/present/presentation.store'
+
 /** Still means this long without moving (seconds). */
 export const STILL_SECONDS = 0.4
 /** The longest a change waits (ms). */
@@ -37,14 +39,17 @@ export class DprDeferral {
   constructor(
     private readonly stillSeconds = STILL_SECONDS,
     private readonly maxDeferMs = MAX_DEFER_MS,
+    /** Presentation mode counts as moving (F-41): its camera glides, and a canvas resize in a shot is a hitch the audience sees. */
+    private readonly presenting: () => boolean = presentActive,
   ) {}
 
   get waiting(): boolean {
     return this.since >= 0
   }
 
-  /** Is the player walking and moving? (A body that is not live yet is not.) */
+  /** Is the player walking and moving, or presenting? (A body that is not live yet is not moving.) */
   moving(ctx: DprContext): boolean {
+    if (this.presenting()) return true
     return ctx.mode === 'walk' && ctx.live && ctx.stillFor < this.stillSeconds
   }
 

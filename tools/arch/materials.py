@@ -50,6 +50,11 @@ def _to_srgb(v):
     return np.where(v <= 0.0031308, v * 12.92, 1.055 * np.power(v, 1 / 2.4) - 0.055)
 
 
+def _luma(c):
+    # explicit weights (numpy's matmul raises spurious float warnings with Accelerate on this machine)
+    return c[..., 0] * 0.2126 + c[..., 1] * 0.7152 + c[..., 2] * 0.0722
+
+
 def _read(path, size):
     img = bpy.data.images.load(path, check_existing=False)
     img.colorspace_settings.name = 'Non-Color'   # raw values: the sRGB decode is done here, explicitly
@@ -128,10 +133,10 @@ def _process(name, spec, tex_id):
             px = p2.reshape(size, size, 4)[:, :, :3].copy()
         if kind == 'diff':
             lin = _to_lin(px)
-            lum = lin @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+            lum = _luma(lin)
             m = float(lum.mean())
             tint = np.array(srgb_to_linear(pr.get('tint', '#808080')), dtype=np.float32)
-            tl = float(tint @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32))
+            tl = float(_luma(tint))
             detail = 1.0 + pr.get('contrast', 1.0) * (lum / max(m, 1e-4) - 1.0)
             chroma = (lin - lum[..., None]) / max(m, 1e-4) * tl * pr.get('saturation', 0.0)
             lin = tint[None, None, :] * detail[..., None] + chroma
@@ -252,8 +257,28 @@ def _glass(m, spec):
     gl.inputs['Roughness'].default_value = 0.02
     fr = nt.nodes.new('ShaderNodeFresnel')
     fr.inputs['IOR'].default_value = 1.52
+    # reflect only on the entering face and never for shadow rays: the exiting face's Fresnel goes to total internal reflection past 41
+    # degrees, which would make the pane opaque to the sun
+    geo = nt.nodes.new('ShaderNodeNewGeometry')
+    lp = nt.nodes.new('ShaderNodeLightPath')
+    k1 = nt.nodes.new('ShaderNodeMath')
+    k1.operation = 'SUBTRACT'
+    k1.inputs[0].default_value = 1.0
+    nt.links.new(geo.outputs['Backfacing'], k1.inputs[1])
+    k2 = nt.nodes.new('ShaderNodeMath')
+    k2.operation = 'SUBTRACT'
+    k2.inputs[0].default_value = 1.0
+    nt.links.new(lp.outputs['Is Shadow Ray'], k2.inputs[1])
+    m1 = nt.nodes.new('ShaderNodeMath')
+    m1.operation = 'MULTIPLY'
+    nt.links.new(fr.outputs['Fac'], m1.inputs[0])
+    nt.links.new(k1.outputs['Value'], m1.inputs[1])
+    m2 = nt.nodes.new('ShaderNodeMath')
+    m2.operation = 'MULTIPLY'
+    nt.links.new(m1.outputs['Value'], m2.inputs[0])
+    nt.links.new(k2.outputs['Value'], m2.inputs[1])
     mix = nt.nodes.new('ShaderNodeMixShader')
-    nt.links.new(fr.outputs['Fac'], mix.inputs['Fac'])
+    nt.links.new(m2.outputs['Value'], mix.inputs['Fac'])
     nt.links.new(tr.outputs['BSDF'], mix.inputs[1])
     nt.links.new(gl.outputs['BSDF'], mix.inputs[2])
     nt.links.new(mix.outputs['Shader'], out.inputs['Surface'])
@@ -283,6 +308,10 @@ def bevel_of(name):
 
 def lightmap_of(name):
     return SPEC['materials'][name].get('lightmap')
+
+
+def bake_samples_of(name, default=512):
+    return int(SPEC['materials'][name].get('bakeSamples', default))
 
 
 # --- UVs ------------------------------------------------------------------------------------------------------------------------------------------

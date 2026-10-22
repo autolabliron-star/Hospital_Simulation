@@ -3,6 +3,9 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { CameraControls } from '@react-three/drei'
 import type CameraControlsImpl from 'camera-controls'
 import { Box3, MathUtils, Vector3 } from 'three'
+import { CONFIG } from '@/sim/config'
+import { loop, sim } from '@/sim'
+import { hourAt } from '@/sim/population/schedule'
 import { BUILDING, VIEW } from '@/sim/places'
 import { Ambience } from '@/audio/AmbienceSounds'
 import { ScannerSounds } from '@/audio/ScannerSounds'
@@ -21,11 +24,14 @@ import { GoToMenu } from '@/ui/GoToMenu'
 import { Hud } from '@/ui/Hud'
 import { JumpFade, JumpMenu } from '@/ui/JumpMenu'
 import { LiftCover } from '@/ui/LiftCover'
-import { LoadingScreen } from '@/ui/loading'
+import { useJump } from '@/ui/jump.store'
+import { LoadingScreen, enterHospital } from '@/ui/loading'
+import { realPorts } from '@/ui/loading/ports'
 import { RoomKeys } from '@/ui/RoomKeys'
 import { RoomPanel } from '@/ui/RoomPanel'
 import { Cloaked, Hidden, PresentationControls } from '@/ui/present/PresentationControls'
 import { DevProbe, ProbeOverlay, probeEnabled } from './DevProbe'
+import { ErrorBoundary, ReloadCard } from './ErrorBoundary'
 import { PowerLoop } from './PowerLoop'
 
 const FOV = 35
@@ -110,10 +116,53 @@ function Pacing() {
   )
 }
 
+/** F-01 fallback of the loading screen: nothing but the Enter button, so a broken card never keeps the presenter out. */
+function EnterOnly() {
+  const entered = useEntered()
+  if (entered) return null
+  return (
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1118' }}>
+      <button
+        type="button"
+        autoFocus
+        onClick={() => enterHospital(realPorts(), { gesture: true })}
+        style={{ padding: '12px 28px', borderRadius: 8, border: 0, background: '#3b82f6', color: '#fff', font: '18px system-ui, sans-serif', cursor: 'pointer' }}
+      >
+        Enter
+      </button>
+    </div>
+  )
+}
+
+const RECOVERY_RETRY_MS = 600
+const RECOVERY_TRIES = 10
+
+/**
+ * F-01: when the sim keeps throwing, SimLoop pauses itself and calls this: rebuild the hospital at the current hour behind the usual
+ * Jump veil (SimLoop.replace brings it back). A jump refused because another one is running or a lift ride is on is retried.
+ */
+function useSimRecovery(): void {
+  useEffect(() => {
+    let timer = 0
+    const recover = (left: number): void => {
+      const hour = Math.max(CONFIG.sim.startHour, hourAt(sim.t - CONFIG.day.jumpPreRollSeconds))
+      if (useJump.getState().jump(hour) || left <= 1) return
+      timer = window.setTimeout(() => recover(left - 1), RECOVERY_RETRY_MS)
+    }
+    loop.onRecover = () => recover(RECOVERY_TRIES)
+    return () => {
+      loop.onRecover = null
+      window.clearTimeout(timer)
+    }
+  }, [])
+}
+
 export function App() {
+  useSimRecovery()
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       {/* M5: frameloop "never": PowerLoop drives every frame (the cap, pauses, no fast-forward); Quality owns the real pixel ratio */}
+      <ErrorBoundary name="canvas" fallback={<ReloadCard />}>
       <Canvas flat shadows="percentage" frameloop="never" dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ fov: FOV, near: 1, far: 500, position: [VIEW.center.x, 80, 66] }}>
         <Pacing />
         <DevProbe />
@@ -128,29 +177,56 @@ export function App() {
         {/* M5: LAST in the Canvas, so every layer's effects (the environment map) have run. Compiles both modes, uploads every texture. */}
         <Warmup />
       </Canvas>
+      </ErrorBoundary>
       {/* presentation mode (C, ?view=present): no HUD and none of the game's overlays; the Hud hides itself, the rest go through these gates */}
-      <Hud />
+      <ErrorBoundary name="hud">
+        <Hud />
+      </ErrorBoundary>
       <Hidden>
-        <GoToMenu />
-        <RoomPanel />
+        <ErrorBoundary name="go-to-menu">
+          <GoToMenu />
+        </ErrorBoundary>
+        <ErrorBoundary name="room-panel">
+          <RoomPanel />
+        </ErrorBoundary>
       </Hidden>
-      <ScannerSounds />
-      <DeviceSounds />
-      <Ambience />
-      <RoomKeys />
-      <PresentationControls />
+      <ErrorBoundary name="scanner-sounds">
+        <ScannerSounds />
+      </ErrorBoundary>
+      <ErrorBoundary name="device-sounds">
+        <DeviceSounds />
+      </ErrorBoundary>
+      <ErrorBoundary name="ambience">
+        <Ambience />
+      </ErrorBoundary>
+      <ErrorBoundary name="room-keys">
+        <RoomKeys />
+      </ErrorBoundary>
+      <ErrorBoundary name="presentation-controls">
+        <PresentationControls />
+      </ErrorBoundary>
       <Hidden>
-        <JumpMenu />
+        <ErrorBoundary name="jump-menu">
+          <JumpMenu />
+        </ErrorBoundary>
       </Hidden>
       {/* the covers keep their effects (the skip's sky lapse, the lift's outfit sync), so they stay mounted and only go invisible */}
       <Cloaked>
-        <JumpFade />
+        <ErrorBoundary name="jump-fade">
+          <JumpFade />
+        </ErrorBoundary>
         {/* R2: the cover of your lift ride between Level 1 and Level 2 */}
-        <LiftCover />
+        <ErrorBoundary name="lift-cover">
+          <LiftCover />
+        </ErrorBoundary>
       </Cloaked>
-      <ProbeOverlay />
-      {/* M5: above everything; holds the sim paused until the presenter presses Enter */}
-      <LoadingScreen />
+      <ErrorBoundary name="probe-overlay">
+        <ProbeOverlay />
+      </ErrorBoundary>
+      {/* M5: above everything; holds the sim paused until the presenter presses Enter. A broken card falls back to the Enter button alone. */}
+      <ErrorBoundary name="loading-screen" fallback={<EnterOnly />}>
+        <LoadingScreen />
+      </ErrorBoundary>
     </div>
   )
 }

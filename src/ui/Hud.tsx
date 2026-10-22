@@ -3,7 +3,7 @@
  * zustand world store, which the sim loop publishes at about 4 Hz; nothing here reads per-frame data.
  *
  *   top left     title, clock, speed and pause
- *   top right    KPI card ("simulated") and the dev Prescribe panel (a stand-in for the M4 tablet panel)
+ *   top right    KPI card ("simulated") and the Prescribe tablet (src/ui/rx)
  *   bottom       the event line (one sentence at a time) above the order rail
  *
  * Walk mode (W1) is the quiet branch of the same root: a small clock, the minimap, the interact prompt, the objective line, a key hint
@@ -11,16 +11,18 @@
  * Prescribe panel is the one tablet in both modes: P opens it, and E at a patient's bedside opens it on that room. H hides it all.
  */
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { MEDICINES, patientInRoom } from '@/content/catalogue'
 import { SKIP, fillSkip } from '@/content/skip'
+import { useWarmup } from '@/scene/warmup/warmup.store'
 import { useWalk } from '@/scene/player/state'
 import { loop, sim } from '@/sim'
-import { CONFIG } from '@/sim/config'
-import { ROOM_IDS } from '@/sim/places'
 import { DEFAULT_KEYMAP, ORDER_STAGES, SIM_SPEEDS, type OrderStage, type PlayerMode, type SimEvent } from '@/sim/types'
 import { useWorld } from '@/sim/world.store'
 import { dayStatsTracker } from './dayStats'
-import { presentActive, usePresentation } from './present/presentation.store'
+import { hotkeyAllowed } from './hotkeys'
+import { hotkeyContext } from './hotkeyContext'
+import { PresenterOverlay, toggleMuteWithNotice } from './PresenterOverlay'
+import { PrescribePanel } from './rx'
+import { usePresentation } from './present/presentation.store'
 import { useJump } from './jump.store'
 import { fillCopy, L1_COPY } from './l1Copy'
 import { installLevelKey } from './levelKey'
@@ -33,7 +35,7 @@ import { useHudPrefs } from './walk/hudPrefs.store'
 import { REALISM_KEY, useRealism } from './walk/realism.store'
 import { Minimap } from './walk/Minimap'
 import { useRx } from './walk/rx.store'
-import { activatesOnSpace, isTyping } from './walk/typing'
+import { activatesOnSpace, installBlurAfterClick } from './walk/typing'
 import { hudKind, hudVisibility } from './walk/visibility'
 import { WalkClock } from './walk/WalkClock'
 import { WalkOverlay } from './walk/WalkOverlay'
@@ -57,10 +59,14 @@ function useHotkeys(onPrescribe: () => void): void {
   useEffect(() => {
     const km = DEFAULT_KEYMAP
     const onKey = (e: KeyboardEvent) => {
-      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
-      // presentation mode (C): no game UI, so the keys that open some (the tablet, the Jump menu, the skip, H, R) are not heard; Space and the speeds still are
-      if (presentActive() && (e.code === km.prescribe || e.code === km.jump || e.code === km.skip || e.code === km.cleanScreen || e.code === REALISM_KEY)) return
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
+      // which keys are heard now is one pure table (hotkeys.ts): nothing before Enter on the loading screen, nothing that opens game UI in presentation
+      // mode or under an open menu; M, Space and the speeds are heard everywhere (a pill shows a pause or a speed while the HUD is hidden)
+      if (!hotkeyAllowed(e.code, hotkeyContext(e.target))) return
       switch (e.code) {
+        case km.mute:
+          toggleMuteWithNotice()
+          break
         case km.pause:
           if (activatesOnSpace(e.target)) return
           e.preventDefault()
@@ -334,115 +340,6 @@ function OrderRail() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Dev prescribe panel (stand-in for the M4 tablet panel)
-// ---------------------------------------------------------------------------------------------
-
-/** Who is in a ward room now: the live occupant from the bed flow, or the bed state when it is empty. */
-function roomOccupantName(roomId: string): string {
-  const room = sim.life.rooms.get(roomId)
-  if (!room) return patientInRoom(roomId).name
-  return room.patientName ?? L1_COPY.bedStates[room.bed].label
-}
-
-/** In walk mode the tablet puts itself away this long after the order is sent, so you are back on your feet (real milliseconds). */
-const WALK_SENT_CLOSE_MS = 1400
-
-/**
- * The prescribing tablet. `initialRoom` is the room it starts on (E at a bedside, in walk mode); `walk` puts the tablet away after
- * a send, because your order is then followed by the objective line (src/scene/interact/yourOrder.ts). The order it makes is the
- * sim's 'presenter' order, which is what the objective line tracks as "your order".
- */
-function PrescribePanel({ onClose, initialRoom, walk }: { onClose: () => void; initialRoom: string | null; walk: boolean }) {
-  const max = CONFIG.orders.maxItems
-  const [roomId, setRoomId] = useState(initialRoom && ROOM_IDS.includes(initialRoom) ? initialRoom : ROOM_IDS[0])
-  const [picked, setPicked] = useState<string[]>([])
-  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(closeTimer.current), [])
-
-  const toggle = (medId: string) => {
-    setNotice(null)
-    setPicked((p) => (p.includes(medId) ? p.filter((id) => id !== medId) : p.length >= max ? p : [...p, medId]))
-  }
-
-  const send = () => {
-    const result = sim.prescribe(
-      roomId,
-      picked.map((medId) => ({ medId, qty: 1 })),
-    )
-    loop.publishNow()
-    if (result.ok) {
-      setNotice({ ok: true, text: `Sent as ${result.order.id} to ${roomId}.` })
-      setPicked([])
-      if (walk) closeTimer.current = window.setTimeout(onClose, WALK_SENT_CLOSE_MS)
-    } else {
-      setNotice({ ok: false, text: result.reason })
-    }
-  }
-
-  return (
-    <section className="hud-card hud-rx" data-walk={walk} aria-label="Prescribe (developer panel)">
-      <header className="hud-rx__head">
-        <span className="hud-rx__title">Prescribe</span>
-        <button type="button" className="hud-icon-btn" aria-label="Close prescribe panel" title="Close (P)" onClick={onClose}>
-          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-            <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        </button>
-      </header>
-
-      <label className="hud-field">
-        <span className="hud-field__label">Room</span>
-        <select
-          className="hud-select"
-          value={roomId}
-          onChange={(e) => {
-            setRoomId(e.target.value)
-            setNotice(null)
-          }}
-        >
-          {ROOM_IDS.map((id) => (
-            <option key={id} value={id}>
-              {id} · {roomOccupantName(id)}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <fieldset className="hud-meds">
-        <legend className="hud-field__label">
-          Medicines <span className="hud-meds__count">{picked.length} of {max}</span>
-        </legend>
-        <ul className="hud-meds__list">
-          {MEDICINES.map((m) => {
-            const on = picked.includes(m.id)
-            return (
-              <li key={m.id}>
-                <label className="hud-med" data-on={on} data-disabled={!on && picked.length >= max}>
-                  <input type="checkbox" checked={on} disabled={!on && picked.length >= max} onChange={() => toggle(m.id)} />
-                  <span className="hud-med__swatch" style={{ background: m.color }} aria-hidden="true" />
-                  <span className="hud-med__name">{m.name}</span>
-                  <span className="hud-med__strength">{m.strength}</span>
-                </label>
-              </li>
-            )
-          })}
-        </ul>
-      </fieldset>
-
-      {notice && (
-        <p className="hud-rx__notice" data-ok={notice.ok} role="status">
-          {notice.text}
-        </p>
-      )}
-      <button type="button" className="hud-send" disabled={picked.length === 0} onClick={send}>
-        Send
-      </button>
-    </section>
-  )
-}
-
-// ---------------------------------------------------------------------------------------------
 // Root
 // ---------------------------------------------------------------------------------------------
 
@@ -451,6 +348,8 @@ export interface HudViewProps {
   /** H: the clean screen. */
   hidden: boolean
   rxOpen: boolean
+  /** The loading screen is up (the presenter has not pressed Enter): nothing in the HUD may take focus or clicks behind it (F-04). */
+  inert?: boolean
   /** The room the tablet starts on, and how many times it has been opened (the tablet is rebuilt on each). */
   rxRoom: string | null
   rxRequest: number
@@ -459,14 +358,14 @@ export interface HudViewProps {
 }
 
 /** The HUD for a mode: the overview's cards, or walk mode's quiet pieces (src/ui/walk/visibility.ts says which). */
-export function HudView({ mode, hidden, rxOpen, rxRoom, rxRequest, onToggleRx, onCloseRx }: HudViewProps) {
+export function HudView({ mode, hidden, inert, rxOpen, rxRoom, rxRequest, onToggleRx, onCloseRx }: HudViewProps) {
   // H hides it all, in both modes; walk mode is the quiet HUD of the doctor on foot
   const parts = hudVisibility(mode, hidden)
   const walking = hudKind(mode) === 'walk'
   if (hidden) return null
 
   return (
-    <div className="hud" data-hud={walking ? 'walk' : 'overview'}>
+    <div className="hud" data-hud={walking ? 'walk' : 'overview'} inert={inert}>
       {parts.titleCard && (
         <div className="hud-tl">
           <TitleCard />
@@ -505,15 +404,21 @@ export function HudView({ mode, hidden, rxOpen, rxRoom, rxRequest, onToggleRx, o
   )
 }
 
+/** Is the HUD hidden: by H, or because presentation mode (C) is on (which holds it hidden whatever else un-hides H). */
+export const hudIsHidden = (cleanScreen: boolean, presenting: boolean): boolean => cleanScreen || presenting
+
 export function Hud() {
   const rx = useRx()
   const mode = useWalk((s) => s.mode)
   // presentation mode holds the whole HUD hidden, whatever H and the tablet say (`useRx.openFor` un-hides H)
   const presenting = usePresentation((s) => s.on)
-  const hidden = useHudPrefs((s) => s.hidden) || presenting
+  const hidden = hudIsHidden(useHudPrefs((s) => s.hidden), presenting)
   const toggleRx = useCallback(() => useRx.getState().toggle(), [])
   const closeRx = useCallback(() => useRx.getState().close(), [])
+  const entered = useWarmup((st) => st.entered)
   useHotkeys(toggleRx)
+  // F-35: a button clicked with the mouse gives the focus back, so Space pauses instead of pressing it again
+  useEffect(() => installBlurAfterClick(window), [])
   // R2: the L key switches the overview's level (a listener of its own, so it works with the HUD hidden by H)
   useEffect(() => installLevelKey(window), [])
   // The store starts at 07:30: publish once before the first paint, so `?start=` shows its own hour straight away.
@@ -521,5 +426,11 @@ export function Hud() {
     loop.publishNow()
   }, [])
 
-  return <HudView mode={mode} hidden={hidden} rxOpen={rx.open} rxRoom={rx.roomId} rxRequest={rx.request} onToggleRx={toggleRx} onCloseRx={closeRx} />
+  return (
+    <>
+      <HudView mode={mode} hidden={hidden} inert={!entered} rxOpen={rx.open} rxRoom={rx.roomId} rxRequest={rx.request} onToggleRx={toggleRx} onCloseRx={closeRx} />
+      {/* the sound pill, the notice and the paused or fast-forward pill live outside the hideable HUD (F-03, F-07) */}
+      <PresenterOverlay />
+    </>
+  )
 }

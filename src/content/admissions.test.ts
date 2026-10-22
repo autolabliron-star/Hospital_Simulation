@@ -87,9 +87,34 @@ describe('admissions that make sense (Wave 1)', () => {
     }
   })
 
-  it('leaves the serious reasons to the acuity table', () => {
-    expect(admitChanceFor('Chest pain spreading to arm')).toBeNull()
-    expect(admitChanceFor('Sudden weakness down one side')).toBeNull()
+  it('always admits a stroke, a fit, confusion, a collapse and chest pain (F-23)', () => {
+    for (const reason of [
+      'Sudden weakness down one side',
+      'Fit that has now stopped',
+      'Confused and very drowsy today',
+      'Confused after a fall',
+      'Collapsed, not fully conscious',
+      'Collapsed at home, slow to respond',
+      'Chest pain spreading to arm',
+      'Chest pain at rest, sweating',
+      'Severe difficulty breathing',
+      'Breathless and struggling to speak',
+      'Allergic reaction, face swollen',
+    ]) {
+      expect(admitChanceFor(reason), reason).toBe(1)
+    }
+  })
+
+  it('almost never admits a neck bump, and never a rash or ear pain (F-23)', () => {
+    expect(admitChanceFor('Minor car bump, neck sore')).toBeLessThanOrEqual(0.05)
+    expect(admitChanceFor('Rash and itchy eyes')).toBe(0)
+    expect(admitChanceFor('Ear pain for three days')).toBe(0)
+    expect(admitChanceFor('Sore throat and swollen glands')).toBeLessThanOrEqual(0.05)
+  })
+
+  it('leaves the ordinary middle reasons to the acuity table', () => {
+    expect(admitChanceFor('High fever since yesterday')).toBeNull()
+    expect(admitChanceFor('Severe abdominal pain, vomiting')).toBeNull()
   })
 
   it('starts no anticoagulant for sudden weakness: a stroke workup ward reason instead', () => {

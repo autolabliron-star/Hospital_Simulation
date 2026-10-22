@@ -6,8 +6,9 @@ import { create } from 'zustand'
  * every rule runs under vitest in node. The frame loop (PowerLoop.tsx) reads `usePower` every animation frame and feeds the
  * inputs (tab visibility, window focus, battery, presentation mode, the loading screen) into a `PowerMachine`.
  *
- *   - Paused while the tab is hidden, always. Paused while the window is in the background too, except in presentation mode
- *     (`?present=1`): screen sharing moves the focus to the meeting window, and the shared picture must not freeze.
+ *   - Paused while the tab is hidden, always. A window that merely lost the focus keeps running (F-02: screen sharing, a notes window
+ *     or the meeting toolbar take the focus, and the shared picture must not freeze). `?pauseOnBlur=1` brings the old blur pause back
+ *     for a laptop demo that should rest in the background; presentation mode (`?present=1`) ignores it.
  *   - At most 60 frames a second, so a 120 Hz display does not double the work.
  *   - 30 frames a second on the loading screen, and on battery in normal mode when you are not walking. Presentation mode holds 60 on
  *     battery, and so does walk mode (W3: a walk at 30 fps is the judder the game was built to avoid; the overview, which is a view
@@ -28,6 +29,8 @@ export interface PowerInputs {
   hidden: boolean
   /** The window has the keyboard focus. */
   focused: boolean
+  /** `?pauseOnBlur=1`: pause when the window loses focus (off by default, F-02). */
+  pauseOnBlur?: boolean
   /** Presentation mode (`?present=1`). */
   present: boolean
   /** The laptop runs on battery (Battery API; false where it is not available). */
@@ -47,14 +50,14 @@ export interface PowerDecision {
 }
 
 /**
- * Why the demo should be paused right now, or null. Hidden always pauses; losing focus pauses only outside presentation mode, and never
- * on the loading screen (W3): the loading screen must draw behind itself, so the first full frame (the post-processing passes and the
+ * Why the demo should be paused right now, or null. Hidden always pauses; losing focus pauses only when `pauseOnBlur` is on (F-02,
+ * off by default), outside presentation mode, and never on the loading screen (W3): the loading screen must draw behind itself, so the first full frame (the post-processing passes and the
  * baked sun shadow compile on it) happens before Enter, not on the first frame of the demo. A page opened in a window without focus
  * (another window in front, the browser pane of the app) would otherwise compile all of them on Enter.
  */
-export function pauseReason(hidden: boolean, focused: boolean, present: boolean, loading = false): PauseReason {
+export function pauseReason(hidden: boolean, focused: boolean, present: boolean, loading = false, pauseOnBlur = false): PauseReason {
   if (hidden) return 'hidden'
-  if (!focused && !present && !loading) return 'background'
+  if (pauseOnBlur && !focused && !present && !loading) return 'background'
   return null
 }
 
@@ -75,7 +78,7 @@ export function isWalkingMode(mode: string): boolean {
 
 /** Every input at once in, the decision out. */
 export function resolvePower(i: PowerInputs): PowerDecision {
-  const reason = pauseReason(i.hidden, i.focused, i.present, i.loading)
+  const reason = pauseReason(i.hidden, i.focused, i.present, i.loading, i.pauseOnBlur === true)
   return { paused: reason !== null, reason, fps: frameCap(i.onBattery, i.present, i.loading, i.walking === true), onBattery: i.onBattery }
 }
 
@@ -91,7 +94,7 @@ export class PowerMachine {
     initial: Partial<PowerInputs> = {},
     private readonly onChange: (next: PowerDecision, prev: PowerDecision) => void = () => undefined,
   ) {
-    this.i = { hidden: false, focused: true, present: false, onBattery: false, loading: false, walking: false, ...initial }
+    this.i = { hidden: false, focused: true, pauseOnBlur: false, present: false, onBattery: false, loading: false, walking: false, ...initial }
     this.d = resolvePower(this.i)
   }
 
@@ -144,6 +147,16 @@ export const usePower = create<PowerState>()((setState) => ({
 export function presentFromSearch(search: string): boolean {
   try {
     const v = new URLSearchParams(search).get('present')
+    return v === '1' || v === 'true'
+  } catch {
+    return false
+  }
+}
+
+/** `?pauseOnBlur=1` (also `true`): the opt-in blur pause. Pure, for tests. */
+export function pauseOnBlurFromSearch(search: string): boolean {
+  try {
+    const v = new URLSearchParams(search).get('pauseOnBlur')
     return v === '1' || v === 'true'
   } catch {
     return false

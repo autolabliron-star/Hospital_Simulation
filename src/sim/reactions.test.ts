@@ -333,6 +333,13 @@ describe('W1 Life reacts: courtesy', () => {
 describe('W1 Life reacts: stepping aside', () => {
   /** Ward A's corridor: 4 m wide, its centre line at z = -14 (W2: the whole width is walkable, there are no robot lanes). */
   const CZ = -14
+  /**
+   * When the corridor scenarios run: 16:00, afternoon visiting. Wave 1 made the ward day real (one doctor's round 08:30-11:00 at 6-10 min a
+   * bed, doses at 08/12/14/18/22, visitors only from 11:00), so at 10:30 ward A's corridor is nearly empty by design (the round is
+   * at the bedsides: 0 passers in 4 seeds x 10 min, 1 crossing of x = -4.7 against the 8 the test used to see). At 16:00 it is
+   * visiting time with no dose wave running: visitors, cleaners' and porters' carts, and the odd nurse, in both directions.
+   */
+  const CORRIDOR_HOUR = 16
   const POST = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS].map((m) => [m.id, m]))
   const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length)
   const median = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] ?? NaN
@@ -365,11 +372,11 @@ describe('W1 Life reacts: stepping aside', () => {
   }
 
   /**
-   * Ten minutes from 10:30 with you in ward A's corridor (standing at x = -4.7, z, or walking up and down it at your walking
+   * Ten minutes from CORRIDOR_HOUR with you in ward A's corridor (standing at x = -4.7, z, or walking up and down it at your walking
    * speed), on a plain Simulation: for every walker who passes you along the corridor, how far from you they pass.
    */
   function corridorRun(seed: number, o: { sidestep: boolean; walking?: boolean; z?: number; player?: boolean; seconds?: number }): Result {
-    const sim = new Simulation(seed, { startHour: 10.5 })
+    const sim = new Simulation(seed, { startHour: CORRIDOR_HOUR })
     sim.reactions.sidestep = o.sidestep
     const z = o.z ?? CZ
     const withPlayer = o.player ?? true
@@ -383,7 +390,8 @@ describe('W1 Life reacts: stepping aside', () => {
     sim.crowd!.onBlockedFallback = (x, zz) => {
       if (Math.hypot(x - px, zz - z) >= 5) return
       const p = sim.people.find((q) => q.walker.x === x && q.walker.z === zz)
-      res.fallbacks.push(`${p?.entity.id ?? '?'} (${p?.entity.vehicle ?? 'none'})`)
+      const near = sim.people.filter((q) => q !== p && Math.hypot(q.walker.x - x, q.walker.z - zz) < 3).map((q) => `${q.entity.id}${q.entity.vehicle ? '/' + q.entity.vehicle : ''}@${q.walker.x.toFixed(1)},${q.walker.z.toFixed(1)} v${q.walker.speed.toFixed(1)}`)
+      res.fallbacks.push(`${p?.entity.id ?? '?'} (${p?.entity.vehicle ?? 'none'}) seed ${seed} at ${x.toFixed(1)}, ${zz.toFixed(1)} t=${(sim.t - t0).toFixed(0)} near: ${near.join(' ')}`)
     }
     const side = new Map<string, number>()
     const still = new Map<string, number>()
@@ -443,18 +451,20 @@ describe('W1 Life reacts: stepping aside', () => {
   }
 
   const SEEDS = [3, 7, 11, 2026]
+  /** More seeds for the standing test: a ward corridor in the afternoon gives about 5 oncoming walkers in 10 minutes, and the test wants a real sample. */
+  const MORE_SEEDS = [...SEEDS, 5, 13, 17, 23]
   const pooled = (rs: Result[]) => rs.flatMap((r) => r.passes)
 
-  it('standing in the middle of ward A for 10 minutes at 10:30: oncoming walkers pass you with room to spare, and nobody is held up for it', () => {
-    const after = SEEDS.map((s) => corridorRun(s, { sidestep: true }))
-    const before = SEEDS.map((s) => corridorRun(s, { sidestep: false }))
+  it('standing in the middle of ward A for 10 minutes at 16:00: oncoming walkers pass you with room to spare, and nobody is held up for it', () => {
+    const after = MORE_SEEDS.map((s) => corridorRun(s, { sidestep: true }))
+    const before = MORE_SEEDS.map((s) => corridorRun(s, { sidestep: false }))
     const lat = (rs: Result[]) => pooled(rs).filter((p) => p.oncoming).map((p) => p.lat)
     // the corridor is 4 m wide and all of it is walkable (W2: no lane bands): standing ON the centre line, oncoming walkers
     // pass at their keep-right offset plus whatever they sidestep, about 0.9 m on average; a little off it, the far side has more room
     const offA = SEEDS.map((s) => corridorRun(s, { sidestep: true, z: CZ - 0.2 }))
     const offB = SEEDS.map((s) => corridorRun(s, { sidestep: false, z: CZ - 0.2 }))
     console.log(
-      `[W1 sidestep] standing mid-corridor, oncoming passes (${SEEDS.length} seeds x 10 min): ` +
+      `[W1 sidestep] standing mid-corridor, oncoming passes (${MORE_SEEDS.length} seeds x 10 min): ` +
         `on the centre line: after mean ${mean(lat(after)).toFixed(3)} m / median ${median(lat(after)).toFixed(3)} (n=${lat(after).length}), without the sidestep mean ${mean(lat(before)).toFixed(3)} / median ${median(lat(before)).toFixed(3)} (n=${lat(before).length}); ` +
         `0.2 m off it: after mean ${mean(lat(offA)).toFixed(3)}, without ${mean(lat(offB)).toFixed(3)}`,
     )
@@ -508,7 +518,7 @@ describe('W1 Life reacts: stepping aside', () => {
 
   it('a 4 m corridor with you in the middle still lets everybody through, as many as without you', () => {
     const crossings = (o: { player: boolean }): number => {
-      const sim = new Simulation(7, { startHour: 10.5 })
+      const sim = new Simulation(7, { startHour: CORRIDOR_HOUR })
       if (o.player) {
         sim.addPlayer(spot(-4.7, CZ, Math.PI / 2))
         sim.movePlayer(-4.7, CZ, Math.PI / 2, 0)
@@ -688,8 +698,8 @@ describe('W1 Life reacts: stepping aside', () => {
     const er = sim.world.er
     const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < end - 90 * 60)
     expect(stuck.map((c) => `${c.name} ${c.state} since ${(c.arrivedAt / 60).toFixed(0)} min`)).toEqual([])
-    expect(er.finished.length).toBeGreaterThan(20)
-    expect(er.maxCleanWait).toBeLessThanOrEqual(5 * 60)
+    expect(er.finished.length).toBeGreaterThan(12) // Wave 1: real arrival rates (a few an hour), 20 finished at the last run
+    expect(er.maxCleanWait).toBeLessThanOrEqual(45 * 60) // Wave 1: real stays, one cleaner team; as in the population gate
     const orders = [...sim.meds.orders.values()]
     expect(orders.filter((o) => o.createdAt < end - 25 * 60 && o.stage !== 'given')).toEqual([])
     expect(sim.imaging.stuckLog.filter((l) => !/xray stuck in gap/.test(l))).toEqual([])
@@ -1005,8 +1015,8 @@ describe('W1 Life reacts: a morning of conversations', () => {
     const er = sim.world.er
     const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < end - 90 * 60)
     expect(stuck.map((c) => `${c.name} ${c.state} since ${(c.arrivedAt / 60).toFixed(0)} min`)).toEqual([])
-    expect(er.finished.length).toBeGreaterThan(40)
-    expect(er.maxCleanWait).toBeLessThanOrEqual(5 * 60)
+    expect(er.finished.length).toBeGreaterThan(15) // Wave 1: real arrival rates (a few an hour), 25 finished at the last run
+    expect(er.maxCleanWait).toBeLessThanOrEqual(45 * 60) // Wave 1: real stays, one cleaner team; as in the population gate
     const orders = [...sim.meds.orders.values()]
     expect(orders.length).toBeGreaterThan(20)
     expect(orders.filter((o) => o.createdAt < end - 25 * 60 && o.stage !== 'given')).toEqual([])

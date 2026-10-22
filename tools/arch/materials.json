@@ -1,50 +1,61 @@
 {
-  "readme": "The look pass material library for tools/arch (materials.py). One entry per glTF material (= one draw call, one lightmap). Colours are sRGB hex. 'texture' names a CC0 set in assets-src/textures/<id>/ (<id>_diff|nor_gl|arm_<res>.jpg, docs/handover/look-textures.md); without the files the material falls back to its flat 'color'. 'tile' is the real size of one texture repeat in metres (world-space box projection into UVMap = TEXCOORD_0). 'process' recolours the photo: 'tint' is the new mean colour, 'contrast' scales the luminance detail, 'saturation' keeps that much of the photo's own chroma; 'roughness' [mean, spread] remaps the ARM green channel. 'res' is the exported size per map (0 = map not used). 'grain': 'vertical' turns the texture 90 degrees on walls (slats). 'bevel' [width m, segments] is applied to the joined mesh (harden normals). 'lightmap' forces a lightmap size (else by area). 'bake': false = no lightmap (emissive, glass).",
+  "readme": "The look pass material library for tools/arch (materials.py). One entry per glTF material (= one draw call, one lightmap). Colours are sRGB hex. 'texture' names a CC0 set in assets-src/textures/<id>/ (<id>_diff|nor_gl|arm_<res>.jpg, docs/handover/look-textures.md); without the files the material falls back to its flat 'color'. 'tile' is the real size of one texture repeat in metres (world-space box projection into UVMap = TEXCOORD_0). 'process' recolours the photo: 'tint' is the new mean colour, 'contrast' scales the luminance detail, 'saturation' keeps that much of the photo's own chroma; 'roughness' [mean, spread] remaps the ARM green channel. 'res' is the exported size per map (0 = map not used). 'grain': 'vertical' turns the texture 90 degrees on walls (slats). 'bevel' [width m, segments] is applied to the joined mesh (harden normals). 'lightmap' forces a lightmap size (else by area); 'bakeSamples' its Cycles samples (default 512; generate.py --bake-samples overrides all, for quick tests). 'bake': false = no lightmap (emissive, glass).",
   "textureDir": "assets-src/textures",
   "materials": {
     "Terrazzo": {
-      "color": "#e4e1db", "roughness": 0.3, "texture": "terrazzo_tiles", "tile": 2.0,
-      "process": { "tint": "#e2dfd9", "contrast": 0.42, "saturation": 0.12, "roughness": [0.26, 0.08], "removeJoints": { "period": 256, "keepEvery": 4, "half": 4, "shift": 13 } },
-      "res": { "diff": 2048, "nor": 1024, "arm": 1024 }, "normal": 0.35, "lightmap": 2048, "bevel": [0, 0]
+      "color": "#e4e1db", "roughness": 0.22, "texture": "terrazzo_tiles", "tile": 2.0,
+      "process": { "tint": "#e2dfd9", "contrast": 0.42, "saturation": 0.12, "roughness": [0.2, 0.07], "removeJoints": { "period": 256, "keepEvery": 4, "half": 4, "shift": 13 } },
+      "res": { "diff": 2048, "nor": 1024, "arm": 512 }, "normal": 0.35, "lightmap": 2048, "bevel": [0, 0]
     },
     "Vinyl": { "color": "#d3d9d6", "roughness": 0.42, "lightmap": 1024, "bevel": [0, 0] },
     "Paving": {
       "color": "#b9b4aa", "roughness": 0.8, "texture": "floor_tiles_02", "tile": 4.0,
       "process": { "tint": "#bdb7ad", "contrast": 0.8, "saturation": 0.5, "roughness": [0.75, 0.1] },
-      "res": { "diff": 1024, "nor": 0, "arm": 0 }, "lightmap": 512, "bevel": [0, 0]
+      "res": { "diff": 512, "nor": 0, "arm": 0 }, "lightmap": 512, "bevel": [0, 0]
     },
     "WallPaint": {
       "color": "#f2f1ed", "roughness": 0.78, "texture": "painted_plaster_wall", "tile": 2.0,
       "process": { "tint": "#efeeea", "contrast": 0.18, "saturation": 0.0 },
-      "res": { "diff": 1024, "nor": 1024, "arm": 0 }, "normal": 0.12, "lightmap": 2048, "bevel": [0.006, 2]
+      "res": { "diff": 1024, "nor": 1024, "arm": 0 }, "normal": 0.12, "lightmap": 1024, "bakeSamples": 1024, "bevel": [0.006, 2]
+    },
+    "WallClinical": {
+      "color": "#f2f1ed", "roughness": 0.78, "texture": "painted_plaster_wall", "tile": 2.0,
+      "process": { "tint": "#efeeea", "contrast": 0.18, "saturation": 0.0 },
+      "res": { "diff": 1024, "nor": 1024, "arm": 0 }, "normal": 0.12, "lightmap": 1024, "bakeSamples": 384, "bevel": [0.006, 2]
     },
     "CeilingPlaster": {
       "color": "#f4f3f0", "roughness": 0.85, "texture": "painted_plaster_wall", "tile": 2.0,
       "process": { "tint": "#efeeea", "contrast": 0.18, "saturation": 0.0 },
-      "res": { "diff": 1024, "nor": 1024, "arm": 0 }, "normal": 0.05, "lightmap": 1024, "bevel": [0.004, 1]
+      "res": { "diff": 1024, "nor": 1024, "arm": 0 }, "normal": 0.05, "lightmap": 1024, "bakeSamples": 1024, "bevel": [0.004, 1]
     },
     "ShadowGap": { "color": "#3a3a3a", "roughness": 0.85, "lightmap": 512, "bevel": [0, 0] },
     "CeilingTile": { "color": "#f1f1ee", "roughness": 0.95, "lightmap": 1024, "bevel": [0, 0] },
     "CeilingGrid": { "color": "#e6e7e5", "roughness": 0.45, "lightmap": 512, "bevel": [0, 0] },
-    "LightPanel": { "color": "#ffffff", "roughness": 0.5, "emission": "#fff4e6", "strength": 9.0, "bake": false, "bevel": [0, 0] },
+    "LightPanel": { "color": "#ffffff", "roughness": 0.5, "emission": "#fff4e6", "strength": 4.5, "bake": false, "bevel": [0, 0] },
+    "LEDLine": { "color": "#ffffff", "roughness": 0.5, "emission": "#fff2e2", "strength": 22.0, "bake": false, "bevel": [0, 0] },
     "Mullion": { "color": "#3b3e41", "roughness": 0.42, "lightmap": 512, "bevel": [0.003, 1] },
-    "DoorFrame": { "color": "#dcdedd", "roughness": 0.4, "lightmap": 512, "bevel": [0.002, 1] },
+    "DoorFrame": { "color": "#dcdedd", "roughness": 0.4, "lightmap": 1024, "bakeSamples": 1024, "bevel": [0.002, 1] },
     "Glass": { "color": "#eef4f4", "roughness": 0.02, "glass": true, "bake": false, "bevel": [0, 0] },
     "Oak": {
       "color": "#c6a47c", "roughness": 0.55, "texture": "ash_veneer", "tile": 1.0, "grain": "vertical",
-      "process": { "tint": "#c4a27a", "contrast": 1.15, "saturation": 1.0, "roughness": [0.55, 0.08] },
+      "process": { "tint": "#d9c3a0", "contrast": 1.1, "saturation": 0.65, "roughness": [0.55, 0.08] },
       "res": { "diff": 1024, "nor": 512, "arm": 512 }, "normal": 0.5, "lightmap": 1024, "bevel": [0.002, 1]
     },
     "SolidSurface": { "color": "#f4f3f0", "roughness": 0.32, "lightmap": 1024, "bevel": [0.008, 2] },
     "Fabric": {
       "color": "#8e8b87", "roughness": 0.9, "texture": "poly_wool_herringbone", "tile": 0.36,
       "process": { "tint": "#8f8c88", "contrast": 0.9, "saturation": 0.2, "roughness": [0.9, 0.05] },
-      "res": { "diff": 1024, "nor": 512, "arm": 0 }, "normal": 0.7, "lightmap": 512, "bevel": [0.012, 2]
+      "res": { "diff": 512, "nor": 512, "arm": 0 }, "normal": 0.7, "lightmap": 512, "bevel": [0.012, 2]
     },
     "FabricAccent": {
       "color": "#4f7486", "roughness": 0.9, "texture": "poly_wool_herringbone", "tile": 0.36,
       "process": { "tint": "#4c7385", "contrast": 0.9, "saturation": 0.1, "roughness": [0.9, 0.05] },
       "res": { "diff": 512, "nor": 512, "arm": 0 }, "normal": 0.7, "lightmap": 512, "bevel": [0.012, 2]
+    },
+    "Matting": {
+      "color": "#3c3d3f", "roughness": 0.95, "texture": "poly_wool_herringbone", "tile": 0.5,
+      "process": { "tint": "#3a3b3d", "contrast": 1.4, "saturation": 0.0 },
+      "res": { "diff": 512, "nor": 512, "arm": 0 }, "normal": 1.0, "lightmap": 256, "bevel": [0, 0]
     },
     "Steel": { "color": "#2c2e30", "roughness": 0.45, "lightmap": 512, "bevel": [0.002, 1] },
     "Concrete": {
@@ -54,6 +65,6 @@
     },
     "Leaf": { "color": "#3f5f2c", "roughness": 0.45, "doubleSided": true, "lightmap": 512, "bevel": [0, 0] },
     "Soil": { "color": "#3a3029", "roughness": 0.95, "lightmap": 256, "bevel": [0, 0] },
-    "Accent": { "color": "#ffffff", "roughness": 0.4, "palette": ["#3f7fd1", "#2f9e6e", "#e05a4f", "#e0a03a", "#8a6bd1", "#2a2c2e"], "lightmap": 512, "bevel": [0.002, 1] }
+    "Accent": { "color": "#ffffff", "roughness": 0.4, "palette": ["#3f7fd1", "#2f9e6e", "#e05a4f", "#e0a03a", "#8a6bd1", "#2a2c2e"], "lightmap": 1024, "bevel": [0.002, 1] }
   }
 }

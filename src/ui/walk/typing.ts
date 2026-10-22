@@ -17,3 +17,23 @@ export function isTyping(target: EventTarget | null): boolean {
 export function activatesOnSpace(target: EventTarget | null): boolean {
   return isElement(target) && (target.tagName === 'BUTTON' || (target.tagName === 'INPUT' && NON_TYPING_INPUTS.has((target as HTMLInputElement).type)))
 }
+
+/**
+ * F-35: after a mouse click on a button (the Realism pill, Sound, a speed button) the button keeps the focus, so the next Space would press it
+ * again instead of pausing. A click made with the mouse (`detail > 0`; a key press that activates a button has `detail` 0) on a button outside
+ * a dialog puts the focus back on the page. Pure, so node can test it.
+ */
+export function shouldBlurAfterClick(detail: number, tagName: string, inDialog: boolean): boolean {
+  return detail > 0 && tagName === 'BUTTON' && !inDialog
+}
+
+/** Install that on `target` (the window); returns the function that stops. */
+export function installBlurAfterClick(target: Pick<Window, 'addEventListener' | 'removeEventListener'> = window): () => void {
+  const onClick = (e: Event): void => {
+    const el = isElement(e.target) ? e.target.closest('button') : null
+    if (!el) return
+    if (shouldBlurAfterClick((e as MouseEvent).detail, el.tagName, el.closest('[role="dialog"]') !== null) && document.activeElement === el) el.blur()
+  }
+  target.addEventListener('click', onClick)
+  return () => target.removeEventListener('click', onClick)
+}

@@ -413,6 +413,11 @@ export interface KeyMap {
   jump: string
   /** R2: switch the overview between Level 1 and Level 2 (the robotic surgery suite). */
   level: string
+  /** Realism mode on or off (the R pill, src/ui/walk/realism.store.ts). */
+  realism: string
+  /** Presentation mode (the architectural walkthrough) on or off, and its next shot (src/ui/present). */
+  present: string
+  presentNext: string
   // walk-in (W1)
   /** Switch between walking and the overview. */
   walk: string
@@ -462,6 +467,9 @@ export const DEFAULT_KEYMAP: KeyMap = {
   mute: 'KeyM',
   jump: 'KeyJ',
   level: 'KeyL',
+  realism: 'KeyR',
+  present: 'KeyC',
+  presentNext: 'KeyN',
   walk: 'Tab',
   firstPerson: 'KeyV',
   interact: 'KeyE',

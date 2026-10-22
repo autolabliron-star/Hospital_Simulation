@@ -20,7 +20,7 @@ Read `docs/PLAN.md` first. Build with the `living-3d-world` skill (`~/.claude/sk
   geometry and KTX2 textures, and load behind the warm-up gate. No runtime downloads and no CDN: the demo runs offline.
 - Static architecture gets its light baked offline (Blender Cycles lightmaps); the building shadow for live objects is baked once; people and
   pods get blob shadows. Use emissive panels instead of real lights.
-- Canvas screens redraw only when their content changes (≤2 Hz).
+- Canvas screens redraw only when their content changes (≤2 Hz). Exception: the focused imaging screen and the endoscope view may redraw at 4 Hz.
 
 ## Content and data
 - Synthetic people only: no real patients, staff or identifiers. The medicine catalogue is a fixed demo list, and the sim makes no clinical decisions.

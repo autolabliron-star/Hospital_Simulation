@@ -18,7 +18,10 @@ import './jumpMenu.css'
 
 const COPY = L1_COPY.jump
 
-function Menu({ onClose }: { onClose: () => void }) {
+/** What gets the focus when the menu opens: the Close button, so J then Enter or Space just closes it and never starts a rebuild (F-36). */
+export const JUMP_OPEN_FOCUS = '[data-jump-close]'
+
+export function Menu({ onClose }: { onClose: () => void }) {
   const clock = useWorld((s) => s.clock)
   const clockHour = clockHourOf(clock)
   const items = useMemo(() => buildJumpItems(clockHour ?? 7.5), [clockHour])
@@ -27,10 +30,10 @@ function Menu({ onClose }: { onClose: () => void }) {
 
   const buttons = (): HTMLElement[] => (root.current ? Array.from(root.current.querySelectorAll<HTMLElement>('[data-jump-item]')) : [])
 
-  // Focus the moment the clock is in on open, and give focus back to whatever had it on close.
+  // Focus Close on open (Arrow keys then move into the list), and give focus back to whatever had it on close.
   useEffect(() => {
     const before = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    buttons()[startIndex(items)]?.focus()
+    root.current?.querySelector<HTMLElement>(JUMP_OPEN_FOCUS)?.focus()
     return () => before?.focus?.()
     // only on open: the list changing under the cursor must not steal focus
   }, [])
@@ -77,7 +80,9 @@ function Menu({ onClose }: { onClose: () => void }) {
     }
     const at = list.indexOf(document.activeElement as HTMLElement)
     let next = -2
-    if (e.key === 'ArrowDown') next = at + 1
+    // from Close (or the dialog itself) the first arrow press lands on the moment the clock is in
+    if (at === -1 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) next = startIndex(items)
+    else if (e.key === 'ArrowDown') next = at + 1
     else if (e.key === 'ArrowUp') next = at - 1
     else if (e.key === 'Home') next = 0
     else if (e.key === 'End') next = list.length - 1
@@ -103,7 +108,7 @@ function Menu({ onClose }: { onClose: () => void }) {
               {COPY.now} <span className="jm-sub__clock">{clock}</span>
             </p>
           </div>
-          <button type="button" className="hud-icon-btn" aria-label={COPY.closeLabel} title={COPY.closeTitle} onClick={onClose}>
+          <button type="button" className="hud-icon-btn" data-jump-close aria-label={COPY.closeLabel} title={COPY.closeTitle} onClick={onClose}>
             <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
               <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
             </svg>

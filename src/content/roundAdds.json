@@ -1,0 +1,4 @@
+{
+  "_comment": "F-22: the only medicines a ward-round visit may add by itself: simple symptomatic ones. Never an anticoagulant, a thyroid or diabetes medicine, a beta-blocker or an antibiotic: those are started for a reason this demo does not model.",
+  "safe": ["paracetamol", "senna", "macrogol", "lactulose", "omeprazole", "ondansetron"]
+}

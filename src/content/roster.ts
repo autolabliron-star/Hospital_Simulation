@@ -133,3 +133,14 @@ export function syntheticName(rng: { int(min: number, max: number): number }): s
   const last = LAST_NAMES[rng.int(0, LAST_NAMES.length - 1)]
   return `${first} ${last}`
 }
+
+/**
+ * A fictional "First Last" name whose first name is drawn from the female or the male pool (a hysterectomy or a prostatectomy patient: the
+ * avatar's sex follows the first name). Always two draws, like `syntheticName`.
+ */
+export function syntheticNameOf(rng: { int(min: number, max: number): number }, presentation: 'female' | 'male'): string {
+  const pool = PRESENTATION_NAMES[presentation]
+  const first = pool[rng.int(0, pool.length - 1)]
+  const last = LAST_NAMES[rng.int(0, LAST_NAMES.length - 1)]
+  return `${first} ${last}`
+}

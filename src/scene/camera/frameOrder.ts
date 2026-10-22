@@ -20,7 +20,7 @@
  *     -5  celebration         closing-day effects                                                src/scene/celebration/index.tsx
  *     -1  CameraControls      the overview camera rig (RigControls.update; a no-op in walk)       drei, fixed at -1
  *   -0.5  label anchors       name tag lift and visibility, speech bubble positions (THIS FILE)   NameTag.tsx, SpeechBubbles.tsx
- *   -0.3  imaging images      live scan canvases (10 Hz in the focused room, 1 Hz elsewhere)       src/scene/imaging/index.tsx
+ *   -0.3  imaging images      live scan canvases (4 Hz in the focused room, 1 Hz elsewhere)        src/scene/imaging/index.tsx
  *  -0.28  surgery robot       R2: patient cart, boom and the four arms from robot state; lights   src/scene/surgery
  *  -0.27  surgery screens     R2: the theatre atlas and the shared endoscope live texture         src/scene/surgery
  *  -0.26  patient monitors    R3: the display clock and the sweeping monitor faces (quads only)   src/scene/monitors

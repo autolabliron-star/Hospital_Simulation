@@ -153,7 +153,7 @@ describe('dose times (Wave 1)', () => {
   it('has the usual hospital dose times', () => {
     const expected: Record<string, number[]> = {
       paracetamol: [8, 12, 18, 22],
-      ibuprofen: [8, 12, 18],
+      ibuprofen: [8, 14, 22],
       omeprazole: [8],
       amoxicillin: [8, 14, 22],
       metformin: [8, 18],
@@ -161,8 +161,8 @@ describe('dose times (Wave 1)', () => {
       amlodipine: [8],
       bisoprolol: [8],
       furosemide: [8],
-      levothyroxine: [8],
-      apixaban: [8, 18],
+      levothyroxine: [6],
+      apixaban: [8, 20],
       senna: [22],
       macrogol: [8],
       lactulose: [8, 18],
@@ -172,6 +172,18 @@ describe('dose times (Wave 1)', () => {
     for (const [id, hours] of Object.entries(expected)) expect(doseHoursOf(id), id).toEqual(hours)
     expect(isPrn('ondansetron')).toBe(true)
     expect(isPrn('salbutamol')).toBe(true)
+  })
+
+  it('a twice-daily anticoagulant is 12 hours apart, a three-times-daily antibiotic or anti-inflammatory is 6 to 10 hours apart, levothyroxine is before breakfast (F-28)', () => {
+    expect(doseHoursOf('apixaban')).toEqual([8, 20])
+    for (const id of ['amoxicillin', 'ibuprofen']) {
+      const h = doseHoursOf(id)
+      expect(h, id).toHaveLength(3)
+      for (let i = 1; i < h.length; i++) expect(h[i] - h[i - 1], id).toBeGreaterThanOrEqual(6)
+      expect(h[0] + 24 - h[h.length - 1], id).toBeGreaterThanOrEqual(6)
+    }
+    expect(doseHoursOf('levothyroxine')).toEqual([6])
+    expect(CONFIG.doseWaves.hours).toEqual(expect.arrayContaining([6, 20]))
   })
 
   it('the interval of a medicine is its closest two dose hours (a once-daily one: 24 h)', () => {

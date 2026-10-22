@@ -112,8 +112,9 @@ describe('medicines on real dose times (a whole day)', () => {
     expect(morning.length).toBeGreaterThanOrEqual(10)
     for (const o of morning) expect(o.createdAt).toBeLessThan(5)
     const meds = (os: Order[]) => new Set(os.flatMap((o) => o.items.map((i) => i.medId)))
-    for (const m of ['furosemide', 'bisoprolol', 'levothyroxine', 'colecalciferol', 'amlodipine']) expect(meds(morning).has(m), m).toBe(true)
-    for (const m of ['atorvastatin', 'senna']) expect(meds(morning).has(m), m).toBe(false)
+    for (const m of ['furosemide', 'bisoprolol', 'colecalciferol', 'amlodipine', 'apixaban']) expect(meds(morning).has(m), m).toBe(true)
+    // levothyroxine is a 06:00 dose (before breakfast), which lies before the 07:30 opening
+    for (const m of ['atorvastatin', 'senna', 'levothyroxine']) expect(meds(morning).has(m), m).toBe(false)
     const night = at(22)
     expect(night.length).toBeGreaterThan(3)
     expect(meds(night).has('atorvastatin')).toBe(true)

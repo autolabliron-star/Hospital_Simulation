@@ -42,9 +42,22 @@ import { presentActive } from '@/ui/present/presentation.store'
 /** The tone mapper of the page (look.ts `TONE_MAP`). */
 const TONE_MODE = TONE_MAP === 'agx' ? ToneMappingMode.AGX : ToneMappingMode.NEUTRAL
 
-interface AoPass {
+export interface AoPass {
   enabled: boolean
-  configuration: { aoRadius: number; intensity: number; denoiseIterations: number }
+  configuration: { aoRadius: number; intensity: number; denoiseIterations: number; transparencyAware?: boolean }
+  /** n8ao's own flag: while true, every frame traverses the scene and switches `transparencyAware` on at the first transparent material. */
+  autoDetectTransparency?: boolean
+}
+
+/**
+ * F-10: n8ao auto-detects transparency (the glass material is `transparent`, so it always finds some) and then renders the whole scene twice
+ * more per frame into two full-resolution half-float targets, and traverses it four times besides. Switch the mode off for good. Setting
+ * `transparencyAware = false` alone does NOT do it: n8ao turns auto-detect off only when that value CHANGES, and it starts at false. So the
+ * auto-detect flag is cleared directly. The price: no AO is drawn on glass, which is invisible next to the cost.
+ */
+export function disableAoTransparency(pass: AoPass): void {
+  pass.autoDetectTransparency = false
+  pass.configuration.transparencyAware = false
 }
 
 /** The AO row for the player mode and the quality rung right now. */
@@ -127,7 +140,10 @@ export function Effects() {
   const aoRef = useCallback(
     (pass: AoPass | null) => {
       ao.current = pass
-      if (pass) queueMicrotask(apply)
+      if (pass) {
+        disableAoTransparency(pass) // before the first render: the auto-detect runs inside it
+        queueMicrotask(apply)
+      }
     },
     [apply],
   )

@@ -9,6 +9,7 @@ import {
   frameCap,
   isWalkingMode,
   notePaused,
+  pauseOnBlurFromSearch,
   pauseReason,
   presentFromSearch,
   resetActiveClock,
@@ -111,18 +112,34 @@ describe('when the demo pauses', () => {
     expect(pauseReason(true, false, true)).toBe('hidden')
   })
 
-  it('pauses a blurred window in normal mode only', () => {
-    expect(pauseReason(false, false, false)).toBe('background')
+  it('F-02: a blurred window does not pause by default; hidden does', () => {
+    expect(pauseReason(false, false, false)).toBe(null)
     expect(pauseReason(false, false, true)).toBe(null)
     expect(pauseReason(false, true, false)).toBe(null)
+    expect(pauseReason(true, false, false)).toBe('hidden')
+    expect(resolvePower({ hidden: false, focused: false, present: false, onBattery: false, loading: false })).toMatchObject({ paused: false, reason: null })
+    expect(resolvePower({ hidden: true, focused: false, present: false, onBattery: false, loading: false })).toMatchObject({ paused: true, reason: 'hidden' })
+  })
+
+  it('?pauseOnBlur=1 pauses a blurred window in normal mode only', () => {
+    expect(pauseReason(false, false, false, false, true)).toBe('background')
+    expect(pauseReason(false, false, true, false, true)).toBe(null)
+    expect(pauseReason(false, true, false, false, true)).toBe(null)
     // W3: the loading screen keeps drawing without focus (its first frame compiles the post-processing passes); hidden still pauses it
-    expect(pauseReason(false, false, false, true)).toBe(null)
-    expect(pauseReason(true, false, false, true)).toBe('hidden')
-    expect(pauseReason(false, true, true)).toBe(null)
+    expect(pauseReason(false, false, false, true, true)).toBe(null)
+    expect(pauseReason(true, false, false, true, true)).toBe('hidden')
+    expect(pauseReason(false, true, true, false, true)).toBe(null)
+  })
+
+  it('reads ?pauseOnBlur=1 (and true), and nothing else', () => {
+    expect(pauseOnBlurFromSearch('?pauseOnBlur=1')).toBe(true)
+    expect(pauseOnBlurFromSearch('?a=1&pauseOnBlur=true')).toBe(true)
+    expect(pauseOnBlurFromSearch('?pauseOnBlur=0')).toBe(false)
+    expect(pauseOnBlurFromSearch('')).toBe(false)
   })
 
   it('resolves every input to one decision', () => {
-    const base = { hidden: false, focused: true, present: false, onBattery: false, loading: false }
+    const base = { hidden: false, focused: true, pauseOnBlur: true, present: false, onBattery: false, loading: false }
     expect(resolvePower(base)).toEqual({ paused: false, reason: null, fps: 60, onBattery: false })
     expect(resolvePower({ ...base, focused: false })).toEqual({ paused: true, reason: 'background', fps: 60, onBattery: false })
     expect(resolvePower({ ...base, onBattery: true })).toEqual({ paused: false, reason: null, fps: 30, onBattery: true })
@@ -146,7 +163,7 @@ describe('the power state machine', () => {
   })
 
   it('walks the normal-mode day: loading, playing, blur, focus, hidden, visible, unplugged', () => {
-    const { machine, changes } = watch({ loading: true })
+    const { machine, changes } = watch({ loading: true, pauseOnBlur: true })
     machine.set({ loading: false })
     expect(machine.decision.fps).toBe(60)
     machine.set({ focused: false })
@@ -188,7 +205,7 @@ describe('the power state machine', () => {
   })
 
   it('presentation mode keeps 60 on battery; switching it off at run time drops to 30 and pauses a blurred window', () => {
-    const { machine } = watch({ present: true, onBattery: true, focused: false })
+    const { machine } = watch({ present: true, onBattery: true, focused: false, pauseOnBlur: true })
     expect(machine.decision).toEqual({ paused: false, reason: null, fps: 60, onBattery: true })
     machine.set({ present: false })
     expect(machine.decision).toEqual({ paused: true, reason: 'background', fps: 30, onBattery: true })

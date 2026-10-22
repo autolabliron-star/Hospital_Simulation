@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import walkJson from './walk.json'
+import { DEFAULT_KEYMAP } from '@/sim/types'
 import { WALK, WALK_FIELDS, WalkSchema, fillWalk, keyLabel } from './walk'
 
 /** Every {placeholder} in a string. */
@@ -19,6 +20,18 @@ describe('walk.json', () => {
     const extra = structuredClone(walkJson) as unknown as Record<string, Record<string, unknown>>
     extra.prompt.shout = 'Hey'
     expect(WalkSchema.safeParse(extra).success).toBe(false)
+  })
+
+  it('the key hint keeps its four first keys and adds C (walkthrough) and N (next shot), every action a real key', () => {
+    expect(WALK.hint.slice(0, 4).map((h) => [h.action, h.label])).toEqual([
+      ['walk', 'Overview'],
+      ['firstPerson', 'First person'],
+      ['interact', 'Use'],
+      ['shoulderSwap', 'Shoulder'],
+    ])
+    expect(WALK.hint.slice(4).map((h) => keyLabel(DEFAULT_KEYMAP[h.action]))).toEqual(['C', 'N'])
+    for (const h of WALK.hint) expect(DEFAULT_KEYMAP[h.action], h.action).toBeTruthy()
+    expect(new Set(WALK.hint.map((h) => h.action)).size).toBe(WALK.hint.length)
   })
 
   it('uses only the placeholders its field list allows, and every listed one', () => {

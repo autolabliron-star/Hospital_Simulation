@@ -311,7 +311,9 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
         break
       case 'inBay.care': {
         const nurse = staffName(c.careBy ?? 'nurse-ER1')
-        const parts = ['observations', 'a cannula']
+        // F-26: a cannula only when the visit needs one (bloods, a scan with contrast) or the patient is priority 1-3; a cold or a cut finger gets observations
+        const parts = ['observations']
+        if (ctx.needsBloods || ctx.needsImaging || c.acuity <= 3) parts.push('a cannula')
         if (ctx.needsEcg) parts.push('an ECG')
         if (ctx.needsBloods) parts.push('bloods')
         w.say('testsOrdered', `${nurse} is taking ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')} from ${c.name} in ER bay ${c.bay + 1}.`, {
@@ -558,6 +560,10 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskS
 
   get needsBloods(): boolean {
     return this.pathway.getSnapshot().context.needsBloods
+  }
+
+  get needsImaging(): boolean {
+    return this.pathway.getSnapshot().context.needsImaging
   }
 
   /** A nurse has brought a wheelchair for a priority 1-2 walk-in: get on it. */

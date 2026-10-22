@@ -21,3 +21,13 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--ink);
 }
+
+/* F-09: a two-finger swipe or a rubber-band scroll must never navigate back and lose the live day. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+canvas {
+  touch-action: none;
+}

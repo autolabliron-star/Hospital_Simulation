@@ -133,3 +133,21 @@ describe('the debug flags', () => {
     expect(parseLightingFlags('?look=fancy&lv=1&refl=1&env=hospital')).toEqual({ model: false, volume: true, reflect: true, roomEnv: false })
   })
 })
+
+describe('the tone mapper constant (presentation / AgX)', () => {
+  it('compensates AgX with a modest exposure scale, 1 for Neutral, and keeps the rows as they were', async () => {
+    const { TONE_MAP, TONE_EXPOSURE_SCALE, LOOK_OVERVIEW: overview } = await import('./look')
+    expect(['agx', 'neutral']).toContain(TONE_MAP)
+    expect(TONE_EXPOSURE_SCALE).toBe(TONE_MAP === 'agx' ? 1.25 : 1)
+    // the look rows themselves are untouched: the overview is still exposure 1 before the scale
+    expect(overview.exposure).toBe(1)
+  })
+  it('presentation mode: gentler bloom with a threshold of at least 1, a lighter vignette, no grade', async () => {
+    const { BLOOM, PRESENT_LOOK } = await import('./look')
+    expect(PRESENT_LOOK.bloomThreshold).toBeGreaterThanOrEqual(1)
+    expect(PRESENT_LOOK.bloomIntensity).toBeLessThan(BLOOM.intensity)
+    expect(PRESENT_LOOK.bloomIntensity).toBeCloseTo(0.2, 6)
+    expect(PRESENT_LOOK.vignette).toBeLessThan(1)
+    expect(PRESENT_LOOK.grade).toBe(0)
+  })
+})

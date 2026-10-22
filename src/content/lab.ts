@@ -5,6 +5,7 @@
  */
 import { z } from 'zod'
 import raw from './lab.json'
+import { parseOrThrow } from './parse'
 import type { AnalyserKind, CapColour, TubeKind } from '@/sim/types'
 
 const TUBE_KINDS = ['citrate', 'serum', 'heparin', 'EDTA', 'fluoride'] as const
@@ -29,6 +30,12 @@ const TestSchema = z.object({
   analyticSeconds: z.number().positive(),
   analytes: z.array(AnalyteSchema).min(1),
 })
+/** A plausible-numbers check on one analyte: the usual range is ordered, the mean sits inside it, and a decimals count fits the range. */
+const sanityOf = (a: z.infer<typeof AnalyteSchema>): string | null => {
+  if (!(a.low < a.high)) return `${a.id}: low ${a.low} must be below high ${a.high}`
+  if (!(a.low < a.mean && a.mean < a.high)) return `${a.id}: the mean ${a.mean} must lie between low ${a.low} and high ${a.high}`
+  return null
+}
 const PanelSchema = z.object({ name: z.string().min(1), tests: z.array(z.string().min(1)).min(1) })
 const Pair = z.tuple([z.number(), z.number()])
 const LabSchema = z
@@ -41,16 +48,30 @@ const LabSchema = z
     panelShifts: z.record(z.string(), z.record(z.string(), z.number())),
     vitalsBaselines: z
       .array(z.object({ maxAge: z.number(), sys: Pair, dia: Pair, pulse: Pair, spo2: Pair, tempC: Pair }))
-      .min(1),
+      .min(1)
+      .refine((list) => list.every((b, i) => i === 0 || b.maxAge > list[i - 1].maxAge), 'vitalsBaselines must be sorted by increasing maxAge'),
   })
   .superRefine((d, ctx) => {
+    // clinical sanity: ordered ranges, the mean inside the range, the sd small against the range, and vitals that a person could have
+    for (const [testId, t] of Object.entries(d.tests)) {
+      for (const a of t.analytes) {
+        const problem = sanityOf(a)
+        if (problem) ctx.addIssue({ code: 'custom', message: `test ${testId}: ${problem}` })
+        if (a.sd * 2 > a.high - a.low) ctx.addIssue({ code: 'custom', message: `test ${testId}: ${a.id} sd ${a.sd} is wider than half its usual range` })
+      }
+    }
+    d.vitalsBaselines.forEach((b, i) => {
+      if (b.spo2[0] > 100) ctx.addIssue({ code: 'custom', message: `vitalsBaselines[${i}]: SpO2 ${b.spo2[0]} is above 100 %` })
+      if (b.spo2[0] + 2 * b.spo2[1] > 101) ctx.addIssue({ code: 'custom', message: `vitalsBaselines[${i}]: SpO2 mean plus two sd (${b.spo2[0] + 2 * b.spo2[1]}) is far above 100 %` })
+      if (!(b.dia[0] < b.sys[0])) ctx.addIssue({ code: 'custom', message: `vitalsBaselines[${i}]: diastolic ${b.dia[0]} must be below systolic ${b.sys[0]}` })
+    })
     for (const [id, p] of Object.entries(d.panels))
       for (const t of p.tests) if (!d.tests[t]) ctx.addIssue({ code: 'custom', message: `panel ${id} names unknown test ${t}` })
     for (const [reason, panel] of Object.entries(d.erPanels)) if (!d.panels[panel]) ctx.addIssue({ code: 'custom', message: `ER reason "${reason}" -> unknown panel ${panel}` })
     for (const o of d.outpatientPanels) if (!d.panels[o.panel]) ctx.addIssue({ code: 'custom', message: `outpatient panel ${o.panel} unknown` })
   })
 
-export const LAB_CATALOGUE = LabSchema.parse(raw)
+export const LAB_CATALOGUE = parseOrThrow(LabSchema, raw, 'src/content/lab.json')
 export type LabTestId = string
 export type LabTest = z.infer<typeof TestSchema>
 export type Analyte = z.infer<typeof AnalyteSchema>

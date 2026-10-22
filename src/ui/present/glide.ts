@@ -4,8 +4,10 @@
  * at priority -10 without a GC pause.
  *
  * The path runs through four control points: the point before the start (the shot before it in the loop, or the start mirrored when the glide
- * begins away from any shot), the start, the end, and the shot after the end. A uniform Catmull-Rom spline passes through the middle two with
- * a tangent that follows their neighbours, so the dolly bends gently into the next move instead of running along a ruler. Time is eased with a
+ * begins away from any shot), the start, the end, and the shot after the end. It is a Catmull-Rom path in the DIRECTIONS (the tangent at each end
+ * is the bisector of the two moves meeting there, kept on the chord where they oppose) but with its length set to the chord, a cardinal Hermite: the dolly bends gently into the next move
+ * instead of running along a ruler, and, unlike the plain uniform spline, it neither overshoots nor speeds up when a neighbour is far away or behind
+ * (the plain one ran 30 % faster than the chord asks on the longest hop and looped out past the desk shot). Time is eased with a
  * smootherstep, so every glide starts and ends at rest (no snap, no lurch), 6 to 8 seconds long. The yaw takes the short way round and eases
  * with the same curve.
  *
@@ -39,6 +41,40 @@ export function catmullRom(p0: number, p1: number, p2: number, p3: number, t: nu
   return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3)
 }
 
+/** One coordinate of a cubic Hermite segment: positions p1 (t = 0) and p2 (t = 1), tangents m1 and m2 (per unit of t). */
+export function hermite(p1: number, m1: number, p2: number, m2: number, t: number): number {
+  const t2 = t * t
+  const t3 = t2 * t
+  return (2 * t3 - 3 * t2 + 1) * p1 + (t3 - 2 * t2 + t) * m1 + (-2 * t3 + 3 * t2) * p2 + (t3 - t2) * m2
+}
+
+const _dir = { x: 0, z: 0 }
+
+/**
+ * The unit direction of the path at the join of the move being glided (`mx`, `mz`, unit) and a neighbouring move (`ox`, `oz`, unit): their bisector,
+ * blended toward the move itself as they oppose (a neighbour straight behind has no bisector worth following). Written into `out`.
+ */
+export function joinDirection(mx: number, mz: number, ox: number, oz: number, out: { x: number; z: number }): { x: number; z: number } {
+  const sx = mx + ox
+  const sz = mz + oz
+  const half = Math.hypot(sx, sz) / 2 // the cosine of half the angle between them: 1 going straight on, 0 when they oppose
+  let dx = mx
+  let dz = mz
+  if (half > 1e-6) {
+    const w = half * 1.5 > 1 ? 1 : half * 1.5
+    dx = mx + (sx / (2 * half) - mx) * w
+    dz = mz + (sz / (2 * half) - mz) * w
+    const l = Math.hypot(dx, dz)
+    if (l > 1e-9) {
+      dx /= l
+      dz /= l
+    }
+  }
+  out.x = dx
+  out.z = dz
+  return out
+}
+
 /** The shortest signed turn from `from` to `to`, in (-pi, pi]. */
 export function shortestTurn(from: number, to: number): number {
   let d = (to - from) % TAU
@@ -65,14 +101,14 @@ export class Glide {
   progress = 0
   elapsed = 0
   seconds = 1
-  private p0x = 0
-  private p0z = 0
+  private m1x = 0
+  private m1z = 0
+  private m2x = 0
+  private m2z = 0
   private p1x = 0
   private p1z = 0
   private p2x = 0
   private p2z = 0
-  private p3x = 0
-  private p3z = 0
   private yaw0 = 0
   private dyaw = 0
   private pitch0 = 0
@@ -87,10 +123,38 @@ export class Glide {
     this.p1z = from.z
     this.p2x = to.x
     this.p2z = to.z
-    this.p0x = before ? before.x : 2 * from.x - to.x
-    this.p0z = before ? before.z : 2 * from.z - to.z
-    this.p3x = after ? after.x : 2 * to.x - from.x
-    this.p3z = after ? after.z : 2 * to.z - from.z
+    const chord = Math.hypot(to.x - from.x, to.z - from.z)
+    // the unit directions of the move, of the move into the start (before -> from) and of the move after the end (to -> after); a missing neighbour
+    // repeats the move itself, so that side is straight
+    const ox = chord > 1e-9 ? (to.x - from.x) / chord : 0
+    const oz = chord > 1e-9 ? (to.z - from.z) / chord : 0
+    let ix = ox
+    let iz = oz
+    if (before) {
+      const l = Math.hypot(from.x - before.x, from.z - before.z)
+      if (l > 1e-9) {
+        ix = (from.x - before.x) / l
+        iz = (from.z - before.z) / l
+      }
+    }
+    let nx = ox
+    let nz = oz
+    if (after) {
+      const l = Math.hypot(after.x - to.x, after.z - to.z)
+      if (l > 1e-9) {
+        nx = (after.x - to.x) / l
+        nz = (after.z - to.z) / l
+      }
+    }
+    // the tangent at each end: as long as the chord, pointing along the bisector of the two moves meeting there. Going straight on that is the chord itself;
+    // where the loop turns back on itself (the neighbour is behind you, the bisector is meaningless) it stays on the chord, so the path never loops out past
+    // the shot and the speed stays the chord's, whatever the neighbours are
+    joinDirection(ox, oz, ix, iz, _dir)
+    this.m1x = _dir.x * chord
+    this.m1z = _dir.z * chord
+    joinDirection(ox, oz, nx, nz, _dir)
+    this.m2x = _dir.x * chord
+    this.m2z = _dir.z * chord
     this.yaw0 = from.yaw
     this.dyaw = shortestTurn(from.yaw, to.yaw)
     this.pitch0 = from.pitch
@@ -120,8 +184,8 @@ export class Glide {
       this.active = false
       return true
     }
-    this.x = catmullRom(this.p0x, this.p1x, this.p2x, this.p3x, u)
-    this.z = catmullRom(this.p0z, this.p1z, this.p2z, this.p3z, u)
+    this.x = hermite(this.p1x, this.m1x, this.p2x, this.m2x, u)
+    this.z = hermite(this.p1z, this.m1z, this.p2z, this.m2z, u)
     this.yaw = this.yaw0 + this.dyaw * u
     this.pitch = this.pitch0 + this.dpitch * u
     return false

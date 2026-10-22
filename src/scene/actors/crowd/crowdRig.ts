@@ -29,11 +29,12 @@ import {
   type Object3D,
 } from 'three'
 import type { Entity } from '@/sim/types'
+import { glContext } from '@/scene/glContext'
 import { walkBody } from '@/scene/player/state'
 import { BADGE_KIND, CAP_KIND, MAX_PEOPLE, RING_COLORS, TEX } from './constants'
 import { buildBadgeGeometry, buildBlanketGeometry, buildCapGeometry, buildPropGeometry, buildVehicleGeometry } from './gear'
 import { buildBodyGeometries } from './geometry'
-import { CrowdModel, MAX_BADGES, MAX_BLANKETS, MAX_BLOBS, MAX_CAPS, MAX_PROPS, type FrameInput } from './model'
+import { CrowdModel, MAX_BADGES, MAX_BLANKETS, MAX_BLOBS, MAX_CAPS, MAX_PROPS, type FrameInput, type PersonSlot } from './model'
 import { highlight } from './runtime'
 import { createAvatarMaterials, createCrowdMaterials } from './shaders'
 import { measureCapFit, type CapFit } from './avatars'
@@ -52,9 +53,25 @@ export interface PeopleMeshes {
   bytes: number
 }
 
+/**
+ * F-43: how much of the pose texture goes up each frame. The whole thing is MAX_PEOPLE rows (about 415 kB), of which a normal day uses a third.
+ * three uploads `image.width x image.height` texels from the start of the data, so the height is set to the highest live row + 1 and only
+ * those rows travel. The GPU storage is allocated by the FIRST upload (and again after a lost context), at whatever height the image has then,
+ * so the full height is kept until the texture has really been uploaded (`texture.onUpdate`) and again after every context restore.
+ */
+export interface PoseUpload {
+  /** The texture has been uploaded with its full height since the last context restore. */
+  uploaded: boolean
+  /** `glContext.epoch` last seen. */
+  epoch: number
+  /** Rows sent last frame (for the probe and tests). */
+  rows: number
+}
+
 export interface CrowdRig {
   model: CrowdModel
   texture: DataTexture
+  upload: PoseUpload
   frame: FrameInput
   bodies: Mesh[]
   bodyGeometries: InstancedBufferGeometry[]
@@ -92,6 +109,10 @@ export function createCrowdRig(): CrowdRig {
   texture.magFilter = NearestFilter
   texture.generateMipmaps = false
   texture.needsUpdate = true
+  const upload: PoseUpload = { uploaded: false, epoch: glContext.epoch, rows: MAX_PEOPLE }
+  texture.onUpdate = () => {
+    upload.uploaded = true
+  }
 
   const mats = createCrowdMaterials(texture)
   const propsMaterial = mats.props
@@ -175,6 +196,7 @@ export function createCrowdRig(): CrowdRig {
   return {
     model,
     texture,
+    upload,
     frame,
     bodies,
     bodyGeometries,
@@ -196,6 +218,7 @@ export function createCrowdRig(): CrowdRig {
     dispose() {
       detachPeople(this)
       mats.dispose()
+      texture.onUpdate = null
       texture.dispose()
       for (const geo of bodyGeometries) geo.dispose()
       pg.dispose()
@@ -302,16 +325,53 @@ export function detachPeople(r: CrowdRig): void {
   r.model.setAvatars([])
 }
 
+/** One reusable `{ start, count }` per attribute: `addUpdateRange` would build a new object every frame. */
+const RANGES = new WeakMap<BufferAttribute, { start: number; count: number }>()
+
+/**
+ * Upload only the first `count` elements of an attribute next frame. The renderer empties `updateRanges` after the upload, and the
+ * object goes back in, so after the first call this allocates nothing.
+ */
+export function uploadFirst(attr: BufferAttribute, count: number): void {
+  let range = RANGES.get(attr)
+  if (!range) RANGES.set(attr, (range = { start: 0, count }))
+  range.start = 0
+  range.count = count
+  const ranges = attr.updateRanges
+  ranges.length = 0
+  ranges.push(range)
+  attr.needsUpdate = true
+}
+
 /** Show the first `n` instances of an avatar mesh and upload just those rows of its list. */
 function setAvatarInstances(mesh: Mesh, n: number): void {
   mesh.visible = n > 0
   const geo = mesh.geometry as InstancedBufferGeometry
   geo.instanceCount = n
   if (n === 0) return
-  const attr = geo.getAttribute('aRow') as InstancedBufferAttribute
-  attr.clearUpdateRanges()
-  attr.addUpdateRange(0, n)
-  attr.needsUpdate = true
+  uploadFirst(geo.getAttribute('aRow') as BufferAttribute, n)
+}
+
+// the highest row of any live person, found without a closure or an iterator per frame
+let highestRow = 0
+const noteRow = (slot: PersonSlot): void => {
+  if (slot.row > highestRow) highestRow = slot.row
+}
+
+/**
+ * How many rows of the pose texture to send this frame (see PoseUpload): all of them until the texture is known to be on the GPU, and
+ * after a context restore; otherwise up to the highest live row. Rows above it belong to nobody, and a row that is taken later is written
+ * before it is counted (the model writes a slot's row when it creates it, in `update`, ahead of this).
+ */
+export function poseRows(up: PoseUpload, model: CrowdModel): number {
+  if (up.epoch !== glContext.epoch) {
+    up.epoch = glContext.epoch
+    up.uploaded = false
+  }
+  if (!up.uploaded) return MAX_PEOPLE
+  highestRow = 0
+  model.people.forEach(noteRow)
+  return Math.min(MAX_PEOPLE, highestRow + 1)
 }
 
 /** Point a draw at the first `n` instances and re-upload its (small) per-instance lists. */
@@ -350,8 +410,10 @@ export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, c
   r.blankets.visible = st.blankets > 0
   setInstances(r.blanketGeometry, st.blankets, 'aRow')
   r.blobs.count = st.blobs
-  r.blobs.instanceMatrix.needsUpdate = true
-  r.blobFade.needsUpdate = true
+  if (st.blobs > 0) {
+    uploadFirst(r.blobs.instanceMatrix, st.blobs * 16)
+    uploadFirst(r.blobFade, st.blobs)
+  }
   const pm = r.avatars
   if (pm) {
     const counts = model.avatarLists.counts
@@ -364,6 +426,9 @@ export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, c
     setAvatarInstances(pm.badge, st.badges)
     setAvatarInstances(pm.cap, st.caps)
   }
+  const rows = poseRows(r.upload, model)
+  r.upload.rows = rows
+  ;(r.texture.image as { height: number }).height = rows
   r.texture.needsUpdate = true
 
   // the ground ring: under the followed person, else the selected one

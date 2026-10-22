@@ -9,7 +9,9 @@
  * are data for the day rhythm and meals builders until they are wired in. Every member has a shift (hours in
  * CONFIG.day.shifts).
  */
+import { z } from 'zod'
 import type { Role, ShiftId, WardId } from '@/sim/types'
+import { parseOrThrow } from './parse'
 
 /** Where a member of staff works. */
 export type StaffPost =
@@ -130,6 +132,68 @@ export const THEATRE_STAFF: (StaffMember & { title: 'surgeon' | 'assistant' | 'a
   { id: 'or-porter', role: 'porter', post: 'theatre', shift: 'day', name: 'Porter Basil', title: 'porter' },
   { id: 'or-cleaner', role: 'cleaner', post: 'theatre', shift: 'day', name: 'Cleaner Lina', title: 'cleaner' },
 ]
+
+// ---------------------------------------------------------------------------------------------
+// The schema (F-34): the staff lists are checked at module load, so a typo names the list and the member instead of failing somewhere later.
+// Each list of values is a Record keyed by the union, so the compiler rejects a missing or an extra value.
+// ---------------------------------------------------------------------------------------------
+
+const ROLE_CHECK: Record<StaffMember['role'], true> = {
+  doctor: true,
+  nurse: true,
+  pharmacist: true,
+  coordinator: true,
+  porter: true,
+  cleaner: true,
+  receptionist: true,
+  paramedic: true,
+  radiographer: true,
+  sonographer: true,
+  host: true,
+  labScientist: true,
+}
+const POST_CHECK: Record<StaffPost, true> = {
+  ward: true,
+  er: true,
+  triage: true,
+  reception: true,
+  transport: true,
+  housekeeping: true,
+  pharmacy: true,
+  command: true,
+  imaging: true,
+  bloodDraw: true,
+  kiosk: true,
+  lab: true,
+  theatre: true,
+}
+const SHIFT_CHECK: Record<ShiftId, true> = { day: true, night: true, office: true }
+const WARDS: readonly WardId[] = ['A', 'B']
+
+export const StaffMemberSchema = z.looseObject({
+  id: z.string().regex(/^[a-z][A-Za-z0-9-]*$/, 'an id is letters, digits and hyphens, starting with a lower-case letter'),
+  role: z.enum(Object.keys(ROLE_CHECK) as [StaffMember['role'], ...StaffMember['role'][]]),
+  ward: z.enum(WARDS as [WardId, ...WardId[]]).optional(),
+  post: z.enum(Object.keys(POST_CHECK) as [StaffPost, ...StaffPost[]]).optional(),
+  shift: z.enum(Object.keys(SHIFT_CHECK) as [ShiftId, ...ShiftId[]]),
+  name: z
+    .string()
+    .trim()
+    .min(3)
+    .refine((n) => /^(Dr\.|Nurse|Pharmacist|Coordinator|Receptionist|Porter|Cleaner|Paramedic|Radiographer|Sonographer|Host|Scientist) \S/.test(n), 'a name is a title and a first name, e.g. "Nurse Maya"'),
+})
+
+/** Every staff list, each id once across all of them. */
+export const StaffListsSchema = z.array(z.array(StaffMemberSchema)).superRefine((lists, ctx) => {
+  const seen = new Set<string>()
+  lists.forEach((list, li) =>
+    list.forEach((m, i) => {
+      if (seen.has(m.id)) ctx.addIssue({ code: 'custom', path: [li, i, 'id'], message: `duplicate staff id "${m.id}"` })
+      seen.add(m.id)
+    }),
+  )
+})
+parseOrThrow(StaffListsSchema, [STAFF, NIGHT_STAFF, HOSTS, W4_STAFF, THEATRE_STAFF], 'src/content/staff.ts')
 
 const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF, ...THEATRE_STAFF].map((s) => [s.id, s]))
 

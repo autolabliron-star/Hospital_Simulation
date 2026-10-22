@@ -14,7 +14,7 @@ import { MAT } from '@/scene/materials'
 import { lightRig } from '@/scene/Lighting'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { CEILING_EMISSIVE } from '@/scene/building/render/walk/walkMaterials'
-import { lobbyEnvWanted } from '@/scene/lighting/env/lobbyProbe'
+import { lobbyEnvForCamera } from '@/scene/lighting/env/lobbyProbe'
 import { FLOOR_WALK_ROUGHNESS } from '@/scene/lighting/look'
 import { FLOOR_KEYS } from '@/scene/lighting/palettePatch'
 import { useRenderStore } from '@/scene/quality/render.store'
@@ -79,8 +79,7 @@ export function Daylight() {
     t.realism = realismActive(sim.player?.mode)
     t.fxLite = useRenderStore.getState().step.fx === 'lite'
     // `?building=model`: the camera (last frame's pose) is in the authored lobby and its baked probe is loaded: bind that environment
-    const cp = camera.position
-    t.lobbyEnv = lobbyEnvWanted(cp.x, cp.y, cp.z)
+    t.lobbyEnv = lobbyEnvForCamera(camera)
     // walk mode (W1): the rooms have ceilings, so the sun eases down and the indoor fill up (read the live sim: a Jump swaps it)
     assets.driver.frame(dt, readHour, simGeneration, t, indoorTarget(sim.player?.mode))
   }, DAYLIGHT_PRIORITY)

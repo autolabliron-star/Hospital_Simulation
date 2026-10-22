@@ -45,9 +45,9 @@ export const WalkSchema = z
     drawerCard: z.object({ title: line, loaded: line, empty: line, dueNow: line, locked: line, nothing: line, yours: line, close: line }).strict(),
     hud: z.object({ minimap: line, minimapAlt: line, clockLabel: line, paused: line, drawerCloseTitle: line }).strict(),
     hint: z
-      .array(z.object({ action: z.enum(['walk', 'firstPerson', 'interact', 'shoulderSwap']), label: line }).strict())
+      .array(z.object({ action: z.enum(['walk', 'firstPerson', 'interact', 'shoulderSwap', 'present', 'presentNext']), label: line }).strict())
       .min(1)
-      .max(4),
+      .max(6),
   })
   .strict()
 

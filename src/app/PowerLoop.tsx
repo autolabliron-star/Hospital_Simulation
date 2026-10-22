@@ -3,7 +3,7 @@ import { advance, useThree } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
 import { useWalk } from '@/scene/player/state'
 import { reportFrame } from '@/scene/quality/frameTiming'
-import { FramePacer, GameClock, PowerMachine, isWalkingMode, usePower, usePresent } from './power'
+import { FramePacer, GameClock, PowerMachine, isWalkingMode, pauseOnBlurFromSearch, usePower, usePresent } from './power'
 
 interface BatteryLike extends EventTarget {
   charging: boolean
@@ -20,7 +20,8 @@ export interface PowerLoopProps {
  * tested); this wires the browser's events to them:
  *
  *   - the tab is hidden: paused, always (and the audio engines go quiet, they read `usePower`);
- *   - the window lost focus: paused, except in presentation mode (`?present=1`), where screen sharing must never freeze the picture;
+ *   - the window lost focus: keeps running (F-02: screen sharing must never freeze the picture); `?pauseOnBlur=1` pauses it, except in
+ *     presentation mode (`?present=1`);
  *   - on battery (the Battery API, where there is one; a desktop or a browser without it counts as plugged in): 30 fps, except in
  *     presentation mode, which holds 60, and while you are in walk mode (W3: the walk is the thing that must be smooth).
  *
@@ -38,7 +39,7 @@ export function PowerLoop({ loading = false }: PowerLoopProps) {
   // Inputs: tab visibility, window focus, battery, presentation mode.
   useEffect(() => {
     const m = new PowerMachine(
-      { hidden: document.hidden, focused: document.hasFocus(), present: usePresent.getState().on, loading, walking: isWalkingMode(useWalk.getState().mode) },
+      { hidden: document.hidden, focused: document.hasFocus(), pauseOnBlur: pauseOnBlurFromSearch(window.location.search), present: usePresent.getState().on, loading, walking: isWalkingMode(useWalk.getState().mode) },
       (next) => usePower.getState().set(next),
     )
     machine.current = m
@@ -96,6 +97,7 @@ export function PowerLoop({ loading = false }: PowerLoopProps) {
   useEffect(() => {
     let raf = 0
     let lastDrawn = -1
+    let errored = false
     const clock = new GameClock()
     const pacer = new FramePacer()
     const restart = () => {
@@ -119,7 +121,15 @@ export function PowerLoop({ loading = false }: PowerLoopProps) {
       const interval = lastDrawn < 0 ? 0 : now - lastDrawn
       lastDrawn = now
       const t0 = performance.now()
-      advance(gameTime, true, get())
+      // F-01: a throw in any frame subscriber must not stop the loop (the rAF is already re-armed); the frame is lost, the next one runs
+      try {
+        advance(gameTime, true, get())
+      } catch (error) {
+        if (!errored) console.error('A frame threw; the loop carries on.', error)
+        errored = true
+        return
+      }
+      errored = false
       reportFrame(performance.now() - t0, interval, power.fps, now, pacer.refreshMs)
     }
     raf = requestAnimationFrame(tick)

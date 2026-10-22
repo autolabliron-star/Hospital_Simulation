@@ -41,7 +41,8 @@ describe('ward room view', () => {
     expect(v.bed).toBe('occupied')
     expect(v.bedLabel).toBe('Occupied')
     expect(v.plan?.discharge).toMatch(/^Going home today, about \d\d:\d\d$/)
-    expect(v.plan?.nextDose).toBe('12:00, with the scheduled round')
+    // the first dose wave after the opening hour (Wave 1: waves at 08/12/14/18/22, the opening is 07:30)
+    expect(v.plan?.nextDose).toBe('08:00, with the scheduled round')
     expect(v.plan?.meals).toBe('Breakfast at 07:45')
   })
 

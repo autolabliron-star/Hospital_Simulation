@@ -144,6 +144,8 @@ export class PlayerSystem {
   private glideTarget = 0
   /** A cut (the shot index) or a glide asked for while not walking yet, run on the first walking frame of presentation. `?view=present` starts at shot 1. */
   private pendingShot = PRESENT_VIEW_URL ? 0 : -1
+  /** C pressed during the flight out to the overview (F-08): the flight wins, and the walkthrough starts once it has landed. */
+  private presentQueued = false
   private glideWanted = false
   /** This frame the glide (not the keys) moved the body: the mouse look is ignored. */
   private glidedNow = false
@@ -773,11 +775,20 @@ export class PlayerSystem {
 
   /** Follow the presentation store (once a frame), then run any cut or glide that was waiting for a walking frame. */
   private syncPresentation(): void {
+    if (this.presentQueued) {
+      // the flight landed: start the walkthrough now (it flies down again). Any other phase means you moved on: forget it.
+      if (this.phase === 'overview') {
+        this.presentQueued = false
+        usePresentation.getState().setOn(true)
+      } else if (this.phase !== 'toOverview') this.presentQueued = false
+    }
     const want = presentActive()
     if (want !== this.presenting) {
-      // C pressed in the middle of the flight out to the overview: the flight wins, the walkthrough goes off
-      if (want && this.phase === 'toOverview') usePresentation.getState().setOn(false)
-      else this.setPresenting(want)
+      // C pressed in the middle of the flight out to the overview: the flight wins, the walkthrough waits for it to land
+      if (want && this.phase === 'toOverview') {
+        usePresentation.getState().setOn(false)
+        this.presentQueued = true
+      } else this.setPresenting(want)
     }
     if (!this.presenting || this.phase !== 'walk') return
     if (this.pendingShot >= 0) {

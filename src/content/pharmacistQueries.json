@@ -1,0 +1,52 @@
+{
+  "duplicate": {
+    "pending": "Queried: {med} is already ordered for {patient} and has not been given yet.",
+    "recent": "Queried: {patient} was due {med} within the last {hours} hours, so another dose is too soon."
+  },
+  "rules": [
+    {
+      "id": "nsaid-anticoagulant",
+      "meds": ["ibuprofen"],
+      "with": { "meds": ["apixaban"] },
+      "text": "Queried: {med} and {with} together raise the risk of bleeding."
+    },
+    {
+      "id": "nsaid-heart-failure",
+      "meds": ["ibuprofen"],
+      "with": { "conditions": ["heart failure"] },
+      "text": "Queried: {med} can make fluid build up in {with}."
+    },
+    {
+      "id": "nsaid-loop-diuretic",
+      "meds": ["ibuprofen"],
+      "with": { "meds": ["furosemide"] },
+      "text": "Queried: {med} can weaken the effect of {with} and strain the kidneys."
+    }
+  ],
+  "ui": {
+    "queryTitle": "Pharmacist query",
+    "heldNote": "Held for your decision. Nothing is dispensed until you confirm or cancel.",
+    "queriedNotice": "The pharmacist queried the order for {room}. Confirm or cancel it below.",
+    "confirm": "Confirm order",
+    "cancel": "Cancel order",
+    "confirmedNotice": "Confirmed. The pharmacist will now check the order for {room}.",
+    "cancelledNotice": "Order for {room} cancelled.",
+    "queryFor": "{patient} in {room}",
+    "route": {
+      "tablet": "by mouth",
+      "capsule": "by mouth",
+      "sachet": "by mouth, mixed in water",
+      "oral solution": "by mouth",
+      "inhaler": "inhaled"
+    },
+    "frequency": {
+      "once": "once a day",
+      "twice": "twice a day",
+      "three": "three times a day",
+      "four": "four times a day",
+      "many": "{n} times a day",
+      "at": "{label} ({hours})",
+      "prn": "as needed, at least {gap} hours apart"
+    }
+  }
+}

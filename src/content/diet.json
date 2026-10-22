@@ -1,0 +1,17 @@
+{
+  "nilByMouth": {
+    "reasons": [
+      "Collapsed, not fully conscious",
+      "Collapsed at home, slow to respond",
+      "Sudden weakness down one side",
+      "Confused and very drowsy today",
+      "Confused after a fall",
+      "Fit that has now stopped",
+      "Severe abdominal pain, vomiting",
+      "Dizzy and vomiting since morning",
+      "Fall at home, hip pain"
+    ],
+    "sign": "Nil by mouth",
+    "bark": "I'm not allowed to eat or drink yet."
+  }
+}

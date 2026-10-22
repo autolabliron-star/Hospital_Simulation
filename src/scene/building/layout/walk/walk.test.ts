@@ -462,8 +462,11 @@ describe('walk layout', () => {
 
   it('leaves the overview layout untouched: no walk part is in layout.prims, and the cut walls stay at the cut', () => {
     for (const p of layout.prims.filter((q) => q.mat === 'wall')) expect(p.position[1] + p.size[1] / 2).toBeLessThanOrEqual(CUT + 1e-9)
-    const overview = layout.prims.filter((p) => p.overviewOnly)
-    // the parked sliding leaves of the patient rooms (a mint panel and its track each) are the only overview-only parts
+    // (the architect's model base outside the walls, the plinth, lawns and paving, is overview-only too: src/scene/landscape/exterior.ts hands the
+    // ground to the real exterior while walking)
+    const modelBase = new Set(['plinth', 'grass', 'stonePath', 'concrete'])
+    const overview = layout.prims.filter((p) => p.overviewOnly && !modelBase.has(p.mat))
+    // the parked sliding leaves of the patient rooms (a mint panel and its track each) are the only overview-only parts inside
     expect(overview).toHaveLength(ROOMS.length * 2)
     expect(overview.filter((p) => p.mat === 'wallMint')).toHaveLength(ROOMS.length)
   })

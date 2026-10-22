@@ -163,7 +163,7 @@
       "id": "ct-chest",
       "modality": "ct",
       "bodyPart": "chest",
-      "name": "CT chest with contrast",
+      "name": "CT chest (non-contrast)",
       "sequences": [
         {
           "name": "Topogram",
@@ -173,9 +173,9 @@
           "images": 1
         },
         {
-          "name": "Arterial phase",
+          "name": "Axial chest",
           "plane": "axial",
-          "contrast": "arterial",
+          "contrast": "plain",
           "seconds": 8,
           "images": 60
         }
@@ -206,6 +206,28 @@
           "plane": "axial",
           "contrast": "portal",
           "seconds": 12,
+          "images": 70
+        }
+      ]
+    },
+    "ct-kub": {
+      "id": "ct-kub",
+      "modality": "ct",
+      "bodyPart": "abdomen",
+      "name": "CT KUB (non-contrast, kidneys, ureters and bladder)",
+      "sequences": [
+        {
+          "name": "Topogram",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 8,
+          "images": 1
+        },
+        {
+          "name": "Axial abdomen and pelvis",
+          "plane": "axial",
+          "contrast": "plain",
+          "seconds": 10,
           "images": 70
         }
       ]
@@ -531,7 +553,7 @@
       "imaging": "ct-head"
     },
     "Minor car bump, neck sore": {
-      "chance": 0.9,
+      "chance": 0.3,
       "imaging": "ct-cspine"
     }
   }

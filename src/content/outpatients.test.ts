@@ -112,3 +112,22 @@ describe('outpatients', () => {
     }
   })
 })
+
+describe('outpatient exams fit the reason (F-31)', () => {
+  const byId = (id: string) => OUTPATIENTS.find((o) => o.id === id)!
+
+  it('a kidney stone gets the non-contrast CT KUB, and a lung nodule follow-up gets a non-contrast chest CT', () => {
+    expect(byId('op-50').protocol).toBe('ct-kub')
+    expect(byId('op-12').protocol).toBe('ct-chest')
+    for (const id of ['ct-kub', 'ct-chest']) {
+      for (const s of protocolById(id).sequences) expect(['arterial', 'portal'], `${id} ${s.name}`).not.toContain(s.contrast)
+    }
+  })
+
+  it('no reason asks for a pancreas view the ultrasound protocol does not have, and no reason says "tummy" (UK clinical wording)', () => {
+    for (const o of OUTPATIENTS) {
+      expect(o.reason, o.id).not.toMatch(/tummy/i)
+      if (/pancrea/i.test(o.reason)) expect(protocolById(o.protocol).sequences.map((s) => s.name.toLowerCase()), o.id).toContain('pancreas')
+    }
+  })
+})

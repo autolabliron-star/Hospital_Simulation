@@ -38,7 +38,7 @@ describe('the HUD in the overview', () => {
 
   it('keeps the tablet where it was: in the right column, in place of the pill', () => {
     const out = hud({ mode: 'overview', rxOpen: true, rxRoom: null })
-    expect(out).toContain('Prescribe (developer panel)')
+    expect(out).toContain('Prescribe medicines')
     expect(out).toContain('Key figures')
     expect(out).not.toContain('Prescribe a medicine (P)')
   })
@@ -61,7 +61,7 @@ describe('the HUD in walk mode', () => {
 
   it('hands the right column to the tablet, which starts on the bed you faced', () => {
     const out = hud({ mode: 'walk', rxOpen: true, rxRoom: 'A3' })
-    expect(out).toContain('Prescribe (developer panel)')
+    expect(out).toContain('Prescribe medicines')
     expect(out).toContain('data-walk="true"')
     expect(out).not.toContain('walk-map')
     expect(out).toMatch(/<option value="A3" selected/)

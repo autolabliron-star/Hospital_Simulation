@@ -30,6 +30,12 @@ export function lobbyEnvWanted(x: number, y: number, z: number): boolean {
   return lobbyProbe.ready && BUILDING_MODEL_ON && y < LOBBY_MAX_Y && inPilotRegion(x, z)
 }
 
+/** `lobbyEnvWanted` for a camera (anything with a position: the daylight driver's caller passes the scene's). */
+export function lobbyEnvForCamera(camera: { position: { x: number; y: number; z: number } }): boolean {
+  const p = camera.position
+  return lobbyEnvWanted(p.x, p.y, p.z)
+}
+
 /** The parts of three the loader needs, as a function of the renderer (a seam for tests). */
 export interface LobbyEnvDeps {
   load(url: string): Promise<Texture>

@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { PlayerInput } from './input'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { LOCK_RETRY_MS, PlayerInput, type LockTarget } from './input'
 import { walkCam } from './state'
 
 afterEach(() => {
@@ -129,3 +129,72 @@ describe('the mouse', () => {
     expect(() => input.releaseLock()).not.toThrow()
   })
 })
+
+describe('a refused pointer lock is retried once, about a second later (F-39)', () => {
+  /** An input with a fake view whose pointer lock the "browser" refuses `refuse` times in a row, in the given way. */
+  function setup(how: 'reject' | 'throw' | 'error', refuse: number) {
+    const input = new PlayerInput()
+    let calls = 0
+    const target: LockTarget = {
+      requestPointerLock: () => {
+        calls++
+        if (calls > refuse) return undefined
+        if (how === 'throw') throw new Error('refused')
+        if (how === 'reject') return Promise.reject(new Error('refused'))
+        return undefined
+      },
+    }
+    ;(input as unknown as { container: LockTarget }).container = target
+    input.listening = true
+    return { input, calls: () => calls, refuseByEvent: () => (input as unknown as { scheduleLockRetry: () => void }).scheduleLockRetry() }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a rejected promise: one retry after LOCK_RETRY_MS, and never a loop', async () => {
+    vi.useFakeTimers()
+    const { input, calls } = setup('reject', 99)
+    input.requestLock()
+    expect(calls()).toBe(1)
+    await vi.advanceTimersByTimeAsync(LOCK_RETRY_MS - 50)
+    expect(calls()).toBe(1) // not yet
+    await vi.advanceTimersByTimeAsync(100)
+    expect(calls()).toBe(2) // the retry
+    await vi.advanceTimersByTimeAsync(10 * LOCK_RETRY_MS)
+    expect(calls()).toBe(2) // refused again: it gives up
+  })
+
+  it('a synchronous throw is retried once too', async () => {
+    vi.useFakeTimers()
+    const { input, calls } = setup('throw', 99)
+    input.requestLock()
+    await vi.advanceTimersByTimeAsync(5 * LOCK_RETRY_MS)
+    expect(calls()).toBe(2)
+  })
+
+  it('a pointerlockerror (and a rejection for the same request) schedules ONE retry', async () => {
+    vi.useFakeTimers()
+    const { input, calls, refuseByEvent } = setup('reject', 1)
+    input.requestLock()
+    refuseByEvent() // the event that arrives with the rejection
+    await vi.advanceTimersByTimeAsync(5 * LOCK_RETRY_MS)
+    expect(calls()).toBe(2) // the retry was accepted (the fake returns undefined from then on)
+  })
+
+  it('a fresh click gets its own retry; a retry is dropped if the walk is no longer listening', async () => {
+    vi.useFakeTimers()
+    const { input, calls } = setup('reject', 99)
+    input.requestLock()
+    await vi.advanceTimersByTimeAsync(2 * LOCK_RETRY_MS)
+    expect(calls()).toBe(2)
+    input.requestLock() // another click
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls()).toBe(3)
+    input.listening = false // an overlay opened meanwhile
+    await vi.advanceTimersByTimeAsync(2 * LOCK_RETRY_MS)
+    expect(calls()).toBe(3)
+  })
+})
+
