@@ -20,6 +20,7 @@ import { ROOM_IDS } from '@/sim/places'
 import { DEFAULT_KEYMAP, ORDER_STAGES, SIM_SPEEDS, type OrderStage, type PlayerMode, type SimEvent } from '@/sim/types'
 import { useWorld } from '@/sim/world.store'
 import { dayStatsTracker } from './dayStats'
+import { presentActive, usePresentation } from './present/presentation.store'
 import { useJump } from './jump.store'
 import { fillCopy, L1_COPY } from './l1Copy'
 import { installLevelKey } from './levelKey'
@@ -29,6 +30,7 @@ import { SkipChip } from './skip/SkipChip'
 import { SkipRow, skipByKey } from './skip/SkipControl'
 import { usePoll } from './usePoll'
 import { useHudPrefs } from './walk/hudPrefs.store'
+import { REALISM_KEY, useRealism } from './walk/realism.store'
 import { Minimap } from './walk/Minimap'
 import { useRx } from './walk/rx.store'
 import { activatesOnSpace, isTyping } from './walk/typing'
@@ -56,6 +58,8 @@ function useHotkeys(onPrescribe: () => void): void {
     const km = DEFAULT_KEYMAP
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
+      // presentation mode (C): no game UI, so the keys that open some (the tablet, the Jump menu, the skip, H, R) are not heard; Space and the speeds still are
+      if (presentActive() && (e.code === km.prescribe || e.code === km.jump || e.code === km.skip || e.code === km.cleanScreen || e.code === REALISM_KEY)) return
       switch (e.code) {
         case km.pause:
           if (activatesOnSpace(e.target)) return
@@ -87,6 +91,9 @@ function useHotkeys(onPrescribe: () => void): void {
           break
         case km.jump:
           useJump.getState().toggle()
+          break
+        case REALISM_KEY:
+          useRealism.getState().toggle(useWalk.getState().mode)
           break
         case km.cleanScreen:
           useHudPrefs.getState().toggle()
@@ -501,7 +508,9 @@ export function HudView({ mode, hidden, rxOpen, rxRoom, rxRequest, onToggleRx, o
 export function Hud() {
   const rx = useRx()
   const mode = useWalk((s) => s.mode)
-  const hidden = useHudPrefs((s) => s.hidden)
+  // presentation mode holds the whole HUD hidden, whatever H and the tablet say (`useRx.openFor` un-hides H)
+  const presenting = usePresentation((s) => s.on)
+  const hidden = useHudPrefs((s) => s.hidden) || presenting
   const toggleRx = useCallback(() => useRx.getState().toggle(), [])
   const closeRx = useCallback(() => useRx.getState().close(), [])
   useHotkeys(toggleRx)

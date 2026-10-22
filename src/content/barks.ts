@@ -41,6 +41,10 @@ export const TALK_FIELDS = {
   'er.waitingTriage': [],
   'er.triage': [],
   'er.waitingDoctor': [],
+  // priority 1-2: unwell, short of breath, never cheerful (see urgentTalkKey)
+  'er.urgent.waiting': [],
+  'er.urgent.inBay': [],
+  'er.urgent.tests': [],
   'er.inBay': [],
   'er.exam': [],
   'er.bloodTest': [],
@@ -245,4 +249,21 @@ export function helloFor(hour: number): string {
 /** The event-line sentence for `talkedTo` ("You spoke with {name}."). */
 export function barkEvent(type: BarkEventType, fields: Readonly<Record<string, string | number>>): string {
   return fillBark(BARKS.events[type], fields)
+}
+
+/** Priority 1 and 2 patients are very unwell: they never chat cheerfully. */
+export const URGENT_ACUITY = 2
+
+/** The talk situation for an ER patient of this acuity: the urgent variant for priority 1-2 (waiting, in the bay, waiting for tests), else `key`. */
+export function urgentTalkKey(key: TalkKey, acuity: number): TalkKey {
+  if (acuity > URGENT_ACUITY) return key
+  if (key === 'er.waitingTriage' || key === 'er.waitingDoctor' || key === 'er.checkIn' || key === 'er.arriving') return 'er.urgent.waiting'
+  if (key === 'er.inBay' || key === 'er.exam') return 'er.urgent.inBay'
+  if (key === 'er.bloodTest' || key === 'er.bloodResults' || key === 'er.scanWaiting' || key === 'er.scanResults') return 'er.urgent.tests'
+  return key
+}
+
+/** Do patients of this acuity greet the doctor back? Priority 1 never, priority 2 never; others as before. */
+export function greetsBack(acuity: number): boolean {
+  return acuity > URGENT_ACUITY
 }

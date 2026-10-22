@@ -11,7 +11,12 @@
     "typecheck": "tsc --noEmit",
     "fetch-assets": "node tools/fetch-assets.mjs",
     "convert-people": "node --import tsx tools/convert-people.mjs",
-    "test": "vitest run --maxWorkers=2"
+    "test": "vitest run --maxWorkers=2",
+    "arch:plan": "tsx tools/arch/export-plan.ts",
+    "arch:bake": "mkdir -p assets-src/arch/out && ~/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P tools/arch/generate.py -- --plan assets-src/arch/plan.json --region pilot --bake assets-src/arch/out --export assets-src/arch/out/pilot-lobby.glb --bake-samples 128",
+    "arch:build": "node tools/arch/optimize.mjs",
+    "arch:pilot": "npm run arch:plan && npm run arch:bake && npm run arch:build",
+    "copy-basis": "node tools/copy-basis.mjs"
   },
   "dependencies": {
     "@react-three/drei": "10.7.9",

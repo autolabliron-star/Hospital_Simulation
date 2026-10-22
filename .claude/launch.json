@@ -4,14 +4,56 @@
     {
       "name": "hospital-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "hospital-snapshot",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "preview", "--outDir", "/private/tmp/claude-501/hospital-snapshot", "--host", "127.0.0.1", "--port", "5174", "--strictPort"],
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--outDir",
+        "/private/tmp/claude-501/hospital-snapshot",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
       "port": 5174
+    },
+    {
+      "name": "hospital-before",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--outDir",
+        "/private/tmp/claude-501/hospital-before",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181
+    },
+    {
+      "name": "hospital-dev-r3imaging",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5181",
+        "--strictPort",
+        "--host",
+        "127.0.0.1"
+      ],
+      "port": 5181
     }
   ]
 }

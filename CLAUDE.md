@@ -12,9 +12,14 @@ Read `docs/PLAN.md` first. Build with the `living-3d-world` skill (`~/.claude/sk
 7. No allocations inside `useFrame` (no `new Vector3`, `Color`, arrays or closures).
 
 ## Performance budget (the live demo must never stutter)
-- At the default view, shadow passes included: ≤300 draw calls, ≤1.2 M triangles, ≤12 ms per frame. Measure with `?probe=1`.
-- Geometry is procedural, instanced or merged, with about 20 shared materials. No runtime downloads and no CDN: the demo runs offline.
-- The building shadow is baked once; people and pods get blob shadows. Use emissive panels instead of real lights.
+- At the default view, shadow passes included: ≤300 draw calls, ≤1.2 M triangles, ≤12 ms per frame on the laptop. Measure with `?probe=1`.
+- The target headset is Meta Quest 3 (WebXR; docs/../plan Wave 6): every asset added from now on fits its budget too: 72 Hz (90 recommended),
+  13.8 ms a frame, < 200 draw calls (stereo, multiview where possible), < 1.5 M triangles, about 250 MB of GPU texture memory.
+- Geometry is procedural OR authored (Blender-made architecture, furniture and devices), always instanced or merged with few materials. Authored
+  assets come only through the pinned gate in `docs/ASSETS-POLICY.md` (CC0 textures, our own Blender output), ship as glTF with meshopt
+  geometry and KTX2 textures, and load behind the warm-up gate. No runtime downloads and no CDN: the demo runs offline.
+- Static architecture gets its light baked offline (Blender Cycles lightmaps); the building shadow for live objects is baked once; people and
+  pods get blob shadows. Use emissive panels instead of real lights.
 - Canvas screens redraw only when their content changes (≤2 Hz).
 
 ## Content and data

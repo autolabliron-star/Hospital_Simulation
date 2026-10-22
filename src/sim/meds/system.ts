@@ -10,7 +10,7 @@
  * nurses, pharmacists) are driven by the Simulation and call in through `prescribe`, `dueDrawers`, `claim`
  * and `give`. Every transition writes one SimEvent with a plain sentence.
  */
-import { medicineById, patientInRoom } from '@/content/catalogue'
+import { medicineById, minDoseGapSeconds, patientInRoom } from '@/content/catalogue'
 import { CONFIG } from '../config'
 import type { EventLog } from '../events'
 import { ROOMS, roomById } from '../places'
@@ -75,6 +75,8 @@ export class MedSystem {
   private readonly green = new Map<string, number>()
   private readonly claims = new Map<RoomId, string>()
   private occupancy: Occupancy | null = null
+  /** Every order written for a patient (the dose ledger: no duplicate pending order, no dose inside the dosing interval). */
+  private readonly byPatient = new Map<string, Order[]>()
   /** The patient's name at the time each order was written (the bed may hold somebody else by the time it is delivered). */
   private readonly patientNames = new Map<string, string>()
 
@@ -151,12 +153,20 @@ export class MedSystem {
     const patient = this.occupant(room.id)
     if (patient === null) return { ok: false, reason: `Room ${room.id} has no patient in it right now.` }
     const doseAt = input.doseAt ?? (input.source === 'presenter' ? this.now : this.now + CONFIG.orders.roundDoseDelaySeconds)
+    const history = this.byPatient.get(patient.id)
+    let items = input.items
+    // Wave 1: the doctors' orders and the dose waves never duplicate a medicine that is pending for the patient, nor give one
+    // inside its dosing interval. The presenter's own orders and the take-home supply are not held back.
+    if (input.source === 'sim' || input.source === 'schedule') {
+      items = input.items.filter((it) => !this.dosedRecently(history, it.medId, doseAt))
+      if (items.length === 0) return { ok: false, reason: 'Already ordered or given recently.' }
+    }
     const order: Order = {
       id: `ord-${++this.orderSeq}`,
       ward: room.ward,
       roomId: room.id,
       patientId: patient.id,
-      items: input.items.map((i) => ({ ...i })),
+      items: items.map((i) => ({ ...i })),
       prescriberId: input.prescriberId,
       source: input.source,
       createdAt: this.now,
@@ -165,8 +175,12 @@ export class MedSystem {
       stageAt: { prescribed: this.now },
     }
     this.orders.set(order.id, order)
+    if (history) history.push(order)
+    else this.byPatient.set(patient.id, [order])
     this.patientNames.set(order.id, patient.name)
-    this.verifyQueue[room.ward].push(order)
+    // the presenter's own order is checked before the ward's scheduled backlog (a dose wave of sixteen orders must not hold it up)
+    if (input.source === 'presenter') this.verifyQueue[room.ward].unshift(order)
+    else this.verifyQueue[room.ward].push(order)
     const who = input.source === 'presenter' ? 'You' : this.staff.name(input.prescriberId)
     const text =
       input.source === 'presenter'
@@ -176,6 +190,25 @@ export class MedSystem {
           : `${who} prescribed ${plural(order.items.length, 'medicine')} for ${patient.name} in ${room.id}.`
     this.log.push(this.now, 'orderCreated', text, { orderId: order.id, roomId: room.id, actorId: input.prescriberId })
     return { ok: true, order }
+  }
+
+  /** Would a doctor's or scheduled order for this medicine in this room be held back now (pending, or inside its dosing interval)? */
+  pendingFor(roomId: RoomId, medId: string): boolean {
+    const p = this.occupant(roomId)
+    if (!p) return true
+    return this.dosedRecently(this.byPatient.get(p.id), medId, this.now + CONFIG.orders.roundDoseDelaySeconds)
+  }
+
+  /** Was this medicine ordered for the patient, not yet given, or due within its dosing interval of `doseAt`? */
+  private dosedRecently(history: Order[] | undefined, medId: string, doseAt: number): boolean {
+    if (!history) return false
+    const gap = minDoseGapSeconds(medId) - 60
+    for (const o of history) {
+      if (o.cancelledAt !== undefined || o.source === 'discharge') continue
+      if (!o.items.some((i) => i.medId === medId)) continue
+      if (o.stage !== 'given' || Math.abs(o.doseAt - doseAt) < gap) return true
+    }
+    return false
   }
 
   /** Loaded drawers whose dose is due soon and that no nurse has claimed yet, most urgent first. */
@@ -279,7 +312,8 @@ export class MedSystem {
       return
     }
     this.setStage(o, 'verified')
-    this.readyQueue[w].push(o)
+    if (o.source === 'presenter') this.readyQueue[w].unshift(o)
+    else this.readyQueue[w].push(o)
     this.log.push(this.now, 'orderVerified', `${this.staff.name(this.pharmacist[w])} verified the order for ${o.roomId}.`, {
       orderId: o.id,
       roomId: o.roomId,

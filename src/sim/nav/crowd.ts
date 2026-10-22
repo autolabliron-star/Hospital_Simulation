@@ -35,6 +35,12 @@
  *     (`nearestWalkable`), so nobody is pushed into a wall or furniture.
  * A walker blocked for 4 s ignores the others for 2.5 s (last resort: no jam can last).
  *
+ * Vehicles (Wave 1). A person pushing a stretcher, wheelchair or cart carries its real footprint (places.ts VEHICLE_HALF, centred
+ * VEHICLE_AHEAD in front of them, along their heading) as a row of discs (`setFootprint`). Each disc is a "satellite" slot in the same
+ * arrays, owned by the pusher and moved with it, so every other walker avoids the vehicle like any body. The pusher itself looks
+ * ahead from each disc (the same look-ahead, side-step and hard rules, with the disc as the body), so the vehicle stops short of people and
+ * is never driven through them. A pusher ignores its own discs. A vehicle's discs are 3 cm wider than its box (the box's corners are inside); a pusher brakes for something only when its discs would really touch it (the others' 8 cm / 2 cm bands are for people).
+ *
  * Cost: allocation-free in `step`; all state is in typed arrays and fields. See crowd.test.ts for the measured cost.
  */
 import { DOORS } from '../places'
@@ -89,6 +95,8 @@ const SETTLE_MAX = 1.5
 /** A walker blocked this long ignores the others for GHOST_TIME. */
 const BLOCKED_AFTER = 4
 const GHOST_TIME = 2.5
+/** A pusher whose vehicle is held up this long (s) squeezes past: a stretcher must not stand in a doorway (nobody idles in a pinch). */
+const BLOCKED_AFTER_VEHICLE = 1.5
 /** A walker yielding at a door this long goes through anyway for DOOR_GRACE. */
 const YIELD_AFTER = 5
 const DOOR_GRACE = 3
@@ -102,6 +110,22 @@ const COLS = 120
 const ROWS = 35
 
 const MAX_NEIGHBOURS = 24
+/** A pusher with a vehicle looks at more bodies (its discs reach up to 2.5 m ahead). */
+const MAX_NEIGHBOURS_VEHICLE = 64
+/** Vehicle discs are this much wider than the box they cover (m). */
+const DISC_EXTRA = 0.03
+/**
+ * A pusher stops looking ahead from its vehicle's discs (and stops vetoing steps for them) in the last metre of its route, where the vehicle
+ * is being parked at a bed or bay beside the staff who work there, and while it is ghosting (blocked for 4 s). Everyone else still avoids the
+ * vehicle. Without this a nurse standing where the stretcher must go would hold the porter for ever.
+ */
+const PARK_DIST = 1.2
+/**
+ * In the last NEAR_END metres of its route a pusher's vehicle gives way to people on the move only: whoever stands there (the staff of a
+ * bay, a theatre or a ward room, who work around the place the vehicle is going) is not an obstacle for it. Further out, in corridors and
+ * halls, a person standing in the way is avoided like any body.
+ */
+const NEAR_END = 5
 
 // ---------------------------------------------------------------------------------------------
 // Static data: single-file doors, halls
@@ -182,6 +206,8 @@ export class Crowd {
   act = new Uint8Array(0)
   stat = new Uint8Array(0)
   sstat = new Uint8Array(0)
+  /** For a vehicle disc, the slot of the pusher that owns it; -1 for a person. */
+  owner = new Int32Array(0)
   /** Single-file door negotiation: the door a walker is heading through (-1: none), its direction, and its priority key. */
   gDoor = new Int16Array(0)
   gSign = new Int8Array(0)
@@ -232,6 +258,15 @@ export class Crowd {
     this.rad[slot] = radius
     this.gDoor[slot] = -1
     this.cellOf[slot] = -1
+    this.owner[slot] = -1
+    return slot
+  }
+
+  /** A vehicle disc that belongs to the walker in slot `owner` (it moves with it; the owner ignores it). */
+  registerDisc(owner: number, x: number, z: number, radius: number): number {
+    const slot = this.register(null as unknown as CrowdWalker, x, z, radius)
+    this.walkers[slot] = null
+    this.owner[slot] = owner
     return slot
   }
 
@@ -239,6 +274,7 @@ export class Crowd {
     if (!this.act[slot]) return
     this.act[slot] = 0
     this.gDoor[slot] = -1
+    this.owner[slot] = -1
     this.walkers[slot] = null
     this.freeSlots.push(slot)
   }
@@ -276,6 +312,9 @@ export class Crowd {
     const c = new Int32Array(cap).fill(-1)
     c.set(this.cellOf)
     this.cellOf = c
+    const o = new Int32Array(cap).fill(-1)
+    o.set(this.owner)
+    this.owner = o
     this.cellItems = new Int32Array(cap)
     this.cap = cap
   }
@@ -384,7 +423,16 @@ export class CrowdWalker implements Walker {
   private pushZ = 0
   private vLim = 1e9
   private nbN = 0
-  private readonly nb = new Int32Array(MAX_NEIGHBOURS)
+  private nb = new Int32Array(MAX_NEIGHBOURS)
+  /** Vehicle footprint: the distances ahead of the body (along the heading) of its discs, their radius, and their crowd slots. Null: none. */
+  private discAt: Float64Array | null = null
+  private discR = 0
+  private discSlots: Int32Array | null = null
+  /** The heading's sine and cosine for this step (vehicle discs lie along it), and the origin of the scan under way. */
+  private sinH = 0
+  private cosH = 1
+  private scanX = 0
+  private scanZ = 0
   private blockedT = 0
   private settleT = 0
   private ghostUntil = -1
@@ -468,6 +516,7 @@ export class CrowdWalker implements Walker {
 
   face(heading: number): void {
     this.f.heading = heading
+    if (this.discSlots !== null) this.publishDiscs()
   }
 
   /** Mark a standing or seated person as a fixed obstacle (a walker with no route is one anyway). `goTo` clears it. */
@@ -481,9 +530,43 @@ export class CrowdWalker implements Walker {
     if (this.crowd) this.crowd.rad[this.slot] = r
   }
 
+  /**
+   * Carry a vehicle (or put it down: null): a box `halfWidth` x `halfLength` (half extents across and along the heading) centred `ahead`
+   * in front of the body. It becomes a row of discs that the others avoid, and this walker looks ahead from. Not for use in a step.
+   */
+  setFootprint(f: { ahead: number; halfWidth: number; halfLength: number } | null): void {
+    const crowd = this.crowd
+    if (crowd === null) return
+    if (this.discSlots !== null) {
+      for (let i = 0; i < this.discSlots.length; i++) crowd.unregister(this.discSlots[i])
+      this.discSlots = null
+      this.discAt = null
+    }
+    this.nb = new Int32Array(f === null ? MAX_NEIGHBOURS : MAX_NEIGHBOURS_VEHICLE)
+    if (f === null) return
+    const r = f.halfWidth + DISC_EXTRA
+    // (the end discs sit far enough in that the box's corners are inside them)
+    const inset = Math.max(0, Math.sqrt(Math.max(0, r * r - f.halfWidth * f.halfWidth)) - 0.005)
+    const first = f.ahead - f.halfLength + inset
+    const last = f.ahead + f.halfLength - inset
+    const maxStep = 2 * Math.sqrt(Math.max(1e-4, r * r - f.halfWidth * f.halfWidth)) * 0.95
+    const n = last > first ? Math.ceil((last - first) / maxStep) + 1 : 1
+    const at = new Float64Array(n)
+    const slots = new Int32Array(n)
+    for (let i = 0; i < n; i++) {
+      at[i] = n === 1 ? f.ahead : first + ((last - first) * i) / (n - 1)
+      slots[i] = crowd.registerDisc(this.slot, this.bx, this.bz, r)
+    }
+    this.discAt = at
+    this.discSlots = slots
+    this.discR = r
+    this.publishDiscs()
+  }
+
   /** Leave the crowd (a person who walks out of the building). The walker keeps working on its own. */
   remove(): void {
     if (!this.crowd) return
+    this.setFootprint(null)
     this.crowd.unregister(this.slot)
     this.crowd = null
     this.gate = -1
@@ -532,6 +615,7 @@ export class CrowdWalker implements Walker {
     this.sideSeen = false
     this.sideStill = false
     const ghost = this.clock < this.ghostUntil
+    if (this.discAt !== null) this.setHeadingTrig(f.heading)
     this.scan(crowd, dirX, dirZ, rem, ghost)
     if (!this.sideSeen) this.sideObs = -1
     this.doorNegotiation(crowd, f.x, f.z)
@@ -574,7 +658,7 @@ export class CrowdWalker implements Walker {
     if (this.vLim < cruise) cruise = this.vLim
     if (speed > 0 && this.vLim < 0.05) {
       this.blockedT += dt
-      if (this.blockedT > BLOCKED_AFTER) {
+      if (this.blockedT > (this.discAt !== null ? BLOCKED_AFTER_VEHICLE : BLOCKED_AFTER)) {
         this.ghostUntil = this.clock + GHOST_TIME
         this.blockedT = 0
         crowd.blockedFallbacks++
@@ -586,6 +670,7 @@ export class CrowdWalker implements Walker {
     const oldZ = this.bz
     f.save()
     const st = f.step(dt, cruise)
+    if (this.discAt !== null) this.setHeadingTrig(f.heading)
     const olx = this.lx
     const olz = this.lz
     const oax = this.ax
@@ -605,7 +690,7 @@ export class CrowdWalker implements Walker {
       this.bx = oldX
       this.bz = oldZ
       this.blockedT += dt
-      if (this.blockedT > BLOCKED_AFTER) {
+      if (this.blockedT > (this.discAt !== null ? BLOCKED_AFTER_VEHICLE : BLOCKED_AFTER)) {
         this.ghostUntil = this.clock + GHOST_TIME
         this.blockedT = 0
         crowd.blockedFallbacks++
@@ -665,25 +750,50 @@ export class CrowdWalker implements Walker {
   /** The neighbours within reach, for the hard separation (a walker with no route does not run the full scan). */
   private gather(crowd: Crowd): void {
     this.nbN = 0
+    this.gatherAt(crowd, this.bx, this.bz)
+    const at = this.discAt
+    if (at !== null) {
+      this.setHeadingTrig(this.f.heading)
+      for (let k = 0; k < at.length; k++) this.gatherAt(crowd, this.bx + this.sinH * at[k], this.bz + this.cosH * at[k])
+    }
+  }
+
+  private gatherAt(crowd: Crowd, ox: number, oz: number): void {
     const slot = this.slot
-    let cx = Math.floor((this.bx - GX0) / CELL)
-    let cz = Math.floor((this.bz - GZ0) / CELL)
+    let cx = Math.floor((ox - GX0) / CELL)
+    let cz = Math.floor((oz - GZ0) / CELL)
     if (cx < 0) cx = 0
     else if (cx >= COLS) cx = COLS - 1
     if (cz < 0) cz = 0
     else if (cz >= ROWS) cz = ROWS - 1
+    const cap = this.nb.length
     for (let r = Math.max(0, cz - 1); r <= Math.min(ROWS - 1, cz + 1); r++) {
       for (let c = Math.max(0, cx - 1); c <= Math.min(COLS - 1, cx + 1); c++) {
         const cell = r * COLS + c
         for (let k = crowd.cellStart[cell], end = crowd.cellStart[cell + 1]; k < end; k++) {
           const j = crowd.items[k]
-          if (j === slot || crowd.act[j] === 0 || this.nbN >= MAX_NEIGHBOURS) continue
-          const dx = crowd.sx[j] - this.bx
-          const dz = crowd.sz[j] - this.bz
-          if (dx * dx + dz * dz <= INTERACT * INTERACT) this.nb[this.nbN++] = j
+          if (j === slot || crowd.act[j] === 0 || crowd.owner[j] === slot || this.nbN >= cap) continue
+          const dx = crowd.sx[j] - ox
+          const dz = crowd.sz[j] - oz
+          if (dx * dx + dz * dz <= INTERACT * INTERACT && (this.discAt === null || !this.hasNb(j))) this.nb[this.nbN++] = j
         }
       }
     }
+  }
+
+  /** Do the vehicle's discs count for this walker's own movement now? (Not while parking or ghosting: see PARK_DIST.) */
+  private discsActive(ghost: boolean): boolean {
+    return this.discAt !== null && !ghost && this.f.remaining > PARK_DIST
+  }
+
+  private hasNb(j: number): boolean {
+    for (let i = 0; i < this.nbN; i++) if (this.nb[i] === j) return true
+    return false
+  }
+
+  private setHeadingTrig(h: number): void {
+    this.sinH = Math.sin(h)
+    this.cosH = Math.cos(h)
   }
 
   // --- cheap periodic work: what offset is allowed here, and is a single-file door ahead --------
@@ -827,12 +937,18 @@ export class CrowdWalker implements Walker {
   // --- the neighbours -------------------------------------------------------------------------
 
   private scan(crowd: Crowd, dirX: number, dirZ: number, rem: number, ghost: boolean): void {
+    this.scanAt(crowd, this.bx, this.bz, this.radius, dirX, dirZ, rem, ghost)
+    const at = this.discsActive(ghost) ? this.discAt : null
+    // a vehicle: the same look-ahead from each of its discs (the discs are the body there)
+    if (at !== null) for (let k = 0; k < at.length; k++) this.scanAt(crowd, this.bx + this.sinH * at[k], this.bz + this.cosH * at[k], this.discR, dirX, dirZ, rem, ghost, true)
+  }
+
+  private scanAt(crowd: Crowd, bx: number, bz: number, myR: number, dirX: number, dirZ: number, rem: number, ghost: boolean, probe = false): void {
     const rX = -dirZ
     const rZ = dirX
     const slot = this.slot
-    const bx = this.bx
-    const bz = this.bz
-    const myR = this.radius
+    this.scanX = bx
+    this.scanZ = bz
     let cx = Math.floor((bx - GX0) / CELL)
     let cz = Math.floor((bz - GZ0) / CELL)
     if (cx < 0) cx = 0
@@ -857,13 +973,14 @@ export class CrowdWalker implements Walker {
         const cell = r * COLS + c
         for (let k = start[cell], end = start[cell + 1]; k < end; k++) {
           const j = items[k]
-          if (j === slot || act[j] === 0) continue
+          if (j === slot || act[j] === 0 || crowd.owner[j] === slot) continue
+          if (probe && sstat[j] === 1 && rem < NEAR_END) continue
           const dx = sx[j] - bx
           const dz = sz[j] - bz
           const d2 = dx * dx + dz * dz
           if (d2 > INTERACT * INTERACT) continue
           const d = Math.sqrt(d2)
-          if (this.nbN < MAX_NEIGHBOURS) this.nb[this.nbN++] = j
+          if (this.nbN < this.nb.length && (this.discAt === null || !this.hasNb(j))) this.nb[this.nbN++] = j
           const sumR = myR + rad[j]
           const isStatic = sstat[j] === 1
 
@@ -912,7 +1029,7 @@ export class CrowdWalker implements Walker {
                 this.pushZ += rZ * k2
               }
             }
-            if (!ghost && al < (isStatic ? sumR + 0.08 : sumR + 0.02)) {
+            if (!ghost && al < (probe ? sumR - 0.06 : isStatic ? sumR + 0.08 : sumR + 0.02)) {
               // two movers who have both stopped for each other: the lower slot goes on (the hard separation keeps them
               // apart as they pass), the other waits. Otherwise both would stand there until the ghost rule broke them up.
               const mutual = !isStatic && j > slot && svx[j] * svx[j] + svz[j] * svz[j] < 0.0225
@@ -936,8 +1053,8 @@ export class CrowdWalker implements Walker {
     if (this.sideObs === j) return this.sideDir
     const reach = need + 0.05
     // (where it passes them: `fwd` ahead along the direction of travel, which is (rZ, -rX))
-    const qx = this.bx + rZ * fwd
-    const qz = this.bz - rX * fwd
+    const qx = this.scanX + rZ * fwd
+    const qz = this.scanZ - rX * fwd
     const rightOk = placeOk(qx + rX * reach, qz + rZ * reach)
     const leftOk = placeOk(qx - rX * reach, qz - rZ * reach)
     let side = al < 0.06 ? 1 : lr > 0 ? -1 : 1
@@ -1041,7 +1158,7 @@ export class CrowdWalker implements Walker {
         const cell = r * COLS + c
         for (let k = start[cell], end = start[cell + 1]; k < end; k++) {
           const j = items[k]
-          if (j === this.slot || crowd.act[j] === 0 || crowd.sstat[j] === 1) continue
+          if (j === this.slot || crowd.act[j] === 0 || crowd.sstat[j] === 1 || crowd.owner[j] === this.slot) continue
           if (crowd.gDoor[j] === this.gate && crowd.gSign[j] !== sign) continue
           const rx = crowd.sx[j] - g.cx
           const rz = crowd.sz[j] - g.cz
@@ -1060,19 +1177,26 @@ export class CrowdWalker implements Walker {
   /** Body = path point + offsets, pulled back to a legal place. Corrections are absorbed into the avoidance displacement. */
   /** Would the move from (oldX, oldZ) to the new body leave it closer than touching to someone, and closer than before? */
   private wouldCrowd(crowd: Crowd, oldX: number, oldZ: number, dt: number): boolean {
+    const at = this.discAt
+    const nd = at === null || !this.discsActive(this.clock < this.ghostUntil) ? 0 : at.length
     for (let i = 0; i < this.nbN; i++) {
       const j = this.nb[i]
-      const min = this.radius + crowd.rad[j] - VETO_SLACK
       // where the other will be after this step too, if it keeps its velocity
       const jx = crowd.sx[j] + crowd.svx[j] * dt
       const jz = crowd.sz[j] + crowd.svz[j] * dt
-      const nx = jx - this.bx
-      const nz = jz - this.bz
-      const dNew2 = nx * nx + nz * nz
-      if (dNew2 >= min * min) continue
-      const ox = crowd.sx[j] - oldX
-      const oz = crowd.sz[j] - oldZ
-      if (dNew2 < ox * ox + oz * oz - 1e-6) return true
+      // the body (k = -1), then each disc of a vehicle
+      for (let k = -1; k < nd; k++) {
+        if (k >= 0 && crowd.sstat[j] === 1 && this.f.remaining < NEAR_END) continue
+        const a = k < 0 ? 0 : at![k]
+        const min = (k < 0 ? this.radius : this.discR) + crowd.rad[j] - VETO_SLACK
+        const nx = jx - (this.bx + this.sinH * a)
+        const nz = jz - (this.bz + this.cosH * a)
+        const dNew2 = nx * nx + nz * nz
+        if (dNew2 >= min * min) continue
+        const ox = crowd.sx[j] - (oldX + this.sinH * a)
+        const oz = crowd.sz[j] - (oldZ + this.cosH * a)
+        if (dNew2 < ox * ox + oz * oz - 1e-6) return true
+      }
     }
     return false
   }
@@ -1111,6 +1235,30 @@ export class CrowdWalker implements Walker {
             this.slideRound(crowd.sx[j], crowd.sz[j], min, -dx / d, -dz / d, x, z)
             x = this.slX
             z = this.slZ
+          }
+        }
+      }
+      // a vehicle's discs: the same hard rule, the body moving to clear them (not into a wall)
+      const at = this.discAt
+      if (at !== null && this.discsActive(this.clock < this.ghostUntil)) {
+        for (let i = 0; i < this.nbN; i++) {
+          const j = this.nb[i]
+          if (crowd.sstat[j] === 1 && this.f.remaining < NEAR_END) continue
+          for (let k = 0; k < at.length; k++) {
+            const dx = crowd.sx[j] - (x + this.sinH * at[k])
+            const dz = crowd.sz[j] - (z + this.cosH * at[k])
+            const min = this.discR + crowd.rad[j] - HARD_SLACK
+            const d2 = dx * dx + dz * dz
+            if (d2 >= min * min) continue
+            const d = Math.sqrt(d2)
+            if (d <= 1e-4) continue
+            const w = (crowd.sstat[j] === 1 || pass > 0 ? 1 : 0.5) * (min - d)
+            const nx = x - (dx / d) * w
+            const nz = z - (dz / d) * w
+            if (isWalkable(nx, nz, BODY_MARGIN)) {
+              x = nx
+              z = nz
+            }
           }
         }
       }
@@ -1164,6 +1312,26 @@ export class CrowdWalker implements Walker {
     const moving = this.f.active && !this.forcedStatic
     c.stat[this.slot] = moving ? 0 : 1
     this.publishVelocity(moving ? this.f.speed : 0)
+    if (this.discSlots !== null) this.publishDiscs()
+  }
+
+  /** Move the vehicle's discs with the body: along the heading, with the walker's velocity and standing/moving state. */
+  private publishDiscs(): void {
+    const c = this.crowd
+    const slots = this.discSlots
+    const at = this.discAt
+    if (c === null || slots === null || at === null) return
+    this.setHeadingTrig(this.f.heading)
+    const moving = this.f.active && !this.forcedStatic
+    const v = moving ? this.f.speed : 0
+    for (let k = 0; k < slots.length; k++) {
+      const s = slots[k]
+      c.px[s] = this.bx + this.sinH * at[k]
+      c.pz[s] = this.bz + this.cosH * at[k]
+      c.vx[s] = this.dirX * v
+      c.vz[s] = this.dirZ * v
+      c.stat[s] = moving ? 0 : 1
+    }
   }
 
   private publishVelocity(v: number): void {

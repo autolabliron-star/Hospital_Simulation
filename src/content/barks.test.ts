@@ -13,6 +13,8 @@ import {
   placeholdersOf,
   talkLines,
   timeOfDay,
+  urgentTalkKey,
+  greetsBack,
   wordCount,
 } from './barks'
 import { PATIENTS } from './catalogue'
@@ -93,5 +95,25 @@ describe('barks.json (W1: what people say to you)', () => {
     expect(timeOfDay(23)).toBe('night')
     expect(helloFor(8)).toBe('Morning')
     expect(helloFor(23)).toBe('Hello')
+  })
+
+  it('priority 1-2 patients are never cheerful: urgent variants by acuity, and they do not greet back', () => {
+    // the cheerful lines of the ordinary situations
+    const cheerful = /\b(kind|comfortable|lovely|wonderful|great|happy|fine|nicely|thank you so much)\b|!/i
+    for (const key of ['er.urgent.waiting', 'er.urgent.inBay', 'er.urgent.tests'] as const) {
+      for (const line of talkLines(key)) expect(line, `${key}: ${line}`).not.toMatch(cheerful)
+    }
+    for (const key of ['er.arriving', 'er.checkIn', 'er.waitingTriage', 'er.waitingDoctor'] as const) {
+      expect(urgentTalkKey(key, 1)).toBe('er.urgent.waiting')
+      expect(urgentTalkKey(key, 2)).toBe('er.urgent.waiting')
+      expect(urgentTalkKey(key, 3)).toBe(key)
+    }
+    expect(urgentTalkKey('er.inBay', 2)).toBe('er.urgent.inBay')
+    expect(urgentTalkKey('er.bloodResults', 1)).toBe('er.urgent.tests')
+    expect(urgentTalkKey('er.leavingHome', 1)).toBe('er.leavingHome')
+    expect(urgentTalkKey('er.inBay', 5)).toBe('er.inBay')
+    expect(greetsBack(1)).toBe(false)
+    expect(greetsBack(2)).toBe(false)
+    expect(greetsBack(4)).toBe(true)
   })
 })

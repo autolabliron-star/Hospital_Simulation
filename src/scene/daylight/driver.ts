@@ -30,15 +30,18 @@ import {
   ENV_SWAP_AT,
   ENV_SWAP_BAND,
   HOSPITAL_ENV_MATCH,
+  LOBBY_ENV_MATCH,
   PANEL_COLOR,
   PANEL_NIGHT_COLOR,
   PANEL_WARMTH,
   SKY_MIN,
+  TONE_EXPOSURE_SCALE,
   VIGNETTE_DARKNESS,
   createLook,
   lookAt,
   type Look,
 } from '@/scene/lighting/look'
+import { skyUniforms } from '@/scene/lighting/env/skyUniforms'
 import { lvUniforms } from '@/scene/lighting/volume/uniforms'
 import { setScreenLevel } from './dim'
 import { INDOOR_SECONDS } from './indoor'
@@ -53,6 +56,12 @@ export interface DayTargets {
   glass: MeshStandardMaterial
   /** The teal glow of the in-room panels and sensors. */
   panels: MeshStandardMaterial
+  /** Realism mode: the ceiling sensor disc (teal glow normally; a plain white puck when `realism` is on). Optional. */
+  sensor?: MeshStandardMaterial
+  /** Realism mode in effect (walk mode, by default): the panels glow at `glowTone` of their intensity and the sensor disc goes white. */
+  realism?: boolean
+  /** The fraction of the panels' intensity kept while `realism` is on. */
+  glowTone?: number
   /** The warm glow of the bedside lamps. */
   lamps: MeshStandardMaterial
   /** The corridor night lights: a basic material whose colour is the level, and whether they are lit at all (see `setLit`). */
@@ -65,6 +74,8 @@ export interface DayTargets {
   ceilingEmissive?: number
   /** W3: the quality ladder is on its effects-lite rung (no floor reflection). */
   fxLite?: boolean
+  /** The camera is in the pilot region of the authored lobby (`?building=model`) and its reflection probe is loaded: bind that environment (Lighting.tsx swaps it). */
+  lobbyEnv?: boolean
 }
 
 /** Seconds the lights take to catch up with a new target (an exponential follow). */
@@ -76,6 +87,8 @@ export const SNAP_HOURS = 0.5
 /** The night lights write no pixels below this level. */
 export const NIGHT_LIGHT_VISIBLE = 0.02
 
+/** The sensor disc in realism mode: the colour of the palette's white plastic. */
+const SENSOR_WHITE = new Color('#f5f6f6')
 const WARM_PANEL = new Color('#ffd7a3')
 const NIGHT_LIGHT_COLOR = new Color('#ffc886')
 /** The ceiling panels' light (W3) and the warm white it drifts toward at night, parsed once. */
@@ -106,7 +119,12 @@ export class DaylightDriver {
   private floorBase: number[] | null = null
   /** The environment bound now (decided with hysteresis around the swap point), and the effects rung last written. */
   private hospitalEnv = false
+  private lobbyEnv = false
   private appliedFxLite = false
+  private appliedRealism = false
+  private baseSensorColor: Color | null = null
+  private baseSensorIntensity = 0
+  private baseSensorEmissive: Color | null = null
   /** Frames on which something was written (for tests). */
   writes = 0
 
@@ -143,19 +161,25 @@ export class DaylightDriver {
     }
     // which environment is bound: the hospital's once the blend has crossed half way (a band of hysteresis, so a reversed flight never flickers)
     const wantHospital = this.wantsHospitalEnv()
+    const lobby = !!t.lobbyEnv && !this.flags.model && !this.flags.roomEnv
     const fxLite = !!t.fxLite
+    const realism = !!t.realism
     // once the lights have caught up there is nothing left to write
     if (
       !snap &&
       !this.pending &&
       this.indoor === this.appliedIndoor &&
       wantHospital === this.hospitalEnv &&
+      lobby === this.lobbyEnv &&
       fxLite === this.appliedFxLite &&
+      realism === this.appliedRealism &&
       maxDifference(this.current, this.applied) < 1e-5
     )
       return
     this.hospitalEnv = wantHospital
+    this.lobbyEnv = lobby
     this.appliedFxLite = fxLite
+    this.appliedRealism = realism
     this.apply(this.current, t)
     this.first = false
     this.pending = !t.sun || !t.hemi || !t.scene || !t.nightLights
@@ -183,7 +207,8 @@ export class DaylightDriver {
     if (t.hemi) t.hemi.intensity = l.hemiIntensity * look.hemi
     if (t.scene) {
       // the hospital's environment is a little dimmer overhead than RoomEnvironment: HOSPITAL_ENV_MATCH keeps the ambient continuous at the swap
-      t.scene.environmentIntensity = l.envIntensity * look.env * (this.hospitalEnv ? HOSPITAL_ENV_MATCH : 1)
+      // (the lobby's own probe, while the camera is in the authored lobby, has its own match; otherwise the hospital's or the room's)
+      t.scene.environmentIntensity = l.envIntensity * look.env * (this.lobbyEnv ? LOBBY_ENV_MATCH : this.hospitalEnv ? HOSPITAL_ENV_MATCH : 1)
       const bg = t.scene.background as Color | null
       if (bg && (bg as Color).isColor) bg.setRGB(l.sky[0], l.sky[1], l.sky[2], 'srgb')
     }
@@ -198,7 +223,25 @@ export class DaylightDriver {
     }
     t.panels.emissive.copy(this.baseTealEmissive)
     t.panels.emissive.lerp(tmp.copy(WARM_PANEL), l.panelWarmth * 0.6)
-    t.panels.emissiveIntensity = this.baseTealIntensity * l.panelDim
+    t.panels.emissiveIntensity = this.baseTealIntensity * l.panelDim * (t.realism ? (t.glowTone ?? 1) : 1)
+    // realism mode: the ceiling sensor disc is a plain white puck (colours and intensity only: no recompile)
+    const sensor = t.sensor
+    if (sensor) {
+      if (this.baseSensorColor === null) {
+        this.baseSensorColor = sensor.color.clone()
+        this.baseSensorEmissive = sensor.emissive.clone()
+        this.baseSensorIntensity = sensor.emissiveIntensity
+      }
+      if (t.realism) {
+        sensor.color.copy(SENSOR_WHITE)
+        sensor.emissive.copy(SENSOR_WHITE)
+        sensor.emissiveIntensity = 0
+      } else {
+        sensor.color.copy(this.baseSensorColor)
+        sensor.emissive.copy(this.baseSensorEmissive ?? this.baseSensorColor)
+        sensor.emissiveIntensity = this.baseSensorIntensity * l.panelDim
+      }
+    }
     t.lamps.emissiveIntensity = this.baseLampIntensity * l.lampLevel
     setScreenLevel(l.screens)
     const nl = t.nightLights
@@ -215,7 +258,8 @@ export class DaylightDriver {
    */
   private applyLook(l: DayLight, look: Look, t: DayTargets): void {
     const k = this.indoor
-    if (t.renderer) t.renderer.toneMappingExposure = look.exposure
+    // the exposure of the look, times the tone mapper's compensation (AgX needs a little more light than Neutral did: look.ts TONE_EXPOSURE_SCALE)
+    if (t.renderer) t.renderer.toneMappingExposure = look.exposure * TONE_EXPOSURE_SCALE
     if (t.floors) {
       const floors = t.floors
       const base = (this.floorBase ??= floors.map((f) => f.material.roughness))
@@ -239,6 +283,11 @@ export class DaylightDriver {
     // the effects read these once a frame and act when `version` moves (Effects.tsx)
     liveLook.blend = k
     liveLook.hospitalEnv = this.hospitalEnv
+    liveLook.lobbyEnv = this.lobbyEnv
+    // the sky dome (src/scene/lighting/env/SkyDome.tsx): the hour's sky colour, how much of it is day, and the indoor blend that fades the gradient in
+    skyUniforms.uSky.value.setRGB(l.sky[0], l.sky[1], l.sky[2], 'srgb')
+    skyUniforms.uDay.value = 1 - l.night
+    skyUniforms.uBlend.value = k
     liveLook.grade = look.grade
     liveLook.vignette = look.vignette * VIGNETTE_DARKNESS
     liveLook.version++

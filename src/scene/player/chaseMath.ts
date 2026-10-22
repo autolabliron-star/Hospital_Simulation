@@ -450,8 +450,8 @@ export function approach(value: number, target: number, step: number): number {
 }
 
 /** The camera's vertical field of view, degrees: the chase view, blended toward first person (0 to 1, as the camera blends it). */
-export function chaseFov(firstPerson: number): number {
-  return lerp(CHASE.fov, CHASE.firstPersonFov, smooth01(firstPerson))
+export function chaseFov(firstPerson: number, firstPersonFov: number = CHASE.firstPersonFov): number {
+  return lerp(CHASE.fov, firstPersonFov, smooth01(firstPerson))
 }
 
 /**

@@ -60,8 +60,8 @@ export type DischargeEvent =
   | { type: 'AT_EXIT' }
   | { type: 'OUT' }
 
-/** If the medicines or the family never come, the discharge moves on after this long (a safety net, not a behaviour). */
-export const FORCE_SECONDS = 1500
+/** If the medicines or the family never come, the discharge moves on after this long (a safety net, not a behaviour; the family come 30-90 minutes after the signature). */
+export const FORCE_SECONDS = 7200
 
 const enter = (state: DischargeState) => ({ type: 'enter' as const, params: { state } })
 

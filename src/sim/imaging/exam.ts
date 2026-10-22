@@ -63,6 +63,11 @@ export interface PlanOptions {
 
 const span = (r: Record<string, readonly [number, number]>, m: string): readonly [number, number] => r[m] ?? [0, 0]
 
+/** Is the pause after sequence `i` the wait between two contrast phases of a CT (arterial, then portal venous)? */
+export function isPhaseGap(exam: ImagingExam, i: number): boolean {
+  return exam.modality === 'ct' && exam.sequences[i]?.contrast === 'arterial' && exam.sequences[i + 1]?.contrast === 'portal'
+}
+
 export function drawPlan(rng: Rng, exam: ImagingExam, o: PlanOptions): ExamPlan {
   const m = exam.modality
   const cfg = CONFIG.imaging
@@ -73,7 +78,11 @@ export function drawPlan(rng: Rng, exam: ImagingExam, o: PlanOptions): ExamPlan 
   const explainS = m === 'mri' || o.demo ? 0 : rng.between(span(cfg.explainSeconds, m)) * (o.transported ? 0.6 : 1)
   const positionS = rng.between(span(cfg.positioningSeconds, m))
   const gapS: number[] = []
-  for (let i = 0; i < exam.sequences.length - 1; i++) gapS.push(rng.between(cfg.betweenStepsSeconds))
+  for (let i = 0; i < exam.sequences.length - 1; i++) {
+    // one draw per gap, whatever its kind, so the stream stays the same length; a contrast CT's portal phase follows the arterial one
+    // `ctPhaseGapSeconds` later (the contrast takes 35-45 s to reach the veins), not the generic pause of a setup between sequences
+    gapS.push(rng.between(isPhaseGap(exam, i) ? cfg.ctPhaseGapSeconds : cfg.betweenStepsSeconds))
+  }
   return {
     callS: o.demo ? cfg.demoCallSeconds : cfg.callSeconds,
     changeS,

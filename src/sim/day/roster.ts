@@ -100,7 +100,7 @@ export function visitingOpen(hour: number): boolean {
 // ---------------------------------------------------------------------------------------------
 
 /** What a post is, for the handover sentence ("took over {label} from ...") and for the kit that builds its controller. */
-export type PostKind = 'reception' | 'triage' | 'erDoctor' | 'erNurse' | 'porter' | 'cleaner' | 'imaging' | 'command'
+export type PostKind = 'reception' | 'triage' | 'erDoctor' | 'erNurse' | 'porter' | 'cleaner' | 'imaging' | 'command' | 'wardNurse' | 'wardDoctor'
 
 export const POST_LABELS: Record<PostKind, string> = {
   reception: 'reception',
@@ -111,6 +111,8 @@ export const POST_LABELS: Record<PostKind, string> = {
   cleaner: 'housekeeping',
   imaging: 'imaging',
   command: 'the command center',
+  wardNurse: 'the ward',
+  wardDoctor: 'the wards',
 }
 
 export interface PostRef {
@@ -147,6 +149,16 @@ const PARTNERS: Readonly<Record<string, string>> = {
   'porter-N': 'porter-1',
   'cleaner-1': 'cleaner-N',
   'cleaner-N': 'cleaner-1',
+  // the ward change: the first day nurse of a ward hands over to the night nurse (the second simply goes home); doc-A to the on-call doctor
+  'nurse-A1': 'nurse-N-A',
+  'nurse-N-A': 'nurse-A1',
+  'nurse-A2': 'nurse-N-A',
+  'nurse-B1': 'nurse-N-B',
+  'nurse-N-B': 'nurse-B1',
+  'nurse-B2': 'nurse-N-B',
+  'doc-A': 'doc-N',
+  'doc-N': 'doc-A',
+  'doc-B': 'doc-N',
 }
 
 export interface RotaEntry {
@@ -161,6 +173,7 @@ export interface RotaEntry {
 /** Which controller index each post uses, in STAFF order (the same counters createErStaff always used). */
 function postOf(m: StaffMember, counters: Record<string, number>): PostRef | null {
   const next = (k: PostKind): PostRef => ({ kind: k, index: counters[k]++ })
+  if (m.post === 'ward' && (m.role === 'nurse' || m.role === 'doctor')) return wardPostOf(m, counters)
   switch (m.post) {
     case 'reception':
       return next('reception')
@@ -183,6 +196,19 @@ function postOf(m: StaffMember, counters: Record<string, number>): PostRef | nul
   }
 }
 
+/**
+ * Ward nurses: index = 3 x ward + slot (the hub spot NURSE_HUB[ward][slot]); a night nurse takes the first day nurse's post. Ward doctors:
+ * 0 (doc-A and the on-call doctor, who relieves doc-A), 1 (doc-B): the spot at the doctors' office.
+ */
+function wardPostOf(m: StaffMember, counters: Record<string, number>): PostRef {
+  if (m.role === 'doctor') return { kind: 'wardDoctor', index: m.id === 'doc-B' ? 1 : 0 }
+  const base = m.ward === 'B' ? 3 : 0
+  if (m.shift === 'night') return { kind: 'wardNurse', index: base }
+  const key = `wardNurse${m.ward}`
+  counters[key] = (counters[key] ?? 0) + 1
+  return { kind: 'wardNurse', index: base + counters[key] - 1 }
+}
+
 function hoursOf(m: StaffMember): readonly Window[] {
   const own = CONFIG.day.shifts[m.shift] as Window
   if (NIGHT_DUTY.has(m.id)) return [ALL_DAY]
@@ -200,7 +226,7 @@ function buildRota(): RotaEntry[] {
   }
   for (const m of NIGHT_STAFF) {
     // the night porter takes the first base and the night cleaner the first patrol: they relieve porter-1 and cleaner-1
-    const post: PostRef | null = m.role === 'porter' ? { kind: 'porter', index: 0 } : m.role === 'cleaner' ? { kind: 'cleaner', index: 0 } : null
+    const post: PostRef | null = m.post === 'ward' ? postOf(m, counters) : m.role === 'porter' ? { kind: 'porter', index: 0 } : m.role === 'cleaner' ? { kind: 'cleaner', index: 0 } : null
     rota.push({ member: m, hours: hoursOf(m), post, partner: PARTNERS[m.id] ?? null })
   }
   for (const m of HOSTS) rota.push({ member: m, hours: hoursOf(m), post: null, partner: null })
@@ -392,7 +418,7 @@ export interface NightCheck {
 }
 
 export interface NightRound {
-  /** Sim time the round starts (22:00, 00:00, 02:00, 04:00, 06:00). */
+  /** Sim time the round starts (22:30, 00:30, 02:30, 04:30). */
   startT: number
   ward: WardId
   /** The rooms in walking order. */
@@ -403,7 +429,7 @@ export interface NightRound {
 export function nightRounds(ward: WardId, fromT: number, toT: number): NightRound[] {
   const d = CONFIG.day
   const rounds: NightRound[] = []
-  const first = timeOfClockHour(d.nightHours[0])
+  const first = timeOfClockHour(d.nightCheckFirstHour)
   const every = d.nightCheckEverySeconds
   const rooms = ROOMS.filter((r) => r.ward === ward)
   for (let k = Math.floor((fromT - first) / every); first + k * every <= toT; k++) {

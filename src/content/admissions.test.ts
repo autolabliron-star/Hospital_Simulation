@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADMISSION_PROFILES, admissionProfilesFor } from './admissions'
+import { ADMISSION_PROFILES, admissionProfilesFor, admitChanceFor } from './admissions'
 import admissionsJson from './admissions.json'
 import { MEDICINES } from './catalogue'
 import { AMBULANCE_REASONS, ER_REASONS } from './roster'
@@ -70,6 +70,36 @@ describe('profile contents', () => {
       expect(high, p.id).toBeLessThanOrEqual(89)
       expect(low, p.id).toBeLessThanOrEqual(high)
     }
+  })
+})
+
+describe('admissions that make sense (Wave 1)', () => {
+  it('never admits for sunburn, a cold, a cut finger, a sprain or a prescription review', () => {
+    for (const reason of [
+      'Sunburn, feels sore and hot',
+      'Mild cold symptoms for days',
+      'Cut finger needing stitches',
+      'Twisted ankle playing football',
+      'Sprained wrist from a bike fall',
+      'Prescription running out, needs review',
+    ]) {
+      expect(admitChanceFor(reason), reason).toBe(0)
+    }
+  })
+
+  it('leaves the serious reasons to the acuity table', () => {
+    expect(admitChanceFor('Chest pain spreading to arm')).toBeNull()
+    expect(admitChanceFor('Sudden weakness down one side')).toBeNull()
+  })
+
+  it('starts no anticoagulant for sudden weakness: a stroke workup ward reason instead', () => {
+    const p = ADMISSION_PROFILES.find((x) => x.reasons.includes('Sudden weakness down one side'))!
+    expect(p.usualMeds).not.toContain('apixaban')
+    expect(p.wardReason).toMatch(/stroke/i)
+  })
+
+  it('gives apixaban to no profile that comes from a possible new stroke or a fall', () => {
+    for (const p of ADMISSION_PROFILES) expect(p.usualMeds, p.id).not.toContain('apixaban')
   })
 })
 

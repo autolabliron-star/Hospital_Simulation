@@ -22,18 +22,20 @@ import { fillDayTemplate } from '@/content/day'
 import { CONFIG } from '../config'
 import type { Actor } from '../er/actor'
 import type { World } from '../er/world'
-import type { Person } from '../people'
+import { Doctor, Nurse, type Person } from '../people'
 import { ARRIVALS, DEPARTURES, type Spot } from '../places'
 import { hashString, type Rng } from '../rng'
 import type { Vec2 } from '../types'
 import { kitOf, LEAVE_SEAT_LEAD, postSeat, stop } from './kits'
-import { POST_LABELS, clockHourAt, shiftChanges, timeOfClockHour, worksAt, type Change, type RotaEntry } from './roster'
+import { POST_LABELS, clockHourAt, handoverPairs, shiftChanges, timeOfClockHour, worksAt, type Change, type RotaEntry } from './roster'
 import { ShiftActor, type ShiftRole, type Step } from './shiftActor'
 import { LOCKER_SPOTS, LOCKER_WAIT, dist, meetSpot } from './spots'
 import { staffRegistry, type StaffRegistry } from './staffRegistry'
 
 /** A change is over this long after its hour: the leaver is gone and the comer has taken over. */
 export const SETTLE_SECONDS = 300
+/** A ward change (hub huddle, then a bedside handover in each of the eight rooms) is over this long after its hour. */
+export const WARD_SETTLE_SECONDS = 1500
 /** How long a comer waits for the person handing over to be at rest before it takes the post without the talk. */
 export const PATIENCE_SECONDS = 240
 /** The handover starts a little after the hour, a little different for every pair (seconds, 0 to this). */
@@ -60,6 +62,12 @@ export interface Run {
   readonly stopAt: number
   readonly goT: number
   readonly talkSeconds: number
+  /** Ward changes only: the huddle at the hub before the bedside handovers (seconds). */
+  readonly huddleSeconds: number
+  /** Ward changes only: how many rooms each of the two (host, visitor) has reached on the bedside tour. */
+  readonly progress: [number, number]
+  /** Seconds after the hour that the change is over (for a warm start). */
+  readonly settleSeconds: number
   readonly lockerSeconds: number
   readonly entranceZ: number
   /** The spot beside the host's post where the visitor of a handover stands. */
@@ -85,6 +93,10 @@ export interface Run {
   hostReady: boolean
   /** Sim time the visitor became ready and the host was first waited for. */
   waitingSince: number
+}
+
+function postLabel(r: RotaEntry): string {
+  return r.post!.kind === 'wardNurse' ? `ward ${r.member.ward}` : POST_LABELS[r.post!.kind]
 }
 
 class Lockers {
@@ -181,7 +193,7 @@ export class ShiftManager {
     }
     this.runs.push(...fresh)
     const phaseOf = (run: Run): 'complete' | 'inProgress' | 'pending' =>
-      t0 >= run.hourT + SETTLE_SECONDS ? 'complete' : t0 >= Math.min(run.arriveT, run.stopAt) ? 'inProgress' : 'pending'
+      t0 >= run.hourT + run.settleSeconds ? 'complete' : t0 >= Math.min(run.arriveT, run.stopAt) ? 'inProgress' : 'pending'
     for (const run of fresh) {
       const phase = phaseOf(run)
       if (phase === 'complete') run.state = 'done'
@@ -215,7 +227,8 @@ export class ShiftManager {
   private importCoordinators(): void {
     if (this.people === null) return
     for (const p of this.people) {
-      if (p.entity.role === 'coordinator' && !this.registry.has(p.entity.id)) this.registry.set(p.entity.id, p)
+      const ward = p instanceof Nurse || p instanceof Doctor
+      if ((p.entity.role === 'coordinator' || ward) && !this.registry.has(p.entity.id)) this.registry.set(p.entity.id, p)
     }
   }
 
@@ -223,7 +236,7 @@ export class ShiftManager {
   private usable(r: RotaEntry | null): boolean {
     if (r === null || r.post === null) return false
     if (r.post.kind === 'imaging') return this.world.imaging !== null
-    if (r.post.kind === 'command') return this.registry.has(r.member.id) || this.people !== null
+    if (r.post.kind === 'command' || r.post.kind === 'wardNurse' || r.post.kind === 'wardDoctor') return this.registry.has(r.member.id) || this.people !== null
     return true
   }
 
@@ -244,6 +257,9 @@ export class ShiftManager {
       stopAt: hourT + stagger - STOP_LEAD,
       goT: hourT + stagger - LEAVE_SEAT_LEAD,
       talkSeconds: r.between(d.bedsideHandoverSeconds),
+      huddleSeconds: r.between(d.huddleSeconds),
+      progress: [0, 0],
+      settleSeconds: c.kind === 'relief' && hostEntry?.post?.kind === 'wardNurse' ? WARD_SETTLE_SECONDS : SETTLE_SECONDS,
       lockerSeconds: r.between(d.lockerSeconds),
       entranceZ: r.range(-0.8, 0.8),
       meet,
@@ -329,7 +345,10 @@ export class ShiftManager {
     const kit = kitOf(kind)
     const real = this.makeController(r)
     // a controller that seats itself (a console, a command desk) already stands where the comer sat down
-    if (kind !== 'command' && !(kind === 'imaging' && postSeat(this.world, r) !== null)) {
+    if (kind === 'wardNurse' || kind === 'wardDoctor') {
+      real.walker.place(a.walker.x, a.walker.z, a.walker.heading)
+      real.snapshot()
+    } else if (kind !== 'command' && !(kind === 'imaging' && postSeat(this.world, r) !== null)) {
       ;(real as Actor).placeAt(a.walker.x, a.walker.z, a.walker.heading)
     }
     this.swap(a, real)
@@ -399,6 +418,24 @@ export class ShiftManager {
       { kind: 'walk', to: DEPARTURES.entrance },
       { kind: 'fadeOut' },
     ]
+  }
+
+  /** A ward change: the huddle at the hub, then the two nurses go room to room and hand over at each bedside (outgoing and incoming spots). */
+  private wardTalkSteps(run: Run, self: ShiftActor, other: () => ShiftActor | null, me: 0 | 1): Step[] {
+    const ward = (run.change.comer ?? run.change.leaver)!.member.ward!
+    const steps: Step[] = [
+      { kind: 'do', run: () => { const o = other(); if (o) self.faceTowards(o.pos) } },
+      { kind: 'wait', seconds: run.huddleSeconds, anim: 'talk' },
+    ]
+    const deadline = run.hourT + WARD_SETTLE_SECONDS - 60
+    handoverPairs(ward).forEach((pair, i) => {
+      const spot = me === 0 ? pair.outgoing : pair.incoming
+      steps.push({ kind: 'walk', to: spot.at, face: spot.heading })
+      steps.push({ kind: 'do', run: () => { run.progress[me] = i + 1 } })
+      steps.push({ kind: 'until', test: () => run.progress[1 - me] >= i + 1 || this.world.t > deadline, anim: 'talk' })
+      steps.push({ kind: 'wait', seconds: run.talkSeconds, anim: 'talk' })
+    })
+    return steps
   }
 
   private talkSteps(run: Run, self: ShiftActor, other: () => ShiftActor | null): Step[] {
@@ -602,13 +639,18 @@ export class ShiftManager {
     const host = run.host!
     run.talk = 'talking'
     run.talkStartT = t
-    host.run(this.talkSteps(run, host, () => visitor))
-    visitor.run(this.talkSteps(run, visitor, () => host))
+    if (c.kind === 'relief' && c.leaver!.post!.kind === 'wardNurse') {
+      host.run(this.wardTalkSteps(run, host, () => visitor, 0))
+      visitor.run(this.wardTalkSteps(run, visitor, () => host, 1))
+    } else {
+      host.run(this.talkSteps(run, host, () => visitor))
+      visitor.run(this.talkSteps(run, visitor, () => host))
+    }
     const taker = c.kind === 'relief' ? c.comer! : c.kind === 'leaveStayer' ? c.stayer! : c.comer!
     const giver = c.kind === 'relief' ? c.leaver! : c.kind === 'leaveStayer' ? c.leaver! : c.stayer!
     const text = fillDayTemplate('shiftHandover', {
       nurse: taker.member.name,
-      ward: POST_LABELS[(c.comer ?? c.leaver!).post!.kind],
+      ward: postLabel((c.comer ?? c.leaver!)),
       colleague: giver.member.name,
     })
     this.world.say('shiftHandover', text, { actorId: taker.member.id, subjectId: giver.member.id })

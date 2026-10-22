@@ -41,6 +41,7 @@ export type MatKey =
   | 'rubber'
   // light
   | 'glowTeal'
+  | 'sensorDisc'
   | 'glowWarm'
   | 'laneLine'
   // white base for instanced or vertex-coloured meshes (tint comes from the instance)
@@ -90,6 +91,8 @@ export const MAT: Record<MatKey, MeshStandardMaterial> = {
   rubber: std('#2b3133', 0.8),
 
   glowTeal: glow('#1fb5ad', 2.2),
+  // the ceiling sensor disc: teal like the panels, but realism mode (ui/walk/realism.store.ts) turns it into a plain white puck
+  sensorDisc: glow('#1fb5ad', 2.2),
   glowWarm: glow('#fff1d6', 1.2),
   laneLine: glow('#22a89f', 0.5),
 

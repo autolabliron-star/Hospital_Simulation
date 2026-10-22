@@ -8,6 +8,7 @@ import { z } from 'zod'
 import type { BodyPart, ImagingModality, ScanContrast, ScanPlane, ScanSequence } from '@/sim/types'
 import imagingJson from './imaging.json'
 import outpatientsJson from './outpatients.json'
+import { LAB_CATALOGUE } from './lab'
 import { AMBULANCE_REASONS, ER_REASONS } from './roster'
 
 /** One exam: an ordered list of sequences on one scanner. */
@@ -20,8 +21,22 @@ export interface Protocol {
   sequences: ScanSequence[]
 }
 
-/** The test an ER patient gets for a reason: nothing, bloods, or one imaging protocol. */
-export type ErTest = { test: 'none' } | { test: 'blood' } | { test: 'imaging'; protocol: string }
+/**
+ * The tests a complaint gets (Wave 1): a bundle drawn together with probability `chance` (1 for a red flag: always). The ER nurse does the
+ * bloods (a lab panel id) and the ECG at the bedside; the doctor orders the imaging protocol (never MRI) after the assessment.
+ */
+export interface ErTest {
+  chance: number
+  redFlag: boolean
+  bloods: string | null
+  ecg: boolean
+  imaging: string | null
+}
+
+/** Does the bundle hold any test at all? */
+export function hasTests(t: ErTest): boolean {
+  return t.bloods !== null || t.ecg || t.imaging !== null
+}
 
 /** A booked outpatient scan. `time` is 24-hour HH:MM on the sim day. */
 export interface Outpatient {
@@ -80,9 +95,12 @@ const ReasonText = z
   .refine((t) => t === t.trim() && t.split(/\s+/).length >= 3 && t.split(/\s+/).length <= 7, 'a reason is 3 to 7 words with no stray spaces')
   .refine((t) => !GRAPHIC_WORDS.test(t), 'reasons must be non-graphic')
 
-/** Sim clock in minutes after midnight. The outpatient window is 07:45 to 13:30; the sim day starts at 07:30. */
+/**
+ * Sim clock in minutes after midnight. The outpatient window is 07:45 to 17:00 (Wave 1: the afternoon slots; it ends with
+ * CONFIG.day.outpatientHours); the sim day starts at 07:30.
+ */
 const WINDOW_START = 7 * 60 + 45
-const WINDOW_END = 13 * 60 + 30
+const WINDOW_END = 17 * 60
 const DAY_START = 7 * 60 + 30
 
 function clockMinutes(hhmm: string): number {
@@ -106,11 +124,19 @@ export const ProtocolSchema: z.ZodType<Protocol> = z.strictObject({
   sequences: z.array(ScanSequenceSchema).min(1),
 })
 
-export const ErTestSchema: z.ZodType<ErTest> = z.discriminatedUnion('test', [
-  z.strictObject({ test: z.literal('none') }),
-  z.strictObject({ test: z.literal('blood') }),
-  z.strictObject({ test: z.literal('imaging'), protocol: z.string().min(1) }),
-])
+const ErTestInput = z.strictObject({
+  chance: z.number().min(0).max(1),
+  redFlag: z.boolean().default(false),
+  bloods: z.string().min(1).nullable().default(null),
+  ecg: z.boolean().default(false),
+  imaging: z.string().min(1).nullable().default(null),
+})
+
+export const ErTestSchema: z.ZodType<ErTest, z.input<typeof ErTestInput>> = ErTestInput.superRefine((t, ctx) => {
+  if (t.redFlag && t.chance !== 1) ctx.addIssue({ code: 'custom', message: 'a red flag always gets its tests (chance 1)' })
+  if (t.redFlag && !(t.bloods !== null || t.ecg || t.imaging !== null)) ctx.addIssue({ code: 'custom', message: 'a red flag has at least one test' })
+  if (t.chance > 0 && !(t.bloods !== null || t.ecg || t.imaging !== null)) ctx.addIssue({ code: 'custom', message: 'a chance above 0 needs a test' })
+})
 
 export const OutpatientSchema: z.ZodType<Outpatient> = z.strictObject({
   id: z.string().regex(/^op-\d{2}$/, 'id looks like op-01'),
@@ -136,7 +162,7 @@ const ImagingFileSchema = z
 
 const OutpatientsSchema = z
   .array(OutpatientSchema)
-  .length(40)
+  .length(64)
   .superRefine((list, ctx) => {
     const ids = new Set<string>()
     let previous = -1
@@ -145,7 +171,7 @@ const OutpatientsSchema = z
       ids.add(o.id)
       const minutes = clockMinutes(o.time)
       if (minutes < WINDOW_START || minutes > WINDOW_END) {
-        ctx.addIssue({ code: 'custom', path: [i, 'time'], message: `${o.time} is outside the 07:45 to 13:30 window` })
+        ctx.addIssue({ code: 'custom', path: [i, 'time'], message: `${o.time} is outside the 07:45 to 17:00 window` })
       }
       if (minutes < previous) ctx.addIssue({ code: 'custom', path: [i, 'time'], message: 'outpatients must be sorted by time' })
       previous = minutes
@@ -173,10 +199,11 @@ function crossCheck(erTests: Record<string, ErTest>, protocols: Record<string, P
     if (!reasonSet.has(key)) problems.push(`erTests entry "${key}" matches no reason in people.json`)
   }
   for (const [reason, test] of Object.entries(erTests)) {
-    if (test.test !== 'imaging') continue
-    if (!Object.hasOwn(protocols, test.protocol)) {
-      problems.push(`erTests "${reason}" uses unknown protocol "${test.protocol}"`)
-    } else if (protocols[test.protocol].modality === 'mri') {
+    if (test.bloods !== null && !Object.hasOwn(LAB_CATALOGUE.panels, test.bloods)) problems.push(`erTests "${reason}" uses unknown lab panel "${test.bloods}"`)
+    if (test.imaging === null) continue
+    if (!Object.hasOwn(protocols, test.imaging)) {
+      problems.push(`erTests "${reason}" uses unknown protocol "${test.imaging}"`)
+    } else if (protocols[test.imaging].modality === 'mri') {
       problems.push(`erTests "${reason}" books an MRI, and ER patients never get MRI`)
     }
   }

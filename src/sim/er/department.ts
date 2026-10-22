@@ -44,6 +44,8 @@ export interface ErCase {
   /** True acuity 1 (most urgent) .. 5. */
   acuity: number
   ambulance: boolean
+  /** A priority 1-2 walk-in: no kiosk and no triage queue; a nurse wheels them straight to a bay. */
+  critical: boolean
   arrivedAt: number
   state: PathwayState
   /** Waiting and in a place a nurse can walk to (seated, or standing at the stretcher hold). */
@@ -52,6 +54,8 @@ export interface ErCase {
   readyAt: number
   nurseId: string | null
   doctorId: string | null
+  /** The ER nurse doing the care step (observations, cannula, ECG, bedside bloods). */
+  careBy: string | null
   porterId: string | null
   /** Index of the triage bay held, or -1. */
   triageBay: number
@@ -82,6 +86,8 @@ export interface FinishedCase {
 export function newCase(init: Pick<ErCase, 'id' | 'name' | 'reason' | 'acuity' | 'ambulance' | 'arrivedAt' | 'from'>): ErCase {
   return {
     ...init,
+    critical: !init.ambulance && init.acuity <= 2,
+    careBy: null,
     state: 'arriving',
     ready: false,
     readyAt: init.arrivedAt,
@@ -97,9 +103,9 @@ export function newCase(init: Pick<ErCase, 'id' | 'name' | 'reason' | 'acuity' |
   }
 }
 
-/** Ambulance acuity 1-2 arrivals go ahead of everyone waiting. */
+/** Ambulance and critical walk-in (priority 1-2) arrivals go ahead of everyone waiting. */
 function tier(c: ErCase): number {
-  return c.ambulance && c.acuity <= 2 ? 0 : 1
+  return (c.ambulance || c.critical) && c.acuity <= 2 ? 0 : 1
 }
 
 /** Order for the next ER bay: preempting ambulances, then acuity, then arrival, then id (stable). */
@@ -222,11 +228,16 @@ export class ErDepartment {
     return true
   }
 
-  /** The next walk-in with a bay promised and no escort yet, with this nurse now assigned. */
-  claimEscort(nurseId: string): ErCase | null {
+  /**
+   * The next walk-in with a bay promised and no escort yet, with this nurse now assigned. `critical` picks only the priority 1-2 walk-ins (who
+   * are wheeled in), `walking` only the others (who walk beside the nurse); `any` the best of both.
+   */
+  claimEscort(nurseId: string, kind: 'critical' | 'walking' | 'any' = 'any'): ErCase | null {
     let best: ErCase | null = null
     for (const c of this.cases.values()) {
       if (c.ambulance || c.state !== 'inBay.walking' || c.bay < 0 || c.nurseId !== null || !c.ready) continue
+      if (kind === 'critical' && !c.critical) continue
+      if (kind === 'walking' && c.critical) continue
       if (best === null || bayOrder(c, best) < 0) best = c
     }
     if (best) best.nurseId = nurseId
@@ -250,11 +261,37 @@ export class ErDepartment {
     this.finished.push({ id: c.id, outcome, acuity: c.acuity, ambulance: c.ambulance, arrivedAt: c.arrivedAt, endedAt: t })
   }
 
-  /** The highest-priority patient lying on a trolley with no doctor yet (acuity, then who got there first). */
-  claimExam(doctorId: string): ErCase | null {
+  /**
+   * The highest-priority patient lying on a trolley with no doctor yet and the nurse's care done (acuity, then who got there first). With
+   * `maxAcuity`, only patients at least that urgent.
+   */
+  claimExam(doctorId: string, maxAcuity = 5): ErCase | null {
     let best: ErCase | null = null
     for (const c of this.cases.values()) {
-      if (c.state !== 'inBay.waitingExam' || !c.onTrolley || c.doctorId !== null) continue
+      if (c.state !== 'inBay.waitingExam' || !c.onTrolley || c.doctorId !== null || c.acuity > maxAcuity) continue
+      if (best === null || c.acuity < best.acuity || (c.acuity === best.acuity && c.trolleyAt < best.trolleyAt)) best = c
+    }
+    if (best) best.doctorId = doctorId
+    return best
+  }
+
+  /** The most urgent patient on a trolley waiting for the nurse's care step (the ambulance handover, if any, is done). */
+  claimCare(nurseId: string): ErCase | null {
+    let best: ErCase | null = null
+    for (const c of this.cases.values()) {
+      if (c.state !== 'inBay.waitingCare' || !c.onTrolley || c.careBy !== null) continue
+      if (c.ambulance && c.handover !== 'done') continue
+      if (best === null || c.acuity < best.acuity || (c.acuity === best.acuity && c.trolleyAt < best.trolleyAt)) best = c
+    }
+    if (best) best.careBy = nurseId
+    return best
+  }
+
+  /** The most urgent patient whose results are in and who waits for the doctor's review. */
+  claimReview(doctorId: string): ErCase | null {
+    let best: ErCase | null = null
+    for (const c of this.cases.values()) {
+      if (c.state !== 'inBay.waitingReview' || !c.onTrolley || c.doctorId !== null) continue
       if (best === null || c.acuity < best.acuity || (c.acuity === best.acuity && c.trolleyAt < best.trolleyAt)) best = c
     }
     if (best) best.doctorId = doctorId

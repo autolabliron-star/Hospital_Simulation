@@ -1,7 +1,12 @@
 /**
  * Post-processing: soft ambient occlusion (half resolution), a gentle bloom that only catches emissive lights (pod rings, drawer lights,
- * screens, and in walk mode the ceiling panels), Khronos PBR Neutral tone mapping (keeps whites white and colours true; AgX greyed the model
- * look and would recompile), and (W3) the colour grade and a vignette, which both merge into the tone mapper's pass (no extra draw).
+ * screens, and in walk mode the ceiling panels), the tone mapper (AgX, the Blender look; Neutral is one constant away: look.ts `TONE_MAP`, which
+ * also carries the exposure compensation the daylight driver applies; the mode is a define of the one tone-mapping pass, fixed for the page, so
+ * nothing recompiles at runtime), and (W3) the colour grade and a vignette, which both merge into the tone mapper's pass (no extra draw).
+ *
+ * Presentation mode (C, src/ui/present) changes the picture only through uniforms, blended in over `PRESENT_LOOK.seconds`: the grade's opacity
+ * goes to 0, the vignette to half its darkness, the bloom to a gentler intensity and a higher threshold (so the bright sky does not glow). The
+ * blend is a plain number advanced in a frame callback and written into the three effects only when it moves: no define, no recompile, no allocation.
  *
  * The grade (src/scene/lighting/grade.ts) is an always-mounted 32 cubed LUT in blend mode NORMAL: its blend opacity IS its strength, so the
  * overview (opacity 0) is exactly the picture it always was and walk mode fades it in with the rest of the look. The vignette is the stock
@@ -23,15 +28,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Bloom, EffectComposer, LUT, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing'
-import { BlendFunction, ToneMappingMode, type LUT3DEffect, type VignetteEffect } from 'postprocessing'
+import { BlendFunction, ToneMappingMode, type BloomEffect, type LUT3DEffect, type VignetteEffect } from 'postprocessing'
 import { SRGBColorSpace } from 'three'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { createGradeLut } from '@/scene/lighting/grade'
 import { liveLook } from '@/scene/lighting/liveLook'
-import { VIGNETTE_OFFSET } from '@/scene/lighting/look'
+import { BLOOM, PRESENT_LOOK, TONE_MAP, VIGNETTE_OFFSET } from '@/scene/lighting/look'
 import { useWalk } from '@/scene/player/state'
 import { aoSettings } from '@/scene/quality/aoProfile'
 import { useRenderStore } from '@/scene/quality/render.store'
+import { presentActive } from '@/ui/present/presentation.store'
+
+/** The tone mapper of the page (look.ts `TONE_MAP`). */
+const TONE_MODE = TONE_MAP === 'agx' ? ToneMappingMode.AGX : ToneMappingMode.NEUTRAL
 
 interface AoPass {
   enabled: boolean
@@ -50,6 +59,10 @@ export function Effects() {
   const [gradeLut] = useState(createGradeLut)
   const lut = useRef<LUT3DEffect | null>(null)
   const vignette = useRef<VignetteEffect | null>(null)
+  const bloom = useRef<BloomEffect | null>(null)
+  // presentation mode's blend, 0 (the game's look) .. 1 (the walkthrough's), and the one last written into the effects (-1: nothing yet)
+  const present = useRef(0)
+  const presentWritten = useRef(-1)
   // the version of `liveLook` last written into the effects (-1: nothing yet)
   const written = useRef(-1)
 
@@ -67,20 +80,37 @@ export function Effects() {
     if (effect) {
       // display-referred, like the grade: the darkness is a share of the picture's brightness as seen, not of its linear light
       ;(effect as unknown as { inputColorSpace: string }).inputColorSpace = SRGBColorSpace // marked protected in the typings, a public setter in the build
-      effect.darkness = liveLook.vignette
+      effect.darkness = liveLook.vignette * (1 - (1 - PRESENT_LOOK.vignette) * present.current)
       written.current = -1
     }
   }, [])
+  const bloomRef = useCallback((effect: BloomEffect | null) => {
+    bloom.current = effect
+    presentWritten.current = -1
+  }, [])
 
-  // the daylight driver publishes the look; this writes it into the two effects, only when it changed
-  useFrame(() => {
-    if (written.current === liveLook.version) return
+  // the daylight driver publishes the look, and presentation mode (C) blends its own on top; this writes both into the effects, only when either moved
+  useFrame((_, dt) => {
+    const want = presentActive() ? 1 : 0
+    if (present.current !== want) {
+      const step = Math.min(dt, 0.1) / PRESENT_LOOK.seconds
+      present.current = want > present.current ? Math.min(want, present.current + step) : Math.max(want, present.current - step)
+    }
+    const p = present.current
     const l = lut.current
     const v = vignette.current
+    const b = bloom.current
     if (!l || !v) return
-    l.blendMode.opacity.value = liveLook.grade
-    v.darkness = liveLook.vignette
-    written.current = liveLook.version
+    if (written.current !== liveLook.version || presentWritten.current !== p) {
+      l.blendMode.opacity.value = liveLook.grade * (1 - (1 - PRESENT_LOOK.grade) * p)
+      v.darkness = liveLook.vignette * (1 - (1 - PRESENT_LOOK.vignette) * p)
+      written.current = liveLook.version
+    }
+    if (b && presentWritten.current !== p) {
+      b.intensity = BLOOM.intensity + (PRESENT_LOOK.bloomIntensity - BLOOM.intensity) * p
+      b.luminanceMaterial.threshold = BLOOM.threshold + (PRESENT_LOOK.bloomThreshold - BLOOM.threshold) * p
+    }
+    presentWritten.current = p
   }, FRAME_PRIORITY.sim + 4)
 
   const apply = useCallback(() => {
@@ -128,8 +158,8 @@ export function Effects() {
         enabled={first.enabled}
         color="#1d2b2a"
       />
-      <Bloom mipmapBlur luminanceThreshold={1.0} luminanceSmoothing={0.2} intensity={0.45} radius={0.6} />
-      <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+      <Bloom ref={bloomRef as never} mipmapBlur luminanceThreshold={BLOOM.threshold} luminanceSmoothing={0.2} intensity={BLOOM.intensity} radius={0.6} />
+      <ToneMapping mode={TONE_MODE} />
       <LUT ref={lutRef} lut={gradeLut} blendFunction={BlendFunction.NORMAL} />
       <Vignette ref={vignetteRef} offset={VIGNETTE_OFFSET} darkness={0} />
     </EffectComposer>

@@ -10,9 +10,9 @@
  */
 import { patientInRoom } from '@/content/catalogue'
 import { AMBULANCE_REASONS, ER_REASONS, VISITOR_RELATIONS } from '@/content/roster'
-import { STAFF } from '@/content/staff'
 import { CONFIG } from '../config'
 import { Companion } from '../er/companion'
+import { CrewRotation } from '../er/crews'
 import { ErPatient } from '../er/patient'
 import { Paramedic } from '../er/paramedic'
 import { isCafeOpen, visitingOpen } from '../day/roster'
@@ -47,6 +47,7 @@ export class Director {
   private readonly erProcess: ArrivalProcess
   private readonly visitorProcess: ArrivalProcess
   private readonly ambulanceSchedule: AmbulanceSchedule
+  private readonly crews: CrewRotation
   private nextWalkIn: number
   private nextParty: number
   private nextAmbulance: number
@@ -76,6 +77,7 @@ export class Director {
     this.erProcess = new ArrivalProcess(rng.fork('erArrivals'), CONFIG.day.erArrivalsPerHour, t0)
     this.visitorProcess = new ArrivalProcess(rng.fork('visitorArrivals'), CONFIG.day.visitorPartiesPerHour, t0)
     this.ambulanceSchedule = new AmbulanceSchedule(rng.fork('ambulanceArrivals'), Math.min(0, t0))
+    this.crews = new CrewRotation(rng.fork('crews'))
     this.nextWalkIn = this.erProcess.next()
     this.nextParty = this.visitorProcess.next()
     this.nextAmbulance = t0 > 0 ? this.ambulanceSchedule.skipTo(t0) : this.ambulanceSchedule.next()
@@ -205,9 +207,9 @@ export class Director {
       rng: this.rng.fork(id),
     })
     const crew: { lead: Paramedic | null; leaving: boolean } = { lead: null, leaving: false }
-    const paramedics = STAFF.filter((s) => s.role === 'paramedic')
-    const lead = new Paramedic(w, paramedics[0], this.walkerFor(paramedics[0].id), crew, patient, true, leadAt)
-    const second = new Paramedic(w, paramedics[1], this.walkerFor(paramedics[1].id), crew, patient, false, { x: base.x, z: base.z + 0.9 })
+    const [leadStaff, secondStaff] = this.crews.next()
+    const lead = new Paramedic(w, leadStaff, this.walkerFor(leadStaff.id), crew, patient, true, leadAt)
+    const second = new Paramedic(w, secondStaff, this.walkerFor(secondStaff.id), crew, patient, false, { x: base.x, z: base.z + 0.9 })
     const h = ARRIVALS.ambulance.heading
     patient.placeAt(leadAt.x + Math.sin(h) * VEHICLE_AHEAD.stretcher, leadAt.z + Math.cos(h) * VEHICLE_AHEAD.stretcher, h)
     patient.startRiding(lead, 'stretcher')

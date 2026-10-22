@@ -31,3 +31,18 @@ export function playerSnapshot(): PlayerSnapshot | null {
 export function playerPhase(): PlayerMode | null {
   return current ? current.mode : null
 }
+
+/** Presentation mode (src/ui/present): glide to the next shot, turning the mode on if it is off. Does nothing when the player is not mounted. */
+export function presentGlide(): void {
+  current?.presentGlide()
+}
+
+/** Presentation mode: cut to shot `i` (turning the mode on if it is off) on the next frame you walk. */
+export function presentCut(i: number): void {
+  current?.presentCut(i)
+}
+
+/** Presentation mode as the system sees it (for the probe and tests), or null when the player is not mounted. */
+export function presentState(): { presenting: boolean; gliding: boolean; shot: number } | null {
+  return current ? current.presentState : null
+}

@@ -36,6 +36,8 @@ import { loop, sim } from '@/sim'
 import { CONFIG } from '@/sim/config'
 import { levelOf, type LevelId } from '@/sim/levels'
 import { getLayout } from '../../layout'
+import { BUILDING_MODEL_ON } from '../../model/flags'
+import { hidesWalkPart } from '../../model/region'
 import { buildWalkLayout, walkLayoutOfLevel, type WalkLayout } from '../../layout/walk'
 import { BUILDING_VISIBILITY_PRIORITY, level1WalkVisible, level2WalkVisible } from '../levelVisibility'
 import { BARS_PER_AUTO_LEAF, compileWalk, disposeWalk } from './walkGeometry'
@@ -106,7 +108,7 @@ function releaseShared(): void {
 function buildWalkScene(level: LevelId) {
   const sh = acquireShared()
   const layout = walkLayoutOfLevel(sh.layout, level)
-  const compiled = compileWalk(layout, sh.packed)
+  const compiled = compileWalk(layout, sh.packed, level === 1 && BUILDING_MODEL_ON ? hidesWalkPart : undefined)
   const mats = sh.mats
 
   const group = new Group()

@@ -6,9 +6,8 @@
  * says so. Staff and porters call the small public methods below at the moments they meet the patient.
  */
 import { staffName } from '@/content/staff'
-import { protocolById, testForReason } from '@/content/imaging'
-import { erPanelFor } from '@/content/lab'
-import type { DrawSubject } from '../blood/subject'
+import { admitChanceFor } from '@/content/admissions'
+import { hasTests, protocolById, testForReason, type ErTest } from '@/content/imaging'
 import { CONFIG } from '../config'
 import type { BedAssignment } from '../beds/board'
 import type { Booking, ScanSubject } from '../imaging/booking'
@@ -19,6 +18,7 @@ import type { Rng } from '../rng'
 import type { DrawTicket, LabOrder, ScannerState, SeatSpec, Vec2, VitalsReading } from '../types'
 import type { KioskSubject } from '../vitals/ports'
 import type { Walker } from '../walker'
+import { ageWalkFactor, drawVisitorAge } from '../population/age'
 import { Actor } from './actor'
 import type { Companion } from './companion'
 import { newCase, type ErCase } from './department'
@@ -29,7 +29,7 @@ import {
   type PathwayContext,
   type PathwayHost,
   type PathwayState,
-  type TestKind,
+  type TestBundle,
 } from './pathway.machine'
 import type { PorterJobKind } from './porterBoard'
 import type { QueueLike } from './ports'
@@ -50,12 +50,30 @@ export interface PatientInit {
 type QueueKey = 'reception' | 'kiosk0' | 'kiosk1'
 type Leave = 'none' | 'standing' | 'walking' | 'fading'
 
-/** The test for a reason; a reason the imaging content does not know gets the blood draw (the M3 behaviour). */
-function knownTest(text: string): ReturnType<typeof testForReason> {
+/** What the reason needs beyond the bedside care: a scan, only bloods, or nothing. */
+export type TestKind = 'none' | 'blood' | 'imaging'
+
+/** S1: which step of the bay stay a placed patient is in, and how far through it. */
+export interface BayStep {
+  step: 'wait' | 'care' | 'waitExam' | 'exam' | 'results' | 'review'
+  progress: number
+}
+
+/** The test bundle for a reason; a reason the imaging content does not know gets no tests. */
+function knownTest(text: string): ErTest {
   try {
     return testForReason(text)
   } catch {
-    return { test: 'blood' }
+    return { chance: 0, redFlag: false, bloods: null, ecg: false, imaging: null }
+  }
+}
+
+/** The admission profile's chance for a reason (0: never admitted); null when the content has no profile or leaves it to the acuity table. */
+function knownAdmitChance(text: string): number | null {
+  try {
+    return admitChanceFor(text)
+  } catch {
+    return null
   }
 }
 
@@ -74,22 +92,13 @@ export const KIOSK_SESSION_SECONDS = 180
  */
 export const kioskTuning = { minAhead: 0 }
 
-/**
- * The results lounge (W4). Real bloods keep an ER patient waiting for the lab about 16-22 minutes instead of the old 2-4, and a patient on a
- * trolley that long keeps a bay from the next. A patient who will be discharged (the exam already decided it) does not need the bay while
- * they wait: the porter wheels them to the draw centre and, afterwards, to a waiting chair in the Lab & imaging hall; the bay is cleaned for
- * the next patient the moment they leave it, and when the lab reports they walk out from the chair. Admitted patients keep their bay.
- * With no free hall chair, or `enabled` false, they wait in their bay as before.
- */
-export const resultsLounge = { enabled: true }
-
 /** Where a standing patient waits when the lobby has no free seat. */
 const STANDING: Record<'triage' | 'er', Vec2> = {
   triage: { x: -49, z: -3.4 },
   er: { x: -49, z: 3.4 },
 }
 
-export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSubject, KioskSubject {
+export class ErPatient extends Actor implements PathwayHost, ScanSubject, KioskSubject {
   readonly c: ErCase
   readonly world: World
   /** Started by `start()` once the person is part of the simulation. */
@@ -100,24 +109,32 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
   waitSeat: SeatSpec | null = null
   /** The chair they sit in at the lab, if any. */
   labSeat: SeatSpec | null = null
-  /** What the reason needs: nothing (never enters the tests branch), blood at the draw chair, or a scan. */
+  /** What the reason needs beyond the bedside care: a scan (`imaging`), only bloods, or nothing. */
   readonly testKind: TestKind
+  /** The complaint's bundle (content/imaging.json) and the lab panel the nurse draws. */
+  readonly bundle: TestBundle
+  readonly testBloods: string | null
+  /** A seeded adult age (synthetic), for the walking pace. */
+  readonly age: number
+  /** The bedside bloods: the lab order once the nurse has drawn them, and whether the tubes have gone. */
+  bloodOrder: LabOrder | null = null
+  tubesSent = false
+  private bloodsTimer = false
   /** The protocol id of the scan, for `testKind === 'imaging'`. */
   readonly protocolId: string | null
-  /** W4: the draw centre and the lab handle this patient's bloods (set by `start()`); false: the M3 chair and results timers. */
-  liveBlood = false
+  /** Wave 1: ER bloods are drawn at the bedside, never at the draw centre: these stay for the draw-centre code that still names them. */
+  readonly liveBlood = false
   /** W4: the V ticket at the blood draw centre, from the moment the doctor orders the bloods. */
-  drawTicket: DrawTicket | null = null
-  /** W4: the draw is over (the arm is free): the porter may take them back. */
-  drawFinishedFlag = false
+  readonly drawTicket: DrawTicket | null = null
+  readonly drawFinishedFlag = false
   /**
    * W4 results lounge: the hall chair this discharge-bound patient waits in for their results (claimed when the bloods are ordered), and whether
    * they have left their bay for it. While `loungeActive` the lounge chair is this patient's `baySeat`: the porter takes them back to it, the
    * companion stands by it, and `BACK_IN_BAY` means "back on the chair".
    */
-  loungeSeat: SeatSpec | null = null
-  loungeActive = false
-  usedLounge = false
+  readonly loungeSeat: SeatSpec | null = null
+  readonly loungeActive = false
+  readonly usedLounge = false
   /** The imaging booking, once the doctor has ordered the scan. */
   booking: Booking | null = null
   /** The scanner's table seat, from the moment a scanner has taken them until they are collected. */
@@ -142,7 +159,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
   /** The nurse or paramedic they follow, and the seat they are being taken to. */
   private escort: Actor | null = null
   private escortSeat: SeatSpec | null = null
-  private phase: 'none' | 'standingForEscort' | 'escorting' | 'standingFromTriage' = 'none'
+  private phase: 'none' | 'standingForEscort' | 'escorting' | 'standingFromTriage' | 'wheeling' = 'none'
   private queue: QueueLike | null = null
   private queueKey: QueueKey = 'kiosk0'
   private queueIdx = -2
@@ -168,17 +185,17 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
     this.crowdWalker = init.world.walkerFor
     this.prng = init.rng
     this.walkAnim = 'walk'
-    this.cruise = CONFIG.er.walkSpeed * (0.88 + (this.entity.variant % 25) / 100)
+    // an old patient walks slower (Wave 1: CONFIG.people.ageWalkFactor), from a forked draw so no stream shifts
+    this.age = drawVisitorAge(init.rng.fork('age'))
+    this.cruise = CONFIG.er.walkSpeed * (0.88 + (this.entity.variant % 25) / 100) * ageWalkFactor(this.age)
     this.entity.mood = 'unwell'
     this.entity.stage = 'arriving'
     const test = knownTest(init.reason.text)
-    if (test.test === 'imaging' && init.world.imaging !== null) {
-      this.testKind = 'imaging'
-      this.protocolId = test.protocol
-    } else {
-      this.testKind = test.test === 'imaging' ? 'blood' : test.test
-      this.protocolId = null
-    }
+    const scan = test.imaging !== null && init.world.imaging !== null
+    this.protocolId = scan ? test.imaging : null
+    this.testBloods = test.bloods
+    this.bundle = { chance: test.chance, bloods: test.bloods !== null, ecg: test.ecg, imaging: scan }
+    this.testKind = scan ? 'imaging' : hasTests(test) && test.chance > 0 ? 'blood' : 'none'
     this.c = newCase({
       id: init.id,
       name: init.name,
@@ -197,8 +214,6 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
   /** Start the pathway machine. Call once the patient has been added to the simulation. */
   start(): void {
     const clock = this.world.clock
-    // W4: with the draw centre and the lab in the world, a reason that orders bloods goes through them (the timers stay as a fallback)
-    this.liveBlood = this.testKind === 'blood' && this.world.blood !== null && this.world.lab !== null && erPanelFor(this.c.reason) !== null
     this.pathway = createPathway(
       {
         rng: this.prng,
@@ -207,8 +222,8 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
         acuity: this.c.acuity,
         ambulance: this.c.ambulance,
         patienceSeconds: this.patience,
-        testKind: this.testKind,
-        liveBlood: this.liveBlood,
+        bundle: this.bundle,
+        admitChance: knownAdmitChance(this.c.reason),
         triageScale: () => (this.hasKioskVitals() ? CONFIG.vitals.triageWithVitalsFactor : 1),
       },
       clock,
@@ -224,6 +239,9 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
     c.state = state
     this.entity.stage = stageOf(state)
     if (state !== 'inBay.walking') c.ready = false
+    // on the trolley for every bay step after the walk in; no doctor is held across a wait for results or the nurse
+    if ((state.startsWith('inBay.') && state !== 'inBay.walking') || state === 'tests.awaitingResults') c.onTrolley = true
+    if (state.startsWith('tests.') || state === 'inBay.waitingCare' || state === 'inBay.care' || state === 'decision') c.doctorId = null
     switch (state) {
       case 'arriving':
         w.say(
@@ -266,6 +284,10 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
           c.ready = true
           c.readyAt = w.t
           c.from = this.pos
+        } else if (c.critical) {
+          // priority 1-2 walk-in: no triage queue; they sit in the ER rows (the `think` loop makes them ready) until a bay is theirs
+          w.say('triaged', `${c.name} is very unwell: priority ${c.acuity}, straight to a bay.`, { subjectId: c.id })
+          if (!this.warmed) this.seekSeat('er')
         } else {
           w.say('triaged', `${staffName(c.nurseId ?? 'nurse-T1')} triaged ${c.name}: priority ${c.acuity}.`, {
             subjectId: c.id,
@@ -282,11 +304,30 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
       case 'inBay.walking':
         this.showEmote('none', w.t)
         break
-      case 'inBay.waitingExam':
-        c.onTrolley = true
-        c.trolleyAt = w.t
+      case 'inBay.waitingCare':
+        c.trolleyAt = c.trolleyAt > 0 ? c.trolleyAt : w.t
         this.entity.mood = 'unwell'
         this.showEmote('bed', w.t)
+        break
+      case 'inBay.care': {
+        const nurse = staffName(c.careBy ?? 'nurse-ER1')
+        const parts = ['observations', 'a cannula']
+        if (ctx.needsEcg) parts.push('an ECG')
+        if (ctx.needsBloods) parts.push('bloods')
+        w.say('testsOrdered', `${nurse} is taking ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')} from ${c.name} in ER bay ${c.bay + 1}.`, {
+          subjectId: c.id,
+          actorId: c.careBy ?? undefined,
+        })
+        // a priority 1-2 walk-in is triaged in the bay by the same nurse
+        if (c.critical) w.vitals?.recordTriage(c.id, c.name, c.careBy ?? 'nurse-ER1')
+        this.showEmote(ctx.needsEcg ? 'scan' : 'none', w.t)
+        break
+      }
+      case 'inBay.waitingExam':
+        this.entity.mood = 'unwell'
+        this.showEmote('bed', w.t)
+        // the nurse has drawn the bloods: the lab has an order now, and she takes the tubes to the tube station
+        if (ctx.needsBloods) this.drawBedsideBloods()
         break
       case 'inBay.exam':
         w.say('seenByDoctor', `${staffName(c.doctorId ?? 'doc-ER1')} is seeing ${c.name} in ER bay ${c.bay + 1}.`, {
@@ -295,29 +336,28 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
         })
         this.showEmote('none', w.t)
         break
-      case 'tests.waitingPorter':
-        if (this.testKind === 'imaging') {
-          const proto = protocolById(this.protocolId!)
-          w.say('testsOrdered', `${staffName(c.doctorId ?? 'doc-ER1')} ordered the ${proto.name} for ${c.name}.`, {
-            subjectId: c.id,
-            actorId: c.doctorId ?? undefined,
-          })
-          this.booking = w.imaging!.requestErExam(this, proto.id)
-        } else {
-          w.say('testsOrdered', `${staffName(c.doctorId ?? 'doc-ER1')} ordered tests for ${c.name}.`, {
-            subjectId: c.id,
-            actorId: c.doctorId ?? undefined,
-          })
-          // W4: a V ticket now, so the tray is made while the porter is on the way
-          if (this.liveBlood && this.drawTicket === null) {
-            this.drawTicket = w.blood!.requestEr(this, erPanelFor(c.reason)!)
-            // a patient who will go home waits for the results in the Lab & imaging hall, not in the bay
-            if (!ctx.admit && resultsLounge.enabled) this.loungeSeat = w.seats.claim(c.id, { kind: 'waiting', area: 'imagingHall' }, this.pos)
-          }
-        }
-        c.doctorId = null
+      case 'inBay.waitingReview':
+        this.showEmote('bed', w.t)
+        w.say('resultsBack', `${c.name}'s results are back.`, { subjectId: c.id })
+        break
+      case 'inBay.review':
+        w.say('seenByDoctor', `${staffName(c.doctorId ?? 'doc-ER1')} is going over the results with ${c.name}.`, {
+          subjectId: c.id,
+          actorId: c.doctorId ?? undefined,
+        })
+        this.showEmote('none', w.t)
+        break
+      case 'tests.waitingPorter': {
+        // only the scan takes the patient out of the bay (the bloods were drawn at the bedside)
+        const proto = protocolById(this.protocolId!)
+        w.say('testsOrdered', `${staffName(c.doctorId ?? 'doc-ER1')} ordered the ${proto.name} for ${c.name}.`, {
+          subjectId: c.id,
+          actorId: c.doctorId ?? undefined,
+        })
+        this.booking = w.imaging!.requestErExam(this, proto.id)
         this.showEmote('hourglass', w.t)
         break
+      }
       case 'tests.toLab':
         this.showEmote('scan', w.t)
         break
@@ -326,7 +366,6 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
         break
       case 'tests.waitingReturn':
         this.showEmote('hourglass', w.t)
-        if (this.testKind !== 'imaging') this.jobAsked = false
         this.pickedSent = false
         break
       case 'tests.returning':
@@ -336,11 +375,6 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
         this.showEmote('hourglass', w.t)
         break
       case 'decision':
-        if (ctx.needsTests) {
-          const what = this.booking ? `${this.booking.protocolName} report` : 'results'
-          w.say('resultsBack', `${c.name}'s ${what} ${this.booking ? 'is' : 'are'} back.`, { subjectId: c.id })
-        }
-        c.doctorId = null
         break
       case 'leaving.home': {
         const mins = Math.max(1, Math.round((w.t - c.arrivedAt) / 60))
@@ -350,11 +384,6 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
         this.entity.mood = 'happy'
         this.showEmote('check', w.t, 8)
         w.er.vacate(c, w.t)
-        if (this.loungeSeat !== null) {
-          w.seats.release(this.loungeSeat.id, c.id)
-          this.loungeSeat = null
-          this.loungeActive = false
-        }
         this.beginLeaving(DEPARTURES.entrance)
         break
       }
@@ -403,7 +432,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
    * they would anyone. For 'bay' the department must already have promised a bay (`ErDepartment.occupyBay`). Nothing is logged by the caller's
    * `world.quiet`. `holdSeconds`: how long a waiting patient is left uncalled (the staff are busy elsewhere). Call once, right after `start()`.
    */
-  warmStart(stage: 'triage' | 'doctor' | 'bay', waitedSeconds: number, holdSeconds = 0): void {
+  warmStart(stage: 'triage' | 'doctor' | 'bay', waitedSeconds: number, holdSeconds = 0, bay: BayStep = { step: 'wait', progress: 0 }): void {
     const w = this.world
     const c = this.c
     this.warmed = true
@@ -412,8 +441,32 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
     if (stage === 'bay') {
       const seat = this.baySeat
       if (seat) this.placeOnSeat(seat)
-      this.pathway.send({ type: 'WARM_BAY' })
+      c.trolleyAt = w.t - waitedSeconds * 0.5
+      const p = bay.progress
+      switch (bay.step) {
+        case 'wait':
+          this.pathway.send({ type: 'WARM_BAY' })
+          break
+        case 'care':
+          this.pathway.send({ type: 'WARM_CARE', progress: p })
+          break
+        case 'waitExam':
+          this.pathway.send({ type: 'WARM_WAITEXAM' })
+          break
+        case 'exam':
+          this.pathway.send({ type: 'WARM_EXAM', progress: p })
+          break
+        case 'results':
+          this.pathway.send({ type: 'WARM_RESULTS' })
+          break
+        case 'review':
+          this.pathway.send({ type: 'WARM_REVIEW', progress: p })
+          break
+      }
       this.warmed = false
+      // the bloods of a patient placed after the nurse's care were drawn and are on their way (a nurse's errand is not replayed)
+      const ctx = this.pathway.getSnapshot().context
+      if (ctx.needsBloods && !ctx.bloodsReady && (bay.step === 'waitExam' || bay.step === 'exam' || bay.step === 'results')) this.drawBedsideBloods(true)
       return
     }
     const group = stage === 'triage' ? 'triage' : 'er'
@@ -437,6 +490,82 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
     } else {
       c.ready = true
     }
+  }
+
+  // --- the bedside bloods (Wave 1) -------------------------------------------------------------------------
+
+  /**
+   * The nurse has drawn the bloods: the lab gets the order, and the nurse takes the tubes to the tube station (`tubesSent` says they went). With
+   * `sendNow` (a warm start) the tubes go at once. A world with no lab brings the results back on a timer, so nobody waits for ever.
+   */
+  private drawBedsideBloods(sendNow = false): void {
+    if (this.bloodOrder !== null || this.bloodsTimer) return
+    const w = this.world
+    const order = this.testBloods !== null ? w.bedside.order(this, this.testBloods) : null
+    if (order === null) {
+      this.bloodsTimer = true
+      this.tubesSent = true
+      w.clock.setTimeout(() => this.bloodsVerified(), this.prng.fork('bloods').between(CONFIG.er.resultsSeconds) * 1000)
+      return
+    }
+    this.bloodOrder = order
+    if (sendNow) {
+      this.tubesSent = true
+      w.bedside.send(order)
+    }
+  }
+
+  /** The nurse puts the tubes into the pneumatic tube. */
+  sendTubes(): void {
+    if (this.tubesSent || this.bloodOrder === null) return
+    this.tubesSent = true
+    this.world.bedside.send(this.bloodOrder)
+    this.world.say('samplesSent', `${this.c.name}'s bloods are on their way to the lab by pneumatic tube.`, { subjectId: this.c.id })
+  }
+
+  /** The lab verified every test of the bedside bloods. */
+  bloodsVerified(): void {
+    if (this.state !== 'gone') this.pathway.send({ type: 'BLOODS_READY' })
+  }
+
+  /** Is the patient waiting for their bloods to be taken to the tube station? */
+  get tubesWaiting(): boolean {
+    return this.bloodOrder !== null && !this.tubesSent
+  }
+
+  /** The ER nurse is at the bedside: the care step starts. */
+  nurseHere(): void {
+    this.pathway.send({ type: 'NURSE_HERE' })
+  }
+
+  /** The doctor is back at the bedside with the results. */
+  reviewHere(): void {
+    this.pathway.send({ type: 'REVIEW_HERE' })
+  }
+
+  get careSeconds(): number {
+    return this.pathway.getSnapshot().context.careSeconds
+  }
+
+  get reviewSeconds(): number {
+    return this.pathway.getSnapshot().context.reviewSeconds
+  }
+
+  /** Progress (0..1) of the step the patient is in, from the machine's own context (used when staff are placed mid-way). */
+  get needsEcg(): boolean {
+    return this.pathway.getSnapshot().context.needsEcg
+  }
+
+  get needsBloods(): boolean {
+    return this.pathway.getSnapshot().context.needsBloods
+  }
+
+  /** A nurse has brought a wheelchair for a priority 1-2 walk-in: get on it. */
+  wheelOn(nurse: Actor): void {
+    this.world.vitals?.abort(this.c.id)
+    this.releaseWaitSeat()
+    this.phase = 'wheeling'
+    this.loadOn(nurse, 'wheelchair')
   }
 
   /** The department promised this patient a bay: tell the machine (stops the patience timer). */
@@ -477,7 +606,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
 
   /** A nurse has come for the patient and they are on their way (standing up or walking) to a triage chair or a bay. */
   get beingEscorted(): boolean {
-    return this.phase === 'escorting' || this.phase === 'standingForEscort'
+    return this.phase === 'escorting' || this.phase === 'standingForEscort' || this.phase === 'wheeling'
   }
 
   get mounted(): boolean {
@@ -490,36 +619,17 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
   }
 
   get baySeat(): SeatSpec | null {
-    if (this.loungeActive) return this.loungeSeat
     return this.c.bay >= 0 ? this.world.er.bays[this.c.bay].seat : null
   }
 
   /** The porter reached the patient with a vehicle: get on. */
   loadOn(pusher: Actor, kind: 'wheelchair' | 'stretcher'): void {
-    if (this.state === 'tests.waitingReturn' && this.labSeat) {
-      this.releaseLabSeat()
-    }
     if (this.state === 'admittedOut.waitingPorter') {
       this.world.er.vacate(this.c, this.world.t)
       if (this.bed) this.world.beds?.boardingEnded(this.c.id, this.world.t)
     }
-    if (this.state === 'tests.waitingPorter' && this.loungeSeat !== null && !this.loungeActive) {
-      // off the trolley for good: the bay is cleaned for the next patient while they have their bloods and wait for the results
-      this.world.er.vacate(this.c, this.world.t)
-      this.c.bay = -1
-      this.loungeActive = true
-      this.usedLounge = true
-    }
     this.world.attach(pusher, this)
     this.mountOn(pusher, kind)
-  }
-
-  /** At Lab & imaging: get off onto the blood-draw chair. */
-  unloadAtLab(): void {
-    const seat = this.labSeat
-    this.world.detach(this)
-    if (seat) this.dismount(seat.x, seat.z, seat.heading, seat)
-    else this.dismount(this.walker.x, this.walker.z, this.walker.heading, null)
   }
 
   /** At the scanner: get off the wheelchair or stretcher onto the table. */
@@ -538,71 +648,15 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
   /** May the porter load this patient for the job now? (On the way back from a scan, only once the table is out.) */
   pickupReady(kind: PorterJobKind): boolean {
     if (kind === 'fromImaging') return this.scanFinishedFlag
-    // W4: the robot's arm must be free (the porter waits at the chair until the draw is over)
-    if (kind === 'fromDiagnostics' && this.liveBlood) return this.drawFinishedFlag
     return true
   }
 
-  // --- the blood draw centre's side (DrawSubject, W4) ---------------------------------------------------------------------
+  /** The draw centre is no longer used by ER patients (Wave 1: bloods are drawn at the bedside); the porter code still names these. */
+  drawArrived(): void {}
 
-  /** Your ticket is called to robot `station`: the chair is yours; the porter waiting with you takes you there. */
-  drawCalled(_station: number, seat: SeatSpec): void {
-    this.labSeat = seat
-    this.world.blood?.releaseHold(this.c.id)
-  }
-
-  seatedOn(seat: SeatSpec): boolean {
-    return this.seat === seat && this.mode === 'static' && this.done
-  }
-
-  /** Lifted onto the wheelchair (or otherwise up): the robot's chair is free again. */
-  offChair(seat: SeatSpec): boolean {
-    return this.seat !== seat
-  }
-
-  armIn(on: boolean): void {
-    if (this.seat !== null) this.entity.anim = on ? 'armIn' : 'sit'
-  }
-
-  /** The bandage is going on: ask for the ride back now, so it is there when the arm is free. */
-  drawNearlyDone(): void {
-    this.requestDrawReturn()
-  }
-
-  /** The arm is free: the pathway moves on to waiting for the porter and the results. */
-  drawReleased(): void {
-    this.drawFinishedFlag = true
-    this.pathway.send({ type: 'DRAW_DONE' })
-  }
-
-  /** The draw centre gave up on the call (a safety net): carry on as if the draw had finished. */
-  drawAborted(): void {
-    this.drawFinishedFlag = true
-    this.pathway.send({ type: 'DRAW_DONE' })
-  }
-
-  /** The lab verified every test of the order: the results are back. */
-  resultsReady(_order: LabOrder): void {
-    if (this.state !== 'gone') this.pathway.send({ type: 'REPORT_READY' })
-  }
-
-  /** The porter has the patient at the draw room's holding spot: they may be called to a robot. */
-  drawArrived(): void {
-    if (this.drawTicket) this.world.blood?.erArrived(this.drawTicket.id)
-  }
-
-  private requestDrawReturn(): void {
-    if (this.returnJobAsked) return
-    this.returnJobAsked = true
-    this.world.porters.request('fromDiagnostics', this.c.id, this.world.t)
-  }
-
-  private releaseLabSeat(): void {
-    const seat = this.labSeat
-    if (!seat) return
-    if (this.liveBlood) this.world.blood?.releaseChairSeat(seat, this.c.id)
-    else this.world.seats.release(seat.id, this.c.id)
-    this.labSeat = null
+  unloadAtLab(): void {
+    this.world.detach(this)
+    this.dismount(this.walker.x, this.walker.z, this.walker.heading, null)
   }
 
   // --- the health kiosk detour (KioskSubject, W4) ------------------------------------------------------------------------
@@ -913,38 +967,21 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
         this.thinkEscort()
         break
       case 'tests.waitingPorter':
-        if (this.testKind === 'imaging') {
-          // the scanner has taken us (scanAssigned): now the porter may come
-          if (!this.scanJobAsked && this.scanSeat !== null) {
-            this.scanJobAsked = true
-            w.porters.request('toImaging', c.id, w.t)
-          }
-        } else if (!this.jobAsked && this.due(dt, 1)) {
-          if (this.liveBlood) {
-            // W4: the porter takes them to the draw centre's holding spot; the chair is the robot's, given when the ticket is called
-            this.askPorter('toDiagnostics')
-          } else {
-            const chair = this.labSeat ?? w.seats.claim(c.id, { kind: 'drawChair', area: 'diagnostics' }, this.pos)
-            if (chair) {
-              this.labSeat = chair
-              this.askPorter('toDiagnostics')
-            }
-          }
+        // the scanner has taken us (scanAssigned): now the porter may come
+        if (!this.scanJobAsked && this.scanSeat !== null) {
+          this.scanJobAsked = true
+          w.porters.request('toImaging', c.id, w.t)
         }
         this.sendPicked()
         break
-      case 'tests.toLab': {
-        const target = this.testKind === 'imaging' ? this.scanSeat : this.labSeat
-        if (!this.labSent && this.mode === 'static' && this.done && this.seat && this.seat === target) {
+      case 'tests.toLab':
+        if (!this.labSent && this.mode === 'static' && this.done && this.seat && this.seat === this.scanSeat) {
           this.labSent = true
           this.pathway.send({ type: 'AT_LAB' })
         }
         break
-      }
       case 'tests.waitingReturn':
-        if (this.testKind === 'imaging') this.scanRequestReturn()
-        else if (this.liveBlood) this.requestDrawReturn()
-        else if (!this.jobAsked) this.askPorter('fromDiagnostics')
+        this.scanRequestReturn()
         this.sendPicked()
         break
       case 'tests.returning':
@@ -1099,7 +1136,7 @@ export class ErPatient extends Actor implements PathwayHost, ScanSubject, DrawSu
 
   private beginLeaving(exit: Vec2): void {
     this.exit = exit
-    this.cruise = Math.max(this.cruise, CONFIG.er.walkSpeed)
+    this.cruise = Math.max(this.cruise, CONFIG.er.walkSpeed * ageWalkFactor(this.age))
     if (this.seat) {
       this.leave = 'standing'
       this.standUp()

@@ -15,10 +15,11 @@
 import { surgeryLine, SURGERY_COPY } from '@/content/surgery'
 import { staffName } from '@/content/staff'
 import { CONFIG } from '../config'
-import { headingTo, callSpot } from '../er/spots'
+import { headingTo, callSpot, inDoorway } from '../er/spots'
 import type { World } from '../er/world'
 import type { LiftBank, LiftTrip } from '../lifts'
-import { LIFTS, ARRIVALS, DEPARTURES } from '../places'
+import { LIFTS, ARRIVALS, DEPARTURES, VEHICLE_AHEAD } from '../places'
+import { isWalkable } from '../nav/layout'
 import type { Rng } from '../rng'
 import type { CasePhase, SeatSpec, SimEventType, SurgeryCaseView, Vec2 } from '../types'
 import { SurgicalPatient, SurgeryCompanion, type Staffer, type Title } from './actors'
@@ -117,6 +118,10 @@ export interface CaseHost {
 }
 
 /** A wait that never ends is a bug: past these (seconds) a step is forced, and `stuck` is told. */
+/** Share of the normal walking pace right after an operation (a slow, careful walk). */
+const POSTOP_PACE = 0.5
+/** Seconds to get the wheelchair set up beside the lounge seat before they walk out slowly instead. */
+const CHAIR_GIVE_UP = 150
 const LIMIT = { arriving: 1500, lift: 600, toBay: 480, visit: 900, fetch: 600, toTheatre: 900, console: 300, pacu: 600, ward: 900, leave: 900 }
 
 function fmtMin(seconds: number): number {
@@ -160,6 +165,8 @@ export class SurgeryCase {
   private pacuRef: SeatRef | null = null
   private standIdx = 0
   private docked = false
+  /** Going home by wheelchair (the family pushes) rather than on foot. */
+  private chairOut = false
   private outLoaded = false
   private visitor: Staffer | null = null
   private visitKey = ''
@@ -366,7 +373,7 @@ export class SurgeryCase {
   }
 
   /** Patient and companion take lift A between the levels (or, with no lifts in the world, appear at the other lobby). */
-  private startRide(t: number, from: 1 | 2, to: 1 | 2): void {
+  private startRide(t: number, from: 1 | 2, to: 1 | 2, chair = false): void {
     const c = this.companion!
     const p = this.patient!
     c.follow = null
@@ -375,7 +382,10 @@ export class SurgeryCase {
       this.trip = null
       return
     }
-    this.trip = lifts.trip({ ownerId: `${this.id}:${from}to${to}`, shaft: 'A', from, to, walkers: [p, c] })
+    // (by wheelchair the companion is the pusher and the patient the rider that goes along; otherwise both walk in)
+    this.trip = lifts.trip(
+      chair ? { ownerId: `${this.id}:${from}to${to}`, shaft: 'A', from, to, pusher: c, walkers: [] } : { ownerId: `${this.id}:${from}to${to}`, shaft: 'A', from, to, walkers: [p, c] },
+    )
     void t
   }
 
@@ -821,6 +831,8 @@ export class SurgeryCase {
     const p = this.patient!
     this.pacuOutAt = t
     p.entity.outfit = 'everyday'
+    // just out of recovery: a slow, careful walk to the lounge chair (about half pace), never a brisk one
+    p.cruise = Math.min(p.cruise, CONFIG.er.walkSpeed * POSTOP_PACE)
     p.standUp()
     this.enter('phase2', t)
     this.until = t + this.plan.phase2Seconds
@@ -850,47 +862,133 @@ export class SurgeryCase {
     if (t >= this.until) this.beginLeaving(t)
   }
 
+  /**
+   * Day cases go home by wheelchair: the companion (family) pushes the patient from the lounge to lift A, down, and to the entrance, where both
+   * fade out as they get into the car. Nobody who has just had an operation walks out at full speed. If the wheelchair cannot be set up in
+   * `CHAIR_GIVE_UP` seconds (no room beside the seat) they walk instead, at the slow post-op pace.
+   */
   private beginLeaving(t: number): void {
     const h = this.host
     const p = this.patient!
     const c = this.companion!
-    // up off the seats (the claims go in the same step: nobody sits on a seat that is free), then the ride
+    // up off the seats (the claims go in the same step: nobody sits on a seat that is free)
     p.standUp()
     c.standUp()
     for (const [seat, who] of [[this.loungeSeat, p.entity.id], [this.compSeat, c.entity.id]] as const) if (seat !== null) h.world.seats.release(seat.id, who)
     this.loungeSeat = null
     this.compSeat = null
-    this.startRide(t, 2, 1)
+    this.chairOut = false
     this.enter('leaving', t)
   }
 
-  private stepLeaving(t: number): void {
-    const trip = this.trip
-    if (trip !== null && !trip.done) {
-      if (t - this.stageAt > LIMIT.leave) this.host.stuck(`${this.id}: the lift ride down has not finished after ${LIMIT.leave} s (${trip.phase})`)
-      return
+  /** The wheelchair behind the patient: where the pusher stands, facing the lift. */
+  private chairSpot(): { at: Vec2; face: number } | null {
+    const p = this.patient!
+    const to = LIFTS.A[2].stretcher.at
+    const base = headingTo(p.pos, to)
+    for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, Math.PI]) {
+      const hd = base + turn
+      const at = { x: p.walker.x - Math.sin(hd) * VEHICLE_AHEAD.wheelchair, z: p.walker.z - Math.cos(hd) * VEHICLE_AHEAD.wheelchair }
+      if (isWalkable(at.x, at.z, 0.3) && !inDoorway(at.x, at.z)) return { at, face: hd }
     }
+    return null
+  }
+
+  private chairFallback(t: number): void {
     const p = this.patient!
     const c = this.companion!
+    if (p.pusher !== null) {
+      this.host.world.detach(p)
+      p.dismount(p.walker.x, p.walker.z, p.walker.heading, null)
+    }
+    c.setVehicle('none')
+    c.walkAnim = 'walk'
+    this.chairOut = false
+    this.sub = 4
+    this.startRide(t, 2, 1)
+  }
+
+  private stepLeaving(t: number): void {
+    const h = this.host
+    const p = this.patient!
+    const c = this.companion!
+    if (this.sub < 3 && t - this.stageAt > CHAIR_GIVE_UP) {
+      h.stuck(`${this.id}: the wheelchair was not ready after ${CHAIR_GIVE_UP} s (sub ${this.sub}); they walk out slowly`)
+      this.chairFallback(t)
+      return
+    }
+    switch (this.sub) {
+      case 0: {
+        if (!(p.done && p.mode === 'static' && c.done && c.mode === 'static')) return
+        const spot = this.chairSpot()
+        if (spot === null) {
+          this.chairFallback(t)
+          return
+        }
+        c.moveTo(spot.at, { face: spot.face })
+        this.sub = 1
+        return
+      }
+      case 1:
+        if (!(c.done && c.mode === 'static')) return
+        c.setVehicle('wheelchair')
+        c.walkAnim = 'push'
+        h.world.attach(c, p)
+        p.mountOn(c, 'wheelchair')
+        this.sub = 2
+        return
+      case 2:
+        if (!p.mounted) return
+        this.chairOut = true
+        this.startRide(t, 2, 1, true)
+        this.sub = 3
+        return
+      default:
+        break
+    }
+    const trip = this.trip
+    if (trip !== null && !trip.done) {
+      if (t - this.stageAt > LIMIT.leave + CHAIR_GIVE_UP) h.stuck(`${this.id}: the lift ride down has not finished after ${LIMIT.leave} s (${trip.phase})`)
+      return
+    }
     if (trip === null) {
       const s = LIFTS.A[1].walkers
-      p.placeAt(s[0].x, s[0].z, 0)
-      c.placeAt(s[1].x, s[1].z, 0)
+      if (this.chairOut) {
+        const sp = LIFTS.A[1].stretcher
+        c.placeAt(sp.at.x, sp.at.z, sp.heading)
+      } else {
+        p.placeAt(s[0].x, s[0].z, 0)
+        c.placeAt(s[1].x, s[1].z, 0)
+      }
     }
     this.trip = null
-    p.cruise = Math.max(p.cruise, CONFIG.er.walkSpeed)
-    c.cruise = p.cruise
     p.entity.mood = 'happy'
-    p.moveTo(DEPARTURES.entrance)
-    c.moveTo({ x: DEPARTURES.entrance.x, z: DEPARTURES.entrance.z + 0.7 })
+    if (this.chairOut) {
+      // the family wheels them out to the car at the entrance
+      c.moveTo(DEPARTURES.entrance, { speed: CONFIG.er.wheelSpeed })
+    } else {
+      // (the fallback) on foot, at the slow post-op pace
+      p.cruise = CONFIG.er.walkSpeed * POSTOP_PACE
+      c.cruise = p.cruise
+      p.moveTo(DEPARTURES.entrance)
+      c.moveTo({ x: DEPARTURES.entrance.x, z: DEPARTURES.entrance.z + 0.7 })
+    }
     this.enter('leaveWalk', t)
   }
 
   private stepLeaveWalk(t: number): void {
     const p = this.patient!
     const c = this.companion!
-    if (p.done && !p.fadingOut) p.fadeOut()
-    if (c.done && !c.fadingOut) c.fadeOut()
+    if (this.chairOut) {
+      // the patient rides: both go out together once the wheelchair is at the door
+      if (c.done && !c.fadingOut) {
+        c.fadeOut()
+        if (!p.fadingOut) p.fadeOut()
+      }
+    } else {
+      if (p.done && !p.fadingOut) p.fadeOut()
+      if (c.done && !c.fadingOut) c.fadeOut()
+    }
     if (p.gone && c.gone) this.finish(t)
     else if (t - this.stageAt > LIMIT.leave) {
       this.host.stuck(`${this.id}: did not reach the entrance in ${LIMIT.leave} s`)

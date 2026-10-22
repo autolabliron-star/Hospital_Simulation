@@ -33,7 +33,8 @@ const manifest = readJson('assets.manifest.json')
 const listing = readJson('fixtures/rocketbox-medical-listing.json') as { commit: string; listings: Record<string, Array<{ name: string; path: string; size: number; sha: string }>> }
 const waltzPins = readJson('fixtures/waltz-pinned-adults.json') as { entries: any[] }
 
-const assets: any[] = manifest.assets
+/** The manifest also holds the Poly Haven textures and HDRI (kinds "textures" and "hdri", checked in fetch-assets.test.ts); this file is about the Rocketbox people. */
+const assets: any[] = (manifest.assets as any[]).filter((e) => e.kind === 'people')
 const medical = assets.filter((e) => e.id.startsWith('rb-medical-'))
 const adults = assets.filter((e) => !e.id.startsWith('rb-medical-'))
 

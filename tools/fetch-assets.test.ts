@@ -1,11 +1,12 @@
 /**
  * Tests for the asset validation gate (tools/assets-lib.mjs + tools/fetch-assets.mjs), ported from the Waltz City gate tests
- * and narrowed to this project's single source (Microsoft Rocketbox at one pinned commit).
+ * and narrowed to this project's two sources (Microsoft Rocketbox at one pinned commit, and the CC0 textures and HDRIs of
+ * Poly Haven on dl.polyhaven.org, see section 9).
  * Every fixture is built in memory and the network is a mock: nothing here touches the internet, and the project's own
  * public/assets, assets-src and docs are never written (each test gets its own temp project root).
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { promises as fs } from 'node:fs'
+import { promises as fs, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
@@ -199,7 +200,10 @@ describe('origin gate', () => {
       `https://media.githubusercontent.com/media/microsoft/Microsoft-Rocketbox/${COMMIT}/${folder}`, // the LFS host: not needed, not allowed
       `https://gist.githubusercontent.com/someone/abc/raw/x.fbx`,
       `https://kenney.nl/media/pages/assets/x.zip`, // sources of the Waltz gate that this gate does not carry
-      `https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/x.hdr`,
+      `https://api.polyhaven.com/files/terrazzo_tiles`, // the metadata API is read by hand, never by the gate
+      `https://polyhaven.com/a/terrazzo_tiles`,
+      `https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/x/x_diff_1k.fbx`, // a Poly Haven path, but not an allow-listed type
+      `https://dl.polyhaven.org/${COMMIT}/Assets/Avatars/Professions/Medical_Male_01/Export/Medical_Male_01.fbx`, // Rocketbox path on the other host
       `https://raw.githubusercontent.com/mrdoob/three.js/9b4a2ac29c63ccb43fd51c5661f2f873ac2c39b8/examples/models/gltf/Xbot.glb`,
       `https://raw.githubusercontent.com/someone-else/Microsoft-Rocketbox/${COMMIT}/${folder}`,
       `https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox-fork/${COMMIT}/${folder}`,
@@ -794,7 +798,9 @@ describe('manifest entries', () => {
     bad({ id: 'Has Spaces' })
     bad({ id: '../x' })
     bad({ kind: 'secrets' })
-    bad({ kind: 'props' }) // only "people" exists in this project
+    bad({ kind: 'props' }) // only "people", "textures" and "hdri" exist in this project
+    bad({ kind: 'textures' }) // fbx is not a texture type
+    bad({ group: 'terrazzo_tiles' }) // group is for textures only
     bad({ type: 'exe' })
     bad({ type: 'glb', url: FBX_URL.replace('.fbx', '.glb'), file: 'x.glb' })
     bad({ typo: true })
@@ -846,7 +852,7 @@ describe('command line', () => {
   })
 })
 
-describe('the gate never executes what it downloads, and knows one host', () => {
+describe('the gate never executes what it downloads, and knows two hosts', () => {
   const read = async (file: string) => {
     const src = await fs.readFile(path.join(here, file), 'utf8')
     return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -871,12 +877,13 @@ describe('the gate never executes what it downloads, and knows one host', () => 
     }
   })
 
-  it('names exactly one host in code, and writes no other URL', async () => {
+  it('names exactly two hosts in code (GitHub raw and Poly Haven files), and writes no other URL', async () => {
     for (const file of ['assets-lib.mjs', 'fetch-assets.mjs']) {
       const code = await read(file)
       expect(code, `${file}: no URL literal`).not.toMatch(/https?:\/\/[a-z0-9]/i)
       const hosts = [...code.matchAll(/['"`]((?:[a-z0-9-]+\.)+(?:com|org|net|io|nl|dev))['"`]/g)].map((m) => m[1])
-      expect([...new Set(hosts)], file).toEqual(file === 'assets-lib.mjs' ? ['raw.githubusercontent.com'] : [])
+      expect([...new Set(hosts)].sort(), file).toEqual(file === 'assets-lib.mjs' ? ['dl.polyhaven.org', 'raw.githubusercontent.com'] : [])
+      expect(code, `${file}: the Poly Haven metadata API is never contacted`).not.toMatch(/api\.polyhaven/)
     }
   })
 
@@ -885,6 +892,345 @@ describe('the gate never executes what it downloads, and knows one host', () => 
     expect([...lib.matchAll(/\bfetchImpl\(/g)]).toHaveLength(1) // the one request site, behind the origin gate
     expect(lib).toMatch(/globalThis\.fetch/)
     expect(await read('fetch-assets.mjs')).not.toMatch(/\bfetch\s*\(/)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// 9. Poly Haven: CC0 textures and HDRIs (kinds "textures" and "hdri")
+// ---------------------------------------------------------------------------------------------
+
+const PH = 'https://dl.polyhaven.org/file/ph-assets'
+const TEX_URL = `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg`
+const NOR_URL = `${PH}/Textures/png/1k/concrete_wall_001/concrete_wall_001_nor_gl_1k.png`
+const HDR_URL = `${PH}/HDRIs/hdr/2k/kloofendal_38d_partly_cloudy_2k.hdr`
+const EXR_URL = `${PH}/HDRIs/exr/1k/kloofendal_38d_partly_cloudy_1k.exr`
+
+/** A JPEG-looking body (FF D8 FF E0 ...). */
+const jpg = (fill = 0x11, size = 64) => {
+  const b = Buffer.alloc(size, fill)
+  b.set([0xff, 0xd8, 0xff, 0xe0], 0)
+  return b
+}
+const png = (fill = 0x22, size = 64) => {
+  const b = Buffer.alloc(size, fill)
+  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0)
+  return b
+}
+const hdr = (fill = 0x33, size = 64, magic = '#?RADIANCE\n') => {
+  const b = Buffer.alloc(size, fill)
+  b.write(magic, 0, 'latin1')
+  return b
+}
+const exr = (fill = 0x44, size = 64) => {
+  const b = Buffer.alloc(size, fill)
+  b.set([0x76, 0x2f, 0x31, 0x01], 0)
+  return b
+}
+
+/** A Poly Haven manifest entry for `bytes`: no git blob id (there is no commit to pin), sha256 still null. */
+const phEntry = (bytes: Buffer, over: Record<string, unknown> = {}) => ({
+  id: 'ph-terrazzo-tiles-diff-2k',
+  kind: 'textures',
+  type: 'jpg',
+  dest: 'source',
+  group: 'terrazzo_tiles',
+  file: 'terrazzo_tiles_diff_2k.jpg',
+  url: TEX_URL,
+  sourcePage: 'https://polyhaven.com/a/terrazzo_tiles',
+  sha256: null,
+  bytes: bytes.length,
+  maxBytes: bytes.length + 100,
+  licence: 'CC0 1.0 Universal',
+  ...over,
+})
+const hdriEntry = (bytes: Buffer, over: Record<string, unknown> = {}) =>
+  phEntry(bytes, { id: 'ph-kloofendal-hdr-2k', kind: 'hdri', type: 'hdr', group: undefined, file: 'kloofendal_38d_partly_cloudy_2k.hdr', url: HDR_URL, sourcePage: 'https://polyhaven.com/a/kloofendal_38d_partly_cloudy', ...over })
+
+describe('Poly Haven origin gate', () => {
+  it('accepts texture and HDRI paths: Textures/<jpg|png>/<1k|2k>/<id>/<id>_<map>_<res>.<fmt>, HDRIs/<hdr|exr>/<1k|2k>/<name>_<res>.<fmt>', () => {
+    for (const ok of [
+      TEX_URL,
+      NOR_URL,
+      `${PH}/Textures/jpg/1k/poly_wool_herringbone/poly_wool_herringbone_arm_1k.jpg`,
+      `${PH}/Textures/png/2k/oak_veneer_02/oak_veneer_02_rough_2k.png`,
+      `${PH}/Textures/jpg/1k/horn-koppe_x/horn-koppe_x_diff_1k.jpg`,
+      HDR_URL,
+      EXR_URL,
+      `${PH}/HDRIs/hdr/1k/studio_small_03_1k.hdr`,
+    ]) {
+      expect(lib.checkDownloadUrl(ok).hostname, ok).toBe('dl.polyhaven.org')
+    }
+  })
+
+  it('refuses other hosts, paths, resolutions, formats, extensions, query strings, fragments and traversal', () => {
+    const bad = [
+      'https://polyhaven.com/file/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg', // the web host
+      'https://api.polyhaven.com/files/terrazzo_tiles',
+      'https://dl.polyhaven.org.evil.com/file/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg',
+      'https://www.dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg',
+      'https://cdn.polyhaven.org/file/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg',
+      'http://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg',
+      'https://dl.polyhaven.org:8443/file/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg',
+      'https://user:pw@dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg',
+      `${TEX_URL}?download=1`, // query string
+      `${TEX_URL}#x`, // fragment
+      `${PH}/Textures/jpg/4k/terrazzo_tiles/terrazzo_tiles_diff_4k.jpg`, // resolution
+      `${PH}/Textures/jpg/8k/terrazzo_tiles/terrazzo_tiles_diff_8k.jpg`,
+      `${PH}/Textures/jpg/512/terrazzo_tiles/terrazzo_tiles_diff_512.jpg`,
+      `${PH}/Textures/jpg/2K/terrazzo_tiles/terrazzo_tiles_diff_2K.jpg`,
+      `${PH}/Textures/exr/2k/terrazzo_tiles/terrazzo_tiles_disp_2k.exr`, // textures are jpg or png only
+      `${PH}/Textures/hdr/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.hdr`,
+      `${PH}/Textures/blend/2k/terrazzo_tiles/terrazzo_tiles_2k.blend`, // other formats of the store
+      `${PH}/Textures/gltf/2k/terrazzo_tiles/terrazzo_tiles_2k.gltf`,
+      `${PH}/Textures/zip/2k/terrazzo_tiles/terrazzo_tiles_2k.zip`,
+      `${PH}/HDRIs/jpg/2k/kloofendal_38d_partly_cloudy_2k.jpg`, // HDRIs are hdr or exr only
+      `${PH}/HDRIs/png/2k/kloofendal_38d_partly_cloudy_2k.png`,
+      `${PH}/HDRIs/hdr/8k/kloofendal_38d_partly_cloudy_8k.hdr`,
+      `${PH}/HDRIs/hdr/2k/kloofendal_38d_partly_cloudy_2k.exr`, // extension != folder
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.png`,
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_1k.jpg`, // file resolution != folder
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/other_asset_diff_2k.jpg`, // file is not that asset's
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg.exe`,
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/.hidden_2k.jpg`,
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.JPG`, // case matters: the folder says jpg
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/extra/terrazzo_tiles_diff_2k.jpg`, // too deep
+      `${PH}/Textures/jpg/2k/terrazzo_tiles_diff_2k.jpg`, // too shallow (no asset folder)
+      `${PH}/HDRIs/hdr/2k/sub/kloofendal_38d_partly_cloudy_2k.hdr`,
+      `${PH}/HDRIs/hdr/kloofendal_38d_partly_cloudy_2k.hdr`,
+      `${PH}/Models/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg`, // other store folders
+      `${PH}/Backplates/jpg/2k/x/x_2k.jpg`,
+      `${PH}/Textures/jpg/2k/Terrazzo_Tiles/Terrazzo_Tiles_diff_2k.jpg`, // ids are lowercase
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg/`,
+      'https://dl.polyhaven.org/ph-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg', // no /file/
+      'https://dl.polyhaven.org/file/other-assets/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg',
+      'https://dl.polyhaven.org/',
+      'https://dl.polyhaven.org/file/ph-assets/',
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/../../../../../../etc/x_2k.jpg`, // collapses outside the folder
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/${'%2e%2e/'.repeat(6)}x_2k.jpg`,
+      `${PH}/Textures/jpg/2k/terrazzo_tiles%2fterrazzo_tiles_diff_2k.jpg`, // encoded slash
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo%20tiles_diff_2k.jpg`, // escapes are not plain names
+      `${PH}/Textures/jpg/2k/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg\\x`, // backslash
+      `${PH}/Textures/jpg/2k//terrazzo_tiles_diff_2k.jpg`, // empty segment
+    ]
+    for (const url of bad) expect(() => lib.checkDownloadUrl(url), url).toThrowError(expect.objectContaining({ name: 'GateError', code: expect.stringMatching(/ORIGIN_NOT_ALLOWED|BAD_URL/) }))
+    // the Rocketbox rules are untouched: still exactly one commit and folder
+    expect(lib.checkDownloadUrl(FBX_URL).hostname).toBe('raw.githubusercontent.com')
+    expect(() => lib.checkDownloadUrl(FBX_URL.replace(COMMIT, 'master'))).toThrowError(expect.objectContaining({ code: 'GITHUB_UNPINNED' }))
+  })
+
+  it('refuses a redirect from an allowed Poly Haven file to anywhere off the list, before requesting it', async () => {
+    const bytes = jpg()
+    for (const evil of ['https://evil.example.com/x_2k.jpg', `${PH}/Textures/jpg/4k/terrazzo_tiles/terrazzo_tiles_diff_4k.jpg`, 'https://api.polyhaven.com/files/terrazzo_tiles']) {
+      const { error, calls } = await runEntry(phEntry(bytes), { [TEX_URL]: { status: 302, headers: { location: evil } }, [evil]: { body: bytes } })
+      expect(error?.code, evil).toBe('ORIGIN_NOT_ALLOWED')
+      expect(calls.map((c) => c.url)).toEqual([TEX_URL])
+    }
+  })
+
+  it('keeps the two sources apart: kind people only on GitHub, kind textures and hdri only on Poly Haven, and url, type, group and file must agree', async () => {
+    const bytes = jpg()
+    const refused = async (entry: Record<string, unknown>, routes: Record<string, Route> = {}) => {
+      const r = await runEntry(entry, routes)
+      expect(r.calls).toEqual([]) // refused before any request
+      return r.error?.code
+    }
+    expect(await refused(phEntry(bytes, { kind: 'people', type: 'jpg' }))).toBe('BAD_MANIFEST')
+    const fbxBytes = fbx()
+    expect(await refused(entryFor(fbxBytes, { kind: 'textures', type: 'fbx' }))).toBe('BAD_MANIFEST') // textures hold jpg/png
+    expect(await refused(entryFor(fbxBytes, { gitBlobSha1: undefined, url: TEX_URL.replace('.jpg', '.fbx') }))).toBe('ORIGIN_NOT_ALLOWED') // people entry, Poly Haven host
+    expect(await refused(phEntry(bytes, { kind: 'hdri', type: 'hdr', group: undefined, file: 'terrazzo_tiles_diff_2k.hdr', url: TEX_URL.replace('.jpg', '.hdr') }))).toBe('ORIGIN_NOT_ALLOWED') // hdri entry pointing into Textures
+    expect(await refused(phEntry(bytes, { file: 'renamed.jpg' }))).toBe('ORIGIN_NOT_ALLOWED') // file is the url's file name
+    expect(await refused(phEntry(bytes, { group: 'other_asset' }))).toBe('ORIGIN_NOT_ALLOWED') // group is the asset id
+    expect(await refused(phEntry(bytes, { group: undefined }))).toBe('ORIGIN_NOT_ALLOWED')
+    const h = hdr()
+    expect(await refused(hdriEntry(h, { group: 'terrazzo_tiles' }))).toBe('BAD_MANIFEST') // group is for textures
+    expect(await refused(hdriEntry(h, { type: 'exr' }))).toBe('BAD_MANIFEST') // url says hdr
+  })
+})
+
+describe('Poly Haven magic bytes', () => {
+  const ok = (b: Buffer, t: string) => lib.checkMagic(b, t).ok
+  it('checks PNG, JPEG, Radiance HDR and OpenEXR headers', () => {
+    expect(ok(png(), 'png')).toBe(true)
+    expect(ok(jpg(), 'jpg')).toBe(true)
+    expect(ok(hdr(), 'hdr')).toBe(true)
+    expect(ok(hdr(0x20, 64, '#?RGBE\n'), 'hdr')).toBe(true)
+    expect(ok(exr(), 'exr')).toBe(true)
+    // each type refuses the others and anything near-miss
+    expect(ok(png(), 'jpg')).toBe(false)
+    expect(ok(jpg(), 'png')).toBe(false)
+    expect(ok(exr(), 'hdr')).toBe(false)
+    expect(ok(hdr(), 'exr')).toBe(false)
+    const badPng = png()
+    badPng[4] = 0
+    expect(ok(badPng, 'png')).toBe(false)
+    const badJpg = jpg()
+    badJpg[1] = 0xd9
+    expect(ok(badJpg, 'jpg')).toBe(false)
+    const badExr = exr()
+    badExr[3] = 0x02
+    expect(ok(badExr, 'exr')).toBe(false)
+    expect(ok(hdr(0x20, 64, '#?RADIANC\n'), 'hdr')).toBe(false)
+    expect(ok(hdr(0x20, 64, '#!RADIANCE\n'), 'hdr')).toBe(false)
+    expect(ok(Buffer.from('<html><body>not found, sign in</body></html>'), 'jpg')).toBe(false)
+    expect(lib.checkMagic(Buffer.from('<!DOCTYPE html><html>nope</html>'), 'exr').reason).toMatch(/HTML/)
+    expect(ok(Buffer.alloc(8), 'png')).toBe(false)
+    expect(ok(jpg(), 'webp')).toBe(false)
+  })
+
+  it('rejects an HTML page served in place of a texture or an HDRI, and installs nothing', async () => {
+    const html = Buffer.from('<!DOCTYPE html><html><body>Cloudflare: access denied</body></html>')
+    const tex = await runEntry(phEntry(html), { [TEX_URL]: { body: html } })
+    expect(tex.error?.code).toBe('BAD_MAGIC')
+    const sky = await runEntry(hdriEntry(html), { [HDR_URL]: { body: html } })
+    expect(sky.error?.code).toBe('BAD_MAGIC')
+    // a PNG body under a .jpg url, and an EXR body under a .hdr url
+    const asJpg = await runEntry(phEntry(png()), { [TEX_URL]: { body: png() } })
+    expect(asJpg.error?.code).toBe('BAD_MAGIC')
+    const asHdr = await runEntry(hdriEntry(exr()), { [HDR_URL]: { body: exr() } })
+    expect(asHdr.error?.code).toBe('BAD_MAGIC')
+    expect(await filesBelow('assets-src')).toEqual([])
+    expect(await quarantineIsClean()).toBe(true)
+  })
+})
+
+describe('Poly Haven manifest entries: bytes + sha256, no git blob id', () => {
+  it('validates without gitBlobSha1, and refuses one on a Poly Haven entry', () => {
+    const bytes = jpg()
+    expect(lib.validateManifestEntry(phEntry(bytes)).file).toBe('terrazzo_tiles_diff_2k.jpg')
+    expect(lib.validateManifestEntry(hdriEntry(hdr())).sha256).toBeNull()
+    const bad = (over: Record<string, unknown>) => expect(() => lib.validateManifestEntry(phEntry(bytes, over)), JSON.stringify(over)).toThrowError(expect.objectContaining({ code: 'BAD_MANIFEST' }))
+    bad({ gitBlobSha1: lib.gitBlobSha1Hex(bytes) })
+    bad({ bytes: undefined })
+    bad({ type: 'png' }) // url ends in .jpg
+    bad({ type: 'tga' }) // kind textures does not hold tga
+    bad({ dest: 'public' }) // image originals are conversion inputs: dest "source"
+    bad({ group: '../x' })
+    bad({ group: 'Has Space' })
+    bad({ file: '../x.jpg' })
+    bad({ sha256: 'ABC' })
+    bad({ maxBytes: bytes.length * 2 + 5000 })
+    // GitHub-sourced entries still need the blob id
+    const rb = fbx()
+    expect(() => lib.validateManifestEntry(entryFor(rb, { gitBlobSha1: undefined }))).toThrow(/gitBlobSha1/)
+    expect(() => lib.validateManifestEntry(entryFor(rb, { gitBlobSha1: undefined, url: 'https://raw.githubusercontent.com/other/repo/' + COMMIT + '/x.fbx' }))).toThrow(/gitBlobSha1/)
+    expect(lib.validateManifestEntry(entryFor(rb)).gitBlobSha1).toBe(lib.gitBlobSha1Hex(rb))
+  })
+
+  it('installs below assets-src/textures/<id>/ and assets-src/hdri/, records sha256 on first fetch, never writes public/ files other than the record', async () => {
+    const tex = jpg(0x51, 200)
+    const sky = hdr(0x52, 300)
+    await writeManifest([phEntry(tex), hdriEntry(sky)])
+    const net = mockNetwork({ [TEX_URL]: { body: tex }, [HDR_URL]: { body: sky } })
+    const r = await gate.runGate({ root, fetchImpl: net.fetchImpl, log: quiet })
+    expect(r.failures).toEqual([])
+    expect(r.results.map((x: any) => [x.status, x.firstFetch])).toEqual([['installed', true], ['installed', true]])
+    expect(await filesBelow('assets-src')).toEqual([path.join('assets-src', 'hdri', 'kloofendal_38d_partly_cloudy_2k.hdr'), path.join('assets-src', 'textures', 'terrazzo_tiles', 'terrazzo_tiles_diff_2k.jpg')])
+    expect(await filesBelow('public')).toEqual([path.join('public', 'assets', 'manifest.json')])
+    const m = await readManifest()
+    expect(m.assets.map((e: any) => e.sha256)).toEqual([lib.sha256Hex(tex), lib.sha256Hex(sky)])
+    const record = JSON.parse(await fs.readFile(rel('public', 'assets', 'manifest.json'), 'utf8'))
+    expect(record.assets['ph-terrazzo-tiles-diff-2k']).toMatchObject({ kind: 'textures', gitBlobSha1: null, sha256: lib.sha256Hex(tex) })
+    expect(record.assets['ph-terrazzo-tiles-diff-2k'].files[0]).toMatchObject({ path: 'textures/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg', root: 'source', role: 'original' })
+    expect(await fs.readFile(rel('docs', 'CREDITS.md'), 'utf8')).toContain('`assets-src/textures/terrazzo_tiles/terrazzo_tiles_diff_2k.jpg`')
+    // a second run is verified offline
+    const again = mockNetwork({})
+    expect((await gate.runGate({ root, fetchImpl: again.fetchImpl, log: quiet })).results.map((x: any) => x.status)).toEqual(['up-to-date', 'up-to-date'])
+    expect(again.calls).toEqual([])
+  })
+
+  it('pins by bytes and sha256: a swapped body of the same size is refused, a size change is refused', async () => {
+    const tex = jpg(0x61, 200)
+    const swapped = jpg(0x62, 200)
+    const wrong = await runEntry(phEntry(tex, { sha256: lib.sha256Hex(tex) }), { [TEX_URL]: { body: swapped } })
+    expect(wrong.error?.code).toBe('SHA_MISMATCH')
+    const longer = jpg(0x61, 210)
+    expect((await runEntry(phEntry(tex), { [TEX_URL]: { body: longer } })).error?.code).toBe('SIZE_MISMATCH')
+    expect(await filesBelow('assets-src')).toEqual([])
+    expect(await quarantineIsClean()).toBe(true)
+  })
+
+  it('--strict refuses an unpinned Poly Haven entry before any request, and accepts a pinned one', async () => {
+    const tex = jpg(0x71, 200)
+    const unpinned = await runEntry(phEntry(tex), { [TEX_URL]: { body: tex } }, { strict: true })
+    expect(unpinned.error?.code).toBe('UNPINNED_HASH')
+    expect(unpinned.calls).toEqual([])
+    const pinned = await runEntry(phEntry(tex, { sha256: lib.sha256Hex(tex) }), { [TEX_URL]: { body: tex } }, { strict: true })
+    expect(pinned.error).toBeNull()
+    expect(pinned.result).toMatchObject({ status: 'installed', firstFetch: false })
+  })
+
+  it('--verify checks Poly Haven originals against sha256 and the byte count (no git blob id), and --strict also fails an unpinned entry', async () => {
+    const tex = jpg(0x81, 200)
+    await writeManifest([phEntry(tex)])
+    await gate.runGate({ root, fetchImpl: mockNetwork({ [TEX_URL]: { body: tex } }).fetchImpl, log: quiet })
+    const lines: string[] = []
+    const log = (m: string) => lines.push(m)
+    expect(await gate.verifyAll({ root, log, strict: true })).toBe(0)
+    expect(lines[0]).toBe('ok   ph-terrazzo-tiles-diff-2k (1 file)')
+
+    const pinned = await readManifest()
+    pinned.assets[0].bytes = tex.length + 1
+    await fs.writeFile(rel('tools', 'assets.manifest.json'), JSON.stringify(pinned))
+    lines.length = 0
+    expect(await gate.verifyAll({ root, log })).toBe(1)
+    expect(lines.join('\n')).toMatch(/200 bytes, manifest says 201/)
+
+    pinned.assets[0].bytes = tex.length
+    pinned.assets[0].sha256 = 'b'.repeat(64)
+    await fs.writeFile(rel('tools', 'assets.manifest.json'), JSON.stringify(pinned))
+    lines.length = 0
+    expect(await gate.verifyAll({ root, log })).toBe(1)
+    expect(lines.join('\n')).toMatch(/recorded sha256 differs from the manifest pin/)
+
+    pinned.assets[0].sha256 = null
+    await fs.writeFile(rel('tools', 'assets.manifest.json'), JSON.stringify(pinned))
+    expect(await gate.verifyAll({ root, log: quiet })).toBe(0)
+    lines.length = 0
+    expect(await gate.verifyAll({ root, log, strict: true })).toBe(1)
+    expect(lines.join('\n')).toMatch(/sha256 is null and --strict/)
+
+    await fs.appendFile(rel('assets-src', 'textures', 'terrazzo_tiles', 'terrazzo_tiles_diff_2k.jpg'), 'tampered')
+    pinned.assets[0].sha256 = lib.sha256Hex(tex)
+    await fs.writeFile(rel('tools', 'assets.manifest.json'), JSON.stringify(pinned))
+    expect(await gate.verifyAll({ root, log: quiet })).toBe(1)
+  })
+
+  it('parses --strict together with --verify', () => {
+    expect(gate.parseArgs(['--verify', '--strict'])).toMatchObject({ verify: true, flags: { strict: true } })
+  })
+})
+
+describe('tools/assets.manifest.json: the Poly Haven entries', () => {
+  const manifest = JSON.parse(readFileSync(path.join(here, 'assets.manifest.json'), 'utf8'))
+  const ph = (manifest.assets as any[]).filter((e) => e.kind === 'textures' || e.kind === 'hdri')
+
+  it('has entries, each valid, on the Poly Haven allow-list, CC0, source-only, with bytes and no git blob id', () => {
+    expect(ph.length).toBeGreaterThan(0)
+    const ids = new Set<string>()
+    for (const raw of ph) {
+      const e = lib.validateManifestEntry(raw)
+      expect(ids.has(e.id), `duplicate id ${e.id}`).toBe(false)
+      ids.add(e.id)
+      const url = lib.checkDownloadUrl(e.url)
+      expect(url.hostname, e.id).toBe('dl.polyhaven.org')
+      expect(() => (lib as any).assertEntryMatchesSource(e, url), e.id).not.toThrow()
+      expect(e.dest, e.id).toBe('source')
+      expect(e.licence, e.id).toMatch(/^CC0/)
+      expect(e.sourcePage, e.id).toMatch(/^https:\/\/polyhaven\.com\/a\/[a-z0-9_-]+$/)
+      expect(e.gitBlobSha1, e.id).toBeUndefined()
+      expect(e.sha256 === null || /^[0-9a-f]{64}$/.test(e.sha256), e.id).toBe(true)
+      expect(e.bytes, e.id).toBeLessThanOrEqual(e.maxBytes)
+    }
+  })
+
+  it('stays within the look-work budget: about 60 MB in all, 1k maps except the 2k floors and the 2k sky', () => {
+    expect(ph.reduce((s, e) => s + e.bytes, 0)).toBeLessThan(60 * 1024 * 1024)
+    for (const e of ph) {
+      const res = /_(\dk)\.[a-z]+$/.exec(e.file)?.[1]
+      expect(['1k', '2k'], e.id).toContain(res)
+      if (res === '2k') expect(['terrazzo_tiles', 'floor_tiles_02'].includes(e.group) || e.kind === 'hdri', e.id).toBe(true)
+    }
   })
 })
 

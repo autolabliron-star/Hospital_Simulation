@@ -11,12 +11,12 @@ function snapshot(sim: ReturnType<typeof makeSim>) {
 }
 
 describe('warm start in the middle of a discharge', () => {
-  it('B5 signed at 10:30 (just now): medicines, family, changing, home', () => {
+  it('B5 signed at 09:45 and waiting for the family at 10:30: medicines, family, changing, home', () => {
     const sim = makeSim(5, 10.5)
     expect(sim.life.rooms.get('B5')).toMatchObject({ bed: 'dischargeSigned', patientId: 'pt-B5' })
     const rec = new Recorder(sim)
     const o = watch(sim)
-    runUntil(sim, hourToT(10.5) + 30 * 60, rec, o.sample)
+    runUntil(sim, hourToT(10.5) + 80 * 60, rec, o.sample)
     expect(rec.events.filter((e) => e.type === 'wentHome' && e.subjectId === 'pt-B5')).toHaveLength(1)
     expect(rec.events.some((e) => e.type === 'visitorLeft' && e.roomId === 'B5' && /left with/.test(e.text))).toBe(true)
     expect(o.out.lifecycle.get('B5')!.slice(0, 4)).toEqual(['dischargeSigned', 'leaving', 'needsCleaning', 'cleaning'])

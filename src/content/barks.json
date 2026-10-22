@@ -94,6 +94,18 @@
       "The triage nurse is asking me a few questions.",
       "I'm being looked after. Everyone is very kind."
     ],
+    "er.urgent.waiting": [
+      "Please... I need help.",
+      "I can't talk much. Please get someone."
+    ],
+    "er.urgent.inBay": [
+      "...thank you. I'm just trying to breathe.",
+      "Hard to talk. Please ask the nurse."
+    ],
+    "er.urgent.tests": [
+      "I'm tired. Just waiting for the results.",
+      "Not feeling good. Waiting on the tests."
+    ],
     "er.waitingDoctor": [
       "I'm waiting to see the doctor. Everyone's been kind.",
       "I'm comfortable, thank you. Just waiting my turn."

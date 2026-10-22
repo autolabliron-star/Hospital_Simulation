@@ -283,7 +283,8 @@ export function labelsOfLevel(labels: readonly LabelSpec[], level: LevelId): Lab
  * walk-only prims (booms, light heads) are their own meshes, shown only while walking, as the overview-only ones are shown only in the overview.
  * Trees and the command wall belong to level 1.
  */
-export function compileLayout(layout: BuildingLayout, level: LevelId = 1): CompiledBuilding {
+/** `hide` (Wave 3, `?building=model`): prims the authored model replaces are left out. Undefined hides nothing. */
+export function compileLayout(layout: BuildingLayout, level: LevelId = 1, hide?: (p: Prim) => boolean): CompiledBuilding {
   const groups = new Map<string, { mat: MatKey; cast: boolean; recv: boolean; overview: boolean; walk: boolean; parts: BufferGeometry[] }>()
   const inst = new Map<string, { mat: MatKey; geometry: BufferGeometry; cast: boolean; recv: boolean; prims: Prim[] }>()
   const quads: Prim[] = []
@@ -291,6 +292,7 @@ export function compileLayout(layout: BuildingLayout, level: LevelId = 1): Compi
 
   for (const p of layout.prims) {
     if (levelOf(p.position[0]) !== level) continue
+    if (hide?.(p)) continue
     if (p.shape === 'quad') {
       quads.push(p)
       continue

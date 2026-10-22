@@ -43,8 +43,8 @@ const NEW_STAFF: Array<[id: string, role: string, post: string]> = [
 ]
 
 const EXISTING_STAFF = [
-  { id: 'doc-A', role: 'doctor', ward: 'A', name: 'Dr. Levi', post: 'ward', shift: 'office' },
-  { id: 'doc-B', role: 'doctor', ward: 'B', name: 'Dr. Okafor', post: 'ward', shift: 'office' },
+  { id: 'doc-A', role: 'doctor', ward: 'A', name: 'Dr. Levi', post: 'ward', shift: 'day' },
+  { id: 'doc-B', role: 'doctor', ward: 'B', name: 'Dr. Okafor', post: 'ward', shift: 'day' },
   { id: 'nurse-A1', role: 'nurse', ward: 'A', name: 'Nurse Maya', post: 'ward', shift: 'day' },
   { id: 'nurse-A2', role: 'nurse', ward: 'A', name: 'Nurse Tomás', post: 'ward', shift: 'day' },
   { id: 'nurse-B1', role: 'nurse', ward: 'B', name: 'Nurse Leah', post: 'ward', shift: 'day' },

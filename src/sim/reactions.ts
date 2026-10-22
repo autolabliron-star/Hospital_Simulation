@@ -32,7 +32,7 @@
  * No allocations per step: each person's reaction state is made once, on first contact; the hospital-wide bubble queue is a
  * fixed pair of arrays. All copy comes from src/content/barks.json.
  */
-import { barkEvent, fillBark, greetLines, helloFor, talkLines, type TalkKey } from '@/content/barks'
+import { barkEvent, fillBark, greetLines, helloFor, talkLines, urgentTalkKey, greetsBack, type TalkKey } from '@/content/barks'
 import { protocolById } from '@/content/imaging'
 import { NIGHT_STAFF, HOSTS, STAFF } from '@/content/staff'
 import { CONFIG } from './config'
@@ -452,6 +452,11 @@ export class Reactions {
     const role = e.role
     const rng = this.deps.rng
     const cooldown = CONFIG.player.greetCooldownSeconds
+    const erp = role === 'patient' ? this.deps.world.patients.get(e.id) : undefined
+    if (erp !== undefined && !greetsBack(erp.c.acuity)) {
+      m.greetReadyAt = t + cooldown
+      return
+    }
     if (role === 'patient' || role === 'visitor') {
       // patients and visitors only sometimes greet back; one roll per cooldown
       m.greetReadyAt = t + cooldown
@@ -639,7 +644,10 @@ export class Reactions {
     const none: Record<string, string | number> = {}
     // an ER patient, by where they are on the pathway
     const er: ErPatient | undefined = this.deps.world.patients.get(e.id)
-    if (er !== undefined) return this.erSays(er)
+    if (er !== undefined) {
+      const says = this.erSays(er)
+      return { key: urgentTalkKey(says.key, er.c.acuity), fields: says.fields }
+    }
     if (p instanceof Outpatient) {
       const modality = MODALITY_NAME[p.booking.modality]
       switch (p.state) {

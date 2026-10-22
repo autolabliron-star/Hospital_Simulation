@@ -44,12 +44,23 @@ const MEDICINE_FORMS = Object.keys(FORM_CHECK) as [MedicineForm, ...MedicineForm
 
 export const MedicineFormSchema = z.enum(MEDICINE_FORMS)
 
+/** When a medicine is given: at fixed dose hours (each one of CONFIG.doseWaves.hours), or only as needed with a minimum gap between doses. */
+export const DoseSchema = z.union([
+  z
+    .strictObject({ hours: z.array(z.number()).min(1) })
+    .refine((d) => d.hours.every((h, i) => i === 0 || h > d.hours[i - 1]), 'hours must be increasing')
+    .refine((d) => d.hours.every((h) => CONFIG.doseWaves.hours.includes(h)), 'every dose hour must be one of CONFIG.doseWaves.hours'),
+  z.strictObject({ prn: z.literal(true), minGapHours: z.number().min(1).max(24) }),
+])
+export type Dose = z.output<typeof DoseSchema>
+
 export const MedicineSchema = z.strictObject({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'id must be lower-case letters, digits or hyphens'),
   name: z.string().min(1),
   strength: z.string().min(1),
   form: MedicineFormSchema,
   color: z.string().regex(/^#[0-9a-f]{6}$/i, 'color must be a hex value #rrggbb'),
+  dose: DoseSchema,
   bin: z
     .number()
     .int()
@@ -208,6 +219,11 @@ export const AdmissionProfileSchema = z.strictObject({
     .min(2)
     .max(4)
     .refine(allUnique, 'usualMeds must not repeat a medicine'),
+  /**
+   * Wave 1: chance of admission for these reasons, overriding the acuity table (CONFIG.er.admitChanceByAcuity). 0 means this reason never
+   * leads to a ward bed (a cold, sunburn, a cut finger, a sprain, a prescription review). Absent: the acuity table decides.
+   */
+  admitChance: z.number().min(0).max(1).optional(),
 })
 export type AdmissionProfile = z.infer<typeof AdmissionProfileSchema>
 
@@ -394,6 +410,8 @@ const EventTemplate = z
   .refine((t) => !/[\r\n]/.test(t), 'a template is one line')
 
 export const DaySchema = z.strictObject({
+  /** What the morning safety huddle at each nurse hub talks about (one per ward and day, picked by the seed). */
+  huddleTopics: z.array(z.string().min(3).refine((t) => !GRAPHIC_WORDS.test(t), 'topics must be non-graphic')).min(2),
   moments: z
     .array(MomentSchema)
     .min(1)

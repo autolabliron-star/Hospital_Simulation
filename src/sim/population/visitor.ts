@@ -19,6 +19,7 @@ import type { Walker } from '../walker'
 import { Actor } from '../er/actor'
 import { headingTo } from '../er/spots'
 import type { World } from '../er/world'
+import { ageWalkFactor, drawVisitorAge } from './age'
 import type { VisitBook } from './visitBook'
 
 export type PartyPhase = 'arriving' | 'visit' | 'cafe' | 'exit'
@@ -71,6 +72,8 @@ export class Visitor extends Actor {
   private heartTimer = 0
   private flowersTimer = 25
   private readonly isLeader: boolean
+  /** A seeded adult age (visitors have none on file): it sets their pace. */
+  readonly age: number
 
   constructor(
     readonly world: World,
@@ -89,7 +92,8 @@ export class Visitor extends Actor {
     this.isLeader = party.members.length === 0
     party.members.push(this)
     this.entity.prop = prop
-    this.cruise = CONFIG.visitors.walkSpeed * (0.92 + (this.entity.variant % 17) / 100)
+    this.age = drawVisitorAge(vrng.fork('age'))
+    this.cruise = CONFIG.visitors.walkSpeed * (0.92 + (this.entity.variant % 17) / 100) * ageWalkFactor(this.age)
     this.talkTimer = vrng.range(3, 9)
     this.heartTimer = vrng.range(90, 240)
   }

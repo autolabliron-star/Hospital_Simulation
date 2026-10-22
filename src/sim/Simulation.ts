@@ -221,6 +221,8 @@ export class Simulation {
       this.blood.warmStart(startHour)
       this.lifts.warmStart(startHour)
       this.surgery.warmStart(startHour)
+      // the ward doctors (the shift change may have replaced them): the patients in bed were seen on the round that has gone by
+      for (const p of this.people) if (p instanceof Doctor) p.warmStart(this.ctx, startHour)
     }
     if (this.inFlight && this.director) this.warmInFlight(t0, root)
     this.sync(1)

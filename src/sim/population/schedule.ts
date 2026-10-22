@@ -72,7 +72,7 @@ export class ArrivalProcess {
 }
 
 /**
- * Ambulance arrivals: one a first-at time, then one every 12-20 minutes until `day.ambulanceLastHour` (the L1 full day;
+ * Ambulance arrivals: one a first-at time, then one every `CONFIG.er.ambulance.every` seconds (Wave 1: 40-70 minutes) until `day.ambulanceLastHour` (the L1 full day;
  * M3 stopped at noon). At night the gap stretches (`NIGHT_STRETCH`): the ER runs at night rates, and a crew is a quarter
  * of the night shift.
  *

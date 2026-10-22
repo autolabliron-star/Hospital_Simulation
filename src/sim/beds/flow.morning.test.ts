@@ -1,5 +1,5 @@
 /**
- * The bed flow over a busy stretch of the morning (09:45 to 11:30): A1 and B5 go home, their rooms are cleaned and reused by
+ * The bed flow over the morning and noon (08:45 to 13:00, real durations): A1 and B5 are signed on the ward round, their families come 30-90 minutes later, they go home, their rooms are cleaned and reused by
  * ER admissions, the bed manager boards patients, and the invariants of the whole hospital hold throughout. One run feeds every
  * check below.
  */
@@ -11,8 +11,8 @@ import type { Simulation } from '../Simulation'
 import { hourToT, makeSim, Recorder, runUntil } from './testkit'
 import { watch, type Watch } from './invariants'
 
-const START = 9.75
-const END = 11.5
+const START = 8.75
+const END = 13.0
 
 let sim: Simulation
 let rec: Recorder
@@ -24,7 +24,7 @@ beforeAll(() => {
   const o = watch(sim)
   w = o.out
   runUntil(sim, hourToT(END), rec, o.sample)
-}, 240_000)
+}, 900_000)
 
 describe('a planned discharge, step by step', () => {
   it('A1 and B5 are signed on rounds, get their take-home medicines, are collected by family and go home', () => {
@@ -71,7 +71,10 @@ describe('a planned discharge, step by step', () => {
   it('every planned discharge in the window ends with the patient gone home, once', () => {
     const planned = ['pt-A1', 'pt-B5']
     for (const id of planned) expect(rec.events.filter((e) => e.type === 'wentHome' && e.subjectId === id)).toHaveLength(1)
-    expect(sim.beds.board.log.wentHome.map((x) => x.patientId).sort()).toEqual(planned)
+    // B4 (planned 12:30) may also be home by 13:00; nobody else is
+    const home = sim.beds.board.log.wentHome.map((x) => x.patientId).sort()
+    expect(home).toEqual(expect.arrayContaining(planned))
+    expect(home.filter((id) => !['pt-A1', 'pt-B4', 'pt-B5'].includes(id))).toEqual([])
   })
 
   it('the room is cleaned (roomCleaned) before anyone is put in it, and its planned patient does not come back', () => {
@@ -171,7 +174,7 @@ describe('admissions into the freed beds', () => {
 
   it('every ER patient who came in good time has reached a terminal state', () => {
     const er = sim.world.er
-    const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < sim.t - 90 * 60)
+    const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < sim.t - 4 * 3600)
     expect(stuck.map((c) => `${c.name} ${c.state}`)).toEqual([])
     expect(er.finished.length).toBeGreaterThan(5)
     // anyone who was promised a bed has it, or the reservation ended
@@ -217,9 +220,9 @@ describe('medicines and rounds over the discharge and the admissions', () => {
     }
     const cancelled = [...sim.meds.orders.values()].filter((o) => o.cancelledAt !== undefined)
     expect(cancelled.map((o) => `${o.id} ${o.roomId} ${o.stage}`)).toEqual([])
-    // new admissions are on the rounds: at least one order for an admitted patient
+    // a new admission is on the dose waves like everybody else (what is due at the next wave hour; maybe nothing is): never a take-home supply
     const delivered = sim.beds.board.log.delivered.map((d) => d.patientId)
-    expect(w.newOrders.some((o) => delivered.includes(o.patientId))).toBe(true)
+    for (const o of w.newOrders.filter((x) => delivered.includes(x.patientId))) expect(['schedule', 'sim']).toContain(o.source)
   })
 
   it('the hospital invariants hold throughout (no standing in doorways, no double-booked seat, riders on the vehicle, drawers)', () => {

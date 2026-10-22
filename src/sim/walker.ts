@@ -50,6 +50,11 @@ export interface Walker {
   setStatic(on: boolean): void
   /** Body radius in metres (a wider vehicle). A solo walker: nothing to do. */
   setRadius?(radius: number): void
+  /**
+   * Wave 1: carry a pushed vehicle (a box `halfWidth` x `halfLength` centred `ahead` in front, along the heading), or put it down (null).
+   * In a crowd the others avoid its real footprint and the walker looks ahead from it. A solo walker: nothing to do.
+   */
+  setFootprint?(f: { ahead: number; halfWidth: number; halfLength: number } | null): void
 }
 
 class NavWalker implements Walker {

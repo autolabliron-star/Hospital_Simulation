@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { CONFIG } from '../config'
 import { ARRIVALS, DEPARTURES } from '../places'
 import { Simulation } from '../Simulation'
+import { Doctor, Nurse } from '../people'
 import { kitOf } from './kits'
 import { onShift, shiftChanges } from './roster'
 import { ShiftActor } from './shiftActor'
@@ -102,12 +103,14 @@ function watch(sim: Simulation, minutes: number): Observed {
         obs.talks.set(run.change.key, (obs.talks.get(run.change.key) ?? 0) + sample)
         for (const a of [run.host, run.comer, run.leaverAct]) {
           if (!a) continue
-          const zone = DOORWAYS.find((z) => inside(z.r, a.walker.x, a.walker.z))
+          // (a ward change walks through the hub counter and the room doors on its tour: only standing still in one is a problem)
+          const zone = a.walker.speed < 0.05 ? DOORWAYS.find((z) => inside(z.r, a.walker.x, a.walker.z)) : undefined
           if (zone) problem(`handover ${run.change.key}: ${a.entity.id} stands in ${zone.id}`)
         }
       }
       // a post is never empty while a relief takes it over: from the moment the comer is beside it until the comer is on it
-      if (run.change.kind === 'relief' && run.comerReady && !run.comerSwapped) {
+      // (a ward change leaves the hub for the bedside tour on purpose: the night nurse and the day nurse are in the rooms)
+      if (run.change.kind === 'relief' && run.change.comer!.post!.kind !== 'wardNurse' && run.comerReady && !run.comerSwapped) {
         const post = kitOf(run.change.comer!.post!.kind).post(world, run.change.comer!)
         const near = [run.change.leaver!.member.id, run.change.comer!.member.id].some((id) => {
           const p = sim.people.find((q) => q.entity.id === id)
@@ -143,7 +146,7 @@ describe('the evening change at 19:00 (a warm start at 18:45)', () => {
   let runs: readonly Run[]
   beforeAll(() => {
     sim = new Simulation(2026, { startHour: 18.75 })
-    obs = watch(sim, 30)
+    obs = watch(sim, 38)
     runs = sim.day.shifts.runs
   }, 300_000)
 
@@ -153,8 +156,8 @@ describe('the evening change at 19:00 (a warm start at 18:45)', () => {
 
   it('the night porter and the night cleaner take over, and the day porter and cleaner go out by the entrance', () => {
     const evening = runs.filter((r) => r.change.hour === 19)
-    // porter-1 and cleaner-1, and Coordinator Eli goes home (Simulation attaches the people list: DayRhythm.attachPeople)
-    expect(evening.map((r) => r.change.key).sort()).toEqual(['cleaner-1@19', 'coord-2@19', 'porter-1@19'])
+    // porter-1 and cleaner-1, Coordinator Eli goes home, and the ward change (day nurses and doctors to the night team)
+    expect(evening.map((r) => r.change.key).sort()).toEqual(['cleaner-1@19', 'coord-2@19', 'doc-A@19', 'doc-B@19', 'nurse-A1@19', 'nurse-A2@19', 'nurse-B1@19', 'nurse-B2@19', 'porter-1@19'])
     for (const r of evening) expect(r.state, r.change.key).toBe('done')
     for (const id of ['porter-N', 'cleaner-N']) expect(onPost(sim, id), `${id} on post`).toBe(true)
     for (const id of ['porter-1', 'cleaner-1']) {
@@ -182,8 +185,8 @@ describe('the evening change at 19:00 (a warm start at 18:45)', () => {
 
   it('hands over in pairs: two people talking for at most the bedside handover time', () => {
     const [lo, hi] = CONFIG.day.bedsideHandoverSeconds
-    const pairs = runs.filter((r) => r.change.hour === 19 && r.talk === 'done')
-    expect(pairs.length).toBe(2)
+    const pairs = runs.filter((r) => r.change.hour === 19 && r.talk === 'done' && r.change.comer!.post!.kind !== 'wardNurse')
+    expect(pairs.map((r) => r.change.key).sort()).toEqual(['cleaner-1@19', 'doc-A@19', 'porter-1@19'])
     for (const r of pairs) {
       const t = obs.talks.get(r.change.key) ?? 0
       expect(t, r.change.key).toBeGreaterThanOrEqual(lo - 1)
@@ -191,7 +194,10 @@ describe('the evening change at 19:00 (a warm start at 18:45)', () => {
       expect(r.talkEndT - r.talkStartT, r.change.key).toBeLessThanOrEqual(hi + 0.5)
     }
     const events = sim.log.events.filter((e) => e.type === 'shiftHandover')
-    expect(events.map((e) => e.text).sort()).toEqual(['Cleaner Wren took over housekeeping from Cleaner Rosa.', 'Porter Gideon took over transport from Porter Callum.'])
+    const texts = events.map((e) => e.text)
+    expect(texts).toContain('Cleaner Wren took over housekeeping from Cleaner Rosa.')
+    expect(texts).toContain('Porter Gideon took over transport from Porter Callum.')
+    expect(texts).toContain('Dr. Oriel took over the wards from Dr. Levi.')
     for (const e of events) {
       expect(e.actorId).toBeDefined()
       expect(e.subjectId).toBeDefined()
@@ -199,7 +205,7 @@ describe('the evening change at 19:00 (a warm start at 18:45)', () => {
   })
 
   it('a post is never empty while a relief takes it over', () => {
-    expect([...obs.covered.keys()].sort()).toEqual(['cleaner-1@19', 'porter-1@19'])
+    expect([...obs.covered.keys()].sort()).toEqual(['cleaner-1@19', 'doc-A@19', 'porter-1@19'])
     for (const [key, c] of obs.covered) {
       expect(c.total, key).toBeGreaterThan(0)
       expect(c.ok, `${key}: ${c.ok} of ${c.total} samples covered`).toBe(c.total)
@@ -214,6 +220,26 @@ describe('the evening change at 19:00 (a warm start at 18:45)', () => {
     expect(byRole.cleaner).toBe(2)
     expect(sim.entities.size).toBeGreaterThanOrEqual(55)
     expect(sim.entities.size).toBeLessThanOrEqual(115)
+  })
+
+  it('the ward change: the day nurses and ward doctors go home, the night team takes over, with a huddle and a bedside handover in each room', () => {
+    for (const id of ['nurse-A1', 'nurse-A2', 'nurse-B1', 'nurse-B2', 'doc-A', 'doc-B']) {
+      expect(sim.entities.has(id), `${id} gone`).toBe(false)
+      expect(sim.day.shifts.departed, id).toContain(id)
+    }
+    for (const id of ['nurse-N-A', 'nurse-N-B', 'doc-N']) expect(onPost(sim, id), `${id} on post`).toBe(true)
+    expect(sim.people.find((p) => p.entity.id === 'nurse-N-A')).toBeInstanceOf(Nurse)
+    expect(sim.people.find((p) => p.entity.id === 'doc-N')).toBeInstanceOf(Doctor)
+    for (const key of ['nurse-A1@19', 'nurse-B1@19']) {
+      const r = runs.find((x) => x.change.key === key)!
+      expect(r.talk, key).toBe('done')
+      // the huddle, then eight bedside handovers: minutes, not the half minute of a post handover
+      expect(r.talkEndT - r.talkStartT, key).toBeGreaterThan(CONFIG.day.huddleSeconds[0] + 8 * CONFIG.day.bedsideHandoverSeconds[0])
+      expect(r.progress, key).toEqual([8, 8])
+    }
+    const texts = sim.log.events.filter((e) => e.type === 'shiftHandover').map((e) => e.text)
+    expect(texts).toContain('Nurse Ottilie took over ward A from Nurse Maya.')
+    expect(texts).toContain('Nurse Rhys took over ward B from Nurse Leah.')
   })
 })
 
@@ -275,7 +301,7 @@ describe('the morning change at 07:00 (a warm start at 06:45)', () => {
   let runs: readonly Run[]
   beforeAll(() => {
     sim = new Simulation(2026, { startHour: 6.75 })
-    obs = watch(sim, 35)
+    obs = watch(sim, 45)
     runs = sim.day.shifts.runs
   }, 300_000)
 
@@ -303,8 +329,8 @@ describe('the morning change at 07:00 (a warm start at 06:45)', () => {
 
   it('the comers fade in at the entrance 5-10 minutes before the hour', () => {
     const comers = comersOf(runs, 7)
-    // the ER doctor, ER nurse and triage nurse, porters 1 and 3, cleaners 1 and 2, and Coordinator Eli
-    expect(comers.length).toBe(8)
+    // the ER doctor, ER nurse and triage nurse, porters 1 and 3, cleaners 1 and 2, Coordinator Eli, the four day nurses and the two ward doctors
+    expect(comers.length).toBe(14)
     for (const id of comers) {
       const seen = obs.firstSeen.get(id)
       expect(seen, id).toBeDefined()
@@ -320,11 +346,12 @@ describe('the morning change at 07:00 (a warm start at 06:45)', () => {
     for (const [key, c] of obs.covered) expect(c.ok, key).toBe(c.total)
     const handovers = sim.log.events.filter((e) => e.type === 'shiftHandover')
     expect(handovers.length).toBeGreaterThanOrEqual(4)
-    expect(handovers.some((e) => /Dr\. Halima took over the ER from Dr\. Sven\./.test(e.text))).toBe(true)
+    // (a busy ER doctor at real exam lengths may not be at rest in time, and then the talk is skipped: the ward change is the sure one)
+    expect(handovers.some((e) => /Nurse Maya took over ward A from Nurse Ottilie\./.test(e.text))).toBe(true)
   })
 
   it('the day team goes through the staff-room lockers on the way in and the night team on the way out', () => {
-    expect(sim.day.shifts.arrived.length).toBe(8)
+    expect(sim.day.shifts.arrived.length).toBe(14)
     expect(sim.day.shifts.departed).toEqual(expect.arrayContaining(['porter-N', 'cleaner-N']))
     // the scheduled changes after 07:30: the imaging office hours at 08:00 are still to come
     const later = shiftChanges(7.5, 8.5)

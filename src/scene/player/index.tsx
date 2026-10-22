@@ -23,7 +23,7 @@ import { schemeFromSearch } from './scheme'
 import { PlayerSystem } from './system'
 
 export { walkCam, useWalk } from './state'
-export { placePlayer, playerSnapshot, lookPlayerCamera } from './api'
+export { placePlayer, playerSnapshot, lookPlayerCamera, presentCut, presentGlide, presentState } from './api'
 
 const probeOn = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('probe') === '1'
 /** How the keys steer you: the easy scheme (A and D turn you, the camera follows) unless the URL says `?controls=classic`. */

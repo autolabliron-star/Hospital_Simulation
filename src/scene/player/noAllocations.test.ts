@@ -50,14 +50,14 @@ const FLAGGED: [RegExp, string][] = [
 ]
 
 const PATHS: Record<string, string[]> = {
-  'body.ts': ['step', 'halt', 'stand', 'cruise', 'place', 'motionDir', 'copyBodyState'],
+  'body.ts': ['step', 'glide', 'halt', 'stand', 'cruise', 'place', 'motionDir', 'copyBodyState'],
   'collision.ts': ['inPlaza', 'inRegion', 'inFloor', 'staticOverlap', 'walkableAt', 'firstHit', 'slidePiece', 'pushOutOfDynamics', 'moveBody', 'sweepToStop', 'clear', 'addCircle', 'addBox', 'addBlockers'],
   'sweep.ts': ['rectEntry', 'circleEntry', 'sweepCircleBox', 'sweepCircleCircle', 'overlapCircleBox', 'overlapCircleCircle'],
   'motion.ts': ['retarget', 'stepSpring', 'restDistance', 'angleBetween', 'turnDirection', 'turnTowards', 'facingFromVelocity', 'speedOf'],
   'scheme.ts': ['stepTurn', 'maxTurnRate', 'turnedHeading'],
   'solids.ts': ['queryStatic'], // (staticSolids builds the set once, on first use)
   // (R2: `present`, `syncLevel` and `publishSimCamera` run every frame of the chase camera, a flight and the overview: the level mapping of the camera)
-  'system.ts': ['stepWalk', 'collectShapes', 'visitPerson', 'visitBot', 'standStill', 'publishBody', 'finishBody', 'syncSim', 'present', 'syncLevel', 'publishSimCamera'],
+  'system.ts': ['stepWalk', 'stepGlide', 'collectShapes', 'visitPerson', 'visitBot', 'standStill', 'publishBody', 'finishBody', 'syncSim', 'present', 'syncLevel', 'publishSimCamera'],
 }
 
 describe('the per-frame paths of the body allocate nothing', () => {

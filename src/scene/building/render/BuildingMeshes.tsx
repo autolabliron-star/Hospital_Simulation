@@ -24,6 +24,8 @@ import { buildLabelMesh } from './labels'
 import { BUILDING_VISIBILITY_PRIORITY, level1WalkVisible, level2OverviewVisible, level2WalkVisible } from './levelVisibility'
 import { acquireScreenAtlas, releaseScreenAtlas } from './screenAtlasShared'
 import { isWalkMode, modeSwitch } from './walk/modeSwitch'
+import { BUILDING_MODEL_ON } from '../model/flags'
+import { hidesPrim } from '../model/region'
 
 function instancedMesh(spec: InstancedSpec): InstancedMesh {
   const mesh = new InstancedMesh(spec.geometry, MAT[spec.mat], spec.count)
@@ -53,7 +55,8 @@ function staticMesh(geometry: BufferGeometry, material: Material, name: string, 
 /** One level's static meshes, built once. */
 function buildLevel(level: LevelId) {
   const layout = getLayout()
-  const compiled = compileLayout(layout, level)
+  // `?building=model`: the authored pilot lobby replaces the procedural floors, walls and glazing of its region (level 1)
+  const compiled = compileLayout(layout, level, level === 1 && BUILDING_MODEL_ON ? (p) => hidesPrim(p.mat, p.position[0], p.position[2]) : undefined)
   const meshes: Mesh[] = []
   /** Drawn in the overview only (the walk-mode building replaces them). */
   const overview: Mesh[] = []

@@ -21,6 +21,8 @@ import type { Group } from 'three'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { walkCam } from '@/scene/player/state'
 import { sim } from '@/sim'
+import { useRealism, isWalking } from '@/ui/walk/realism.store'
+import { useWalk } from '@/scene/player/state'
 import type { Entity } from '@/sim/types'
 import { MAX_BUBBLES, bubbleClock, useBubbles, type Bubble } from './bubbleStore'
 import { placeBubble, type BubblePlacement, type SightState } from './bubblePlacement'
@@ -70,6 +72,9 @@ const placement: BubblePlacement = { x: 0, y: 0, z: 0, opacity: 0, moved: false 
 export function SpeechBubbles({ entities }: { entities?: ReadonlyMap<string, Entity> }) {
   const source = entities ?? sim.entities
   const bubbles = useBubbles((s) => s.bubbles)
+  // realism mode: no bubble cards are mounted at all (the store keeps pruning, so nothing piles up)
+  const mode = useWalk((s) => s.mode)
+  const hidden = useRealism((s) => (isWalking(mode) ? s.walk : s.overview))
   const sincePrune = useRef(0)
 
   useFrame((_, dt) => {
@@ -79,6 +84,7 @@ export function SpeechBubbles({ entities }: { entities?: ReadonlyMap<string, Ent
     useBubbles.getState().prune()
   })
 
+  if (hidden) return null
   const shown = bubbles.length > MAX_BUBBLES ? bubbles.slice(bubbles.length - MAX_BUBBLES) : bubbles
   return (
     <>

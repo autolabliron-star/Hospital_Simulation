@@ -79,7 +79,7 @@ export class Paramedic extends Actor {
         }
         break
       case 'unloading':
-        if (p.state === 'inBay.waitingExam' || p.state === 'inBay.exam' || p.state.startsWith('tests') || p.state === 'decision') {
+        if ((p.state.startsWith('inBay') && p.state !== 'inBay.walking') || p.state.startsWith('tests') || p.state === 'decision') {
           this.entity.anim = 'idle'
           this.timer = 0
           this.state = 'handover'

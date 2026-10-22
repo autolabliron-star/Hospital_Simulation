@@ -12,6 +12,7 @@ import { LabLayer } from './lab/LabLayer'
 import { StatusScreens } from './w4kit/StatusScreens'
 import { LevelGroup, LevelsFrame } from './levels'
 import { Lighting } from './Lighting'
+import { SkyDome } from './lighting/env/SkyDome'
 import { Meals } from './meals'
 import { PharmacyCore } from './pharmacy'
 import { Robots } from './robots'
@@ -33,6 +34,8 @@ export function World() {
       <color attach="background" args={['#e9eeed']} />
       <Lighting />
       <Daylight />
+      {/* the walk and presentation look's sky: one sphere behind everything, hidden in the overview (the flat background shows there) */}
+      <SkyDome />
       <Building />
       {/* R2 levels: writes `levelView` (your level while walking, the overview switch in the overview) before anything draws by level */}
       <LevelsFrame />

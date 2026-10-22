@@ -19,8 +19,12 @@ import { ROOMS } from '../places'
 import { Rng } from '../rng'
 import type { RoomId } from '../types'
 
-/** The doctor signs this long before the planned departure: the medicines, the family and the changing take about that long. */
-export const SIGN_LEAD_SECONDS = 900
+/**
+ * The doctor signs this long before the planned departure (Wave 1): the family are called and arrive 30-90 minutes after the signature
+ * (CONFIG.beds.familyArrivesSeconds), then the medicines and the changing take a few minutes, so the patient leaves about at the planned hour.
+ * The planned discharges of the morning are signed on the ward round.
+ */
+export const SIGN_LEAD_SECONDS = 3600
 /** A cleaner needs about this long to reach a room that has just been vacated (the bed board's ready-by estimate). */
 export const CLEANER_PICKUP_SECONDS = 75
 /**

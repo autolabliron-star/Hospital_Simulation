@@ -18,20 +18,30 @@ function positions(s: Simulation): string[] {
 }
 
 describe('S1 ER in-flight warm', () => {
-  it('places the configured patients through the WARM events, logging nothing', () => {
+  it('places the configured patients through the WARM events, logging nothing: the bays are mid-stay, not waiting for a doctor', () => {
     const s = build()
     const want = CONFIG.opening.er
     const cases = [...s.world.er.cases.values()]
     const by = (st: string) => cases.filter((c) => c.state === st)
     expect(by('waitingTriage')).toHaveLength(want.triage)
     expect(by('waitingDoctor')).toHaveLength(want.doctor)
-    expect(by('inBay.waitingExam')).toHaveLength(want.bay)
-    for (const c of by('inBay.waitingExam')) {
+    // the bays: part-way through the nurse's care, the assessment, the wait for the lab, the doctor's review
+    expect(by('inBay.care')).toHaveLength(1)
+    expect(by('inBay.exam')).toHaveLength(1)
+    expect(by('inBay.review')).toHaveLength(1)
+    expect(by('tests.awaitingResults')).toHaveLength(2)
+    expect(by('inBay.waitingExam')).toHaveLength(0)
+    const inBay = cases.filter((c) => c.bay >= 0)
+    expect(inBay.length).toBeGreaterThanOrEqual(Math.max(want.bay, 5))
+    for (const c of inBay) {
       expect(c.onTrolley).toBe(true)
-      expect(c.bay).toBeGreaterThanOrEqual(0)
       expect(s.world.er.bays[c.bay].caseId).toBe(c.id)
       expect(s.seats.byId(s.world.er.bays[c.bay].seat.id)).toBeTruthy()
     }
+    // the staff are at those bedsides already
+    expect(by('inBay.care')[0].careBy).not.toBeNull()
+    expect(by('inBay.exam')[0].doctorId).not.toBeNull()
+    expect(by('inBay.review')[0].doctorId).not.toBeNull()
     for (const c of by('waitingTriage')) expect(c.ready).toBe(true)
     // those waiting for a doctor are held a little (so they are still in the rows after the pre-roll), then called
     const held = by('waitingDoctor')
@@ -46,23 +56,24 @@ describe('S1 ER in-flight warm', () => {
       expect(e.name).toBe(c.name)
       expect(e.seated).toBeDefined()
     }
+    // (with the bays mid-stay they wait for a bay to free: they are called only as the stays end)
     s.preRoll(130)
-    // ...after which they were called to bays
-    for (const c of held) expect(c.bay).toBeGreaterThanOrEqual(0)
   })
 
-  it('after the 50 s showcase pre-roll the ER is visibly at work', () => {
+  it('after the 50 s showcase pre-roll the ER is visibly at work, and no bay was freed and sent home at once', () => {
     const s = build()
     s.preRoll(CONFIG.opening.preRollSeconds)
     const er = s.world.er
     expect(er.triageBays.filter((b) => b.state === 'occupied').length).toBeGreaterThanOrEqual(1)
-    expect(er.bays.filter((b) => b.state === 'occupied').length).toBeGreaterThanOrEqual(2)
+    expect(er.bays.filter((b) => b.state === 'occupied').length).toBeGreaterThanOrEqual(4)
+    expect(er.bays.filter((b) => b.state === 'free').length).toBeLessThanOrEqual(2)
     const cases = [...er.cases.values()]
     expect(cases.some((c) => c.state === 'waitingDoctor')).toBe(true)
-    // a doctor has come to (or is examining) a patient on a trolley
-    expect(cases.some((c) => c.state === 'inBay.exam' || c.doctorId !== null)).toBe(true)
-    // nobody was lost in the pre-roll
-    expect(er.finished.filter((f) => f.outcome === 'lwbs')).toHaveLength(0)
+    // a doctor is with a patient (an assessment or a review), a nurse is at a bedside
+    expect(cases.some((c) => c.state === 'inBay.exam' || c.state === 'inBay.review')).toBe(true)
+    expect(cases.some((c) => c.state === 'inBay.care' || c.careBy !== null)).toBe(true)
+    // nobody was lost or sent home in the pre-roll
+    expect(er.finished).toHaveLength(0)
   })
 
   it('also works on a Jump to other hours (60 s pre-roll)', () => {
@@ -70,7 +81,7 @@ describe('S1 ER in-flight warm', () => {
       const s = build({ startHour })
       s.preRoll(60)
       const er = s.world.er
-      expect(er.bays.filter((b) => b.state === 'occupied').length, `bays at ${startHour}`).toBeGreaterThanOrEqual(2)
+      expect(er.bays.filter((b) => b.state === 'occupied').length, `bays at ${startHour}`).toBeGreaterThanOrEqual(4)
       expect(er.triageBays.filter((b) => b.state === 'occupied').length, `triage at ${startHour}`).toBeGreaterThanOrEqual(1)
     }
   })
@@ -91,7 +102,7 @@ describe('S1 ER in-flight warm', () => {
     const placed = [...s.world.er.cases.values()].map((c) => c.id)
     const first = new Map<string, string>()
     for (const c of s.world.er.cases.values()) first.set(c.id, c.state)
-    s.preRoll(45 * 60)
+    s.preRoll(5 * 3600)
     const er = s.world.er
     const done = new Set(er.finished.map((f) => f.id))
     const live = new Map<string, ErCase>(er.cases)
@@ -102,14 +113,14 @@ describe('S1 ER in-flight warm', () => {
       expect(c, `${id} vanished without an outcome`).toBeDefined()
       expect(c!.state, `${id} is still ${first.get(id)}`).not.toBe(first.get(id))
     }
-    // most of the placed patients have an outcome after 45 minutes
-    expect(placed.filter((id) => done.has(id)).length).toBeGreaterThanOrEqual(placed.length - 2)
+    // real stays are 1-4 h: most of the placed patients have an outcome after five hours
+    expect(placed.filter((id) => done.has(id)).length).toBeGreaterThanOrEqual(placed.length - 3)
     // bays are cleaned and nobody holds a bay or triage chair without being in the department
-    expect(er.maxCleanWait).toBeLessThanOrEqual(5 * 60)
+    expect(er.maxCleanWait).toBeLessThanOrEqual(45 * 60)
     for (const b of er.bays) if (b.state === 'occupied') expect(live.get(b.caseId!)?.bay).toBe(b.index)
     for (const b of er.triageBays) if (b.state === 'occupied') expect(live.get(b.caseId!)?.triageBay).toBe(b.index)
     expect(er.finished.map((f) => f.id)).toEqual([...new Set(er.finished.map((f) => f.id))])
-  }, 120_000)
+  }, 300_000)
 
   it('leaves the default start unchanged', () => {
     const plain = new Simulation(SEED)

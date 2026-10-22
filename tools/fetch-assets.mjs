@@ -7,15 +7,18 @@
  *
  * The whole manifest (tools/assets.manifest.json) is validated and origin-checked first, before any request. Then, for each
  * entry in order, stopping that entry at the first refusal:
- *   1. the ORIGIN gate (raw.githubusercontent.com, https only, one repository, one pinned commit, one folder, .fbx/.tga)
+ *   1. the ORIGIN gate (https only; raw.githubusercontent.com: one repository, one pinned commit, one folder, .fbx/.tga;
+ *      dl.polyhaven.org: file/ph-assets/Textures|HDRIs/<jpg,png|hdr,exr>/<1k|2k>/... only; the entry's kind, type, group
+ *      and file name must match its url)
  *   2. a `localFile` entry is NOT downloaded: its bytes are read from assets-src/_import (a regular file, no symbolic link,
  *      real path inside that folder). Every other entry: HEAD size check against the exact byte count, then a download with
  *      a hard streaming cap into public/assets/_downloads (quarantine); redirects are followed by hand and every hop
  *      passes the origin gate again
  *   3. magic bytes for the declared type (binary FBX 7.x; TGA header field by field)
  *   4. the exact byte count, then sha256 against the manifest (pinned on first fetch, written back; a localFile import must
- *      already carry it), then the git blob id of the bytes against the id GitHub lists for that commit (always)
- *   5. only then: write into assets-src/<kind>/ (dest "source": never public/, so Vite never serves it), record in
+ *      already carry it), then, for GitHub-sourced entries, the git blob id of the bytes against the id GitHub lists for
+ *      that commit (a Poly Haven file has no commit: its pin is bytes + sha256)
+ *   5. only then: write into assets-src/<kind>/[<group>/] (dest "source": never public/, so Vite never serves it), record in
  *      public/assets/manifest.json and regenerate the generated block of docs/CREDITS.md
  * The write phase holds the shared lock tools/.fetch.lock (also taken by the converter). Downloaded content is only ever
  * read as bytes. Nothing is executed, imported or spawned.
@@ -27,6 +30,7 @@ import {
   GateError,
   POLICY,
   applyCreditsBlock,
+  assertEntryMatchesSource,
   assertMagic,
   checkDownloadUrl,
   downloadBytes,
@@ -180,7 +184,7 @@ async function readStagedFile(entry, p) {
   return fs.readFile(real)
 }
 
-/** Magic bytes, exact size, sha256 pin and git blob id. Returns the sha256 of the bytes. Throws GateError on any mismatch. */
+/** Magic bytes, exact size, sha256 pin and, for GitHub-sourced entries, the git blob id. Returns the sha256 of the bytes. Throws GateError on any mismatch. */
 function vetBytes(entry, bytes) {
   assertMagic(bytes, entry.type, entry.id)
   if (bytes.length !== entry.bytes) throw new GateError('SIZE_MISMATCH', `${entry.id}: got ${bytes.length} bytes, manifest expects ${entry.bytes}`)
@@ -188,7 +192,7 @@ function vetBytes(entry, bytes) {
   if (entry.sha256 && sha256 !== entry.sha256) {
     throw new GateError('SHA_MISMATCH', `${entry.id}: sha256 mismatch. manifest ${entry.sha256}, got ${sha256}. The file changed or was swapped; nothing was installed`, { expected: entry.sha256, actual: sha256 })
   }
-  if (gitBlobSha1Hex(bytes) !== entry.gitBlobSha1) throw new GateError('HASH_MISMATCH', `${entry.id}: git blob id does not match the one the repository lists at the pinned commit; nothing was installed`)
+  if (entry.gitBlobSha1 !== undefined && gitBlobSha1Hex(bytes) !== entry.gitBlobSha1) throw new GateError('HASH_MISMATCH', `${entry.id}: git blob id does not match the one the repository lists at the pinned commit; nothing was installed`)
   return sha256
 }
 
@@ -208,6 +212,7 @@ export async function processEntry(rawEntry, ctx) {
 
   // 1. origin gate, before a single byte moves (a localFile entry's url is provenance, but it must be on the list too)
   const url = checkDownloadUrl(entry.url)
+  assertEntryMatchesSource(entry, url)
   if (flags.strict && entry.sha256 === null) throw new GateError('UNPINNED_HASH', `${entry.id}: sha256 is null and --strict is on; fetch once on a trusted machine and commit the pinned hash`)
 
   // up to date? (offline re-hash of what is on disk; a mismatch is loud, never silently re-downloaded)
@@ -265,10 +270,11 @@ export async function processEntry(rawEntry, ctx) {
     if (flags.dryRun) return { id: entry.id, status: 'dry-run-ok', sha256 }
 
     // 5. install: budget, collisions, then move into place
-    const destRoot = path.join(p.source, entry.kind)
-    const relPath = posix(path.join(entry.kind, entry.file))
+    const kindRoot = path.join(p.source, entry.kind)
+    const destRoot = entry.group ? path.join(kindRoot, entry.group) : kindRoot
+    const relPath = posix(path.join(entry.kind, ...(entry.group ? [entry.group] : []), entry.file))
     const abs = path.join(destRoot, entry.file)
-    if (path.relative(destRoot, abs).startsWith('..')) throw new GateError('BAD_MANIFEST', `${entry.id}: destination "${entry.file}" escapes assets-src/${entry.kind}`)
+    if (path.relative(kindRoot, abs).startsWith('..')) throw new GateError('BAD_MANIFEST', `${entry.id}: destination "${entry.file}" escapes assets-src/${entry.kind}`)
     const existing = await fs.readFile(abs).catch(() => null)
     const recorded = prev?.files.some((r) => r.path === relPath)
     if (existing && !recorded && sha256Hex(existing) !== sha256 && !flags.force) {
@@ -284,7 +290,7 @@ export async function processEntry(rawEntry, ctx) {
       author: entry.author ?? null,
       notes: entry.notes ?? null,
       sha256,
-      gitBlobSha1: entry.gitBlobSha1,
+      gitBlobSha1: entry.gitBlobSha1 ?? null,
       bytes: bytes.length,
       files: [{ path: relPath, sha256, bytes: bytes.length, role: 'original', root: 'source' }, ...keptDerived],
       validator: null,
@@ -326,7 +332,7 @@ export async function runGate({ root = PROJECT_ROOT, only, fetchImpl, log = cons
   const ids = new Set()
   for (const e of manifest.assets) {
     const checked = validateManifestEntry(e)
-    checkDownloadUrl(checked.url)
+    assertEntryMatchesSource(checked, checkDownloadUrl(checked.url))
     if (ids.has(checked.id)) throw new GateError('BAD_MANIFEST', `duplicate manifest id "${checked.id}"`)
     ids.add(checked.id)
   }
@@ -387,11 +393,13 @@ export async function writeCredits(installed, root = PROJECT_ROOT) {
 }
 
 /**
- * Offline audit: every installed file against its recorded sha256, every original against the manifest pins (the sha256 and,
- * independently of it, the git blob id and byte count of the file at the pinned commit). `requireAll` also fails for manifest
- * entries that are not installed. Returns the number of problems.
+ * Offline audit: every installed file against its recorded sha256, every original against the manifest pins (the sha256, the
+ * byte count and, for GitHub-sourced entries, independently of the sha256, the git blob id of the file at the pinned commit).
+ * `requireAll` also fails for manifest entries that are not installed; `strict` also fails for a manifest entry whose sha256 is
+ * still null (a Poly Haven file is pinned by bytes + sha256 alone, so an unpinned one is not verifiable). Returns the number
+ * of problems.
  */
-export async function verifyAll({ root = PROJECT_ROOT, log = console.log, requireAll = false } = {}) {
+export async function verifyAll({ root = PROJECT_ROOT, log = console.log, requireAll = false, strict = false } = {}) {
   const installed = await readInstalled(root)
   const manifest = await readJson(paths(root).manifest)
   const pins = new Map(manifest.assets.map((e) => [e.id, e]))
@@ -400,12 +408,13 @@ export async function verifyAll({ root = PROJECT_ROOT, log = console.log, requir
     const problems = await verifyInstalledAsset(record, root)
     const pin = pins.get(id)
     if (pin?.sha256 && pin.sha256 !== record.sha256) problems.push('recorded sha256 differs from the manifest pin')
-    if (pin?.gitBlobSha1) {
+    if (strict && pin && !pin.sha256) problems.push('manifest sha256 is null and --strict is on')
+    if (pin?.gitBlobSha1 || pin?.bytes) {
       for (const f of record.files.filter((x) => x.role === 'original')) {
         const abs = fileAbs(f, root)
         const bytes = abs ? await fs.readFile(abs).catch(() => null) : null
         if (!bytes) continue // already reported as missing above
-        if (gitBlobSha1Hex(bytes) !== pin.gitBlobSha1) problems.push(`${f.path}: git blob id does not match the manifest (the file is not the one at the pinned commit)`)
+        if (pin.gitBlobSha1 && gitBlobSha1Hex(bytes) !== pin.gitBlobSha1) problems.push(`${f.path}: git blob id does not match the manifest (the file is not the one at the pinned commit)`)
         if (pin.bytes && bytes.length !== pin.bytes) problems.push(`${f.path}: ${bytes.length} bytes, manifest says ${pin.bytes}`)
       }
     }
@@ -420,6 +429,12 @@ export async function verifyAll({ root = PROJECT_ROOT, log = console.log, requir
   for (const id of notInstalled) {
     log(`${requireAll ? 'FAIL' : 'skip'} ${id}: not installed`)
     if (requireAll) bad++
+  }
+  if (strict) {
+    for (const e of manifest.assets.filter((x) => !x.sha256 && !installed.assets[x.id])) {
+      log(`FAIL ${e.id}: manifest sha256 is null and --strict is on`)
+      bad++
+    }
   }
   const total = installedTotalBytes(installed)
   log(`${Object.keys(installed.assets).length} asset(s), ${(total / 1048576).toFixed(2)} MB of ${POLICY.maxTotalBytes / 1048576} MB served, ${(installedSourceBytes(installed) / 1048576).toFixed(2)} MB of ${POLICY.maxSourceBytes / 1048576} MB source-only`)
@@ -452,14 +467,15 @@ const HELP = `Ideal Hospital asset gate (docs/ASSETS-POLICY.md)
   --dry-run                                  origin + HEAD size checks for downloads, full checks for localFile imports; installs nothing
   --force                                    re-fetch even if installed and hash-verified
   --strict                                   refuse entries whose sha256 is still null
-  --verify [--require-all]                   offline: re-hash every installed file (--require-all: also fail for entries not installed)`
+  --verify [--require-all] [--strict]        offline: re-hash every installed file (--require-all: also fail for entries not installed;
+                                             --strict: also fail for manifest entries whose sha256 is still null)`
 
 export async function main(argv = process.argv.slice(2)) {
   try {
     const args = parseArgs(argv)
     if (args.help) return void console.log(HELP)
     if (args.verify) {
-      const bad = await verifyAll({ requireAll: args.requireAll })
+      const bad = await verifyAll({ requireAll: args.requireAll, strict: Boolean(args.flags.strict) })
       if (bad) process.exitCode = 1
       return
     }

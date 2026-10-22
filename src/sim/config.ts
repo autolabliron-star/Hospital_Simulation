@@ -34,8 +34,6 @@ export const CONFIG = {
     kioskHoldSeconds: 1800,
     drawChairs: 3,
     labTubes: 5,
-    /** Seconds after the warm start at which one ward order per ward is written (MedVend picks, a pod flies). */
-    medsAt: [0, 40] as readonly number[],
     /** How far through its current sequence each scanner is when placed (share, uniform). */
     seqProgress: [0.4, 0.7] as readonly [number, number],
     /** Early visitor parties placed at a showcase opening (the lounges fill). */
@@ -108,6 +106,28 @@ export const CONFIG = {
     nurseGiveSeconds: 18,
     doctorsPerWard: 1,
     nursesPerWard: 2,
+    /**
+     * Wave 1 "A real clinical day": the ward round is once each morning, with the nurse, 6-10 minutes a bed (real ward rounds: 5-15 min a
+     * patient); a short afternoon review of patients admitted since; an on-call doctor at night. At a round visit the doctor changes the
+     * patient's medicines only sometimes (`changeChance`); the regular doses go out by dose time (`doseWaves`, content/medicines.json).
+     */
+    round: {
+      startHour: 8.5,
+      endHour: 11.0,
+      bedsideSeconds: [360, 600] as readonly [number, number],
+      gapSeconds: [60, 180] as readonly [number, number],
+      afternoonHour: 15.0,
+      reviewSeconds: [240, 420] as readonly [number, number],
+      changeChance: 0.25,
+    },
+    /** Walking speed factor by age (piecewise linear: [age, factor]): an 88-year-old walks at about 0.75 of a young adult's pace. */
+    ageWalkFactor: [
+      [0, 1.0],
+      [60, 1.0],
+      [70, 0.9],
+      [80, 0.78],
+      [90, 0.68],
+    ] as readonly (readonly [number, number])[],
   },
 
   // ---------------------------------------------------------------------------------------------
@@ -127,14 +147,17 @@ export const CONFIG = {
   },
 
   er: {
-    /** Walk-in arrivals per hour by clock hour (linear between points; zero after the last). */
+    /**
+     * Walk-in arrivals per hour by clock hour (linear between points; zero after the last). Wave 1: sized to 6 bays and 2 doctors at real
+     * durations (a doctor sees about 1.5-2.5 patients an hour; a majors bay is occupied 2-4 h); was a 48-an-hour peak.
+     */
     arrivalsPerHour: [
-      [7.5, 16],
-      [8.5, 26],
-      [9.5, 38],
-      [10.5, 48],
-      [11.5, 42],
-      [12.0, 26],
+      [7.5, 3],
+      [8.5, 4],
+      [9.5, 5],
+      [10.5, 6.5],
+      [11.5, 5.5],
+      [12.0, 4],
       [12.25, 0],
     ] as readonly (readonly [number, number])[],
     /** A few patients are already at the door in the first minute, so the demo starts alive (sim seconds). */
@@ -142,7 +165,7 @@ export const CONFIG = {
     ambulance: {
       /** First ambulance, then one every `every` seconds [min, max]; none after `lastHour`. */
       firstAt: 90,
-      every: [720, 1200] as readonly [number, number],
+      every: [2400, 4200] as readonly [number, number],
       lastHour: 12.0,
     },
     /** Weights for drawing a walk-in's reason by acuity 1..5. */
@@ -150,26 +173,35 @@ export const CONFIG = {
     companionChance: 0.35,
     kioskShare: 0.7,
     checkInSeconds: [20, 40] as readonly [number, number],
-    triageSeconds: [60, 120] as readonly [number, number],
+    /** Real durations (Wave 1): triage 3-7 min, the doctor's assessment 10-20 min, the review of the results 3-7 min. */
+    triageSeconds: [180, 420] as readonly [number, number],
     /** The nurse's call to the patient before they walk in together. */
     callSeconds: 3,
-    examSeconds: [90, 180] as readonly [number, number],
+    examSeconds: [600, 1200] as readonly [number, number],
+    reviewSeconds: [180, 420] as readonly [number, number],
+    /** At the bay, before the doctor: the ER nurse's observations, cannula, ECG and bedside bloods (the tubes go by pneumatic tube). */
+    bayCareSeconds: [180, 360] as readonly [number, number],
     chartSeconds: [15, 30] as readonly [number, number],
-    testsChance: 0.3,
-    labSeconds: [60, 90] as readonly [number, number],
-    resultsSeconds: [120, 240] as readonly [number, number],
-    /** Chance of admission by acuity 1..5 (about 30 % overall). */
-    admitChanceByAcuity: [0.9, 0.8, 0.4, 0.12, 0.04] as readonly number[],
+    /** A minor complaint with no tests is seen and treated quickly (6-12 min), after observations only (this share of the care step). */
+    minorExamSeconds: [360, 720] as readonly [number, number],
+    minorCareShare: 0.4,
+    /** Priority 1-2 need more of the nurse and the doctor (monitor, oxygen, a second line; a longer, more careful assessment). */
+    seriousScale: 1.4,
+    /** A world with no lab (a bare test world): the bedside bloods come back after this long. */
+    resultsSeconds: [1200, 2400] as readonly [number, number],
+    /** Chance of admission by acuity 1..5, drawn AFTER the results (Wave 1: priority 1-2 are nearly always admitted). */
+    admitChanceByAcuity: [1.0, 0.95, 0.45, 0.1, 0.03] as readonly number[],
     /** Seconds a waiting patient tolerates before leaving, by acuity 1..5 (Infinity: never leaves). */
     patienceSeconds: [
       [Infinity, Infinity],
       [Infinity, Infinity],
-      [2500, 2900],
-      [1500, 2400],
-      [1500, 2400],
+      [3600, 9000],
+      [2400, 7200],
+      [2400, 7200],
     ] as readonly (readonly [number, number])[],
-    cleanSeconds: [40, 60] as readonly [number, number],
-    handoverSeconds: [15, 25] as readonly [number, number],
+    /** A bay clean between patients (5-10 min) and the paramedics' handover to the ER nurse (2-4 min). */
+    cleanSeconds: [300, 600] as readonly [number, number],
+    handoverSeconds: [120, 240] as readonly [number, number],
     /** A porter takes a patient on or off a vehicle. */
     loadSeconds: 1.2,
     walkSpeed: 1.2,
@@ -180,20 +212,19 @@ export const CONFIG = {
 
   visitors: {
     /** Visiting parties arriving per hour by clock hour (linear between points). */
+    /** Wave 1: visiting from 11:00 (after the morning round and handover), none before. */
     partiesPerHour: [
-      [7.75, 4],
-      [8.5, 16],
-      [9.5, 34],
-      [10.0, 46],
-      [11.5, 46],
-      [12.0, 34],
-      [12.75, 12],
+      [11.0, 4],
+      [11.5, 16],
+      [12.0, 26],
+      [12.75, 22],
       [13.5, 0],
     ] as readonly (readonly [number, number])[],
     /** Chance a party is two people, and chance someone carries flowers or a bag. */
     pairChance: 0.35,
     giftChance: 0.4,
-    visitSeconds: [600, 1800] as readonly [number, number],
+    /** Wave 1: a real bedside visit, 15-40 minutes (was 10-30). */
+    visitSeconds: [900, 2400] as readonly [number, number],
     cafeChance: 0.4,
     cafeSeconds: [300, 900] as readonly [number, number],
     /** Most visitors on site at once (people, not parties). */
@@ -236,7 +267,9 @@ export const CONFIG = {
     betweenStepsSeconds: [6, 14] as readonly [number, number],
     cleanupSeconds: [40, 70] as readonly [number, number],
     /** Images sent, then the report (AI pre-read confirmed by a radiologist, in the demo's ideal hospital). */
-    reportSeconds: { mri: [600, 900], ct: [240, 420], xray: [180, 300], us: [120, 240] } as Record<string, readonly [number, number]>,
+    reportSeconds: { mri: [2400, 4800], ct: [1200, 2700], xray: [900, 1800], us: [600, 1200] } as Record<string, readonly [number, number]>,
+    /** Wave 1: a contrast CT's portal-venous phase follows the arterial one 35-45 s later (not the generic step gap). */
+    ctPhaseGapSeconds: [35, 45] as readonly [number, number],
     /** Outpatients arrive this long before their appointment. */
     outpatientEarlySeconds: [300, 600] as readonly [number, number],
     /** Start-a-scan-now (presenter): the demo outpatient appears at the imaging door. */
@@ -268,7 +301,7 @@ export const CONFIG = {
     /** A step that waits on a person for this long without finishing is forced (the person is placed where they were going) and counted. */
     stuckSeconds: 150,
     /** The metrics window of the utilisation numbers (clock hours). */
-    utilisationHours: [7.75, 13.5] as readonly [number, number],
+    utilisationHours: [7.75, 17.0] as readonly [number, number],
   },
 
   // ---------------------------------------------------------------------------------------------
@@ -528,6 +561,8 @@ export const CONFIG = {
     /** Night: one nurse per ward, a doctor on call for both wards, circadian lighting. */
     nightHours: [22.0, 6.5] as readonly [number, number],
     nightNursesPerWard: 1,
+    /** The first quiet check of the night (22:30, so the 22:30 Jump shows it), then every `nightCheckEverySeconds` while it is night. */
+    nightCheckFirstHour: 22.5,
     nightCheckEverySeconds: 7200,
     nightCheckSeconds: 5,
     /** Idle staff breaks (never while a dose they own is due). */
@@ -543,11 +578,11 @@ export const CONFIG = {
     moments: [7.0, 7.75, 8.75, 9.0, 10.5, 12.0, 15.0, 18.0, 19.0, 22.5] as readonly number[],
     /** Full-day replacements for er.arrivalsPerHour, visitors.partiesPerHour and ambient.* (an evening ER peak; a dip in the quiet hour). */
     erArrivalsPerHour: [
-      [6.5, 10], [7.5, 16], [8.5, 26], [9.5, 38], [10.5, 48], [11.5, 42], [12.5, 34], [14.0, 30], [16.0, 30], [18.0, 40], [20.0, 44], [22.0, 30], [23.5, 14],
+      [6.5, 2], [7.5, 3], [8.5, 4], [9.5, 5], [10.5, 6.5], [11.5, 5.5], [12.5, 5], [14.0, 5], [16.0, 5], [18.0, 6], [20.0, 6], [22.0, 3], [23.5, 2],
     ] as readonly (readonly [number, number])[],
     ambulanceLastHour: 23.5,
     visitorPartiesPerHour: [
-      [7.75, 4], [8.5, 16], [9.5, 34], [10.0, 46], [11.5, 46], [12.0, 34], [12.75, 12], [13.0, 6], [14.0, 8], [14.5, 30], [15.0, 46], [19.0, 46], [19.5, 24], [20.0, 0],
+      [11.0, 4], [11.5, 16], [12.0, 26], [12.75, 20], [13.0, 6], [14.0, 8], [14.5, 30], [15.0, 40], [19.0, 40], [19.5, 20], [20.0, 0],
     ] as readonly (readonly [number, number])[],
     ambient: {
       lobby: [[6.5, 0.2], [7.5, 0.35], [8.5, 0.6], [9.5, 0.88], [10.0, 0.93], [11.5, 0.93], [12.5, 0.8], [13.0, 0.6], [14.0, 0.7], [16.0, 0.85], [19.0, 0.8], [21.0, 0.5], [23.5, 0.3]] as readonly (readonly [number, number])[],
@@ -563,18 +598,19 @@ export const CONFIG = {
     dischargeHours: [10.0, 16.0] as readonly [number, number],
     beforeNoon: 2,
     /** The family arrives this long after the discharge is signed; changing into everyday clothes in the bathroom pod. */
-    familyArrivesSeconds: [300, 900] as readonly [number, number],
+    familyArrivesSeconds: [1800, 5400] as readonly [number, number],
     dischargeTeachSeconds: [35, 50] as readonly [number, number],
     changeSeconds: [90, 150] as readonly [number, number],
     /** The cleaner's room clean and the porter's linen change. */
-    roomCleanSeconds: [360, 540] as readonly [number, number],
+    roomCleanSeconds: [1800, 2700] as readonly [number, number],
     linenSeconds: [40, 70] as readonly [number, number],
     /** The bed manager may reserve a bed that will be ready within this long; the patient boards in the ER bay meanwhile. */
     reserveWindowSeconds: 1200,
     /** At most this many ER bays board at once, for at most this long; otherwise the patient goes to a ward upstairs. */
     boardingMaxBays: 2,
     boardingMaxSeconds: 1800,
-    admissionCheckSeconds: [50, 70] as readonly [number, number],
+    /** The nurse's admission assessment of a new patient (Wave 1: 25-40 min; was about a minute). */
+    admissionCheckSeconds: [1500, 2400] as readonly [number, number],
     /** Stretcher-to-bed slide (also the bed-to-wheelchair transfer). */
     bedTransferSeconds: 0.8,
   },
@@ -599,9 +635,12 @@ export const CONFIG = {
     eatSeconds: [900, 1500] as readonly [number, number],
   },
 
-  /** Fixed dose waves (L1): orders for each occupied room's regular medicines, this long before each dose hour. */
+  /**
+   * Fixed dose waves (L1; Wave 1: the hospital's medicine rounds): orders for each occupied room's medicines DUE at that hour (each medicine's
+   * dose times are in content/medicines.json), this long before each dose hour. The 08:00 round is the biggest of the day.
+   */
   doseWaves: {
-    hours: [12.0, 18.0, 22.0] as readonly number[],
+    hours: [8.0, 12.0, 14.0, 18.0, 22.0] as readonly number[],
     leadSeconds: 1800,
   },
 

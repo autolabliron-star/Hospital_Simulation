@@ -6,11 +6,41 @@
       "bodyPart": "brain",
       "name": "MRI brain",
       "sequences": [
-        { "name": "Localiser", "plane": "scout", "contrast": "none", "seconds": 20, "images": 3 },
-        { "name": "T1 sagittal", "plane": "sagittal", "contrast": "T1", "seconds": 150, "images": 20 },
-        { "name": "T2 axial", "plane": "axial", "contrast": "T2", "seconds": 180, "images": 24 },
-        { "name": "FLAIR axial", "plane": "axial", "contrast": "FLAIR", "seconds": 200, "images": 24 },
-        { "name": "Diffusion axial", "plane": "axial", "contrast": "DWI", "seconds": 90, "images": 24 }
+        {
+          "name": "Localiser",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 20,
+          "images": 3
+        },
+        {
+          "name": "T1 sagittal",
+          "plane": "sagittal",
+          "contrast": "T1",
+          "seconds": 150,
+          "images": 20
+        },
+        {
+          "name": "T2 axial",
+          "plane": "axial",
+          "contrast": "T2",
+          "seconds": 180,
+          "images": 24
+        },
+        {
+          "name": "FLAIR axial",
+          "plane": "axial",
+          "contrast": "FLAIR",
+          "seconds": 200,
+          "images": 24
+        },
+        {
+          "name": "Diffusion axial",
+          "plane": "axial",
+          "contrast": "DWI",
+          "seconds": 90,
+          "images": 24
+        }
       ]
     },
     "mri-lumbar": {
@@ -19,10 +49,34 @@
       "bodyPart": "lumbarSpine",
       "name": "MRI lumbar spine",
       "sequences": [
-        { "name": "Localiser", "plane": "scout", "contrast": "none", "seconds": 20, "images": 3 },
-        { "name": "T2 sagittal", "plane": "sagittal", "contrast": "T2", "seconds": 210, "images": 15 },
-        { "name": "T1 sagittal", "plane": "sagittal", "contrast": "T1", "seconds": 180, "images": 15 },
-        { "name": "T2 axial", "plane": "axial", "contrast": "T2", "seconds": 240, "images": 20 }
+        {
+          "name": "Localiser",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 20,
+          "images": 3
+        },
+        {
+          "name": "T2 sagittal",
+          "plane": "sagittal",
+          "contrast": "T2",
+          "seconds": 210,
+          "images": 15
+        },
+        {
+          "name": "T1 sagittal",
+          "plane": "sagittal",
+          "contrast": "T1",
+          "seconds": 180,
+          "images": 15
+        },
+        {
+          "name": "T2 axial",
+          "plane": "axial",
+          "contrast": "T2",
+          "seconds": 240,
+          "images": 20
+        }
       ]
     },
     "mri-knee": {
@@ -31,10 +85,34 @@
       "bodyPart": "knee",
       "name": "MRI knee",
       "sequences": [
-        { "name": "Localiser", "plane": "scout", "contrast": "none", "seconds": 20, "images": 3 },
-        { "name": "PD fat-sat coronal", "plane": "coronal", "contrast": "PD", "seconds": 180, "images": 22 },
-        { "name": "PD fat-sat sagittal", "plane": "sagittal", "contrast": "PD", "seconds": 180, "images": 22 },
-        { "name": "T1 coronal", "plane": "coronal", "contrast": "T1", "seconds": 150, "images": 22 }
+        {
+          "name": "Localiser",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 20,
+          "images": 3
+        },
+        {
+          "name": "PD fat-sat coronal",
+          "plane": "coronal",
+          "contrast": "PD",
+          "seconds": 180,
+          "images": 22
+        },
+        {
+          "name": "PD fat-sat sagittal",
+          "plane": "sagittal",
+          "contrast": "PD",
+          "seconds": 180,
+          "images": 22
+        },
+        {
+          "name": "T1 coronal",
+          "plane": "coronal",
+          "contrast": "T1",
+          "seconds": 150,
+          "images": 22
+        }
       ]
     },
     "ct-head": {
@@ -43,8 +121,20 @@
       "bodyPart": "head",
       "name": "CT head (non-contrast)",
       "sequences": [
-        { "name": "Topogram", "plane": "scout", "contrast": "none", "seconds": 8, "images": 1 },
-        { "name": "Axial head", "plane": "axial", "contrast": "plain", "seconds": 12, "images": 40 }
+        {
+          "name": "Topogram",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 8,
+          "images": 1
+        },
+        {
+          "name": "Axial head",
+          "plane": "axial",
+          "contrast": "plain",
+          "seconds": 12,
+          "images": 40
+        }
       ]
     },
     "ct-cspine": {
@@ -53,8 +143,20 @@
       "bodyPart": "cervicalSpine",
       "name": "CT cervical spine",
       "sequences": [
-        { "name": "Topogram", "plane": "scout", "contrast": "none", "seconds": 8, "images": 1 },
-        { "name": "Axial cervical spine", "plane": "axial", "contrast": "plain", "seconds": 10, "images": 50 }
+        {
+          "name": "Topogram",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 8,
+          "images": 1
+        },
+        {
+          "name": "Axial cervical spine",
+          "plane": "axial",
+          "contrast": "plain",
+          "seconds": 10,
+          "images": 50
+        }
       ]
     },
     "ct-chest": {
@@ -63,8 +165,20 @@
       "bodyPart": "chest",
       "name": "CT chest with contrast",
       "sequences": [
-        { "name": "Topogram", "plane": "scout", "contrast": "none", "seconds": 8, "images": 1 },
-        { "name": "Arterial phase", "plane": "axial", "contrast": "arterial", "seconds": 8, "images": 60 }
+        {
+          "name": "Topogram",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 8,
+          "images": 1
+        },
+        {
+          "name": "Arterial phase",
+          "plane": "axial",
+          "contrast": "arterial",
+          "seconds": 8,
+          "images": 60
+        }
       ]
     },
     "ct-abdo": {
@@ -73,9 +187,27 @@
       "bodyPart": "abdomen",
       "name": "CT abdomen and pelvis with contrast",
       "sequences": [
-        { "name": "Topogram", "plane": "scout", "contrast": "none", "seconds": 8, "images": 1 },
-        { "name": "Arterial phase", "plane": "axial", "contrast": "arterial", "seconds": 10, "images": 60 },
-        { "name": "Portal venous phase", "plane": "axial", "contrast": "portal", "seconds": 12, "images": 70 }
+        {
+          "name": "Topogram",
+          "plane": "scout",
+          "contrast": "none",
+          "seconds": 8,
+          "images": 1
+        },
+        {
+          "name": "Arterial phase",
+          "plane": "axial",
+          "contrast": "arterial",
+          "seconds": 10,
+          "images": 60
+        },
+        {
+          "name": "Portal venous phase",
+          "plane": "axial",
+          "contrast": "portal",
+          "seconds": 12,
+          "images": 70
+        }
       ]
     },
     "xr-ankle": {
@@ -84,8 +216,20 @@
       "bodyPart": "ankle",
       "name": "X-ray ankle",
       "sequences": [
-        { "name": "AP view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 },
-        { "name": "Lateral view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 }
+        {
+          "name": "AP view",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        },
+        {
+          "name": "Lateral view",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        }
       ]
     },
     "xr-wrist": {
@@ -94,8 +238,20 @@
       "bodyPart": "wrist",
       "name": "X-ray wrist",
       "sequences": [
-        { "name": "PA view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 },
-        { "name": "Lateral view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 }
+        {
+          "name": "PA view",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        },
+        {
+          "name": "Lateral view",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        }
       ]
     },
     "xr-knee": {
@@ -104,8 +260,20 @@
       "bodyPart": "knee",
       "name": "X-ray knee",
       "sequences": [
-        { "name": "AP view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 },
-        { "name": "Lateral view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 }
+        {
+          "name": "AP view",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        },
+        {
+          "name": "Lateral view",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        }
       ]
     },
     "xr-chest": {
@@ -114,7 +282,13 @@
       "bodyPart": "chest",
       "name": "X-ray chest",
       "sequences": [
-        { "name": "PA view", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 }
+        {
+          "name": "PA view",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        }
       ]
     },
     "xr-hip": {
@@ -123,8 +297,20 @@
       "bodyPart": "pelvis",
       "name": "X-ray pelvis and hip",
       "sequences": [
-        { "name": "AP pelvis", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 },
-        { "name": "Lateral hip", "plane": "projection", "contrast": "none", "seconds": 1, "images": 1 }
+        {
+          "name": "AP pelvis",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        },
+        {
+          "name": "Lateral hip",
+          "plane": "projection",
+          "contrast": "none",
+          "seconds": 1,
+          "images": 1
+        }
       ]
     },
     "us-abdo": {
@@ -133,11 +319,41 @@
       "bodyPart": "abdomen",
       "name": "Ultrasound abdomen",
       "sequences": [
-        { "name": "Liver", "plane": "sweep", "contrast": "none", "seconds": 120, "images": 6 },
-        { "name": "Gallbladder", "plane": "sweep", "contrast": "none", "seconds": 90, "images": 4 },
-        { "name": "Right kidney", "plane": "sweep", "contrast": "none", "seconds": 90, "images": 3 },
-        { "name": "Left kidney", "plane": "sweep", "contrast": "none", "seconds": 90, "images": 3 },
-        { "name": "Spleen", "plane": "sweep", "contrast": "none", "seconds": 60, "images": 2 }
+        {
+          "name": "Liver",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 120,
+          "images": 6
+        },
+        {
+          "name": "Gallbladder",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 90,
+          "images": 4
+        },
+        {
+          "name": "Right kidney",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 90,
+          "images": 3
+        },
+        {
+          "name": "Left kidney",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 90,
+          "images": 3
+        },
+        {
+          "name": "Spleen",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 60,
+          "images": 2
+        }
       ]
     },
     "us-renal": {
@@ -146,44 +362,177 @@
       "bodyPart": "kidneys",
       "name": "Ultrasound kidneys and bladder",
       "sequences": [
-        { "name": "Right kidney", "plane": "sweep", "contrast": "none", "seconds": 90, "images": 3 },
-        { "name": "Left kidney", "plane": "sweep", "contrast": "none", "seconds": 90, "images": 3 },
-        { "name": "Bladder", "plane": "sweep", "contrast": "none", "seconds": 60, "images": 2 }
+        {
+          "name": "Right kidney",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 90,
+          "images": 3
+        },
+        {
+          "name": "Left kidney",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 90,
+          "images": 3
+        },
+        {
+          "name": "Bladder",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 60,
+          "images": 2
+        }
       ]
     }
   },
   "erTests": {
-    "Severe difficulty breathing": { "test": "imaging", "protocol": "xr-chest" },
-    "Collapsed, not fully conscious": { "test": "imaging", "protocol": "ct-head" },
-    "Chest pain spreading to arm": { "test": "blood" },
-    "Sudden weakness down one side": { "test": "imaging", "protocol": "ct-head" },
-    "Confused and very drowsy today": { "test": "blood" },
-    "High fever since yesterday": { "test": "blood" },
-    "Severe abdominal pain, vomiting": { "test": "imaging", "protocol": "ct-abdo" },
-    "Fainted at work this morning": { "test": "blood" },
-    "Asthma getting worse, wheezing": { "test": "none" },
-    "Dizzy and vomiting since morning": { "test": "blood" },
-    "Severe headache, feels unwell": { "test": "imaging", "protocol": "ct-head" },
-    "Ankle swollen after a fall": { "test": "imaging", "protocol": "xr-ankle" },
-    "Rash and itchy eyes": { "test": "none" },
-    "Ear pain for three days": { "test": "none" },
-    "Sore throat and swollen glands": { "test": "none" },
-    "Back pain after lifting boxes": { "test": "none" },
-    "Burning feeling when passing urine": { "test": "blood" },
-    "Cough and fever for a week": { "test": "imaging", "protocol": "xr-chest" },
-    "Twisted ankle playing football": { "test": "imaging", "protocol": "xr-ankle" },
-    "Cut finger needing stitches": { "test": "none" },
-    "Prescription running out, needs review": { "test": "none" },
-    "Sprained wrist from a bike fall": { "test": "imaging", "protocol": "xr-wrist" },
-    "Mild cold symptoms for days": { "test": "none" },
-    "Sunburn, feels sore and hot": { "test": "none" },
-    "Fall at home, hip pain": { "test": "imaging", "protocol": "xr-hip" },
-    "Collapsed at home, slow to respond": { "test": "imaging", "protocol": "ct-head" },
-    "Breathless and struggling to speak": { "test": "imaging", "protocol": "xr-chest" },
-    "Chest pain at rest, sweating": { "test": "blood" },
-    "Fit that has now stopped": { "test": "imaging", "protocol": "ct-head" },
-    "Allergic reaction, face swollen": { "test": "none" },
-    "Confused after a fall": { "test": "imaging", "protocol": "ct-head" },
-    "Minor car bump, neck sore": { "test": "imaging", "protocol": "ct-cspine" }
+    "Severe difficulty breathing": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-chest",
+      "imaging": "xr-chest"
+    },
+    "Breathless and struggling to speak": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-chest",
+      "imaging": "xr-chest"
+    },
+    "Collapsed, not fully conscious": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-faint",
+      "ecg": true,
+      "imaging": "ct-head"
+    },
+    "Collapsed at home, slow to respond": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-faint",
+      "ecg": true,
+      "imaging": "ct-head"
+    },
+    "Chest pain spreading to arm": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-chest",
+      "ecg": true,
+      "imaging": "xr-chest"
+    },
+    "Chest pain at rest, sweating": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-chest",
+      "ecg": true,
+      "imaging": "xr-chest"
+    },
+    "Sudden weakness down one side": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-faint",
+      "ecg": true,
+      "imaging": "ct-head"
+    },
+    "Confused and very drowsy today": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-confused"
+    },
+    "Fit that has now stopped": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-faint",
+      "imaging": "ct-head"
+    },
+    "Allergic reaction, face swollen": {
+      "chance": 1,
+      "ecg": true
+    },
+    "Fall at home, hip pain": {
+      "chance": 1,
+      "imaging": "xr-hip"
+    },
+    "High fever since yesterday": {
+      "chance": 0.9,
+      "bloods": "er-fever"
+    },
+    "Severe abdominal pain, vomiting": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-fever",
+      "imaging": "ct-abdo"
+    },
+    "Fainted at work this morning": {
+      "chance": 0.9,
+      "bloods": "er-faint",
+      "ecg": true
+    },
+    "Asthma getting worse, wheezing": {
+      "chance": 0
+    },
+    "Dizzy and vomiting since morning": {
+      "chance": 0.7,
+      "bloods": "er-dizzy"
+    },
+    "Severe headache, feels unwell": {
+      "chance": 1,
+      "redFlag": true,
+      "imaging": "ct-head"
+    },
+    "Ankle swollen after a fall": {
+      "chance": 0.7,
+      "imaging": "xr-ankle"
+    },
+    "Rash and itchy eyes": {
+      "chance": 0
+    },
+    "Ear pain for three days": {
+      "chance": 0
+    },
+    "Sore throat and swollen glands": {
+      "chance": 0
+    },
+    "Back pain after lifting boxes": {
+      "chance": 0
+    },
+    "Burning feeling when passing urine": {
+      "chance": 0.4,
+      "bloods": "er-urine"
+    },
+    "Cough and fever for a week": {
+      "chance": 0.6,
+      "imaging": "xr-chest"
+    },
+    "Twisted ankle playing football": {
+      "chance": 0.5,
+      "imaging": "xr-ankle"
+    },
+    "Cut finger needing stitches": {
+      "chance": 0
+    },
+    "Prescription running out, needs review": {
+      "chance": 0
+    },
+    "Sprained wrist from a bike fall": {
+      "chance": 0.6,
+      "imaging": "xr-wrist"
+    },
+    "Mild cold symptoms for days": {
+      "chance": 0
+    },
+    "Sunburn, feels sore and hot": {
+      "chance": 0
+    },
+    "Confused after a fall": {
+      "chance": 1,
+      "redFlag": true,
+      "bloods": "er-confused",
+      "imaging": "ct-head"
+    },
+    "Minor car bump, neck sore": {
+      "chance": 0.9,
+      "imaging": "ct-cspine"
+    }
   }
 }

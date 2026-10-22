@@ -23,6 +23,7 @@ import {
 } from 'three'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { sim } from '@/sim'
+import { isWalking, realismActive } from '@/ui/walk/realism.store'
 import type { Entity } from '@/sim/types'
 import { createEmoteAtlas } from './emoteAtlas'
 import { EmoteTracker } from './emoteState'
@@ -56,7 +57,7 @@ void main() {
 `
 
 /** Everything the layer owns: the tracker, the geometry, the material, the atlas and the single mesh. */
-class EmoteRig {
+export class EmoteRig {
   readonly tracker: EmoteTracker
   readonly mesh: Mesh
   private readonly geometry = new InstancedBufferGeometry()
@@ -99,7 +100,12 @@ class EmoteRig {
   }
 
   /** One frame: advance the icons and upload what changed. With nobody emoting the mesh is hidden: no draw call. */
-  frame(dt: number, cx: number, cy: number, cz: number, walking: boolean): void {
+  frame(dt: number, cx: number, cy: number, cz: number, walking: boolean, hidden = false): void {
+    // realism mode: no icons at all, and no tracker work either
+    if (hidden) {
+      this.mesh.visible = false
+      return
+    }
     this.material.depthTest = walking
     const n = this.tracker.update(dt, cx, cy, cz)
     this.geometry.instanceCount = n
@@ -125,7 +131,7 @@ export function EmoteLayer({ entities }: { entities?: ReadonlyMap<string, Entity
     const p = state.camera.position
     // (walk mode as the building sees it, walk/modeSwitch.ts: any mode but the overview, the flights between the two included)
     const mode = sim.player?.mode
-    rig.frame(dt, p.x, p.y, p.z, mode !== undefined && mode !== 'overview')
+    rig.frame(dt, p.x, p.y, p.z, isWalking(mode), realismActive(mode))
   }, FRAME_PRIORITY.labelAnchors)
 
   return <primitive object={rig.mesh} />

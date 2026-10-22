@@ -10,6 +10,7 @@
  * `decideKey` is pure and tested; `installKeys` wires it to the window (capture phase: ahead of the other hotkeys).
  */
 import { DEFAULT_KEYMAP } from '@/sim/types'
+import { presentActive } from '@/ui/present/presentation.store'
 
 export type KeyAction = 'interact' | 'standUp' | 'closeOverlay' | 'none'
 
@@ -75,6 +76,8 @@ export function installKeys(env: KeyEnv): () => void {
     })
     switch (action) {
       case 'interact':
+        // presentation mode (C) shows no panels or prompts, so nothing may open one (an unseen panel would hold your input): E is not heard
+        if (presentActive()) break
         if (env.interact()) {
           e.preventDefault()
           e.stopPropagation()

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '@/sim/config'
 import { ROOM_IDS } from '@/sim/places'
-import { MEDICINES, PATIENTS, medicineById, patientInRoom } from './catalogue'
+import { MEDICINES, PATIENTS, doseHoursOf, isPrn, medicineById, minDoseGapSeconds, patientInRoom } from './catalogue'
 import medicinesJson from './medicines.json'
 import patientsJson from './patients.json'
 import { MedicinesSchema, PatientsSchema } from './schema'
@@ -133,5 +134,55 @@ describe('schemas reject bad content', () => {
   it('rejects two patients in the same room', () => {
     const [p1, p2] = patientsJson
     expect(PatientsSchema.safeParse([p1, { ...p2, roomId: p1.roomId }]).success).toBe(false)
+  })
+})
+
+describe('dose times (Wave 1)', () => {
+  it('every medicine has dose hours that are dose-wave hours, or is as-needed with a gap', () => {
+    for (const m of MEDICINES) {
+      if (isPrn(m.id)) {
+        expect(doseHoursOf(m.id), m.id).toEqual([])
+        expect(minDoseGapSeconds(m.id), m.id).toBeGreaterThanOrEqual(3600)
+      } else {
+        expect(doseHoursOf(m.id).length, m.id).toBeGreaterThan(0)
+        for (const h of doseHoursOf(m.id)) expect(CONFIG.doseWaves.hours, `${m.id} ${h}`).toContain(h)
+      }
+    }
+  })
+
+  it('has the usual hospital dose times', () => {
+    const expected: Record<string, number[]> = {
+      paracetamol: [8, 12, 18, 22],
+      ibuprofen: [8, 12, 18],
+      omeprazole: [8],
+      amoxicillin: [8, 14, 22],
+      metformin: [8, 18],
+      atorvastatin: [22],
+      amlodipine: [8],
+      bisoprolol: [8],
+      furosemide: [8],
+      levothyroxine: [8],
+      apixaban: [8, 18],
+      senna: [22],
+      macrogol: [8],
+      lactulose: [8, 18],
+      colecalciferol: [8],
+      cetirizine: [8],
+    }
+    for (const [id, hours] of Object.entries(expected)) expect(doseHoursOf(id), id).toEqual(hours)
+    expect(isPrn('ondansetron')).toBe(true)
+    expect(isPrn('salbutamol')).toBe(true)
+  })
+
+  it('the interval of a medicine is its closest two dose hours (a once-daily one: 24 h)', () => {
+    expect(minDoseGapSeconds('paracetamol')).toBe(4 * 3600)
+    expect(minDoseGapSeconds('amoxicillin')).toBe(6 * 3600)
+    expect(minDoseGapSeconds('atorvastatin')).toBe(24 * 3600)
+  })
+
+  it('the schema rejects a dose hour that has no wave', () => {
+    const bad = (MEDICINES as unknown as Record<string, unknown>[]).map((m) => ({ ...m }))
+    bad[0].dose = { hours: [9] }
+    expect(MedicinesSchema.safeParse(bad).success).toBe(false)
   })
 })

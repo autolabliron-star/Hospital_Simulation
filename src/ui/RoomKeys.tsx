@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { useFocus } from '@/scene/camera/focus.store'
 import { unfocus } from '@/scene/camera/roomFocus'
 import { DEFAULT_KEYMAP } from '@/sim/types'
+import { presentActive } from './present/presentation.store'
 import { useGoTo } from './goTo.store'
 
 function isTyping(target: EventTarget | null): boolean {
@@ -30,7 +31,8 @@ export function RoomKeys(): null {
         return
       }
       if (isTyping(e.target)) return
-      if (e.code === DEFAULT_KEYMAP.goTo) {
+      // (the Go-to menu is not drawn in presentation mode, so G must not open it behind the scenes)
+      if (e.code === DEFAULT_KEYMAP.goTo && !presentActive()) {
         e.preventDefault()
         goTo.setOpen(!goTo.open)
       }

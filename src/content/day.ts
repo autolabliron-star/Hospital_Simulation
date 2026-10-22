@@ -14,6 +14,9 @@ const DAY = parseOrThrow(DaySchema, dayJson, 'src/content/day.json')
 /** The Jump menu moments, in CONFIG.day.moments order. */
 export const DAY_MOMENTS: readonly DayMoment[] = DAY.moments
 
+/** What the morning safety huddle talks about. */
+export const HUDDLE_TOPICS: readonly string[] = DAY.huddleTopics
+
 /** The HUD words (the `ui` section of day.json), validated by UiSchema; src/ui/l1Copy.ts re-exports them. */
 export const DAY_UI = DAY.ui
 

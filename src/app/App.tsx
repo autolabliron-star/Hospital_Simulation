@@ -24,6 +24,7 @@ import { LiftCover } from '@/ui/LiftCover'
 import { LoadingScreen } from '@/ui/loading'
 import { RoomKeys } from '@/ui/RoomKeys'
 import { RoomPanel } from '@/ui/RoomPanel'
+import { Cloaked, Hidden, PresentationControls } from '@/ui/present/PresentationControls'
 import { DevProbe, ProbeOverlay, probeEnabled } from './DevProbe'
 import { PowerLoop } from './PowerLoop'
 
@@ -127,17 +128,26 @@ export function App() {
         {/* M5: LAST in the Canvas, so every layer's effects (the environment map) have run. Compiles both modes, uploads every texture. */}
         <Warmup />
       </Canvas>
+      {/* presentation mode (C, ?view=present): no HUD and none of the game's overlays; the Hud hides itself, the rest go through these gates */}
       <Hud />
-      <GoToMenu />
-      <RoomPanel />
+      <Hidden>
+        <GoToMenu />
+        <RoomPanel />
+      </Hidden>
       <ScannerSounds />
       <DeviceSounds />
       <Ambience />
       <RoomKeys />
-      <JumpMenu />
-      <JumpFade />
-      {/* R2: the cover of your lift ride between Level 1 and Level 2 */}
-      <LiftCover />
+      <PresentationControls />
+      <Hidden>
+        <JumpMenu />
+      </Hidden>
+      {/* the covers keep their effects (the skip's sky lapse, the lift's outfit sync), so they stay mounted and only go invisible */}
+      <Cloaked>
+        <JumpFade />
+        {/* R2: the cover of your lift ride between Level 1 and Level 2 */}
+        <LiftCover />
+      </Cloaked>
       <ProbeOverlay />
       {/* M5: above everything; holds the sim paused until the presenter presses Enter */}
       <LoadingScreen />

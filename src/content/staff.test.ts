@@ -12,8 +12,8 @@ describe('shifts', () => {
     for (const s of STAFF.filter((m) => m.role === 'nurse' && m.ward)) expect(s.shift, s.id).toBe('day')
   })
 
-  it('ward doctors work office hours', () => {
-    for (const s of STAFF.filter((m) => m.role === 'doctor' && m.ward)) expect(s.shift, s.id).toBe('office')
+  it('ward doctors work the day shift (Wave 1: they hand over to the on-call doctor at the 19:00 ward change)', () => {
+    for (const s of STAFF.filter((m) => m.role === 'doctor' && m.ward)) expect(s.shift, s.id).toBe('day')
   })
 })
 

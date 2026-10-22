@@ -14,7 +14,7 @@
  */
 import { CONFIG } from '../config'
 import { newEntity, Person, type PeopleContext } from '../person'
-import { groundHeightAt, VEHICLE_AHEAD } from '../places'
+import { groundHeightAt, VEHICLE_AHEAD, VEHICLE_HALF } from '../places'
 import type { AnimState, Entity, Outfit, Role, SeatSpec, Vec2, VehicleKind } from '../types'
 import { makeWalker, type Walker } from '../walker'
 import { headingTo, standHeading } from './spots'
@@ -31,7 +31,7 @@ export interface TableRef {
 }
 
 const TAU = Math.PI * 2
-/** A rider is carried by the pusher, so the crowd should not see a second body 0.8 m ahead of them. */
+/** A rider is carried by the pusher (the vehicle's discs cover the rider), so the crowd should not see a second body 0.8 m ahead of them. */
 const RIDER_RADIUS = 0.05
 const BODY_RADIUS = 0.25
 /** A person pushing a wheelchair, stretcher or cart takes up more room. */
@@ -397,6 +397,8 @@ export abstract class Actor extends Person {
   setVehicle(kind: VehicleKind): void {
     this.entity.vehicle = kind
     this.walker.setRadius?.(PUSHER_RADIUS[kind])
+    // the vehicle's real footprint for the crowd (places.ts VEHICLE_HALF), not only a wider body
+    this.walker.setFootprint?.(kind === 'none' ? null : { ahead: VEHICLE_AHEAD[kind], halfWidth: VEHICLE_HALF[kind][0], halfLength: VEHICLE_HALF[kind][1] })
   }
 
   /** For a pusher: look at a spot (a bed, a chair) without moving. */

@@ -68,6 +68,8 @@ export function watch(sim: Simulation): { sample: () => void; out: Watch } {
     // nobody stands still inside a doorway for more than 2 s
     for (const p of sim.people) {
       if (!p.mobile || p.entity.seated || p.entity.riding) continue
+      // (the theatre team on level 2 is the surgery suite's own business: it has its own tests)
+      if (p.entity.id.startsWith('or-')) continue
       const w = p.walker
       const zone = w.speed < 0.05 && (p.entity.fade ?? 1) > 0 ? DOORWAYS.find((z) => inside(z.r, w.x, w.z)) : undefined
       const key = p.entity.id

@@ -3,7 +3,7 @@
  * (src/scene/daylight/driver.ts) is the only writer; the readers poll it once a frame, at a negative priority, and act only when `version`
  * moved, so nothing here allocates or re-renders anything:
  *
- *   Lighting.tsx   binds the hospital environment while `hospitalEnv` is true, RoomEnvironment otherwise (the driver already wrote the
+ *   Lighting.tsx   binds the lobby's probe while `lobbyEnv`, else the hospital environment while `hospitalEnv` is true, RoomEnvironment otherwise (the driver already wrote the
  *                  environment intensity for the one that is bound, in the same frame);
  *   Effects.tsx    writes `grade` into the LUT effect's blend opacity and `vignette` into the vignette's darkness.
  *
@@ -14,6 +14,8 @@ export const liveLook = {
   blend: 0,
   /** The environment to bind: true = the hospital's, false = RoomEnvironment. Decided with a band of hysteresis around the swap point. */
   hospitalEnv: false,
+  /** `?building=model`: the camera is in the authored lobby and its baked reflection probe is bound instead (Lighting.tsx). Wins over `hospitalEnv`. */
+  lobbyEnv: false,
   /** The colour grade's blend opacity, 0..1. */
   grade: 0,
   /** The vignette's darkness (0 = untouched). */

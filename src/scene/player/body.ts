@@ -108,6 +108,12 @@ export class BodyMover {
   speed = 0
   /** A move key is held this frame (the keys ask for a velocity). */
   wanting = false
+  /**
+   * Presentation mode (src/ui/present): the walk is `speedScale` of its speed and the turn of its rate (1 = the game's), and `noRun` takes the hurry key away.
+   * Plain fields the player system sets; nothing else reads them.
+   */
+  speedScale = 1
+  noRun = false
   /** The last frame's move: how much of the wanted distance it got (for tests). */
   readonly move = newBodyMove()
   /** The unit direction of travel (classic scheme; the easy scheme's is its heading). */
@@ -176,6 +182,43 @@ export class BodyMover {
     this.state.stillFor += dt
   }
 
+  /**
+   * Presentation (the glide between shots): walk the body to (`tx`, `tz`) this frame and face `heading`, sliding along whatever is in the way (walls,
+   * furniture, doors, people: the same collision as a walk), with the speed spring at rest. What the body really did is published like a walk's, so the
+   * doors open for it and the crowd steps round it.
+   */
+  glide(dt: number, tx: number, tz: number, heading: number): void {
+    const b = this.state
+    b.live = true
+    if (dt <= 0) return
+    const heading0 = this.heading
+    this.halt()
+    this.heading = heading
+    const shapes = this.shapes
+    shapes.clear()
+    shapes.maxPush = BODY_FEEL.pushSpeed * dt
+    shapes.addBlockers(this.x, this.z, BODY_FEEL.doorScanRadius)
+    if (this.collect) this.collect(shapes)
+    const ox = this.x
+    const oz = this.z
+    const move = moveBody(ox, oz, tx - ox, tz - oz, this.move, shapes)
+    this.x = move.x
+    this.z = move.z
+    const vx = (this.x - ox) / dt
+    const vz = (this.z - oz) / dt
+    const achieved = Math.hypot(vx, vz)
+    this.speed = achieved < 0.02 ? 0 : achieved
+    b.x = this.x
+    b.z = this.z
+    b.vx = vx
+    b.vz = vz
+    b.turnRate = angleDelta(heading0, heading) / dt
+    if (achieved > BODY_FEEL.restSpeed) b.stillFor = 0
+    else b.stillFor += dt
+    b.restX = this.x
+    b.restZ = this.z
+  }
+
   /** The unit direction the body moves in at positive speed. */
   private motionDir(out: { x: number; z: number }, heading: number): void {
     if (this.scheme === 'easy') {
@@ -199,11 +242,11 @@ export class BodyMover {
     const spring = this.spring
     const heading0 = this.heading
     // easy: A and D turn the body first, so a press moves you in this very frame (running only goes forward)
-    if (easy) this.heading = turnedHeading(heading0, stepTurn(this.turn, right, hurry && forward > 0, dt))
+    if (easy) this.heading = turnedHeading(heading0, stepTurn(this.turn, right * this.speedScale, hurry && !this.noRun && forward > 0, dt))
     const steer = routeInput(this.scheme, forward, right, this.heading, cameraFacing, this.steer)
     const wanting = steer.dirX !== 0 || steer.dirZ !== 0
     this.wanting = wanting
-    const wishSpeed = wanting ? (hurry && !steer.backing ? P.hurrySpeed : P.walkSpeed) * steer.speedFactor : 0
+    const wishSpeed = wanting ? (hurry && !steer.backing && !this.noRun ? P.hurrySpeed : P.walkSpeed) * steer.speedFactor * this.speedScale : 0
 
     // the target speed, and for classic the direction of travel
     let target = 0

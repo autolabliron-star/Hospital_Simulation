@@ -1,15 +1,16 @@
 {
+  "huddleTopics": ["today's planned discharges and the 08:00 medicines", "falls risk and who needs help to walk", "new admissions overnight and who is waiting for a bed", "the dose waves, the ward round and the theatre list"],
   "moments": [
-    { "hour": 7.0, "label": "Shift handover", "caption": "Night and day nurses swap notes at the nurse hub, then at each bedside." },
+    { "hour": 7.0, "label": "Shift handover", "caption": "The night nurse hands over to the day team at the nurse hub, then at each bedside." },
     { "hour": 7.75, "label": "Breakfast", "caption": "Trays go out by MealBot, and the host takes each one into the room." },
     { "hour": 8.75, "label": "Robotic surgery", "caption": "On level 2 the da Vinci robot is docked and the surgeon is at the console for the first case." },
-    { "hour": 9.0, "label": "Ward rounds", "caption": "Doctors see each patient and plan today's medicines and discharges." },
+    { "hour": 9.0, "label": "Ward rounds", "caption": "The doctor does the day's one ward round with the nurse, a bed at a time, and signs planned discharges." },
     { "hour": 10.5, "label": "Discharges", "caption": "Patients go home with their families, and their rooms are cleaned for the next person." },
     { "hour": 12.0, "label": "Lunch and the midday dose wave", "caption": "Lunch goes out, and the midday medicines follow close behind." },
     { "hour": 15.0, "label": "Visiting", "caption": "Families arrive in the afternoon, and the lobby fills up." },
     { "hour": 18.0, "label": "Dinner", "caption": "The last meal of the day, then the evening medicines." },
     { "hour": 19.0, "label": "Evening handover", "caption": "The day team hands over to the night team, ward by ward." },
-    { "hour": 22.5, "label": "Night", "caption": "Lights dim, one nurse per ward checks in on each room, and the ER runs at night rates." }
+    { "hour": 22.5, "label": "Night", "caption": "Lights dim, one night nurse per ward looks in on every room from 22:30, and the ER runs at night rates." }
   ],
   "events": {
     "dischargeSigned": "{doctor} signed {patient}'s discharge from {room}.",

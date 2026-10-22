@@ -5,6 +5,7 @@ import { HealthCard } from './HealthCard'
 import { InteractPrompt } from './InteractPrompt'
 import { ModeHint } from './ModeHint'
 import { ObjectiveLine } from './ObjectiveLine'
+import { RealismToggle } from './RealismToggle'
 import type { HudParts } from './visibility'
 import { WalkToast } from './WalkToast'
 import './walk.css'
@@ -19,6 +20,7 @@ export function WalkOverlay({ parts }: { parts: HudParts }) {
       {parts.prompt && <InteractPrompt />}
       {parts.objective && <ObjectiveLine />}
       {parts.hint && <ModeHint />}
+      {parts.hint && <RealismToggle />}
     </>
   )
 }

@@ -37,6 +37,9 @@ import { BOT_RADIUS } from '@/sim/meals/bot'
 import { groundHeightAt, PLAYER_SPAWN, VEHICLE_AHEAD, VEHICLE_HALF } from '@/sim/places'
 import type { Simulation } from '@/sim/Simulation'
 import type { Entity, MealBot, PlayerViewKind, PlayerMode, Vec2 } from '@/sim/types'
+import { Glide, type GlidePose } from '@/ui/present/glide'
+import { PRESENT_VIEW_URL, presentActive, usePresentation } from '@/ui/present/presentation.store'
+import { SHOTS, nextShot, prevShot, shotYaw, type Shot } from '@/ui/present/shots'
 import { WallBoxProbe, type BoomProbe } from './boomProbe'
 import { ChaseCamera, type CameraFrame, type CameraSubject } from './chaseCamera'
 import { angleDelta, approach, clamp, wrapAngle } from './chaseMath'
@@ -47,7 +50,7 @@ import { PlayerInput, type InputAxes } from './input'
 import { facingFromVelocity, turnTowards } from './motion'
 import { DEFAULT_SCHEME, turnedHeading, type ControlScheme } from './scheme'
 import { useWalk, walkBody, walkCam } from './state'
-import { BODY, CHASE, FLIGHT, MOVE } from './tuning'
+import { BODY, CHASE, FLIGHT, MOVE, PRESENT } from './tuning'
 
 export { BodyMover } from './body'
 
@@ -130,6 +133,24 @@ export class PlayerSystem {
   private readonly flightFrom = newFlightState()
   private readonly flightTo = newFlightState()
   private flightEnd: 'walk' | 'overview' = 'walk'
+
+  // presentation mode (src/ui/present): the walkthrough. `presenting` follows the store at the top of every frame.
+  private presenting = false
+  /** The view you had before presentation forced first person, restored on leaving. */
+  private presentPrevView: PlayerViewKind = 'third'
+  private readonly glide = new Glide()
+  /** The shot you last stood at (or glided to); -1 before the first. The glide goes to the one after it, looping. */
+  private shotIdx = -1
+  private glideTarget = 0
+  /** A cut (the shot index) or a glide asked for while not walking yet, run on the first walking frame of presentation. `?view=present` starts at shot 1. */
+  private pendingShot = PRESENT_VIEW_URL ? 0 : -1
+  private glideWanted = false
+  /** This frame the glide (not the keys) moved the body: the mouse look is ignored. */
+  private glidedNow = false
+  private readonly poseFrom: GlidePose = { x: 0, z: 0, yaw: 0, pitch: 0 }
+  private readonly poseTo: GlidePose = { x: 0, z: 0, yaw: 0, pitch: 0 }
+  private readonly poseBefore: GlidePose = { x: 0, z: 0, yaw: 0, pitch: 0 }
+  private readonly poseAfter: GlidePose = { x: 0, z: 0, yaw: 0, pitch: 0 }
 
   // slow state
   private wasBlocked = false
@@ -218,6 +239,7 @@ export class PlayerSystem {
     const dt = clamp(rawDt, 0, 1 / 20)
     const sim = this.deps.getSim()
     this.ensurePlayer(sim)
+    this.syncPresentation()
     const input = this.input
     const blocked = walkCam.inputBlocked
     if (blocked !== this.wasBlocked) {
@@ -233,14 +255,17 @@ export class PlayerSystem {
 
     // Tab, V and Q (the keys are not heard at all while an overlay owns the keyboard); Q is only for walking, never in a flight
     if (!blocked) {
-      if (input.take('walk')) this.toggleMode()
+      // (Tab is not heard while presenting: C leaves the walkthrough first)
+      if (input.take('walk') && !this.presenting) this.toggleMode()
       if (input.take('firstPerson') && this.phase === 'walk') this.toggleFirstPerson()
       if (input.take('shoulderSwap') && this.phase === 'walk') this.chase.toggleShoulder()
     }
 
     switch (this.phase) {
       case 'walk':
-        this.stepWalk(dt, !blocked, sim)
+        this.glidedNow = false
+        if (this.glide.active) this.stepGlide(dt, !blocked, sim)
+        else this.stepWalk(dt, !blocked, sim)
         // the body is published BEFORE the camera moves, so the camera (and everything after it this frame) reads this frame's body
         this.publishBody(dt)
         this.cameraStep(dt)
@@ -294,6 +319,30 @@ export class PlayerSystem {
     this.feet.x = this.x
     this.feet.y = groundHeightAt(this.x, this.z)
     this.feet.z = this.z
+  }
+
+  /**
+   * Presentation: one frame of the glide between two shots. The pose comes from the glide's eased spline; the body is walked there (`BodyMover.glide`:
+   * collision, doors and people still count) and the camera is put exactly on its yaw and pitch. Any walk key (or an overlay) ends it at once and you walk on.
+   */
+  private stepGlide(dt: number, control: boolean, sim: Simulation): void {
+    this.input.axes(this.axes)
+    if (!control || this.axes.forward !== 0 || this.axes.right !== 0) {
+      this.glide.cancel()
+      this.stepWalk(dt, control, sim)
+      return
+    }
+    const g = this.glide
+    const done = g.tick(dt)
+    this.simNow = sim
+    this.body.glide(dt, g.x, g.z, g.yaw)
+    this.simNow = null
+    this.chase.snapView(g.yaw, g.pitch)
+    this.glidedNow = true
+    this.feet.x = this.x
+    this.feet.y = groundHeightAt(this.x, this.z)
+    this.feet.z = this.z
+    if (done) this.shotIdx = this.glideTarget
   }
 
   /**
@@ -368,7 +417,7 @@ export class PlayerSystem {
     this.primeRig()
     const input = this.input
     input.takeLook(this.look)
-    if (!input.listening) this.look.dx = this.look.dy = this.look.wheel = 0
+    if (!input.listening || this.glidedNow) this.look.dx = this.look.dy = this.look.wheel = 0
     this.subject.vx = this.body.state.vx
     this.subject.vz = this.body.state.vz
     this.subject.heading = this.heading
@@ -391,7 +440,7 @@ export class PlayerSystem {
     walkCam.pitch = this.chase.drawnPitch
     walkCam.boom = report.boom
     walkCam.firstPerson = this.chase.firstPersonBlend
-    walkCam.avatarFade = report.avatarFade
+    walkCam.avatarFade = this.presenting ? 0 : report.avatarFade
     // the camera in SIM coordinates (the sight tests of the bubbles and emotes read it), then the one translation to where it is drawn
     walkCam.camera.x = camera.position.x
     walkCam.camera.y = camera.position.y
@@ -461,7 +510,7 @@ export class PlayerSystem {
   /** Put the chase camera at rest behind you and the lens in walk mode, at once (no flight): the app starts walking. */
   private enterWalkNow(): void {
     this.phase = 'walk'
-    this.viewKind = 'third'
+    this.viewKind = this.presenting ? 'first' : 'third'
     this.primeRig()
     this.restPose(this.deps.camera)
     this.input.discardPending()
@@ -496,7 +545,7 @@ export class PlayerSystem {
     this.subject.turning = false
     camera.near = FLIGHT.walkNear
     this.chase.reset(this.feet, this.heading)
-    const report = this.chase.settle(this.subject, { firstPerson: false, floorY: this.feet.y }, this.probe, camera)
+    const report = this.chase.settle(this.subject, { firstPerson: this.presenting, floorY: this.feet.y }, this.probe, camera)
     camera.updateProjectionMatrix()
     // (drawn, like every other camera pose: the flight down to you lands on it)
     this.present(camera, report.target)
@@ -514,7 +563,8 @@ export class PlayerSystem {
   }
 
   private toggleFirstPerson(): void {
-    if (this.phase !== 'walk') return
+    // the walkthrough is first person, always
+    if (this.phase !== 'walk' || this.presenting) return
     if (this.viewKind === 'third') {
       this.viewKind = 'first'
     } else {
@@ -529,6 +579,11 @@ export class PlayerSystem {
    */
   beginToOverview(pose: CameraPose | null): void {
     if (this.phase === 'overview') return
+    // the walkthrough ends where the flight to the overview begins (the camera, the speed and the avatar are the game's again)
+    if (this.presenting) {
+      usePresentation.getState().setOn(false)
+      this.setPresenting(false)
+    }
     const camera = this.deps.camera
     this.cameraState(this.flightFrom)
     if (pose) {
@@ -574,8 +629,8 @@ export class PlayerSystem {
       this.cameraState(this.flightFrom)
     }
     this.primeRig()
-    // where it lands: the chase camera at rest behind you. Computed on a scratch camera, so the flight's own writes are not disturbed.
-    this.viewKind = 'third'
+    // where it lands: the chase camera at rest behind you (through your eyes in the walkthrough). Computed on a scratch camera, so the flight's own writes are not disturbed.
+    this.viewKind = this.presenting ? 'first' : 'third'
     this.restPose(this.scratch)
     this.avatarFadeNow = 1 // you are seen all the way down
     this.flightTo.px = this.scratch.position.x
@@ -680,7 +735,8 @@ export class PlayerSystem {
     const keep = e && speed <= 0.05 && e.anim !== 'idle' && e.anim !== 'walk' ? e.anim : null
     sim.movePlayer(this.x, this.z, this.heading, speed)
     if (e && keep) e.anim = keep
-    if (e) e.fade = this.avatarFadeNow
+    // the walkthrough has no avatar (not in a flight either: nobody sees a body, nor its blob shadow)
+    if (e) e.fade = this.presenting ? 0 : this.avatarFadeNow
   }
 
   /** The body's numbers for the legs, the doors, the camera and the quality ladder: the shared `walkBody`, every frame, never reallocated. */
@@ -709,6 +765,118 @@ export class PlayerSystem {
     last.locked = locked
     walkCam.pointerLocked = locked
     useWalk.getState().set({ mode: this.phase, view: this.viewKind, pointerLocked: locked })
+  }
+
+  // ------------------------------------------------------------------------------------------
+  // Presentation mode (src/ui/present)
+  // ------------------------------------------------------------------------------------------
+
+  /** Follow the presentation store (once a frame), then run any cut or glide that was waiting for a walking frame. */
+  private syncPresentation(): void {
+    const want = presentActive()
+    if (want !== this.presenting) {
+      // C pressed in the middle of the flight out to the overview: the flight wins, the walkthrough goes off
+      if (want && this.phase === 'toOverview') usePresentation.getState().setOn(false)
+      else this.setPresenting(want)
+    }
+    if (!this.presenting || this.phase !== 'walk') return
+    if (this.pendingShot >= 0) {
+      const i = this.pendingShot
+      this.pendingShot = -1
+      this.cutToShot(i)
+    }
+    if (this.glideWanted) {
+      this.glideWanted = false
+      if (!this.glide.active) this.startGlide()
+    }
+  }
+
+  /**
+   * Presentation on or off. On: first person (the previous view is remembered), the lens, eye and look of the walkthrough (the chase camera blends them),
+   * a slow walk with no run, no avatar. From the overview it flies down first. Off: every one of those goes back to the game's, and the view you had returns.
+   */
+  private setPresenting(on: boolean): void {
+    this.presenting = on
+    this.glide.cancel()
+    this.chase.setPresenting(on)
+    this.body.speedScale = on ? PRESENT.speedScale : 1
+    this.body.noRun = on
+    const flying = this.phase === 'walk' || this.phase === 'toWalk'
+    if (on) {
+      if (flying) {
+        this.presentPrevView = this.viewKind
+        this.viewKind = 'first'
+      } else if (this.phase === 'overview') {
+        this.presentPrevView = 'third'
+        this.beginToWalk()
+      }
+    } else {
+      this.glideWanted = false
+      this.pendingShot = -1
+      if (flying && this.viewKind === 'first' && this.presentPrevView === 'third') {
+        this.viewKind = 'third'
+        this.chase.restoreBoom()
+      }
+    }
+  }
+
+  /** Stand at shot `i` (looping index), looking at its target, at rest and fully in the walkthrough's view: an instant cut, settled. */
+  private cutToShot(i: number): void {
+    const n = SHOTS.length
+    const k = ((i % n) + n) % n
+    const s = SHOTS[k]
+    const yaw = shotYaw(s)
+    this.glide.cancel()
+    settle(s.x, s.z, this.settled)
+    this.placeAt(this.settled.x, this.settled.z, yaw)
+    this.chase.snapView(yaw, s.pitch)
+    this.chase.completeBlends()
+    this.shotIdx = k
+  }
+
+  /** A shot as a glide pose. */
+  private poseOf(s: Shot, out: GlidePose): GlidePose {
+    out.x = s.x
+    out.z = s.z
+    out.yaw = shotYaw(s)
+    out.pitch = s.pitch
+    return out
+  }
+
+  /** Glide from where you stand to the shot after the last one (looping): a Catmull-Rom dolly through the neighbouring shots, 6 to 8 seconds. */
+  private startGlide(): void {
+    const to = nextShot(this.shotIdx)
+    const from = this.poseFrom
+    from.x = this.x
+    from.z = this.z
+    from.yaw = this.chase.facing
+    from.pitch = this.chase.viewPitch
+    this.poseOf(SHOTS[to], this.poseTo)
+    this.poseOf(SHOTS[nextShot(to)], this.poseAfter)
+    // standing at a shot, the path bends into the one before it; anywhere else it starts straight
+    let before: GlidePose | null = null
+    if (this.shotIdx >= 0 && Math.hypot(this.x - SHOTS[this.shotIdx].x, this.z - SHOTS[this.shotIdx].z) < 0.75) before = this.poseOf(SHOTS[prevShot(this.shotIdx)], this.poseBefore)
+    this.glideTarget = to
+    this.glide.start(from, this.poseTo, before, this.poseAfter)
+  }
+
+  /** `N` and the probe: turn presentation on if it is off and glide to the next shot (once you are walking; a glide already under way is left alone). */
+  presentGlide(): void {
+    if (!this.presenting) usePresentation.getState().setOn(true)
+    this.glideWanted = true
+  }
+
+  /** The probe: turn presentation on if it is off and cut to shot `i` (on the next frame you walk). */
+  presentCut(i: number): void {
+    if (!this.presenting) usePresentation.getState().setOn(true)
+    this.pendingShot = i
+    this.glideWanted = false
+    this.glide.cancel()
+  }
+
+  /** Is presentation in effect in this system, and is a glide under way (for the probe and tests). */
+  get presentState(): { presenting: boolean; gliding: boolean; shot: number } {
+    return { presenting: this.presenting, gliding: this.glide.active, shot: this.shotIdx }
   }
 
   // ------------------------------------------------------------------------------------------

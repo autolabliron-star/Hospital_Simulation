@@ -61,7 +61,7 @@ describe('the rota', () => {
     expect(() => shiftOf('nobody')).toThrow()
   })
 
-  it('day nurses work 07-19, the night nurses 19-07, doctors office hours', () => {
+  it('day nurses and ward doctors work 07-19, the night nurses and the on-call doctor 19-07', () => {
     expect(onShift('nurse-A1', 7)).toBe(true)
     expect(onShift('nurse-A1', 18.9)).toBe(true)
     expect(onShift('nurse-A1', 19)).toBe(false)
@@ -70,7 +70,8 @@ describe('the rota', () => {
     expect(onShift('nurse-N-A', 3)).toBe(true)
     expect(onShift('nurse-N-A', 12)).toBe(false)
     expect(onShift('doc-A', 8)).toBe(true)
-    expect(onShift('doc-A', 18)).toBe(false)
+    expect(onShift('doc-A', 18)).toBe(true)
+    expect(onShift('doc-A', 19)).toBe(false)
     expect(onShift('doc-N', 2)).toBe(true)
     expect(onShift('host-A', 12)).toBe(true)
   })
@@ -129,7 +130,12 @@ describe('shift changes', () => {
     expect(at(19).find((c) => c.leaver?.member.id === 'porter-1')?.comer?.member.id).toBe('porter-N')
     expect(at(19).find((c) => c.leaver?.member.id === 'cleaner-1')?.comer?.member.id).toBe('cleaner-N')
     expect(at(19).find((c) => c.leaver?.member.id === 'coord-2')?.kind).toBe('leave')
-    expect(at(19).map((c) => c.leaver?.member.id).sort()).toEqual(['cleaner-1', 'coord-2', 'porter-1'])
+    // the ward change: the first day nurse of a ward hands over to the night nurse, the second goes home; doc-A hands over to the on-call doctor
+    expect(at(19).find((c) => c.leaver?.member.id === 'nurse-A1')?.kind).toBe('relief')
+    expect(at(19).find((c) => c.leaver?.member.id === 'nurse-A1')?.comer?.member.id).toBe('nurse-N-A')
+    expect(at(19).find((c) => c.leaver?.member.id === 'nurse-B1')?.comer?.member.id).toBe('nurse-N-B')
+    expect(at(19).find((c) => c.leaver?.member.id === 'doc-A')?.comer?.member.id).toBe('doc-N')
+    expect(at(19).map((c) => c.leaver?.member.id).sort()).toEqual(['cleaner-1', 'coord-2', 'doc-A', 'doc-B', 'nurse-A1', 'nurse-A2', 'nurse-B1', 'nurse-B2', 'porter-1'])
     // 22:00 (the night footing begins): the ER doctor, ER nurse and triage nurse hand over to the colleague who stays
     for (const [leaver, stayer] of [['doc-ER1', 'doc-ER2'], ['nurse-ER1', 'nurse-ER2'], ['nurse-T1', 'nurse-T2']]) {
       const c = at(22).find((x) => x.leaver?.member.id === leaver)
@@ -142,7 +148,7 @@ describe('shift changes', () => {
     // 07:00 (the next morning, 31.0): the mirror image
     expect(at(31).find((c) => c.comer?.member.id === 'doc-ER1')?.kind).toBe('comeStayer')
     expect(at(31).find((c) => c.comer?.member.id === 'porter-1')?.kind).toBe('relief')
-    expect(at(31).map((c) => c.comer?.member.id).sort()).toEqual(['cleaner-1', 'cleaner-2', 'coord-2', 'doc-ER1', 'nurse-ER1', 'nurse-T1', 'porter-1', 'porter-3'])
+    expect(at(31).map((c) => c.comer?.member.id).sort()).toEqual(['cleaner-1', 'cleaner-2', 'coord-2', 'doc-A', 'doc-B', 'doc-ER1', 'nurse-A1', 'nurse-A2', 'nurse-B1', 'nurse-B2', 'nurse-ER1', 'nurse-T1', 'porter-1', 'porter-3'])
     // 08:00 and 18:00: the imaging office hours
     expect(at(8).map((c) => c.comer?.member.id).sort()).toEqual(['rad-MRI', 'sono-1'])
     expect(at(18).map((c) => c.leaver?.member.id).sort()).toEqual(['rad-MRI', 'sono-1'])
@@ -235,9 +241,9 @@ describe('the ward staff API', () => {
     }
   })
 
-  it('the night nurse checks every room every two hours from 22:00 to 06:00, from just inside the door', () => {
+  it('the night nurse checks every room every two hours from 22:30 to 04:30, from just inside the door', () => {
     const rounds = nightRounds('A', timeOfClockHour(7), timeOfClockHour(31))
-    expect(rounds.map((r) => r.startT)).toEqual([22, 24, 26, 28, 30].map((h) => timeOfClockHour(h)))
+    expect(rounds.map((r) => r.startT)).toEqual([22.5, 24.5, 26.5, 28.5].map((h) => timeOfClockHour(h)))
     for (const r of rounds) {
       expect(r.checks).toHaveLength(8)
       expect(r.checks.every((c) => c.seconds === CONFIG.day.nightCheckSeconds)).toBe(true)

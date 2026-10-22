@@ -17,6 +17,7 @@ import type { Rng } from '../rng'
 import { seatGroup, type SeatFilter } from '../seats'
 import type { SeatSpec, Vec2 } from '../types'
 import type { Walker } from '../walker'
+import { ageWalkFactor, drawVisitorAge } from './age'
 import { hourAt, levelAt, type Curve } from './schedule'
 
 type State = 'fade' | 'toSeat' | 'seated' | 'standing' | 'toExit'
@@ -48,11 +49,13 @@ export class Ambient extends Actor {
     walker: Walker,
     stay: number,
     readonly groupId: string,
+    /** A seeded adult age; it sets the pace. */
+    readonly age: number = 45,
   ) {
     super(id, 'visitor', name, at, heading, walker, 'everyday')
     this.claimed = seat
     this.stayLeft = stay
-    this.cruise = CONFIG.ambient.walkSpeed * (0.9 + (this.entity.variant % 21) / 100)
+    this.cruise = CONFIG.ambient.walkSpeed * (0.9 + (this.entity.variant % 21) / 100) * ageWalkFactor(age)
   }
 
   think(dt: number, _ctx: PeopleContext): void {
@@ -185,7 +188,7 @@ export class AmbientManager implements AmbientLike {
     const at = seated
       ? { x: seat.x, z: seat.z }
       : { x: ARRIVALS.entrance.at.x, z: ARRIVALS.entrance.at.z + this.rng.range(-0.9, 0.9) }
-    const a = new Ambient(w, id, name, seat, at, seated ? seat.heading : ARRIVALS.entrance.heading, this.walkerFor(id), stay, g.id)
+    const a = new Ambient(w, id, name, seat, at, seated ? seat.heading : ARRIVALS.entrance.heading, this.walkerFor(id), stay, g.id, drawVisitorAge(this.rng.fork(`${id}:age`)))
     if (seated) {
       a.placeOnSeat(seat)
       a.state = 'seated'

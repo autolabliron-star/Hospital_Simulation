@@ -18,6 +18,7 @@ import { DEPARTURES } from '../places'
 import type { Rng } from '../rng'
 import type { ScannerState, SeatSpec, Vec2 } from '../types'
 import type { Walker } from '../walker'
+import { ageWalkFactor, drawVisitorAge } from '../population/age'
 import type { Booking, ScanSubject } from './booking'
 import type { CubiclePool, ImagingSites, ScannerSites } from './sites'
 
@@ -60,10 +61,12 @@ export class Outpatient extends Actor implements ScanSubject {
     walker: Walker,
     private readonly orng: Rng,
     private readonly demo: boolean,
+    /** The person's age (content outpatients); the demo and placed patients get a seeded adult age. */
+    readonly age: number = drawVisitorAge(orng.fork('age')),
   ) {
     super(id, 'patient', name, at, heading, walker, 'everyday')
     this.entity.mood = 'neutral'
-    this.cruise = CONFIG.er.walkSpeed * (0.9 + (this.entity.variant % 20) / 100)
+    this.cruise = CONFIG.er.walkSpeed * (0.9 + (this.entity.variant % 20) / 100) * ageWalkFactor(age)
   }
 
   get actor(): Actor {
@@ -231,7 +234,7 @@ export class Outpatient extends Actor implements ScanSubject {
 
   private leaveNow(): void {
     this.home = true
-    this.cruise = Math.max(this.cruise, CONFIG.er.walkSpeed)
+    this.cruise = Math.max(this.cruise, CONFIG.er.walkSpeed * ageWalkFactor(this.age))
     this.showEmote('none', this.svc.world.t)
     this.moveTo(DEPARTURES.entrance)
     this.state = 'toExit'

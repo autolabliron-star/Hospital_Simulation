@@ -218,5 +218,21 @@ export const FLIGHT = {
   bulgeMax: 22,
 } as const
 
+/**
+ * Presentation mode (src/ui/present): the architectural walkthrough. First person at a calm eye height, a narrower lens, a slow walk with no run, and a
+ * heavy look damping so the picture glides. `blendSeconds` is how long the camera takes to move between the game's numbers and these (both ways, so
+ * leaving restores the originals exactly).
+ */
+export const PRESENT = {
+  eyeHeight: 1.6,
+  /** Vertical lens, degrees. */
+  fov: 55,
+  /** Walk speed share (and no running). */
+  speedScale: 0.6,
+  /** Critically damped time of the look: yaw and pitch, and the heading's follow, seconds. */
+  lookSeconds: 0.25,
+  blendSeconds: 0.6,
+} as const
+
 /** The slow copy for the UI (`useWalk`) is published at most this often. */
 export const HUD_RATES = { viewHz: 10 } as const

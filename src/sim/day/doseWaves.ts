@@ -1,17 +1,17 @@
 /**
- * Scheduled dose waves (L1): `CONFIG.doseWaves.leadSeconds` before each dose hour (12:00, 18:00, 22:00) the ward doctors'
- * regular medicines go out for every occupied room in one go: one `source: 'schedule'` order per room (the patient's usual
- * medicines), prescribed by that ward's doctor, due at the dose hour. The pods then stream out of the core in a visible wave
+ * Scheduled dose waves (L1, Wave 1): `CONFIG.doseWaves.leadSeconds` before each dose hour (08, 12, 14, 18, 22) the medicines DUE at
+ * that hour go out for every occupied room in one go: `source: 'schedule'` orders per room (only the patient's usual medicines whose
+ * dose times in content/medicines.json include the hour; several orders if more than `CONFIG.orders.maxItems`), prescribed by that ward's doctor, due at the dose hour. The pods then stream out of the core in a visible wave
  * and the nurses give the doses on the hour, through the same pipeline as every other order (verify, pick, pod, drawer, give).
  *
- * There is never a wave before 11:30: the default 07:30 morning and its medicine story are untouched. A warm start just
+ * The 08:00 wave goes out at the 07:30 opening, so the pods are busy from the start. A warm start just
  * after a dose hour (a Jump to 12:00 or 18:00) still shows the wave: it goes out at once, due now, if the dose hour is at
  * most `LATE_SECONDS` ago.
  *
  * Which medicines are "usual" depends on who lies in the bed: `occupantMeds` is the seam for the bed-flow builder's
  * admissions (default: the M1 inpatient's `usualMeds`, via the content).
  */
-import { patientInRoom } from '@/content/catalogue'
+import { doseHoursOf, patientInRoom } from '@/content/catalogue'
 import { STAFF } from '@/content/staff'
 import { fillDayTemplate } from '@/content/day'
 import { CONFIG } from '../config'
@@ -94,12 +94,18 @@ export class DoseWaves {
       if (!status || (status.bed !== 'occupied' && status.bed !== 'dischargeSigned')) continue
       const usual = this.occupantMeds(room.id)
       if (!usual || usual.length === 0) continue
-      const items: OrderItem[] = usual.slice(0, CONFIG.orders.maxItems).map((medId) => ({ medId, qty: 1 }))
-      const r = meds.prescribe({ source: 'schedule', doseAt, prescriberId: wardDoctor(room.ward), roomId: room.id, items })
-      if (r.ok) {
-        orders.push(r.order)
-        perWard[room.ward]++
+      // only the medicines due at this hour (content/medicines.json), a pod carries at most `maxItems` packs per order
+      const due: OrderItem[] = usual.filter((medId) => doseHoursOf(medId).includes(hour)).map((medId) => ({ medId, qty: 1 }))
+      let wrote = false
+      for (let i = 0; i < due.length; i += CONFIG.orders.maxItems) {
+        const items = due.slice(i, i + CONFIG.orders.maxItems)
+        const r = meds.prescribe({ source: 'schedule', doseAt, prescriberId: wardDoctor(room.ward), roomId: room.id, items })
+        if (r.ok) {
+          orders.push(r.order)
+          wrote = true
+        }
       }
+      if (wrote) perWard[room.ward]++
     }
     for (const ward of WARDS) {
       if (perWard[ward] === 0) continue

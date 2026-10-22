@@ -56,8 +56,8 @@ export interface StaffMember {
 }
 
 export const STAFF: StaffMember[] = [
-  { id: 'doc-A', role: 'doctor', ward: 'A', post: 'ward', shift: 'office', name: 'Dr. Levi' },
-  { id: 'doc-B', role: 'doctor', ward: 'B', post: 'ward', shift: 'office', name: 'Dr. Okafor' },
+  { id: 'doc-A', role: 'doctor', ward: 'A', post: 'ward', shift: 'day', name: 'Dr. Levi' },
+  { id: 'doc-B', role: 'doctor', ward: 'B', post: 'ward', shift: 'day', name: 'Dr. Okafor' },
   { id: 'nurse-A1', role: 'nurse', ward: 'A', post: 'ward', shift: 'day', name: 'Nurse Maya' },
   { id: 'nurse-A2', role: 'nurse', ward: 'A', post: 'ward', shift: 'day', name: 'Nurse Tomás' },
   { id: 'nurse-B1', role: 'nurse', ward: 'B', post: 'ward', shift: 'day', name: 'Nurse Leah' },

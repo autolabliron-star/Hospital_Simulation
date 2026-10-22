@@ -54,8 +54,9 @@ export class Cleaner extends Actor {
         this.state = 'toBay'
         return
       }
-      // no ER bay waits: a ward room that needs cleaning
-      const job = this.world.beds?.claimClean(this.staff.id, this.world.t)
+      // no ER bay waits: a ward room that needs cleaning (a 30-60 minute job, so the second cleaner takes one only while the ER is quiet:
+      // a bay must never wait half an hour for a cleaner)
+      const job = this.index === 0 || this.world.er.freeBays >= 3 ? this.world.beds?.claimClean(this.staff.id, this.world.t) : undefined
       if (job) {
         this.room = job.roomId
         this.cleanFor = job.seconds

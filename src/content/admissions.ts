@@ -53,3 +53,18 @@ export function admissionProfilesFor(reason: string): readonly AdmissionProfile[
   if (!profiles) throw new Error(`No admission profile for reason "${reason}"`)
   return profiles
 }
+
+/**
+ * Wave 1: the admission chance this reason has of its own, or null when the acuity table (CONFIG.er.admitChanceByAcuity) decides. It is 0
+ * when every profile for the reason says 0 (sunburn, a cold, a cut finger, a sprain, a prescription review never lead to a bed).
+ * Throws on an unknown reason.
+ */
+export function admitChanceFor(reason: string): number | null {
+  const profiles = admissionProfilesFor(reason)
+  let max: number | null = null
+  for (const p of profiles) {
+    if (p.admitChance === undefined) return null
+    max = Math.max(max ?? 0, p.admitChance)
+  }
+  return max
+}

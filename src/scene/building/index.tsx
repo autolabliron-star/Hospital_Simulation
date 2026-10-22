@@ -1,3 +1,5 @@
+import { BUILDING_MODEL_ON } from './model/flags'
+import { BuildingModel } from './model/PilotModel'
 import { BuildingMeshes } from './render/BuildingMeshes'
 import { Level2Building } from './render/Level2Building'
 import { RoofCap } from './render/RoofCapLayer'
@@ -21,6 +23,7 @@ export function Building() {
       <WalkBuilding />
       <Level2Building />
       <RoofCap />
+      {BUILDING_MODEL_ON && <BuildingModel />}
     </>
   )
 }

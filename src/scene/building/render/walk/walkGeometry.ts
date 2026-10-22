@@ -144,7 +144,8 @@ export function doorCounts(doors: readonly WalkDoor[]): DoorCounts {
   return { auto: doors.filter((d) => d.kind === 'auto').length, swing: doors.filter((d) => d.kind === 'swing').length }
 }
 
-export function compileWalk(layout: WalkLayout, atlas: PackedAtlas): CompiledWalk {
+/** `hide` (Wave 3, `?building=model`): boxes (mat, centre x, z) and ceiling tiles the authored model replaces are left out. Undefined hides nothing. */
+export function compileWalk(layout: WalkLayout, atlas: PackedAtlas, hide?: (mat: WalkBoxMat | 'ceiling', x: number, z: number) => boolean): CompiledWalk {
   const wall: Buf[] = []
   const frame: Buf[] = []
   const ceil: Buf[] = []
@@ -160,12 +161,13 @@ export function compileWalk(layout: WalkLayout, atlas: PackedAtlas): CompiledWal
     glass: () => glass,
   }
   for (const box of layout.boxes) {
+    if (hide?.(box.mat, (box.x0 + box.x1) / 2, (box.z0 + box.z1) / 2)) continue
     for (const part of box.mat === 'glass' ? [box] : cutAtChunkEdges(box)) {
       const buf = byMat[part.mat](chunkOfX((part.x0 + part.x1) / 2))
       buf.box(part.x0, part.x1, part.y0, part.y1, part.z0, part.z1)
     }
   }
-  for (const c of layout.ceilings) ceilingQuad(ceil[chunkOfX((c.x0 + c.x1) / 2)], c)
+  for (const c of layout.ceilings) if (!hide?.('ceiling', (c.x0 + c.x1) / 2, (c.z0 + c.z1) / 2)) ceilingQuad(ceil[chunkOfX((c.x0 + c.x1) / 2)], c)
   const signs = new Buf()
   for (const q of layout.quads) pictureQuad(signs, q, atlas)
 

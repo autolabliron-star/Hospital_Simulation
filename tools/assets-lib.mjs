@@ -2,9 +2,11 @@
  * assets-lib.mjs: the primitives of the asset validation gate of The Ideal Hospital.
  *
  * Binding policy: docs/ASSETS-POLICY.md. Ported from the Waltz City gate (the Waltz Game reference), then narrowed: this
- * project downloads exactly one kind of art (the Microsoft Rocketbox avatars, W3 wave B), so the gate knows exactly one
- * source and nothing else. The other Waltz sources (three.js examples, Poly Haven, Kenney and so on), the zip reader and
- * the metadata API reads are not ported: a source that is not coded here cannot be contacted. This module is plain ESM
+ * project downloads two kinds of art and the gate knows exactly two sources and nothing else: the Microsoft Rocketbox avatars
+ * (W3 wave B, raw.githubusercontent.com at one pinned commit) and the CC0 PBR textures and HDRIs of Poly Haven (Wave 3
+ * look work, dl.polyhaven.org, `file/ph-assets/Textures|HDRIs/<format>/<1k|2k>/...` only). The other Waltz sources (three.js
+ * examples, Kenney and so on), the zip reader and the metadata API reads (api.polyhaven.com is never contacted) are not
+ * ported: a source that is not coded here cannot be contacted. This module is plain ESM
  * (so `node tools/fetch-assets.mjs` runs with no loader) and has these rules of its own:
  *   - it never executes downloaded content: no child_process, no eval, no dynamic import of data;
  *   - it never trusts a size, an offset or a name that came from a downloaded file;
@@ -58,16 +60,39 @@ export const POLICY = Object.freeze({
     pathPrefix: 'Assets/Avatars/',
     extensions: Object.freeze(['.fbx', '.tga']),
   }),
+  /**
+   * Poly Haven (every asset CC0, https://polyhaven.com/license). Allow-listed on dl.polyhaven.org for the file store path
+   * `/file/ph-assets/Textures/<format>/<res>/<id>/<file>` (texture maps) and `/file/ph-assets/HDRIs/<format>/<res>/<file>`
+   * (sky maps) only, at 1k and 2k, and only the image formats below. There is no commit to pin and no git blob id: the pin
+   * of a Poly Haven file is its exact byte count plus its sha256, recorded at the first fetch.
+   */
+  polyhaven: Object.freeze({
+    host: 'dl.polyhaven.org',
+    pathPrefix: ['file', 'ph-assets'],
+    resolutions: Object.freeze(['1k', '2k']),
+    textureFormats: Object.freeze(['jpg', 'png']),
+    hdriFormats: Object.freeze(['hdr', 'exr']),
+  }),
 })
 
-/** Destination folders (the manifest `kind`): assets-src/people for the originals, public/assets/people for the converted. */
-export const KINDS = Object.freeze(['people'])
+/**
+ * Destination folders (the manifest `kind`): assets-src/<kind> for the originals. `people` are the Rocketbox originals,
+ * `textures` the Poly Haven PBR maps (assets-src/textures/<asset id>/<file>), `hdri` the Poly Haven sky maps.
+ */
+export const KINDS = Object.freeze(['people', 'textures', 'hdri'])
 
-/** File types the manifest may declare. Both are binary and have a magic-bytes rule below. */
-export const TYPES = Object.freeze(['fbx', 'tga'])
+/** File types the manifest may declare. All are binary and have a magic-bytes rule below. */
+export const TYPES = Object.freeze(['fbx', 'tga', 'jpg', 'png', 'hdr', 'exr'])
+
+/** The types each kind may hold. */
+export const KIND_TYPES = Object.freeze({
+  people: Object.freeze(['fbx', 'tga']),
+  textures: Object.freeze(['jpg', 'png']),
+  hdri: Object.freeze(['hdr', 'exr']),
+})
 
 /** Types that are only ever conversion inputs: they must be installed with dest "source" (assets-src/, never served). */
-export const SOURCE_ONLY_TYPES = Object.freeze(['fbx', 'tga'])
+export const SOURCE_ONLY_TYPES = Object.freeze(['fbx', 'tga', 'jpg', 'png', 'hdr', 'exr'])
 
 export const USER_AGENT = 'IdealHospital-asset-gate/1.0 (build tooling)'
 
@@ -85,7 +110,10 @@ const printable = (s) => String(s).replace(/[^\x20-\x7e]/g, '?').slice(0, 120)
  * If a legitimate redirect needs another host, the answer is a line added to docs/ASSETS-POLICY.md first, then here.
  * There is no metadata host: the gate reads no API, only the manifest's own pinned URLs.
  */
-const DOWNLOAD_RULES = new Map([['raw.githubusercontent.com', { check: (url) => checkRocketboxPath(url.pathname.split('/'), url) }]])
+const DOWNLOAD_RULES = new Map([
+  ['raw.githubusercontent.com', { check: (url) => checkRocketboxPath(url.pathname.split('/'), url) }],
+  [POLICY.polyhaven.host, { check: (url) => checkPolyHavenPath(url.pathname.split('/'), url) }],
+])
 
 /** One path segment of the Rocketbox folder: letters, digits, underscore, dot and dash; no leading dot; no escapes. */
 const RB_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,100}$/
@@ -116,6 +144,43 @@ export function checkRocketboxPath(seg, url) {
   if (!rb.extensions.includes(extOf(relative))) {
     throw new GateError('ORIGIN_NOT_ALLOWED', `${rb.repo}: only ${rb.extensions.join(' ')} files are allow-listed (got ${printable(relative)})`, { url: url.href })
   }
+}
+
+/** A Poly Haven asset id: lowercase letters, digits, underscore and dash (the ids are snake_case; "horn-koppe_spring" has a dash). */
+const PH_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/
+/** A Poly Haven file name: letters, digits, underscore, dot and dash; no leading dot; no escapes. */
+const PH_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$/
+
+/**
+ * Parses an allow-listed Poly Haven path into its parts, or throws ORIGIN_NOT_ALLOWED. Accepts exactly
+ *   /file/ph-assets/Textures/<jpg|png>/<1k|2k>/<id>/<id>_<map>_<res>.<format>
+ *   /file/ph-assets/HDRIs/<hdr|exr>/<1k|2k>/<name>_<res>.<format>
+ * and nothing else (no /blend/, /gltf/ or /mtlx/ formats, no 4k and above, no other store folder).
+ * @returns {{ category: 'Textures'|'HDRIs', format: string, res: string, id: string|null, file: string }}
+ */
+export function parsePolyHavenPath(seg, url) {
+  const ph = POLICY.polyhaven
+  const refuse = (why) => new GateError('ORIGIN_NOT_ALLOWED', `${ph.host}: ${why} (got ${printable(url.pathname)})`, { url: url.href })
+  const [empty, a, b, category, format, res, ...rest] = seg
+  if (empty !== '' || a !== ph.pathPrefix[0] || b !== ph.pathPrefix[1]) throw refuse(`only /${ph.pathPrefix.join('/')}/Textures/... and /${ph.pathPrefix.join('/')}/HDRIs/... are allow-listed`)
+  if (category !== 'Textures' && category !== 'HDRIs') throw refuse('only the Textures and HDRIs folders are allow-listed')
+  const formats = category === 'Textures' ? ph.textureFormats : ph.hdriFormats
+  if (!formats.includes(format)) throw refuse(`${category} files are allow-listed as ${formats.join(' or ')} only`)
+  if (!ph.resolutions.includes(res)) throw refuse(`only ${ph.resolutions.join(' and ')} resolutions are allow-listed`)
+  const wantParts = category === 'Textures' ? 2 : 1
+  if (rest.length !== wantParts) throw refuse(category === 'Textures' ? 'expected Textures/<format>/<res>/<id>/<file>' : 'expected HDRIs/<format>/<res>/<file>')
+  const id = category === 'Textures' ? rest[0] : null
+  const file = rest[rest.length - 1]
+  if (id !== null && !PH_ID.test(id)) throw refuse('the asset id must be plain lowercase snake_case')
+  if (!PH_FILE.test(file)) throw refuse('the file name must be a plain name')
+  if (extOf(file) !== `.${format}`) throw refuse(`the file must end in .${format}`)
+  if (!file.endsWith(`_${res}.${format}`)) throw refuse(`the file name must end in _${res}.${format}`)
+  if (id !== null && !file.startsWith(`${id}_`)) throw refuse('the file name must start with the asset id')
+  return { category, format, res, id, file }
+}
+
+export function checkPolyHavenPath(seg, url) {
+  parsePolyHavenPath(seg, url)
 }
 
 function parseHttpsUrl(input, what) {
@@ -301,6 +366,22 @@ export function checkMagic(input, type) {
     }
     case 'tga':
       return checkTga(buf, fail, looksLikeHtml)
+    case 'png':
+      // the full 8-byte PNG signature: 89 "PNG" CR LF 1A LF
+      if (!buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return fail(looksLikeHtml ? 'got an HTML page instead of a PNG (404 or login wall?)' : 'not a PNG (expected 89 50 4E 47 0D 0A 1A 0A)')
+      return { ok: true }
+    case 'jpg':
+      // SOI then the first marker: FF D8 FF
+      if (buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) return fail(looksLikeHtml ? 'got an HTML page instead of a JPEG (404 or login wall?)' : 'not a JPEG (expected FF D8 FF)')
+      return { ok: true }
+    case 'hdr':
+      // Radiance RGBE: "#?RADIANCE" or "#?RGBE"
+      if (!(latin1(buf, 0, 10) === '#?RADIANCE' || latin1(buf, 0, 6) === '#?RGBE')) return fail(looksLikeHtml ? 'got an HTML page instead of a Radiance HDR (404 or login wall?)' : 'not a Radiance HDR (expected "#?RADIANCE" or "#?RGBE")')
+      return { ok: true }
+    case 'exr':
+      // OpenEXR magic number 20000630 as a little-endian uint32: 76 2F 31 01
+      if (buf[0] !== 0x76 || buf[1] !== 0x2f || buf[2] !== 0x31 || buf[3] !== 0x01) return fail(looksLikeHtml ? 'got an HTML page instead of an OpenEXR (404 or login wall?)' : 'not an OpenEXR (expected 76 2F 31 01)')
+      return { ok: true }
     default:
       return { ok: false, reason: `no magic-bytes rule for type "${type}"` }
   }
@@ -400,7 +481,7 @@ export async function validateGltfBytes(input, opts = {}) {
 // ---------------------------------------------------------------------------------------------
 
 const ENTRY_KEYS = new Set([
-  'id', 'kind', 'type', 'dest', 'file', 'url', 'localFile', 'sourcePage', 'sourceCommit', 'sha256', 'gitBlobSha1', 'bytes', 'maxBytes',
+  'id', 'kind', 'type', 'dest', 'group', 'file', 'url', 'localFile', 'sourcePage', 'sourceCommit', 'sha256', 'gitBlobSha1', 'bytes', 'maxBytes',
   'licence', 'licenceUrl', 'author', 'notes',
 ])
 
@@ -410,8 +491,10 @@ const LOCAL_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}(\/[A-Za-z0-9][A-Za-z0-9._-]
 /**
  * Validates one declarative manifest entry (shape, enums, sizes, safe file names, URL/type match).
  * Every entry names its pinned upstream `url` (what is downloaded, or, for a `localFile` import, the provenance of the
- * staged copy), the exact `bytes` and the `gitBlobSha1` of the file at the pinned commit. A `localFile` import is never
- * downloaded, so it must carry its sha256 pin already.
+ * staged copy) and the exact `bytes`. A GitHub-sourced entry (raw.githubusercontent.com) also needs the `gitBlobSha1` of the
+ * file at the pinned commit; a Poly Haven entry has no commit, so its pin is `bytes` plus `sha256` (recorded at the first
+ * fetch, mandatory under --strict) and it must NOT carry a gitBlobSha1. A `localFile` import is never downloaded, so it
+ * must carry its sha256 pin already. A textures entry may name the Poly Haven asset in `group`, its install sub-folder.
  * Throws GateError BAD_MANIFEST. Returns the entry with defaults applied (`file`, `sha256: null` when unpinned).
  */
 export function validateManifestEntry(entry) {
@@ -421,13 +504,28 @@ export function validateManifestEntry(entry) {
   if (typeof entry.id !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(entry.id)) throw bad('id must match ^[a-z0-9][a-z0-9_-]{0,63}$')
   if (!KINDS.includes(entry.kind)) throw bad(`kind must be one of ${KINDS.join(', ')}`)
   if (!TYPES.includes(entry.type)) throw bad(`type must be one of ${TYPES.join(', ')}`)
+  if (!KIND_TYPES[entry.kind].includes(entry.type)) throw bad(`kind ${entry.kind} holds ${KIND_TYPES[entry.kind].join(' or ')} files, not .${entry.type}`)
+  if (entry.group !== undefined) {
+    if (entry.kind !== 'textures') throw bad('group (the install sub-folder) is only for textures')
+    if (typeof entry.group !== 'string' || !PH_ID.test(entry.group)) throw bad('group must be a plain lowercase snake_case name')
+  }
   if (SOURCE_ONLY_TYPES.includes(entry.type) && entry.dest !== 'source') throw bad(`.${entry.type} files are conversion inputs only: they need dest "source" (assets-src/, never served)`)
   if (!Number.isInteger(entry.maxBytes) || entry.maxBytes < 1 || entry.maxBytes > POLICY.maxFileBytes) throw bad(`maxBytes must be an integer between 1 and ${POLICY.maxFileBytes}`)
   if (!Number.isInteger(entry.bytes) || entry.bytes < 1 || entry.bytes > entry.maxBytes) throw bad('bytes (the exact size at the pinned commit) is required and must be an integer no larger than maxBytes')
   if (entry.maxBytes > Math.ceil(entry.bytes * 1.05) + 4096) throw bad('maxBytes may be at most 5 % (plus 4 KB) above the exact byte count')
   const sha256 = entry.sha256 ?? null
   if (sha256 !== null && !(typeof sha256 === 'string' && SHA256.test(sha256))) throw bad('sha256 must be null (first fetch) or 64 lowercase hex characters')
-  if (typeof entry.gitBlobSha1 !== 'string' || !SHA40.test(entry.gitBlobSha1)) throw bad('gitBlobSha1 (the blob id the GitHub contents API lists at the pinned commit) is required: 40 lowercase hex characters')
+  let host = ''
+  try {
+    host = new URL(String(entry.url)).hostname
+  } catch {
+    // reported below, with the rest of the url rules
+  }
+  if (host === POLICY.polyhaven.host) {
+    if (entry.gitBlobSha1 !== undefined) throw bad('a Poly Haven file has no git blob id: its pin is bytes + sha256 (remove gitBlobSha1)')
+  } else if (typeof entry.gitBlobSha1 !== 'string' || !SHA40.test(entry.gitBlobSha1)) {
+    throw bad('gitBlobSha1 (the blob id the GitHub contents API lists at the pinned commit) is required for GitHub-sourced entries: 40 lowercase hex characters')
+  }
   if (entry.sourceCommit !== undefined && !(typeof entry.sourceCommit === 'string' && SHA40.test(entry.sourceCommit))) throw bad('sourceCommit must be 40 lowercase hex characters')
   for (const k of ['licenceUrl', 'author', 'notes']) {
     if (entry[k] !== undefined && (typeof entry[k] !== 'string' || entry[k].length > 2000)) throw bad(`${k} must be a string of at most 2000 characters`)
@@ -456,6 +554,29 @@ export function validateManifestEntry(entry) {
   if (!/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(file) || file.includes('..')) throw bad('file must be a plain file name')
   if (extOf(file) !== `.${entry.type}`) throw bad(`file must end in .${entry.type}`)
   return { ...entry, sha256, file }
+}
+
+/**
+ * Checks that a manifest entry's kind, type, install names and url describe the same file, on top of the origin gate:
+ *   - `people` entries come from the Rocketbox GitHub host, `textures` and `hdri` entries from Poly Haven, never crossed;
+ *   - a Poly Haven texture: category Textures, url format = type, `group` = the asset id in the path, `file` = the file name
+ *     in the path; a Poly Haven HDRI: category HDRIs, url format = type, `file` = the file name in the path, no `group`.
+ * `entry` is an entry already returned by validateManifestEntry; `url` is checkDownloadUrl's result. Throws ORIGIN_NOT_ALLOWED.
+ */
+export function assertEntryMatchesSource(entry, url) {
+  const refuse = (why) => new GateError('ORIGIN_NOT_ALLOWED', `${printable(entry.id)}: ${why}`, { url: url.href })
+  const onPolyHaven = url.hostname === POLICY.polyhaven.host
+  if (entry.kind === 'people') {
+    if (onPolyHaven) throw refuse('a people entry must come from the Rocketbox GitHub source, not Poly Haven')
+    return
+  }
+  if (!onPolyHaven) throw refuse(`a ${entry.kind} entry must come from ${POLICY.polyhaven.host}`)
+  const ph = parsePolyHavenPath(url.pathname.split('/'), url)
+  if (ph.category !== (entry.kind === 'textures' ? 'Textures' : 'HDRIs')) throw refuse(`a ${entry.kind} entry must point into the ${entry.kind === 'textures' ? 'Textures' : 'HDRIs'} folder`)
+  if (ph.format !== entry.type) throw refuse(`url format ${ph.format} does not match type ${entry.type}`)
+  if (entry.file !== ph.file) throw refuse(`file must be the url's file name "${ph.file}" (got "${printable(entry.file)}")`)
+  if (entry.kind === 'textures' && entry.group !== ph.id) throw refuse(`group must be the Poly Haven asset id "${ph.id}" (got "${printable(entry.group ?? '')}")`)
+  if (entry.kind === 'hdri' && entry.group !== undefined) throw refuse('an hdri entry has no group')
 }
 
 // ---------------------------------------------------------------------------------------------

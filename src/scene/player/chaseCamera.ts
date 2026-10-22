@@ -75,7 +75,7 @@ import {
   type DampedVec3,
 } from './chaseMath'
 import { walkStride } from './state'
-import { BODY, CHASE, EASY } from './tuning'
+import { BODY, CHASE, EASY, PRESENT } from './tuning'
 
 export interface CameraSubject {
   /** Where your feet are. */
@@ -260,6 +260,9 @@ export class ChaseCamera {
   /** 1 = the camera is where it wants to be; lower = softened away from a wall by this much (in at once, out slowly). */
   private comfort = 1
   private firstPerson = 0
+  /** Presentation mode (src/ui/present): the walkthrough's eye, lens and look damping. `pBlend` is 0 (the game's numbers) .. 1 (the walkthrough's), eased over `PRESENT.blendSeconds`. */
+  private presenting = false
+  private pBlend = 0
   // look-ahead and the motion the second sweep extrapolates
   private readonly aheadS = { x: 0, z: 0 }
   private readonly aheadVelX = { v: 0 }
@@ -293,8 +296,9 @@ export class ChaseCamera {
     const b = defaultBoom()
     this.yaw = yaw
     this.yawS = yaw
-    this.pitch = b.pitch
-    this.pitchS = b.pitch
+    // the walkthrough looks level; the game's resting pose looks down a little
+    this.pitch = this.presenting ? 0 : b.pitch
+    this.pitchS = this.pitch
     this.dist = b.dist
     this.distS = b.dist
     this.yawVel.v = this.pitchVel.v = this.distVel.v = 0
@@ -330,9 +334,54 @@ export class ChaseCamera {
     this.comfort = 1
   }
 
+  /**
+   * Presentation mode on or off. On: the pitch goes level and the numbers blend to the walkthrough's (eye 1.6 m, lens 55 degrees, a look damped over
+   * 0.25 s, no bob, no auto pitch-return). Off: the blend runs back to exactly the game's numbers, and the third-person pitch is the default again.
+   */
+  setPresenting(on: boolean): void {
+    if (on === this.presenting) return
+    this.presenting = on
+    this.pitch = on ? 0 : defaultBoom().pitch
+  }
+
+  get isPresenting(): boolean {
+    return this.presenting
+  }
+
+  /** The presentation blend is complete at once and first person is fully in (a cut to a shot, a screenshot): no 0.6 s or 0.3 s of blending to wait for. */
+  completeBlends(): void {
+    this.pBlend = this.presenting ? 1 : 0
+    if (this.presenting) this.firstPerson = 1
+    this.fovWide = 0
+    this.fovVel.v = 0
+  }
+
+  /**
+   * Look exactly along `yaw` and `pitch`, at once and at rest (a cut, or the glide of a presentation): the easy scheme's followed heading, the look offset and
+   * the smoothed view all land there with no velocity, so the next frame draws it without a trace of the old view.
+   */
+  snapView(yaw: number, pitch: number): void {
+    this.yaw = yaw
+    this.yawS = yaw
+    this.followYaw = yaw
+    this.followYawVel.v = 0
+    this.offset = this.offsetS = 0
+    this.offsetVel.v = this.recenterVel.v = this.recenterPitchVel.v = 0
+    this.yawVel.v = 0
+    this.pitch = pitch
+    this.pitchS = pitch
+    this.pitchVel.v = 0
+    this.sinceLook = 0
+  }
+
   /** Is the camera currently in or heading for first person? */
   get inFirstPerson(): boolean {
     return this.firstPerson > 0.5
+  }
+
+  /** The view's smoothed pitch (how far the camera looks down, radians): where a glide starts from. */
+  get viewPitch(): number {
+    return this.pitchS
   }
 
   /** How far into first person the blend is, 0..1. */
@@ -568,16 +617,18 @@ export class ChaseCamera {
     const fpWanted = f.firstPerson
     if (looking || f.dragging) this.sinceLook = 0
     else this.sinceLook += dt
-    this.followYaw = followYawStep(this.followYaw, subject.heading, this.followYawVel, fpWanted ? EASY.firstPersonFollowSeconds : EASY.followSeconds, EASY.maxYawLag, dt)
+    const mix = smooth01(this.pBlend)
+    this.followYaw = followYawStep(this.followYaw, subject.heading, this.followYawVel, fpWanted ? lerp(EASY.firstPersonFollowSeconds, PRESENT.lookSeconds, mix) : EASY.followSeconds, EASY.maxYawLag, dt)
     const moving = Math.hypot(subject.vx, subject.vz) > EASY.movingSpeed || subject.turning
     if (!f.dragging && moving && this.sinceLook >= EASY.recenterDelay) {
       this.offset = wrapAngle(dampAngleRest(this.offset, 0, this.recenterVel, EASY.recenterSeconds, dt))
-      this.pitch = smoothDamp(this.pitch, fpWanted ? 0 : defaultBoom().pitch, this.recenterPitchVel, EASY.recenterSeconds, dt)
+      // (the walkthrough keeps the pitch where you left it: no auto return)
+      if (!this.presenting) this.pitch = smoothDamp(this.pitch, fpWanted ? 0 : defaultBoom().pitch, this.recenterPitchVel, EASY.recenterSeconds, dt)
     } else {
       this.recenterVel.v = 0
       this.recenterPitchVel.v = 0
     }
-    this.offsetS = wrapAngle(dampAngleRest(this.offsetS, this.offset, this.offsetVel, CHASE.yawSeconds, dt))
+    this.offsetS = wrapAngle(dampAngleRest(this.offsetS, this.offset, this.offsetVel, lerp(CHASE.yawSeconds, PRESENT.lookSeconds, mix), dt))
     this.yaw = wrapAngle(this.followYaw + this.offset)
     this.yawS = wrapAngle(this.followYaw + this.offsetS)
   }
@@ -588,6 +639,9 @@ export class ChaseCamera {
     report.wantsFirstPerson = false
     const fpWanted = f.firstPerson
     const easy = this.scheme === 'easy'
+    // presentation: the blend between the game's numbers and the walkthrough's, at a fixed rate, ending exactly on 0 or 1
+    this.pBlend = approach(this.pBlend, this.presenting ? 1 : 0, dt / PRESENT.blendSeconds)
+    const mix = smooth01(this.pBlend)
 
     // ---- your input
     const looking = f.dx !== 0 || f.dy !== 0
@@ -614,8 +668,8 @@ export class ChaseCamera {
 
     // ---- smoothing: yaw quicker than pitch
     if (easy) this.easyYawStep(subject, f, looking, dt)
-    else this.yawS = dampAngle(this.yawS, this.yaw, this.yawVel, CHASE.yawSeconds, dt)
-    this.pitchS = smoothDamp(this.pitchS, this.pitch, this.pitchVel, CHASE.pitchSeconds, dt)
+    else this.yawS = dampAngle(this.yawS, this.yaw, this.yawVel, lerp(CHASE.yawSeconds, PRESENT.lookSeconds, mix), dt)
+    this.pitchS = smoothDamp(this.pitchS, this.pitch, this.pitchVel, lerp(CHASE.pitchSeconds, PRESENT.lookSeconds, mix), dt)
     this.distS = smoothDamp(this.distS, this.dist, this.distVel, CHASE.zoomSeconds, dt)
 
     // ---- your head, the shoulder pivot, the chase point
@@ -758,7 +812,8 @@ export class ChaseCamera {
     // ---- game feel: the lens widens as you run, and the camera bobs with your footfalls. Both fade to exactly nothing when you stand
     // (every smoother ends in a rest), neither exists in first person, and neither runs while `settle` computes the resting pose.
     const speed = Math.hypot(subject.vx, subject.vz)
-    const awayFromFirst = 1 - smooth01(this.firstPerson)
+    // (no head bob in the walkthrough: the view is a gliding camera, not a head)
+    const awayFromFirst = (1 - smooth01(this.firstPerson)) * (1 - mix)
     const run = this.settling ? 0 : runShare(speed, walkStride.run)
     const fovTarget = CHASE.runFovWiden * run * awayFromFirst
     this.fovWide = smoothDamp(this.fovWide, fovTarget, this.fovVel, CHASE.runFovSeconds, dt)
@@ -790,7 +845,7 @@ export class ChaseCamera {
       const k = smooth01(this.firstPerson)
       const cp = Math.cos(this.pitchS)
       const ex = feet.x + Math.sin(this.yawS) * 0.1
-      const ey = feet.y + BODY.eyeHeight
+      const ey = feet.y + lerp(BODY.eyeHeight, PRESENT.eyeHeight, mix)
       const ez = feet.z + Math.cos(this.yawS) * 0.1
       const lx = ex + Math.sin(this.yawS) * cp * 4
       const ly = ey - Math.sin(this.pitchS) * 4
@@ -800,7 +855,7 @@ export class ChaseCamera {
     }
 
     // ---- write the camera
-    const fov = chaseFov(this.firstPerson) + this.fovWide
+    const fov = chaseFov(this.firstPerson, lerp(CHASE.firstPersonFov, PRESENT.fov, mix)) + this.fovWide
     camera.position.copy(_pos)
     camera.lookAt(_look)
     if (Math.abs(camera.fov - fov) > 1e-9) {

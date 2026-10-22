@@ -1,0 +1,4 @@
+# L3 report: runtime static model path (flag ?building=model, off by default)
+Done: src/scene/building/model/{flags,region,lightmaps,loader,PilotModel.tsx,checkModelAgainstPlan,model.test}.ts(x); optional `hide` filters in render/compile.ts (compileLayout 3rd arg) and render/walk/walkGeometry.ts (compileWalk 3rd arg), wired in BuildingMeshes.tsx / WalkBuilding.tsx (level 1 only, only when the flag is on); mount in building/index.tsx; tools/copy-basis.mjs + `npm run copy-basis` (+ public/basis/ copied, committed-size ~0.5 MB).
+Verify: npx vitest run --maxWorkers=2 src/scene/building ; npx tsc --noEmit
+Risks: overview shows the model's full-height walls (no cut clipping plane yet); hiding is by prim/box centre in the region; no .glb yet so the glb test skips; loader failure leaves the pilot region empty (warns in console).

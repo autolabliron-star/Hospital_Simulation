@@ -33,8 +33,9 @@ describe('the bed book: today\'s discharges', () => {
 describe('the bed book: the state of each room at hour H', () => {
   it('shows a discharge in its stages as the day goes on', () => {
     const kindOf = (h: number, room: string) => bedBook(3, h).rooms.find((r) => r.roomId === room)!.kind
-    expect(kindOf(9.5, 'A1')).toBe('occupied')
-    expect(kindOf(10.0, 'A1')).toBe('signed')
+    // planned 10:15, signed an hour before (the morning round), the family comes 30-90 minutes after the signature
+    expect(kindOf(9.0, 'A1')).toBe('occupied')
+    expect(kindOf(9.5, 'A1')).toBe('signed')
     expect(kindOf(10.2, 'A1')).toBe('leaving')
     expect(['needsCleaning', 'ready']).toContain(kindOf(10.3, 'A1'))
     expect(['ready', 'readmitted']).toContain(kindOf(13, 'A1'))

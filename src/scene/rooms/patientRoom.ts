@@ -77,7 +77,7 @@ function headwall(f: Frame, bu: number): void {
 }
 
 function ceilingSensor(f: Frame, id: string, bu: number, bv: number): void {
-  f.cyl(bu, 2.4, bv, 0.34, 0.035, 'glowTeal', { cast: false })
+  f.cyl(bu, 2.4, bv, 0.34, 0.035, 'sensorDisc', { cast: false })
   f.torus(bu, 2.37, bv, 0.5, 0.045, 'whitePlastic', { cast: false })
   f.circle(`${id}:sensor`, bu, bv, 0.25, { overhead: true })
 }

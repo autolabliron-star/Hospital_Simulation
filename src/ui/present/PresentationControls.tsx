@@ -1,0 +1,92 @@
+/**
+ * The presenter's side of presentation mode (mount once in App, outside the Canvas):
+ *
+ *   C   toggles the walkthrough (never while typing in a field)
+ *   N   glides to the next shot, turning the mode on if it is off (shots.ts, glide.ts; the player system runs the glide)
+ *   power   while on, `usePresent` (src/app/power.ts: 60 fps on battery, no pause on blur) is on too; leaving puts it back as it was
+ *   probe   `?probe=1` adds `window.__hospitalPresent = { on(), off(), shot(i), glide(), state() }` for scripted screenshots
+ *
+ * `Hidden` is the gate the game's overlays go through: it renders nothing while presenting (the Go-to menu, the room panel, the Jump menu and
+ * its fade). `Cloaked` keeps its children mounted (they have effects of their own, the lift cover's outfit sync) and only hides them.
+ */
+import { useEffect, type ReactNode } from 'react'
+import { usePresent } from '@/app/power'
+import { probeEnabled } from '@/app/DevProbe'
+import { presentCut, presentGlide, presentState } from '@/scene/player/api'
+import { isTyping } from '@/ui/walk/typing'
+import { PRESENT_KEY, PRESENT_NEXT_KEY, usePresentation } from './presentation.store'
+import { SHOTS } from './shots'
+
+export function PresentationControls(): null {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
+      if (e.code === PRESENT_KEY) {
+        e.preventDefault()
+        usePresentation.getState().toggle()
+      } else if (e.code === PRESENT_NEXT_KEY && usePresentation.getState().on) {
+        // (N glides only inside the walkthrough; the probe's glide() turns it on first)
+        e.preventDefault()
+        presentGlide()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // the power flag: on while presenting, back to what it was (`?present=1` may have set it) when leaving
+  useEffect(() => {
+    let before: boolean | null = null
+    const apply = (on: boolean): void => {
+      const power = usePresent.getState()
+      if (on && before === null) {
+        before = power.on
+        power.setOn(true)
+      } else if (!on && before !== null) {
+        power.setOn(before)
+        before = null
+      }
+    }
+    apply(usePresentation.getState().on)
+    const unsub = usePresentation.subscribe((s, prev) => {
+      if (s.on !== prev.on) apply(s.on)
+    })
+    return () => {
+      unsub()
+      apply(false)
+    }
+  }, [])
+
+  // scripted shots for the checks (?probe=1 only)
+  useEffect(() => {
+    if (!probeEnabled) return
+    const w = window as unknown as { __hospitalPresent?: unknown }
+    w.__hospitalPresent = {
+      on: () => usePresentation.getState().setOn(true),
+      off: () => usePresentation.getState().setOn(false),
+      /** Instant cut to shot `i` (0-based, looping), settled, on the next frame. Turns the mode on if it is off. */
+      shot: (i: number) => presentCut(i),
+      /** Glide to the next shot (6 to 8 s). Turns the mode on if it is off. */
+      glide: () => presentGlide(),
+      shots: SHOTS.length,
+      state: () => ({ on: usePresentation.getState().on, ...presentState() }),
+    }
+    return () => {
+      delete w.__hospitalPresent
+    }
+  }, [])
+
+  return null
+}
+
+/** Renders `children` unless presentation mode is on. */
+export function Hidden({ children }: { children: ReactNode }) {
+  const on = usePresentation((s) => s.on)
+  return on ? null : <>{children}</>
+}
+
+/** Keeps `children` mounted but invisible and inert while presentation mode is on (`display: contents` otherwise: no box of its own). */
+export function Cloaked({ children }: { children: ReactNode }) {
+  const on = usePresentation((s) => s.on)
+  return <div style={{ display: on ? 'none' : 'contents' }}>{children}</div>
+}

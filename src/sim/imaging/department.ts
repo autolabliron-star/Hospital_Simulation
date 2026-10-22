@@ -223,7 +223,7 @@ export class ImagingDepartment {
         state: 'waiting',
         subject: null,
       }
-      const p = new Outpatient(this.services(), b, o.id, o.name, { x: hall.x, z: hall.z }, Math.PI, this.walkerFor(o.id), this.rng.fork(o.id), false)
+      const p = new Outpatient(this.services(), b, o.id, o.name, { x: hall.x, z: hall.z }, Math.PI, this.walkerFor(o.id), this.rng.fork(o.id), false, o.age)
       if (!p.warmWaiting()) {
         p.walker.remove()
         break
@@ -382,7 +382,7 @@ export class ImagingDepartment {
       subject: null,
     }
     const at = { x: ARRIVALS.entrance.at.x, z: ARRIVALS.entrance.at.z + this.rng.range(-0.8, 0.8) }
-    const p = new Outpatient(this.services(), b, o.id, o.name, at, ARRIVALS.entrance.heading, this.walkerFor(o.id), this.rng.fork(o.id), false)
+    const p = new Outpatient(this.services(), b, o.id, o.name, at, ARRIVALS.entrance.heading, this.walkerFor(o.id), this.rng.fork(o.id), false, o.age)
     b.subject = p
     this.enqueue(b)
     p.fadeIn()
@@ -416,7 +416,7 @@ export class ImagingDepartment {
 
   // --- numbers ---------------------------------------------------------------------------------------------------
 
-  /** Share of the utilisation window (07:45 to 13:30) the scanner was not idle, 0..1. */
+  /** Share of the utilisation window (CONFIG.imaging.utilisationHours, 07:45 to 17:00) the scanner was not idle, 0..1. */
   utilisation(m: ImagingModality): number {
     const len = this.window[1] - this.window[0]
     return len > 0 ? Math.min(1, this.busyWindow[m] / len) : 0

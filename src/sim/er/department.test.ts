@@ -46,17 +46,30 @@ describe('ErDepartment: bays', () => {
     expect(midLater.bay).toBe(-1)
   })
 
-  it('an ambulance patient with acuity 1-2 takes the next bay before anyone waiting, even a walk-in acuity 1', () => {
+  it('an ambulance patient with acuity 1-2 takes the next bay before anyone waiting, even a walk-in acuity 3', () => {
     const { d } = dept()
     for (const b of d.bays.slice(0, 5)) {
       b.state = 'occupied'
       b.caseId = 'busy'
     }
-    const walkIn = patient(d, { acuity: 1, arrivedAt: 1, state: 'waitingDoctor', ready: true })
+    const walkIn = patient(d, { acuity: 3, arrivedAt: 1, state: 'waitingDoctor', ready: true })
     const amb = patient(d, { acuity: 2, ambulance: true, arrivedAt: 500, state: 'waitingDoctor', ready: true })
     expect(d.assignBays(600)).toEqual([amb])
     expect(walkIn.bay).toBe(-1)
     expect(bayOrder(amb, walkIn)).toBeLessThan(0)
+  })
+
+  it('a priority 1-2 walk-in is critical: no triage queue, and they take the next bay before a waiting priority 3', () => {
+    const { d } = dept()
+    for (const b of d.bays.slice(0, 5)) {
+      b.state = 'occupied'
+      b.caseId = 'busy'
+    }
+    const waiting = patient(d, { acuity: 3, arrivedAt: 1, state: 'waitingDoctor', ready: true })
+    const critical = patient(d, { acuity: 1, arrivedAt: 900, state: 'waitingDoctor', ready: true })
+    expect(critical.critical).toBe(true)
+    expect(waiting.critical).toBe(false)
+    expect(d.assignBays(1000)).toEqual([critical])
   })
 
   it('an ambulance with acuity 3 does not jump the queue', () => {
@@ -199,5 +212,34 @@ describe('PorterBoard', () => {
     b.complete(j3)
     expect(j3.done).toBe(true)
     expect(b.history).toHaveLength(4)
+  })
+})
+
+describe('ErDepartment: the nurse\'s care and the doctor\'s review', () => {
+  it('the care goes to the most urgent patient on a trolley, once, and an ambulance patient only after the handover', () => {
+    const { d } = dept()
+    const a = patient(d, { acuity: 4, arrivedAt: 1, state: 'inBay.waitingCare', onTrolley: true, trolleyAt: 10 })
+    const b = patient(d, { acuity: 2, arrivedAt: 5, state: 'inBay.waitingCare', onTrolley: true, trolleyAt: 20 })
+    const amb = patient(d, { acuity: 1, ambulance: true, arrivedAt: 2, state: 'inBay.waitingCare', onTrolley: true, trolleyAt: 5 })
+    expect(d.claimCare('n1')).toBe(b) // the ambulance patient's handover is not done
+    expect(b.careBy).toBe('n1')
+    amb.handover = 'done'
+    expect(d.claimCare('n2')).toBe(amb)
+    expect(d.claimCare('n1')).toBe(a)
+    expect(d.claimCare('n1')).toBeNull()
+  })
+
+  it('the doctor sees assessments only once the care is done, and reviews only patients whose results are in', () => {
+    const { d } = dept()
+    patient(d, { acuity: 3, arrivedAt: 1, state: 'inBay.care', onTrolley: true })
+    expect(d.claimExam('d1')).toBeNull()
+    const ready = patient(d, { acuity: 3, arrivedAt: 2, state: 'inBay.waitingExam', onTrolley: true, trolleyAt: 1 })
+    const waitingResults = patient(d, { acuity: 1, arrivedAt: 2, state: 'tests.awaitingResults', onTrolley: true })
+    const review = patient(d, { acuity: 3, arrivedAt: 3, state: 'inBay.waitingReview', onTrolley: true, trolleyAt: 2 })
+    expect(d.claimReview('d1')).toBe(review)
+    expect(d.claimReview('d2')).toBeNull()
+    expect(d.claimExam('d2', 2)).toBeNull() // nobody at priority 1-2 is waiting for an assessment
+    expect(d.claimExam('d2')).toBe(ready)
+    expect(waitingResults.doctorId).toBeNull()
   })
 })

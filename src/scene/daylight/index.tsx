@@ -14,9 +14,11 @@ import { MAT } from '@/scene/materials'
 import { lightRig } from '@/scene/Lighting'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { CEILING_EMISSIVE } from '@/scene/building/render/walk/walkMaterials'
+import { lobbyEnvWanted } from '@/scene/lighting/env/lobbyProbe'
 import { FLOOR_WALK_ROUGHNESS } from '@/scene/lighting/look'
 import { FLOOR_KEYS } from '@/scene/lighting/palettePatch'
 import { useRenderStore } from '@/scene/quality/render.store'
+import { REALISM_GLOW, realismActive } from '@/ui/walk/realism.store'
 import { sim, simGeneration } from '@/sim'
 import { hourOf } from '@/sim/events'
 import { useWorld } from '@/sim/world.store'
@@ -32,6 +34,7 @@ const readHour = (): number => hourOf(useWorld.getState().t)
 export function Daylight() {
   const scene = useThree((s) => s.scene)
   const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera)
   const assets = useMemo(() => {
     const material = new MeshBasicMaterial({ color: 0x000000, toneMapped: true, colorWrite: false, depthWrite: false })
     const targets: DayTargets = {
@@ -40,6 +43,8 @@ export function Daylight() {
       scene: null,
       glass: MAT.glass,
       panels: MAT.glowTeal,
+      sensor: MAT.sensorDisc,
+      glowTone: REALISM_GLOW,
       lamps: MAT.glowWarm,
       nightLights: { material, setLit: () => undefined },
       renderer: null,
@@ -71,7 +76,11 @@ export function Daylight() {
     t.hemi = lightRig.hemi
     t.scene = scene
     t.renderer = gl
+    t.realism = realismActive(sim.player?.mode)
     t.fxLite = useRenderStore.getState().step.fx === 'lite'
+    // `?building=model`: the camera (last frame's pose) is in the authored lobby and its baked probe is loaded: bind that environment
+    const cp = camera.position
+    t.lobbyEnv = lobbyEnvWanted(cp.x, cp.y, cp.z)
     // walk mode (W1): the rooms have ceilings, so the sun eases down and the indoor fill up (read the live sim: a Jump swaps it)
     assets.driver.frame(dt, readHour, simGeneration, t, indoorTarget(sim.player?.mode))
   }, DAYLIGHT_PRIORITY)

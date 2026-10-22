@@ -16,6 +16,7 @@ import type { Walker } from '../walker'
 import type { RoomId, SeatSpec, SimEvent, SimEventType, Vec2 } from '../types'
 import type { ImagingDepartment } from '../imaging/department'
 import type { Actor } from './actor'
+import { BedsideBloods } from './bedside'
 import { ErDepartment } from './department'
 import type { ErPatient } from './patient'
 import { PorterBoard } from './porterBoard'
@@ -50,6 +51,8 @@ export class World {
   readonly clock = new SimClock()
   readonly er: ErDepartment
   readonly porters = new PorterBoard()
+  /** The ER nurse's bedside bloods and their way to the lab (Wave 1). */
+  readonly bedside = new BedsideBloods(this)
   /** ER patients by id (the department's cases hold the data; these hold the people). */
   readonly patients = new Map<string, ErPatient>()
   readonly pairs: RidePair[] = []

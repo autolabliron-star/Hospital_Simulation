@@ -4,6 +4,8 @@
  *     same way from the hospital's own things (src/scene/lighting/env): both rendered once into a 256 PMREM at mount, so the lit programs
  *     are the same either way; the daylight driver says which is bound (the hospital's while walking, `liveLook.hospitalEnv`) and this
  *     component swaps `scene.environment` between frames, no allocation, no recompile;
+ *   - (presentation) with `?building=model`, a third environment: the lobby's baked HDR (src/scene/lighting/env/lobbyProbe.ts), PMREM'd once behind a
+ *     warm gate and bound while the camera is in the pilot region (`liveLook.lobbyEnv`); a missing file changes nothing;
  *   - (W3) the light volume's bake starts here, behind the loading screen (a warm gate, src/scene/lighting/volume/texture.ts), and the
  *     textures of the realistic light are registered with the warm-up so they upload before the Enter button;
  *   - a soft sky/ground hemisphere fill;
@@ -19,11 +21,13 @@ import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { LIGHT_NOON } from '@/scene/daylight/lightAt'
 import { createCeilingTexture } from '@/scene/lighting/ceilingMap'
 import { buildHospitalEnvironment, disposeEnvironment } from '@/scene/lighting/env/hospitalEnvironment'
+import { loadLobbyEnvironment, lobbyProbe } from '@/scene/lighting/env/lobbyProbe'
 import { createGradeLut } from '@/scene/lighting/grade'
 import { liveLook } from '@/scene/lighting/liveLook'
 import { ensureLightVolume } from '@/scene/lighting/volume/texture'
 import { volumeTexture } from '@/scene/lighting/volume/uniforms'
-import { registerWarmSource } from '@/scene/warmup/registry'
+import { BUILDING_MODEL_ON } from '@/scene/building/model/flags'
+import { registerWarmGate, registerWarmSource } from '@/scene/warmup/registry'
 import { BUILDING } from '@/sim/places'
 
 /** Sun direction (high, from the south-south-east), and the shadow box around the whole building. */
@@ -63,8 +67,8 @@ export function Lighting() {
   const scene = useThree((s) => s.scene)
   // the sun's target must live in the scene so its world matrix (and so the shadow box) follows it
   const [target] = useState(() => new Object3D())
-  // the two environments, once built (the overview's RoomEnvironment and the hospital's)
-  const envs = useRef<{ room: Texture | null; hospital: Texture | null }>({ room: null, hospital: null })
+  // the environments, once built (the overview's RoomEnvironment, the hospital's, and with ?building=model the lobby's baked probe)
+  const envs = useRef<{ room: Texture | null; hospital: Texture | null; lobby: Texture | null }>({ room: null, hospital: null, lobby: null })
 
   useEffect(() => {
     const pmrem = new PMREMGenerator(gl)
@@ -73,16 +77,41 @@ export function Lighting() {
     const hospital = pmrem.fromScene(hospitalScene, 0.04)
     disposeEnvironment(hospitalScene)
     pmrem.dispose()
-    envs.current = { room: room.texture, hospital: hospital.texture }
+    envs.current = { room: room.texture, hospital: hospital.texture, lobby: envs.current.lobby }
     scene.environment = liveLook.hospitalEnv ? hospital.texture : room.texture
     scene.environmentIntensity = LIGHT_NOON.envIntensity
     return () => {
-      envs.current = { room: null, hospital: null }
+      envs.current = { room: null, hospital: null, lobby: envs.current.lobby }
       scene.environment = null
       room.dispose()
       hospital.dispose()
     }
   }, [gl, scene])
+
+  // the lobby's reflection probe (?building=model): loaded and PMREM'd behind the loading screen; nothing happens if the file is not there
+  useEffect(() => {
+    if (!BUILDING_MODEL_ON) return
+    let alive = true
+    let target: { texture: Texture; dispose(): void } | null = null
+    const work = loadLobbyEnvironment(gl, import.meta.env.BASE_URL).then((t) => {
+      if (!t) return
+      if (!alive) {
+        t.dispose()
+        return
+      }
+      target = t
+      envs.current.lobby = t.texture
+      lobbyProbe.ready = true
+    })
+    const unregister = registerWarmGate('lobby-env', work)
+    return () => {
+      alive = false
+      unregister()
+      lobbyProbe.ready = false
+      envs.current.lobby = null
+      target?.dispose()
+    }
+  }, [gl])
 
   // the realistic light's textures upload behind the loading screen, and the light volume bakes there too (a warm gate: the warm-up waits)
   useEffect(() => {
@@ -93,6 +122,7 @@ export function Lighting() {
         const list: Texture[] = [volumeTexture, createCeilingTexture(), createGradeLut()]
         if (envs.current.room) list.push(envs.current.room)
         if (envs.current.hospital) list.push(envs.current.hospital)
+        if (envs.current.lobby) list.push(envs.current.lobby)
         return list
       },
     })
@@ -101,7 +131,8 @@ export function Lighting() {
   // swap the bound environment when the daylight driver says so (the walk look's, past half way through the Tab flight); the driver already wrote
   // the intensity for the environment it chose, in its own frame callback just before this one
   useFrame(() => {
-    const want = liveLook.hospitalEnv ? envs.current.hospital : envs.current.room
+    const e = envs.current
+    const want = liveLook.lobbyEnv && e.lobby ? e.lobby : liveLook.hospitalEnv ? e.hospital : e.room
     if (want && scene.environment !== want) scene.environment = want
   }, FRAME_PRIORITY.sim + 3)
 

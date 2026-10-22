@@ -98,6 +98,36 @@ describe('MedSystem pipeline', () => {
     expect(w.meds.prescribe({ roomId: 'A1', items: five, prescriberId: 'x', source: 'sim' }).ok).toBe(false)
   })
 
+  it('Wave 1: a doctor\'s or scheduled order skips a medicine that is pending, or was dosed inside its dosing interval, for the same patient', () => {
+    const w = makeWorld()
+    const a = w.meds.prescribe({ roomId: 'A1', items: [{ medId: 'paracetamol', qty: 1 }], prescriberId: 'doc', source: 'schedule', doseAt: 100 })
+    expect(a.ok).toBe(true)
+    // the same medicine again while the first is pending: refused
+    const dup = w.meds.prescribe({ roomId: 'A1', items: [{ medId: 'paracetamol', qty: 1 }], prescriberId: 'doc', source: 'sim' })
+    expect(dup.ok).toBe(false)
+    // one of two items is a duplicate: the order is written without it
+    const mixed = w.meds.prescribe({ roomId: 'A1', items: [{ medId: 'paracetamol', qty: 1 }, { medId: 'amoxicillin', qty: 1 }], prescriberId: 'doc', source: 'sim' })
+    expect(mixed.ok).toBe(true)
+    if (mixed.ok) expect(mixed.order.items.map((i) => i.medId)).toEqual(['amoxicillin'])
+    // the presenter is never held back
+    expect(w.meds.prescribe({ roomId: 'A1', items: [{ medId: 'paracetamol', qty: 1 }], prescriberId: 'presenter', source: 'presenter' }).ok).toBe(true)
+    // take-home medicines are a supply, not a dose
+    expect(w.meds.prescribe({ roomId: 'A1', items: [{ medId: 'paracetamol', qty: 1 }], prescriberId: 'doc', source: 'discharge' }).ok).toBe(true)
+  })
+
+  it('Wave 1: once given, a medicine is held back until its dosing interval has passed (paracetamol 4 h, a once-daily one 24 h)', () => {
+    const w = makeWorld()
+    const first = w.meds.prescribe({ roomId: 'A2', items: [{ medId: 'paracetamol', qty: 1 }, { medId: 'omeprazole', qty: 1 }], prescriberId: 'doc', source: 'schedule', doseAt: 0 })
+    expect(first.ok).toBe(true)
+    runFor(w, 240, { autoGive: true })
+    if (first.ok) expect(first.order.stage).toBe('given')
+    const at = (medId: string, doseAt: number) => w.meds.prescribe({ roomId: 'A2', items: [{ medId, qty: 1 }], prescriberId: 'doc', source: 'schedule', doseAt }).ok
+    expect(at('paracetamol', 3 * 3600)).toBe(false)
+    expect(at('paracetamol', 4 * 3600)).toBe(true)
+    expect(at('omeprazole', 12 * 3600)).toBe(false)
+    expect(at('omeprazole', 24 * 3600)).toBe(true)
+  })
+
   it('delivers a busy morning (40 orders, both wards) with no collision, no pod waiting for a person and nothing stuck', () => {
     const w = makeWorld()
     const rng = new Rng(7)
@@ -110,7 +140,7 @@ describe('MedSystem pipeline', () => {
         const patient = PATIENTS.find((p) => p.roomId === room)!
         const count = rng.int(1, Math.min(3, patient.usualMeds.length))
         const items = patient.usualMeds.slice(0, count).map((medId) => ({ medId, qty: 1 }))
-        const r = w.meds.prescribe({ roomId: room, items, prescriberId: 'doc', source: 'sim', doseAt: w.now() })
+        const r = w.meds.prescribe({ roomId: room, items, prescriberId: 'doc', source: 'presenter', doseAt: w.now() })
         expect(r.ok).toBe(true)
         if (r.ok) orders.push(r.order.id)
         k++

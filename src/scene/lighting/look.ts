@@ -89,6 +89,11 @@ export const LOOK_MODEL_WALK: Readonly<Look> = { ...LOOK_OVERVIEW, sun: 0.35, he
  * number so a future change to the room (a brighter panel grid) is a one-line match; hospitalEnvironment.test.ts keeps the estimate honest.
  */
 export const HOSPITAL_ENV_MATCH = 1.0
+/**
+ * The same multiplier for the lobby reflection probe (`?building=model`, src/scene/lighting/env/lobbyProbe.ts): bound while the camera is in the
+ * pilot region. 1 until the baked HDR is judged on screen (it is a Blender render of the lobby, so its brightness is the lobby's own).
+ */
+export const LOBBY_ENV_MATCH = 1.0
 export const ENV_SWAP_AT = 0.5
 /** Hysteresis (blend units) so a flight reversed at the middle never flickers between the environments. */
 export const ENV_SWAP_BAND = 0.04
@@ -102,6 +107,40 @@ export const FLOOR_WALK_ROUGHNESS: Readonly<Record<string, number>> = {
   floorSlate: 0.4,
   floorBlue: 0.32,
 }
+
+/**
+ * The tone mapper. AgX (the Blender look: a soft shoulder, desaturated highlights, lifted shadows) for the whole app, behind this ONE constant so
+ * it can be reverted to Khronos PBR Neutral ('neutral') by changing it: Effects.tsx picks the mode, the daylight driver multiplies every look's
+ * exposure by `TONE_EXPOSURE_SCALE`, and nothing else knows. The mode is fixed for the page (it is a define of the one tone-mapping pass), so
+ * nothing recompiles at runtime, including when presentation mode (C) is toggled.
+ *
+ * The scale is the AgX exposure that keeps the picture as bright as Neutral's was (today's look rows stay as they are, so the overview is still
+ * exposure 1 x the scale). Worked out by evaluating both operators of three 0.186 on grey ramps (display sRGB, Neutral at its walk exposure 1.05
+ * against AgX at 1.05 x 1.25 = 1.31):
+ *
+ *   scene linear     0.18    0.30    0.50    0.80    1.00
+ *   Neutral          0.42    0.56    0.73    0.90    0.95
+ *   AgX x1.25        0.55    0.64    0.72    0.79    0.82
+ *
+ * Mid-tones and the usual lit surfaces (0.3 to 0.6) land within 0.04; shadows are a little lighter and whites a little lower and softer: that is
+ * the AgX look, not a mistake. A bare AgX at exposure 1 is 12 % darker through the middle and visibly grey, which is why the scale exists.
+ */
+export const TONE_MAP: 'agx' | 'neutral' = 'agx'
+export const TONE_EXPOSURE_SCALE = TONE_MAP === 'agx' ? 1.25 : 1
+
+/**
+ * The bloom: today's numbers, and presentation mode's (C): gentler (intensity 0.2) and with a higher threshold (1.35), so only real emissive lights
+ * glow and the bright sky seen through the glazing does not. Both are uniforms on the one bloom pass; the blend runs over `PRESENT_LOOK.seconds`.
+ */
+export const BLOOM = { intensity: 0.45, threshold: 1.0 } as const
+
+/**
+ * Presentation mode's look, blended in over `seconds` (Effects.tsx writes uniforms only: never a define, never a recompile):
+ *   grade       the colour-grade LUT's opacity is multiplied by this (0: off, the picture is what the tone mapper makes it)
+ *   vignette    the vignette's darkness is multiplied by this (a light vignette: 0.12 of darkness at full walk look)
+ *   bloom       intensity and threshold, above
+ */
+export const PRESENT_LOOK = { grade: 0, vignette: 0.5, bloomIntensity: 0.2, bloomThreshold: 1.35, seconds: 0.6 } as const
 
 /** The vignette's offset (constant; only the darkness moves). With darkness 0 the vignette is exactly the identity at any offset up to 1. */
 export const VIGNETTE_OFFSET = 0.5

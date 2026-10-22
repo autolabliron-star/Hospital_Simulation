@@ -7,13 +7,40 @@ import { ROOM_IDS } from '@/sim/places'
 import type { Medicine, PatientRecord, RoomId } from '@/sim/types'
 import medicinesJson from './medicines.json'
 import patientsJson from './patients.json'
-import { MedicinesSchema, parseOrThrow, PatientsSchema, type LeavesBy, type PatientStay } from './schema'
+import { MedicinesSchema, parseOrThrow, PatientsSchema, type Dose, type LeavesBy, type PatientStay } from './schema'
 
 /** An inpatient with their L1 day plan (every PatientRecord field, plus the stay). The sim reads PatientRecord as before. */
 export type PatientPlan = PatientRecord & { stay: PatientStay; leavesBy: LeavesBy; dayOfStay: number }
 
 export const MEDICINES: Medicine[] = parseOrThrow(MedicinesSchema, medicinesJson, 'src/content/medicines.json')
 export const PATIENTS: PatientPlan[] = parseOrThrow(PatientsSchema, patientsJson, 'src/content/patients.json')
+
+const DOSE_BY_ID = new Map<string, Dose>(parseOrThrow(MedicinesSchema, medicinesJson, 'src/content/medicines.json').map((m) => [m.id, m.dose]))
+
+/** The clock hours a medicine is due (empty for an as-needed one). */
+export function doseHoursOf(id: string): readonly number[] {
+  const d = DOSE_BY_ID.get(id)
+  if (!d) throw new Error(`Unknown medicine id "${id}"`)
+  return 'hours' in d ? d.hours : []
+}
+
+/** Is this medicine given only as needed (never on the dose waves)? */
+export function isPrn(id: string): boolean {
+  const d = DOSE_BY_ID.get(id)
+  if (!d) throw new Error(`Unknown medicine id "${id}"`)
+  return 'prn' in d
+}
+
+/** The shortest time (seconds) allowed between two doses of a medicine: its closest dose hours, or the as-needed gap. */
+export function minDoseGapSeconds(id: string): number {
+  const d = DOSE_BY_ID.get(id)
+  if (!d) throw new Error(`Unknown medicine id "${id}"`)
+  if ('prn' in d) return d.minGapHours * 3600
+  const h = d.hours
+  let gap = 24
+  for (let i = 0; i < h.length; i++) gap = Math.min(gap, i === 0 ? h[0] + 24 - h[h.length - 1] : h[i] - h[i - 1])
+  return gap * 3600
+}
 
 const MEDICINE_BY_ID = new Map<string, Medicine>(MEDICINES.map((m) => [m.id, m]))
 const PATIENT_BY_ROOM = new Map<RoomId, PatientPlan>(PATIENTS.map((p) => [p.roomId, p]))

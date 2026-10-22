@@ -1,12 +1,16 @@
 /**
  * The ER patient pathway as an xstate v5 machine (skill: "journey state machine"; pattern: Waltz `journey.machine.ts`).
  *
+ * Wave 1 "a real clinical day":
  *   arriving -> checkIn(queueing, serving) -> waitingTriage -> triage(walking, assessing) -> waitingDoctor
- *     -> inBay(walking, waitingExam, exam) -> [tests(waitingPorter, toLab, testing, waitingReturn, returning,
- *        awaitingResults)] -> decision -> leaving.home | admittedOut(waitingPorter, riding) -> gone
- *   a waiting patient whose patience runs out goes waitingTriage / waitingDoctor -> leaving.lwbs -> gone
- *   an ambulance patient skips check-in and triage: arriving -> waitingDoctor (held on the stretcher until a bay is ready)
- *   S1 warm start: arriving -> waitingTriage | waitingDoctor | inBay.waitingExam (WARM_TRIAGE / WARM_DOCTOR / WARM_BAY)
+ *     -> inBay(walking, waitingCare, care, waitingExam, exam) -> [tests(waitingPorter, toLab, testing, waitingReturn, returning: the scan only)]
+ *     -> [tests.awaitingResults] -> inBay(waitingReview, review) -> decision -> leaving.home | admittedOut(waitingPorter, riding) -> gone
+ *   - a priority 1-2 walk-in or an ambulance patient skips check-in and triage (arriving -> waitingDoctor); a nurse wheels the walk-in to a bay
+ *   - at the bay the ER nurse's care step comes before the doctor: observations, cannula, ECG and the bedside bloods (tubes go by pneumatic tube)
+ *   - the doctor's assessment is 10-20 min; the tests of the complaint's bundle (content/imaging.json) are drawn at the bay
+ *   - admission is decided AFTER the results, at the doctor's review (a patient with no results is decided at the end of the assessment)
+ *   - a waiting patient whose patience runs out goes waitingTriage / waitingDoctor -> leaving.lwbs -> gone
+ *   - S1 warm start: arriving -> waitingTriage | waitingDoctor | an in-bay stage mid-way (WARM_*)
  *
  * The machine only decides WHEN and WHICH way:
  *   - timers are `after` delays on the simulation clock (SimClock), so they honour pause and speed;
@@ -22,13 +26,10 @@ import type { PatientStage } from '../types'
 import type { SimClock } from './simClock'
 
 /**
- * W4 live bloods: when the real draw centre and lab handle an ER patient's bloods, the old chair and results timers stay only as a safety net.
- * A draw that is not over this long after the patient sat down (the robot's draw takes about 3 min; a V ticket is called within minutes) and
- * results that are not verified this long after the patient is back in the bay are given up on, so a lab that never completes cannot strand
- * anybody. The results bound is a fallback only: the lab's target turnaround is well under it (config.lab, docs/W4-DIAGNOSTICS.md).
+ * Results that are still missing this long after the patient starts waiting for them are given up on, so a lab or a radiologist that never
+ * completes cannot strand anybody (a safety net only: the lab's turnaround and the CT report are well under it).
  */
-export const DRAW_FALLBACK_SECONDS = CONFIG.blood.drawFallbackSeconds
-export const RESULTS_FALLBACK_SECONDS = CONFIG.blood.resultsFallbackSeconds
+export const RESULTS_FALLBACK_SECONDS = 7200
 
 export type PathwayState =
   | 'arriving'
@@ -39,8 +40,12 @@ export type PathwayState =
   | 'triage.assessing'
   | 'waitingDoctor'
   | 'inBay.walking'
+  | 'inBay.waitingCare'
+  | 'inBay.care'
   | 'inBay.waitingExam'
   | 'inBay.exam'
+  | 'inBay.waitingReview'
+  | 'inBay.review'
   | 'tests.waitingPorter'
   | 'tests.toLab'
   | 'tests.testing'
@@ -65,6 +70,17 @@ export interface PathwayHost {
   enter(state: PathwayState, ctx: PathwayContext): void
 }
 
+/** What the complaint's bundle holds (content/imaging.json), as the machine needs it. */
+export interface TestBundle {
+  /** Chance the bundle is ordered at all (1: a red flag). */
+  chance: number
+  bloods: boolean
+  ecg: boolean
+  imaging: boolean
+}
+
+export const NO_TESTS: TestBundle = { chance: 0, bloods: false, ecg: false, imaging: false }
+
 export interface PathwayContext {
   rng: PathwayRng
   host: PathwayHost
@@ -72,27 +88,35 @@ export interface PathwayContext {
   /** True acuity 1 (most urgent) .. 5, from the reason. */
   acuity: number
   ambulance: boolean
+  /** A priority 1-2 walk-in: no kiosk, no triage queue; a nurse brings a wheelchair and takes them straight to a bay. */
+  critical: boolean
   /** Sim time (ms) after which a waiting patient gives up; Infinity: never. */
   deadlineMs: number
   serviceSeconds: number
   triageSeconds: number
+  careSeconds: number
   examSeconds: number
-  labSeconds: number
-  resultsSeconds: number
-  /** What kind of test this reason gets (from the imaging content): none (never enters the tests branch), blood, imaging. */
-  testKind: TestKind
-  /** W4: this patient's bloods go through the draw centre and the lab (DRAW_DONE and REPORT_READY come from them); the timers are a fallback. */
-  liveBlood: boolean
+  reviewSeconds: number
+  /** The complaint's bundle. */
+  bundle: TestBundle
   /** W4: how much of the usual triage time this patient's assessment takes (0.8 when kiosk vitals are already in the record). */
   triageScale: () => number
-  /** Drawn when the exam starts. */
-  needsTests: boolean
-  admit: boolean
-  /** An imaging report arrived (it may arrive before the patient is back in the bay). */
+  /** Drawn when the patient lies on the trolley: does this patient get the bundle at all? */
+  tests: boolean
+  needsBloods: boolean
+  needsEcg: boolean
+  needsImaging: boolean
+  /** The bedside bloods are verified by the lab / the imaging report arrived (either may arrive early). */
+  bloodsReady: boolean
   reportReady: boolean
+  /** Drawn AFTER the results are in (at the doctor's review, or at the end of the assessment when there is nothing to wait for). */
+  admit: boolean
+  admitChance: number | null
+  /** S1 warm start: how far through the current step the patient already is (0..1). */
+  careProgress: number
+  examProgress: number
+  reviewProgress: number
 }
-
-export type TestKind = 'none' | 'blood' | 'imaging'
 
 export interface PathwayInput {
   rng: PathwayRng
@@ -102,11 +126,11 @@ export interface PathwayInput {
   ambulance: boolean
   /** Seconds a waiting patient tolerates, counted from `clock.now` when the patient is created. */
   patienceSeconds: number
-  /** Default 'blood' (the M3 behaviour). */
-  testKind?: TestKind
-  /** W4: the draw centre and the lab handle this patient's bloods (default false: the M3 timers). */
-  liveBlood?: boolean
-  /** W4: a factor on the triage assessment time, read when the assessment starts (default 1). */
+  /** The complaint's tests (default: none). */
+  bundle?: TestBundle
+  /** The admission profile's chance for this complaint (content/admissions.ts `admitChanceFor`): 0 never admits; null: the acuity table decides. */
+  admitChance?: number | null
+  /** A factor on the triage assessment time, read when the assessment starts (default 1). */
   triageScale?: () => number
 }
 
@@ -117,26 +141,37 @@ export type PathwayEvent =
   | { type: 'IN_TRIAGE_BAY' }
   | { type: 'BAY_CALLED' }
   | { type: 'ON_TROLLEY' }
+  /** The ER nurse is at the bedside: the care step starts. */
+  | { type: 'NURSE_HERE' }
   | { type: 'DOCTOR_HERE' }
+  /** The doctor is back at the bedside with the results: the review starts. */
+  | { type: 'REVIEW_HERE' }
   | { type: 'PICKED_UP' }
   | { type: 'AT_LAB' }
   | { type: 'BACK_IN_BAY' }
   /** Imaging: the scan is finished and the patient may be collected. */
   | { type: 'SCAN_DONE' }
-  /** Imaging, and W4 bloods: the report is ready (the lab verified every test of the order). */
+  /** Imaging: the report is ready. */
   | { type: 'REPORT_READY' }
-  /** W4: the robot (or the nurse) finished the blood draw and the arm is free. */
-  | { type: 'DRAW_DONE' }
+  /** The lab verified every test of the bedside bloods. */
+  | { type: 'BLOODS_READY' }
   | { type: 'OUT' }
   /**
    * S1 in-flight warm (docs/S1-SHOWCASE.md): a patient placed at a warm start is already under way. Only `arriving` takes these, so the
-   * normal entry hooks of the target state run (no snapshot restore). WARM_BAY is for a patient who is already lying on the trolley.
+   * normal entry hooks of the target state run (no snapshot restore). `progress` is how far through that step they are.
    */
   | { type: 'WARM_TRIAGE' }
   | { type: 'WARM_DOCTOR' }
   | { type: 'WARM_BAY' }
+  | { type: 'WARM_CARE'; progress: number }
+  | { type: 'WARM_WAITEXAM' }
+  | { type: 'WARM_EXAM'; progress: number }
+  | { type: 'WARM_RESULTS' }
+  | { type: 'WARM_REVIEW'; progress: number }
 
 const enter = (state: PathwayState) => ({ type: 'enter' as const, params: { state } })
+
+const clamp01 = (x: number) => Math.min(0.95, Math.max(0, x))
 
 export const pathwayMachine = setup({
   types: {} as { context: PathwayContext; events: PathwayEvent; input: PathwayInput },
@@ -145,32 +180,50 @@ export const pathwayMachine = setup({
     sampleService: assign({ serviceSeconds: ({ context }) => context.rng.between(CONFIG.er.checkInSeconds) }),
     sampleTriage: assign({ triageSeconds: ({ context }) => context.rng.between(CONFIG.er.triageSeconds) * context.triageScale() }),
     markReport: assign({ reportReady: () => true }),
-    sampleExam: assign({
-      examSeconds: ({ context }) => context.rng.between(CONFIG.er.examSeconds),
-      // the draw is always made (so the stream does not depend on the reason); a reason with no test never gets one
-      needsTests: ({ context }) => context.rng.chance(CONFIG.er.testsChance) && context.testKind !== 'none',
-      admit: ({ context }) => context.rng.chance(CONFIG.er.admitChanceByAcuity[Math.min(5, Math.max(1, context.acuity)) - 1]),
+    markBloods: assign({ bloodsReady: () => true }),
+    // the draw is always made (so the stream does not depend on the reason)
+    sampleBundle: assign(({ context }) => {
+      const hit = context.rng.chance(context.bundle.chance)
+      const b = context.bundle
+      return { tests: hit, needsBloods: hit && b.bloods, needsEcg: hit && b.ecg, needsImaging: hit && b.imaging }
     }),
-    sampleLab: assign({ labSeconds: ({ context }) => context.rng.between(CONFIG.er.labSeconds) }),
-    sampleResults: assign({ resultsSeconds: ({ context }) => context.rng.between(CONFIG.er.resultsSeconds) }),
+    /** S1: the patient has results to wait for (their bundle's bloods; the scan is left out of a placed patient). */
+    warmTests: assign(({ context }) => ({ tests: true, needsBloods: context.bundle.bloods, needsEcg: context.bundle.ecg, needsImaging: false })),
+    sampleCare: assign({
+      // a patient with no tests gets observations only (a short step)
+      careSeconds: ({ context }) =>
+        context.rng.between(CONFIG.er.bayCareSeconds) * (context.tests ? 1 : CONFIG.er.minorCareShare) * (context.acuity <= 2 ? CONFIG.er.seriousScale : 1),
+    }),
+    sampleExam: assign({
+      // a minor complaint with no tests is seen and treated quickly
+      examSeconds: ({ context }) =>
+        context.rng.between(!context.tests && context.acuity >= 4 ? CONFIG.er.minorExamSeconds : CONFIG.er.examSeconds) * (context.acuity <= 2 ? CONFIG.er.seriousScale : 1),
+    }),
+    sampleReview: assign({ reviewSeconds: ({ context }) => context.rng.between(CONFIG.er.reviewSeconds) }),
+    // the draw is always made; a complaint whose admission profile says 0 (a cold, sunburn, a sprain) never leads to a bed
+    drawAdmit: assign({
+      admit: ({ context }) => {
+        const hit = context.rng.chance(CONFIG.er.admitChanceByAcuity[Math.min(5, Math.max(1, context.acuity)) - 1])
+        return context.admitChance === 0 ? false : hit
+      },
+    }),
+    warmCare: assign({ careProgress: ({ event }) => (event.type === 'WARM_CARE' ? clamp01(event.progress) : 0) }),
+    warmExam: assign({ examProgress: ({ event }) => (event.type === 'WARM_EXAM' ? clamp01(event.progress) : 0) }),
+    warmReview: assign({ reviewProgress: ({ event }) => (event.type === 'WARM_REVIEW' ? clamp01(event.progress) : 0), bloodsReady: () => true }),
   },
   guards: {
-    ambulance: ({ context }) => context.ambulance,
-    needsTests: ({ context }) => context.needsTests,
+    skipsQueue: ({ context }) => context.ambulance || context.critical,
+    needsImaging: ({ context }) => context.needsImaging,
+    needsResults: ({ context }) => context.needsBloods || context.needsImaging,
+    resultsIn: ({ context }) => (!context.needsBloods || context.bloodsReady) && (!context.needsImaging || context.reportReady),
     admit: ({ context }) => context.admit,
-    isBlood: ({ context }) => context.testKind !== 'imaging',
-    /** Blood on the M3 timers (no draw centre and lab behind this patient). */
-    timerBlood: ({ context }) => context.testKind !== 'imaging' && !context.liveBlood,
-    liveBlood: ({ context }) => context.liveBlood,
-    reportDone: ({ context }) => context.reportReady,
   },
   delays: {
     serviceDelay: ({ context }) => context.serviceSeconds * 1000,
     triageDelay: ({ context }) => context.triageSeconds * 1000,
-    examDelay: ({ context }) => context.examSeconds * 1000,
-    labDelay: ({ context }) => context.labSeconds * 1000,
-    resultsDelay: ({ context }) => context.resultsSeconds * 1000,
-    drawStuckDelay: () => DRAW_FALLBACK_SECONDS * 1000,
+    careDelay: ({ context }) => Math.max(500, context.careSeconds * 1000 * (1 - context.careProgress)),
+    examDelay: ({ context }) => Math.max(500, context.examSeconds * 1000 * (1 - context.examProgress)),
+    reviewDelay: ({ context }) => Math.max(500, context.reviewSeconds * 1000 * (1 - context.reviewProgress)),
     resultsFallbackDelay: () => RESULTS_FALLBACK_SECONDS * 1000,
     // never less than 30 s, so nobody gives up in the same breath as triage ends
     patienceDelay: ({ context }) => Math.max(30_000, context.deadlineMs - context.clock.now),
@@ -183,28 +236,43 @@ export const pathwayMachine = setup({
     clock: input.clock,
     acuity: input.acuity,
     ambulance: input.ambulance,
+    critical: !input.ambulance && input.acuity <= 2,
     deadlineMs: input.clock.now + input.patienceSeconds * 1000,
     serviceSeconds: 0,
     triageSeconds: 0,
+    careSeconds: 0,
     examSeconds: 0,
-    labSeconds: 0,
-    resultsSeconds: 0,
-    testKind: input.testKind ?? 'blood',
-    liveBlood: input.liveBlood ?? false,
+    reviewSeconds: 0,
+    bundle: input.bundle ?? NO_TESTS,
     triageScale: input.triageScale ?? (() => 1),
-    needsTests: false,
-    admit: false,
+    tests: false,
+    needsBloods: false,
+    needsEcg: false,
+    needsImaging: false,
+    bloodsReady: false,
     reportReady: false,
+    admit: false,
+    admitChance: input.admitChance ?? null,
+    careProgress: 0,
+    examProgress: 0,
+    reviewProgress: 0,
   }),
   initial: 'arriving',
+  // either result can arrive at any point of the stay (the bloods usually come back during the assessment); awaitingResults looks at the flags
+  on: { REPORT_READY: { actions: 'markReport' }, BLOODS_READY: { actions: 'markBloods' } },
   states: {
     arriving: {
       entry: enter('arriving'),
       on: {
-        ARRIVED: [{ guard: 'ambulance', target: 'waitingDoctor' }, { target: 'checkIn' }],
+        ARRIVED: [{ guard: 'skipsQueue', target: 'waitingDoctor' }, { target: 'checkIn' }],
         WARM_TRIAGE: '#erPatient.waitingTriage',
         WARM_DOCTOR: '#erPatient.waitingDoctor',
-        WARM_BAY: '#erPatient.inBay.waitingExam',
+        WARM_BAY: { target: '#erPatient.inBay.waitingCare', actions: 'sampleBundle' },
+        WARM_CARE: { target: '#erPatient.inBay.care', actions: ['sampleBundle', 'sampleCare', 'warmCare'] },
+        WARM_WAITEXAM: { target: '#erPatient.inBay.waitingExam', actions: ['sampleBundle', 'sampleCare'] },
+        WARM_EXAM: { target: '#erPatient.inBay.exam', actions: ['sampleBundle', 'sampleCare', 'sampleExam', 'warmExam'] },
+        WARM_RESULTS: { target: '#erPatient.tests.awaitingResults', actions: ['warmTests', 'sampleCare', 'sampleExam'] },
+        WARM_REVIEW: { target: '#erPatient.inBay.review', actions: ['warmTests', 'sampleCare', 'sampleExam', 'sampleReview', 'warmReview'] },
       },
     },
     checkIn: {
@@ -248,7 +316,15 @@ export const pathwayMachine = setup({
       states: {
         walking: {
           entry: enter('inBay.walking'),
-          on: { ON_TROLLEY: 'waitingExam' },
+          on: { ON_TROLLEY: { target: 'waitingCare', actions: 'sampleBundle' } },
+        },
+        waitingCare: {
+          entry: enter('inBay.waitingCare'),
+          on: { NURSE_HERE: { target: 'care', actions: 'sampleCare' } },
+        },
+        care: {
+          entry: enter('inBay.care'),
+          after: { careDelay: 'waitingExam' },
         },
         waitingExam: {
           entry: enter('inBay.waitingExam'),
@@ -257,44 +333,46 @@ export const pathwayMachine = setup({
         exam: {
           entry: enter('inBay.exam'),
           after: {
-            examDelay: [{ guard: 'needsTests', target: '#erPatient.tests' }, { target: '#erPatient.decision' }],
+            examDelay: [
+              { guard: 'needsImaging', target: '#erPatient.tests.waitingPorter' },
+              { guard: 'needsResults', target: '#erPatient.tests.awaitingResults' },
+              { target: '#erPatient.decision' },
+            ],
           },
+        },
+        waitingReview: {
+          entry: enter('inBay.waitingReview'),
+          on: { REVIEW_HERE: { target: 'review', actions: 'sampleReview' } },
+        },
+        review: {
+          entry: enter('inBay.review'),
+          after: { reviewDelay: '#erPatient.decision' },
         },
       },
     },
     tests: {
       initial: 'waitingPorter',
-      // an imaging report can arrive at any point of the branch; awaitingResults looks at the flag on entry
-      on: { REPORT_READY: { actions: 'markReport' } },
       states: {
         waitingPorter: { entry: enter('tests.waitingPorter'), on: { PICKED_UP: 'toLab' } },
-        toLab: { entry: enter('tests.toLab'), on: { AT_LAB: { target: 'testing', actions: 'sampleLab' } } },
-        // blood: a timer (M3) or the draw centre says DRAW_DONE (W4, with a fallback timer); imaging: the scanner says SCAN_DONE
-        testing: {
-          entry: enter('tests.testing'),
-          after: {
-            labDelay: { guard: 'timerBlood', target: 'waitingReturn' },
-            drawStuckDelay: { guard: 'liveBlood', target: 'waitingReturn' },
-          },
-          on: { SCAN_DONE: 'waitingReturn', DRAW_DONE: { guard: 'liveBlood', target: 'waitingReturn' } },
-        },
+        toLab: { entry: enter('tests.toLab'), on: { AT_LAB: 'testing' } },
+        // the scanner says SCAN_DONE
+        testing: { entry: enter('tests.testing'), on: { SCAN_DONE: 'waitingReturn' } },
         waitingReturn: { entry: enter('tests.waitingReturn'), on: { PICKED_UP: 'returning' } },
-        returning: { entry: enter('tests.returning'), on: { BACK_IN_BAY: { target: 'awaitingResults', actions: 'sampleResults' } } },
-        // blood: a timer (M3) or the lab's report (W4, with a fallback timer); imaging: the report (REPORT_READY, or the flag if it came
-        // while the patient was on the way back)
+        returning: { entry: enter('tests.returning'), on: { BACK_IN_BAY: 'awaitingResults' } },
+        // in the bay, until the lab and the radiologist have both reported; then the doctor reviews
         awaitingResults: {
           entry: enter('tests.awaitingResults'),
-          always: { guard: 'reportDone', target: '#erPatient.decision' },
-          after: {
-            resultsDelay: { guard: 'timerBlood', target: '#erPatient.decision' },
-            resultsFallbackDelay: { guard: 'liveBlood', target: '#erPatient.decision' },
+          always: { guard: 'resultsIn', target: '#erPatient.inBay.waitingReview' },
+          after: { resultsFallbackDelay: '#erPatient.inBay.waitingReview' },
+          on: {
+            REPORT_READY: { actions: 'markReport', reenter: false },
+            BLOODS_READY: { actions: 'markBloods', reenter: false },
           },
-          on: { REPORT_READY: '#erPatient.decision' },
         },
       },
     },
     decision: {
-      entry: enter('decision'),
+      entry: [{ type: 'drawAdmit' }, enter('decision')],
       always: [{ guard: 'admit', target: 'admittedOut' }, { target: 'leaving.home' }],
     },
     leaving: {
@@ -369,8 +447,12 @@ export const PATHWAY_STATES: readonly PathwayState[] = [
   'triage.assessing',
   'waitingDoctor',
   'inBay.walking',
+  'inBay.waitingCare',
+  'inBay.care',
   'inBay.waitingExam',
   'inBay.exam',
+  'inBay.waitingReview',
+  'inBay.review',
   'tests.waitingPorter',
   'tests.toLab',
   'tests.testing',

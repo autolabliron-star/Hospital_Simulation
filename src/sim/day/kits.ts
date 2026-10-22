@@ -18,9 +18,9 @@ import { ErDoctor, ErNurse, Receptionist, TriageNurse } from '../er/staff'
 import { ER_DOCTOR_POSTS, ER_NURSE_POSTS, PATROL, PORTER_BASES, TRIAGE_NURSE_POSTS, type Post } from '../er/spots'
 import type { World } from '../er/world'
 import { ImagingOperator, OPERATOR_MODALITY } from '../imaging/operator'
-import { Coordinator } from '../people'
+import { Coordinator, deskSpot, Doctor, Nurse } from '../people'
 import type { Person } from '../person'
-import { COMMAND_SEATS, LOBBY } from '../places'
+import { COMMAND_SEATS, LOBBY, NURSE_HUB } from '../places'
 import type { Rng } from '../rng'
 import type { ImagingModality, SeatSpec } from '../types'
 import type { Walker } from '../walker'
@@ -127,6 +127,21 @@ const KITS: Record<PostKind, Kit> = {
     attach: (w, p) => {
       w.imaging!.attachOperator(p as ImagingOperator)
     },
+  },
+  wardNurse: {
+    make: (_w, r, walker) => {
+      const ward = r.member.ward!
+      return new Nurse(r.member, ward, NURSE_HUB[ward][r.post!.index % 3], walker)
+    },
+    post: (_w, r) => NURSE_HUB[r.member.ward!][r.post!.index % 3],
+    atRest: (_w, p) => (p as Nurse).atRest,
+    ...bareKit(),
+  },
+  wardDoctor: {
+    make: (_w, r, walker) => new Doctor(r.member, r.member.ward ?? null, deskSpot(r.post!.index), walker),
+    post: (_w, r) => deskSpot(r.post!.index),
+    atRest: (_w, p) => (p as Doctor).atRest,
+    ...bareKit(),
   },
   command: {
     make: (_w, r, walker) => {
