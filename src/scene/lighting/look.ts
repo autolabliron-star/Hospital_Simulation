@@ -152,8 +152,9 @@ export const PRESENT_LOOK = { grade: 0, vignette: 0.5, bloomIntensity: 0.2, bloo
  * lobby IS that radiance: a lightmapped surface is lightMap x (lightmapScale x PI) x albedo / PI = the bake's radiance x albedo
  * (src/scene/building/model/lightmaps.ts), and the reflection probe is the same Blender scene's radiance. So 2^1.2 = 2.297 puts the lobby's
  * greys and whites where the stills have them: Blender's AgX maps scene 0.18 to display 0.46 at exposure 1, so at 2.3 a mid-grey surface (0.18)
- * reads 0.63, a white wall in light (0.7) 0.83, a lit white desk (1.4) 0.90. People and live objects (lit by the live lights and the probe, not
- * the bake) come out about 0.08 brighter in the mid-tones than in the walk look (three's AgX at 1.31 puts 0.18 at 0.55). Raise it if the lobby
+ * reads 0.63, a white wall in light (0.7) 0.83, a lit white desk (1.4) 0.90. People and live objects are lit by the bake too inside the authored
+ * building (realism step 2, BAKE_LIGHT below), so they move with it; they come out about 0.08 brighter in the mid-tones than in the walk look
+ * (three's AgX at 1.31 puts 0.18 at 0.55). Raise it if the lobby
  * reads darker than lobby-blender-*.jpg, lower it if the people look washed out; the walk and overview are untouched either way.
  */
 export const PRESENT_EXPOSURE = 2.3
@@ -162,6 +163,26 @@ export const PRESENT_EXPOSURE = 2.3
 export function presentExposureGain(): number {
   return PRESENT_EXPOSURE / (LOOK_WALK.exposure * TONE_EXPOSURE_SCALE)
 }
+
+/**
+ * (Realism step 2) Live objects inside the authored building are lit by the light the building was BAKED with (src/scene/lighting/bake: the zone
+ * probe's SH9 irradiance, per fragment through the bake field), not by the live sun, hemisphere and environment. Uniforms only; the daylight
+ * driver writes them with the indoor blend (the overview keeps its live light).
+ *
+ * TUNING KNOBS, all derived rather than eyeballed:
+ *   gain   the SH irradiance scale. 1 = the bake's own units: the probe and the lightmaps are radiance of the same Cycles scene, and three lights
+ *          a lightmapped surface as lightMap x (lightmapScale x PI) x albedo / PI, so at gain 1 a white shirt facing up next to a white desk
+ *          reads what the bake gave the desk top (lobby: E/PI 0.64 up, 0.45 sideways, 0.33 down). Raise if the people read darker than the walls
+ *          around them, lower if they glow.
+ *   key    the share of the live sun kept on live objects inside the bake. 0: the bake already holds the sun patches and the sky, and the live
+ *          sun's fixed SSE direction (with no ceilings in its shadow map) lit people through the roof. 0.1..0.2 brings back a faint modelling
+ *          light if the people look flat.
+ *   ao     how much of the light volume's walk AO (procedural walls, 0.2 m off the surface) darkens the SH ambient: the probe was rendered in the
+ *          middle of the room, so against a wall or under a desk a person should get less. 0 = none, 1 = all of it.
+ * The environment's SPECULAR on live objects inside the bake is not a knob here: it is the baked materials' own gain (reflections.ts uReflGain,
+ * shared uniform), so live and baked things reflect the probe alike in every mode.
+ */
+export const BAKE_LIGHT = { gain: 1.0, key: 0.0, ao: 0.5 } as const
 
 /** The vignette's offset (constant; only the darkness moves). With darkness 0 the vignette is exactly the identity at any offset up to 1. */
 export const VIGNETTE_OFFSET = 0.5

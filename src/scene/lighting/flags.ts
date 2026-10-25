@@ -7,6 +7,7 @@
  *   ?lv=0         no light volume (the volume fetch is skipped in the shader: this is also how its GPU cost is measured)
  *   ?refl=0       no ceiling-panel reflection on the floors
  *   ?env=room     keep RoomEnvironment as the one environment in walk mode (the fallback if the swap at the Tab flight ever pops)
+ *   ?bakelight=0  (realism step 2) live objects keep the live light inside the authored building (no bake-matched SH ambient): the A/B
  *
  * Pure (a string in, a record out) so the tests run in node.
  */
@@ -19,6 +20,8 @@ export interface LightingFlags {
   reflect: boolean
   /** True with `?env=room`. */
   roomEnv: boolean
+  /** False with `?bakelight=0`: people, robots and devices keep the live light inside the authored building. */
+  bakeLight: boolean
 }
 
 export function parseLightingFlags(search: string): LightingFlags {
@@ -33,6 +36,7 @@ export function parseLightingFlags(search: string): LightingFlags {
     volume: params.get('lv') !== '0',
     reflect: params.get('refl') !== '0',
     roomEnv: params.get('env') === 'room',
+    bakeLight: params.get('bakelight') !== '0',
   }
 }
 

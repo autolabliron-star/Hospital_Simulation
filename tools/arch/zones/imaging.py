@@ -70,6 +70,11 @@ REPLACES = [
     'footprint:imaging:sink', 'footprint:draw:bench', 'footprint:imaging:cubicles:bench*',
     # the changing cubicles' curtains and their rail (src/scene/rooms/bloodDraw.ts, no footprint): x -23.45 front line, z 3.9..8.1
     'rect:-23.6,-23.3,3.8,8.2',
+    # seating (seating()): the cubicles' partitions, the MRI and CT operators' chairs (no footprint: the rects round them), the three
+    # blood-draw chairs (the rects stop short of the robots' arm cradles at z 10.56, which stay with the robots)
+    'footprint:imaging:cubicles:part*',
+    'rect:-36.9,-36.3,-3.7,-2.9', 'rect:-27.9,-27.3,-3.7,-2.9',
+    'rect:-27.2,-26.6,9.9,10.45', 'rect:-25.5,-24.9,9.9,10.45', 'rect:-23.8,-23.2,9.9,10.45',
 ]
 VISIBLE_FROM = ['lobby', 'core']
 
@@ -491,6 +496,36 @@ def draw_centre(ctx):
     tint_panel(geo, True, 2.1, +1, -25.5, -22.1)
 
 
+def seating(ctx):
+    """The last procedural furniture of the department, baked so it sits in the room's light: the MRI and CT operators' chairs on their
+    console seats, the blood-draw centre's three phlebotomy chairs on their seats (facing the robots), the changing cubicles' partitions
+    on their footprints (white compact-laminate panels on stainless posts, raised off the floor like real cubicle systems)."""
+    if ksupport is None:
+        return
+    geo, fp = ctx.geo, ctx.fur['footprints']
+    seats = {s['id']: s for s in ctx.fur['seats']}
+    for sid in ('console:mri', 'console:ct'):
+        s = seats.get(sid)
+        if s:
+            ksupport.pedestal_chair(geo, Frame(s['x'], s['z'], s['heading']), s['height'], back=(s['height'] + 0.05, s['height'] + 0.52),
+                                    mat='VinylGrey', base_r=0.25)
+    for i in range(3):
+        s = seats.get(f'drawChair:robot:{i}')
+        if s:
+            ksupport.pedestal_chair(geo, Frame(s['x'], s['z'], s['heading']), s['height'], back=(s['height'] + 0.03, s['height'] + 0.55),
+                                    mat='VinylTeal', base_r=0.23, arm_h=0.13, lean=8.0)
+    for i in range(4):
+        p = fp.get(f'imaging:cubicles:part{i}')
+        if not p:
+            continue
+        x0, x1, z = p['x'] - p['w'] / 2, p['x'] + p['w'] / 2, p['z']
+        geo.box('SolidSurface', x0 + 0.03, 0.15, z - 0.0125, x1, 1.95, z + 0.0125)
+        geo.box('Stainless', x0, 0.0, z - 0.02, x0 + 0.035, 1.98, z + 0.02)
+        geo.box('Stainless', x0 - 0.015, 0.0, z - 0.035, x0 + 0.05, 0.02, z + 0.035)
+        for y in (0.4, 1.7):
+            geo.box('Stainless', x1 - 0.03, y, z - 0.03, x1, y + 0.05, z + 0.03)
+
+
 # --- entry ---------------------------------------------------------------------------------------------------------------------------------------------
 def build(ctx):
     geo, pl = ctx.geo, ctx.pl
@@ -502,3 +537,4 @@ def build(ctx):
     xray(ctx)
     ultrasound(ctx)
     draw_centre(ctx)
+    seating(ctx)

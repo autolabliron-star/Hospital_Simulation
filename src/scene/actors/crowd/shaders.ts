@@ -17,16 +17,14 @@
  *
  * A pixel is drawn when its screen-space noise value lies in [lo, hi) of its body (lod.ts).
  *
- * Programs compiled: body near, body far, props, vehicles, blob shadow, ring: six, once (the close-up details add no program: they are branches
+ * Programs compiled: body near, body far, props, vehicles, blob shadow (realism step 2: the shared contact-shadow program), ring: six, once (the close-up details add no program: they are branches
  * of the near body's vertex stage on the vertex's own colour slot). The realistic people add one: every avatar body of every LOD shares it.
  */
 import {
-  CanvasTexture,
   Color,
   DoubleSide,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  SRGBColorSpace,
   Vector2,
   Vector4,
   type DataTexture,
@@ -37,6 +35,7 @@ import {
 import { BADGE_FRAME, BADGE_KIND, CAP_FRAME, CAP_KIND, FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
 import { TINT_MAX_GAIN, tintContrast, type AvatarEntry } from './avatars'
 import { LIGHT_VOLUME_KEY, applyLightVolume } from '@/scene/lighting/volumeChunk'
+import { createContactShadowMaterial } from '@/scene/lighting/contact/material'
 import { FACE } from './face'
 import { BADGE_TOP, GEAR_BIT } from './staff'
 
@@ -460,7 +459,7 @@ export interface CrowdMaterials {
   body: [MeshStandardMaterial, MeshStandardMaterial, MeshStandardMaterial]
   props: MeshStandardMaterial
   vehicles: MeshStandardMaterial
-  /** The soft ground blob under every person and vehicle, with a per-instance `aFade`. */
+  /** The soft contact shadow under every person and vehicle (src/scene/lighting/contact), with a per-instance `aFade` and `aShape`. */
   blob: MeshBasicMaterial
   ring: MeshBasicMaterial
   dispose(): void
@@ -470,24 +469,11 @@ function fixedColors(): Color[] {
   return FIXED_COLORS.map((hex) => new Color(hex))
 }
 
-export function createBlobTexture(): CanvasTexture | null {
-  if (typeof document === 'undefined') return null
-  const size = 64
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  const g = ctx.createRadialGradient(size / 2, size / 2, 2, size / 2, size / 2, size / 2)
-  g.addColorStop(0, 'rgba(14, 34, 34, 0.55)')
-  g.addColorStop(0.5, 'rgba(14, 34, 34, 0.26)')
-  g.addColorStop(1, 'rgba(14, 34, 34, 0)')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, size, size)
-  const map = new CanvasTexture(canvas)
-  map.colorSpace = SRGBColorSpace
-  return map
-}
+/**
+ * Realism step 2: how dark a person's contact shadow is right under the feet at full presence (x the model's 0.9 presence share: 0.54), the
+ * darkening the Cycles bake gives the floor right under the benches' legs and the desk plinth. The shape is the model's (model.ts BLOB_*).
+ */
+export const CROWD_SHADOW_DARKNESS = 0.6
 
 export function createCrowdMaterials(pose: DataTexture): CrowdMaterials {
   const fixed = fixedColors()
@@ -518,24 +504,8 @@ export function createCrowdMaterials(pose: DataTexture): CrowdMaterials {
   }
   vehicles.customProgramCacheKey = () => `hospital-crowd-vehicles-v1+${LIGHT_VOLUME_KEY}`
 
-  const map = createBlobTexture()
-  const blob = new MeshBasicMaterial({
-    map,
-    color: new Color('#ffffff'),
-    transparent: true,
-    opacity: map ? 1 : 0.18,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-  })
-  blob.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float aFade;\nvarying float vFade;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvFade = aFade;')
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vFade;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a *= vFade;')
-  }
-  blob.customProgramCacheKey = () => 'hospital-crowd-blob-v1'
+  // realism step 2: the soft contact shadow every live thing shares (one program with the layer's and the meal bots')
+  const blob = createContactShadowMaterial(CROWD_SHADOW_DARKNESS)
 
   const ring = new MeshBasicMaterial({ color: new Color(RING_COLORS.selected), transparent: true, opacity: 0.7, depthWrite: false, depthTest: false, toneMapped: false, side: DoubleSide, fog: false })
 

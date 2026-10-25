@@ -16,6 +16,11 @@ import furniture as fu
 from common import Frame
 from shell import line_box, paving
 
+try:                                    # the furniture kit (tools/arch/kit): the spine's benches
+    from kit import cafe as kcafe
+except Exception:                       # noqa: BLE001
+    kcafe = None
+
 LOBBY = (-62.0, -44.0, -6.0, 6.0)
 SPINE = (-44.0, -40.0, -16.0, 16.0)
 CH = 3.0
@@ -29,6 +34,12 @@ SKIP_DOORS = ('entrance',)
 POSES = [((-61.0, 0.0), (-44.0, 0.0)), ((-48.5, 1.5), (-51.5, -3.0)), ((-46.5, 0.0), (-62.0, 0.0)), ((-55.5, 0.5), (-59.6, 5.3))]
 # the reflection probe (env_lobby.hdr): the lobby centre at eye height
 PROBE = (-53.0, 1.6, 0.0)
+# runtime hints: the lobby builder's furniture (desk, seat rows, planters, side table; never the kiosks and screens) and the spine's benches
+# and planters (spine_furniture; src/scene/rooms/serviceRooms.ts)
+REPLACES = ['lobby', 'footprint:spine:*']
+# lightmap texels per m2 (generate.py plan_lightmaps; default 400): the hero space spends its whole 16 MB budget, as the approved bake did
+# (Terrazzo 2048, walls, plaster, oak and the desk 1024) before the per-material caps arrived; at 400 it came out at 8 MB, half the detail
+LIGHTMAP_DENSITY = 1600
 
 # accent swatches (materials.json Accent.palette): 0 ward A blue, 1 ward B green, 2 emergency red, 3 atrium orange, 4 diagnostics purple, 5 text grey
 DOOR_ACCENT = {'triage': 'Accent:2', 'er': 'Accent:2', 'imaging': 'Accent:4'}
@@ -204,6 +215,31 @@ def wayfinding(geo, pl):
     fu.exit_sign(geo, -60.9, -1.5)
 
 
+def spine_furniture(geo, plan):
+    """The spine's furniture on the sim's footprints (src/scene/rooms/serviceRooms.ts): two oak benches against the east wall facing west
+    (seat 0.42, an oak back on steel uprights) and four of the lobby's concrete planters with a fiddle-leaf fig."""
+    fps = {f['id']: f for f in plan['furniture']['footprints']}
+    for i, z in enumerate((-9.5, 9.5, -12, 12)):
+        f = fps.get(f'spine:planter{z:g}')
+        if f:
+            fu.planter(geo, f['x'], f['z'], r=0.3, seed=41 + i, height=0.5, plant_h=1.45)
+    if kcafe is None:
+        return
+    for z in (-5, 5):
+        f = fps.get(f'spine:bench{z}')
+        if not f:
+            continue
+        x, zc = f['x'] - 0.05, f['z']
+        kcafe.bench(geo, Frame(x, zc, -math.pi / 2), length=2.0, h=0.42, d=0.45)
+        # the back: steel uprights off the frames, three oak slats leaning back, on the east (wall) side
+        bx = x + 0.225
+        for dz in (-0.8, 0.8):
+            geo.box('Steel', bx - 0.012, 0.38, zc + dz - 0.012, bx + 0.012, 0.86, zc + dz + 0.012)
+        for j, y in enumerate((0.52, 0.64, 0.76)):
+            o = 0.018 * j
+            geo.box('Oak', bx + o - 0.01, y, zc - 0.98, bx + o + 0.01, y + 0.09, zc + 0.98)
+
+
 def build(ctx):
     geo, pl = ctx.geo, ctx.pl
     ceiling(geo)
@@ -211,6 +247,7 @@ def build(ctx):
     furniture(geo, ctx.plan)
     feature_wall(geo, pl)
     wayfinding(geo, pl)
+    spine_furniture(geo, ctx.plan)
     # the forecourt in front of the west façade (the pilot's extent: 14 m out, 8 m past the region north and south)
     paving(geo, -76.5, -62.0 - pl.T / 2, -24.5, 24.5)
     for (x, z) in DOWNLIGHTS:

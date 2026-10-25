@@ -53,29 +53,58 @@ def pedestal(k, w=0.4, d=0.55, h=0.58):
         k.box(sw(pt.MGREY), -0.08, y1 - 0.03, d / 2, 0.08, y1 - 0.015, d / 2 + 0.012)
 
 
-def office_chair(geo, f, node=None, upholstery='VinylGrey'):
+def office_chair(geo, f, node=None, upholstery='VinylGrey', seat_h=0.5, arms=True):
     """A task chair: a five-star base on twin-wheel castors, gas lift, a moulded seat with a cushion, an upholstered back on a back bar, T
-    arms. Origin: the column; the sitter faces local +z. Anchor: seat."""
+    arms. Origin: the column; the sitter faces local +z. `seat_h`: the cushion's top (0.5: the kit's default; a sim seat's height to put
+    the sitter on it: the gas lift is shorter or longer). Anchor: seat."""
     k = root(geo, f, node)
+    dy = seat_h - 0.5
     for i in range(5):
         a = 2 * math.pi * i / 5 + math.pi / 2
         ca, sa = math.cos(a), math.sin(a)
         k.tube(sw(pt.GRAPHITE), [(ca * 0.03, 0.1, sa * 0.03), (ca * 0.31, 0.075, sa * 0.31)], 0.018, seg=6)
         pt.castor(k, ca * 0.31, sa * 0.31, r=0.028, w=0.04, top=0.075, twin=True, swivel=a)
     k.vcyl(sw(pt.GRAPHITE), 0, 0.08, 0, 0.035, 0.12, seg=12)
-    k.vcyl(SS, 0, 0.2, 0, 0.014, 0.2, seg=10)
-    k.rbox(sw(pt.GRAPHITE), 0, 0.38, 0.02, 0.2, 0.05, 0.22, 0.03, axis='y', seg=2)
-    k.rbox(sw(pt.GRAPHITE), 0, 0.42, 0.02, 0.48, 0.025, 0.44, 0.06, axis='y', seg=3)
-    k.rbox(upholstery, 0, 0.44, 0.03, 0.48, 0.06, 0.45, 0.035, axis='x', seg=3)
-    k.tube(sw(pt.GRAPHITE), fillet([(0, 0.4, -0.08), (0, 0.42, -0.26), (0, 0.65, -0.29)], 0.05), 0.022, seg=8)
-    bk = k.at(0, 0.6, -0.27, rx=math.radians(-8))
+    k.vcyl(SS, 0, 0.2, 0, 0.014, max(0.05, 0.2 + dy), seg=10)
+    u = k.at(0, dy, 0) if dy else k
+    u.rbox(sw(pt.GRAPHITE), 0, 0.38, 0.02, 0.2, 0.05, 0.22, 0.03, axis='y', seg=2)
+    u.rbox(sw(pt.GRAPHITE), 0, 0.42, 0.02, 0.48, 0.025, 0.44, 0.06, axis='y', seg=3)
+    u.rbox(upholstery, 0, 0.44, 0.03, 0.48, 0.06, 0.45, 0.035, axis='x', seg=3)
+    u.tube(sw(pt.GRAPHITE), fillet([(0, 0.4, -0.08), (0, 0.42, -0.26), (0, 0.65, -0.29)], 0.05), 0.022, seg=8)
+    bk = u.at(0, 0.6, -0.27, rx=math.radians(-8))
     bk.rbox(upholstery, 0, 0, 0, 0.44, 0.48, 0.07, 0.06, axis='z', seg=4)
     bk.rbox(sw(pt.GRAPHITE), 0, 0.02, -0.04, 0.4, 0.44, 0.02, 0.05, axis='z', seg=3)
-    for s in (-1, 1):
-        k.tube(sw(pt.GRAPHITE), [(s * 0.2, 0.43, 0.0), (s * 0.24, 0.47, 0.0), (s * 0.24, 0.63, 0.02)], 0.012, seg=6)
-        k.rbox(sw(pt.GRAPHITE), s * 0.24, 0.63, 0.03, 0.07, 0.025, 0.24, 0.012, axis='z', seg=2)
+    if arms:
+        for s in (-1, 1):
+            u.tube(sw(pt.GRAPHITE), [(s * 0.2, 0.43, 0.0), (s * 0.24, 0.47, 0.0), (s * 0.24, 0.63, 0.02)], 0.012, seg=6)
+            u.rbox(sw(pt.GRAPHITE), s * 0.24, 0.63, 0.03, 0.07, 0.025, 0.24, 0.012, axis='z', seg=2)
     from .base import anchor
-    anchor(k, 'seat', 0, 0.48, 0.05)
+    anchor(k, 'seat', 0, 0.48 + dy, 0.05)
+    return k
+
+
+def pedestal_chair(geo, f, seat_h, back=(0.62, 0.95), arms=True, base_r=0.24, mat='VinylTeal', arm_h=0.15, lean=6.0, node=None):
+    """A chair on a round weighted base (no castors: theatre operators' chairs and stools, phlebotomy chairs): a graphite base disc with a
+    rubber ring, a gas lift, a moulded seat with a wipe-clean cushion whose top is `seat_h` (a sim seat's height), a back pad from back[0] to
+    back[1] on a bar, leaning `lean` degrees (None: a stool), padded arm rests `arm_h` above the seat. Origin: the column; the sitter faces +z."""
+    k = root(geo, f, node)
+    k.lathe(sw(pt.GRAPHITE), [(0.0, 0.0), (base_r, 0.0), (base_r, 0.012), (base_r - 0.03, 0.03), (0.0, 0.035)], seg=28)
+    k.lathe(sw(pt.BLACK), [(base_r - 0.004, 0.0), (base_r + 0.006, 0.006), (base_r - 0.004, 0.012)], seg=28)
+    k.vcyl(sw(pt.GRAPHITE), 0, 0.035, 0, 0.034, 0.16, seg=14)
+    k.vcyl(SS, 0, 0.195, 0, 0.016, seat_h - 0.08 - 0.195, seg=12)
+    k.rbox(sw(pt.GRAPHITE), 0, seat_h - 0.09, 0.0, 0.2, 0.03, 0.2, 0.02, axis='y', seg=2)
+    k.rbox(sw(pt.GRAPHITE), 0, seat_h - 0.07, 0.01, 0.44, 0.02, 0.42, 0.05, axis='y', seg=3)
+    k.rbox(mat, 0, seat_h - 0.055, 0.015, 0.44, 0.055, 0.43, 0.03, axis='x', seg=3)
+    if back:
+        b0, b1 = back
+        k.tube(sw(pt.GRAPHITE), fillet([(0, seat_h - 0.08, -0.06), (0, seat_h - 0.07, -0.23), (0, b0 + 0.05, -0.25)], 0.04), 0.018, seg=8)
+        bk = k.at(0, b0, -0.25, rx=math.radians(-lean))
+        bk.rbox(mat, 0, 0, 0, 0.42, b1 - b0, 0.06, 0.05, axis='z', seg=4)
+        bk.rbox(sw(pt.GRAPHITE), 0, 0.02, -0.035, 0.38, b1 - b0 - 0.04, 0.015, 0.04, axis='z', seg=3)
+    if arms:
+        for sd in (-1, 1):
+            k.tube(sw(pt.GRAPHITE), [(sd * 0.2, seat_h - 0.07, 0.0), (sd * 0.25, seat_h - 0.03, 0.0), (sd * 0.25, seat_h + arm_h, 0.02)], 0.011, seg=6)
+            k.rbox(mat, sd * 0.25, seat_h + arm_h, 0.03, 0.06, 0.03, 0.26, 0.012, axis='z', seg=2)
     return k
 
 

@@ -26,7 +26,9 @@
 import { Color, type DirectionalLight, type HemisphereLight, type MeshBasicMaterial, type MeshStandardMaterial, type Scene } from 'three'
 import { LIGHTING_FLAGS, type LightingFlags } from '@/scene/lighting/flags'
 import { liveLook } from '@/scene/lighting/liveLook'
+import { bakeState, bakeUniforms } from '@/scene/lighting/bake/uniforms'
 import {
+  BAKE_LIGHT,
   ENV_SWAP_AT,
   ENV_SWAP_BAND,
   HOSPITAL_ENV_MATCH,
@@ -122,6 +124,8 @@ export class DaylightDriver {
   private lobbyEnv = false
   private appliedFxLite = false
   private appliedRealism = false
+  /** Realism step 2: whether the bake field was ready at the last write. */
+  private appliedBakeReady = false
   private baseSensorColor: Color | null = null
   private baseSensorIntensity = 0
   private baseSensorEmissive: Color | null = null
@@ -173,6 +177,7 @@ export class DaylightDriver {
       lobby === this.lobbyEnv &&
       fxLite === this.appliedFxLite &&
       realism === this.appliedRealism &&
+      bakeState.ready === this.appliedBakeReady &&
       maxDifference(this.current, this.applied) < 1e-5
     )
       return
@@ -180,6 +185,7 @@ export class DaylightDriver {
     this.lobbyEnv = lobby
     this.appliedFxLite = fxLite
     this.appliedRealism = realism
+    this.appliedBakeReady = bakeState.ready
     this.apply(this.current, t)
     this.first = false
     this.pending = !t.sun || !t.hemi || !t.scene || !t.nightLights
@@ -280,6 +286,14 @@ export class DaylightDriver {
     u.uLvReflect.value = this.flags.reflect && !t.fxLite ? look.reflect : 0
     u.uLvPanelRad.value.copy(this.panelColor).multiplyScalar((t.ceilingEmissive ?? 0) * l.screens)
     u.uLvGlass.value = look.glass
+    // realism step 2: inside the authored building live objects take the bake's light (src/scene/lighting/bake), blended in with the walk look;
+    // the overview, ?bakelight=0, ?look=model and the procedural building (no field) keep the live light
+    const b = bakeUniforms
+    b.uBkOn.value = bakeState.force ?? (this.flags.bakeLight && !this.flags.model && bakeState.ready ? k : 0)
+    b.uBkGain.value = BAKE_LIGHT.gain
+    b.uBkKey.value = BAKE_LIGHT.key
+    b.uBkAo.value = this.flags.volume ? BAKE_LIGHT.ao : 0
+    // (uBkSpec is the baked materials' own reflection gain, reflections.ts uReflGain: Effects.tsx writes it)
     // the effects read these once a frame and act when `version` moves (Effects.tsx)
     liveLook.blend = k
     liveLook.hospitalEnv = this.hospitalEnv

@@ -84,6 +84,7 @@ export interface CrowdRig {
   blanketGeometry: InstancedBufferGeometry
   blobs: InstancedMesh
   blobFade: InstancedBufferAttribute
+  blobShape: InstancedBufferAttribute
   ring: Mesh
   ringMaterial: MeshBasicMaterial
   ringColors: [Color, Color]
@@ -165,11 +166,13 @@ export function createCrowdRig(): CrowdRig {
   blankets.receiveShadow = true
   blankets.visible = false
 
-  // blob shadows: a unit quad on the floor, a matrix and a fade per instance written by the model
+  // contact shadows (realism step 2): a unit quad on the floor, a matrix, a fade and a shape per instance written by the model
   const quad = new PlaneGeometry(1, 1)
   quad.rotateX(-Math.PI / 2)
   const blobFade = instancedAttr(model.blobFade, 1)
   quad.setAttribute('aFade', blobFade)
+  const blobShape = instancedAttr(model.blobShape, 4)
+  quad.setAttribute('aShape', blobShape)
   const blobs = new InstancedMesh(quad, mats.blob, MAX_BLOBS)
   blobs.instanceMatrix = instancedAttr(model.blobMatrix, 16)
   blobs.name = 'crowd-blobs'
@@ -208,6 +211,7 @@ export function createCrowdRig(): CrowdRig {
     blanketGeometry: bg,
     blobs,
     blobFade,
+    blobShape,
     ring,
     ringMaterial: mats.ring,
     ringColors: [new Color(RING_COLORS.selected), new Color(RING_COLORS.followed)],
@@ -413,6 +417,7 @@ export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, c
   if (st.blobs > 0) {
     uploadFirst(r.blobs.instanceMatrix, st.blobs * 16)
     uploadFirst(r.blobFade, st.blobs)
+    uploadFirst(r.blobShape, st.blobs * 4)
   }
   const pm = r.avatars
   if (pm) {

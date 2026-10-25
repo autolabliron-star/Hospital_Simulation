@@ -26,6 +26,80 @@ export const VERT_MAIN = /* glsl */ `
 }
 `
 
+/**
+ * Step 2 of the realism pass: the bake-matched light on live objects (../bake/field.ts, ../bake/uniforms.ts). Declarations, part of FRAG_PARS.
+ */
+export const BAKE_PARS = /* glsl */ `
+uniform highp sampler3D uBkField;
+uniform vec4 uBkGeom;
+uniform float uBkSplitY;
+uniform float uBkOn;
+uniform float uBkGain;
+uniform float uBkSpec;
+uniform float uBkKey;
+uniform float uBkAo;
+`
+
+/** A slice of the field at its texel centre (7 slices per storey, 14 in all; `bkPage` is 0 or 7). */
+const bkSlice = (i: number): string => `textureLod( uBkField, vec3( bkUv, ( bkPage + ${i}.5 ) / 14.0 ), 0.0 )`
+
+/**
+ * Where float `f` of a cell (coefficient i, channel c at f = 3 i + c; the weight at 27) lives in the field: texel f / 4, component f % 4
+ * (../bake/field.ts packs it so). The GLSL below is generated from this rule, and a test holds it to the packing.
+ */
+export function bakeFloatAt(f: number): { texel: number; component: number } {
+  return { texel: Math.floor(f / 4), component: f % 4 }
+}
+
+const COMPONENT = 'rgba'
+/** `bkC[i] = vec3( ... );` for the nine coefficients, read from the texels bk0..bk6. */
+const BAKE_UNPACK = Array.from({ length: 9 }, (_, i) => {
+  const parts = [0, 1, 2].map((c) => {
+    const at = bakeFloatAt(i * 3 + c)
+    return `bk${at.texel}.${COMPONENT[at.component]}`
+  })
+  return `\t\tbkC[ ${i} ] = vec3( ${parts.join(', ')} );`
+}).join('\n')
+
+/**
+ * Part of FRAG_LV, after the light volume's block (whose ambient occlusion it may reuse, `lvKeep`). Where the field's weight is above 0 (an
+ * authored zone, `uBkOn` > 0: walking, the field built), the live light a surface got is replaced, by that weight, with the light the zone was
+ * BAKED with:
+ *   - the hemisphere, the ambient and the volume's panel and sky light (`irradiance`) go;
+ *   - the environment's diffuse (`iblIrradiance`, the bound probe through the PMREM at the driver's intensity) becomes the zone's SH9 irradiance
+ *     at this normal (three's own `shGetIrradianceAt`), at the bake's own scale, darkened a little by the volume's AO (`uBkAo`);
+ *   - the direct lights (the sun) keep `uBkKey` of themselves;
+ *   - the environment's specular takes the baked materials' own gain (`uBkSpec` = reflections.ts uReflGain).
+ * The weight is read first (one fetch) and the other six slices only where it is not 0, so the plaza and the overview pay one fetch or nothing.
+ */
+export const BAKE_MAIN = /* glsl */ `
+if ( uBkOn > 0.0 ) {
+	vec2 bkUv = ( vLvPos.xz - uBkGeom.xy ) * uBkGeom.zw;
+	float bkPage = vLvPos.y > uBkSplitY ? 7.0 : 0.0;
+	vec4 bk6 = ${bkSlice(6)};
+	float bkW = clamp( bk6.${COMPONENT[bakeFloatAt(27).component]}, 0.0, 1.0 ) * uBkOn;
+	if ( bkW > 0.002 ) {
+		vec4 bk0 = ${bkSlice(0)};
+		vec4 bk1 = ${bkSlice(1)};
+		vec4 bk2 = ${bkSlice(2)};
+		vec4 bk3 = ${bkSlice(3)};
+		vec4 bk4 = ${bkSlice(4)};
+		vec4 bk5 = ${bkSlice(5)};
+		vec3 bkC[ 9 ];
+${BAKE_UNPACK}
+		vec3 bkN = transformNormalByInverseViewMatrix( geometryNormal, viewMatrix );
+		vec3 bkE = max( shGetIrradianceAt( bkN, bkC ), vec3( 0.0 ) ) * ( uBkOn * uBkGain * mix( 1.0, lvKeep, uBkAo ) );
+		irradiance *= 1.0 - bkW;
+		iblIrradiance = iblIrradiance * ( 1.0 - bkW ) + bkE;
+		reflectedLight.directDiffuse *= 1.0 - bkW * ( 1.0 - uBkKey );
+		reflectedLight.directSpecular *= 1.0 - bkW * ( 1.0 - uBkKey );
+		#if defined( RE_IndirectSpecular )
+			radiance *= mix( 1.0, uBkSpec, bkW );
+		#endif
+	}
+}
+`
+
 /** Declarations, spliced after `#include <common>` in the fragment shader. `highp` is explicit: a sampler3D defaults to lowp. */
 export const FRAG_PARS = /* glsl */ `
 varying vec3 vLvPos;
@@ -37,7 +111,7 @@ uniform float uLvIndoor;
 uniform float uLvAo;
 uniform vec3 uLvPanel;
 uniform vec3 uLvSky;
-`
+${BAKE_PARS}`
 
 /**
  * After `#include <lights_fragment_maps>`, where `irradiance` (hemisphere light), `iblIrradiance` and `radiance` (the environment, diffuse and
@@ -52,6 +126,7 @@ uniform vec3 uLvSky;
  */
 export const FRAG_LV = /* glsl */ `
 #if defined( RE_IndirectDiffuse )
+float lvKeep = 1.0;
 if ( uLvOn > 0.5 ) {
 	vec3 lvN = transformNormalByInverseViewMatrix( geometryNormal, viewMatrix );
 	vec3 lvUvw = ( vLvPos + lvN * 0.2 - uLvOrigin ) / uLvSize;
@@ -70,7 +145,9 @@ if ( uLvOn > 0.5 ) {
 	#if defined( RE_IndirectSpecular )
 		radiance *= lvOcc;
 	#endif
+	lvKeep = lvOcc;
 }
+${BAKE_MAIN}
 #endif
 `
 

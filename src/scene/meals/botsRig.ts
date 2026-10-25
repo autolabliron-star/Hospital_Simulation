@@ -13,11 +13,11 @@
  * and the first meal run never hitches on a compile (the draw costs nothing: no pixels).
  * Nothing is allocated in `step`: scratch objects live at module level, the per-bot callback is built once.
  */
-import { Color, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshStandardMaterial, Object3D } from 'three'
+import { Color, Float32BufferAttribute, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshStandardMaterial, Object3D } from 'three'
 import { MAT, STATUS } from '@/scene/materials'
 import type { LivingDayView, MealBot, MealBotLight } from '@/sim/types'
 import { botDoorGeometry, botRingGeometry, botShadowGeometry, botStaticGeometry, DOOR_ORIGIN } from './botParts'
-import { createBlobMaterial } from './blob'
+import { createContactShadowMaterial } from '@/scene/lighting/contact/material'
 import { patchMaterialLook } from '@/scene/lighting/palettePatch'
 import { emissiveFollowsInstanceColor, FADE_ATTRIBUTE, fadeMaterial } from './ditherFade'
 import { hideAll, primeColors } from './instancing'
@@ -59,6 +59,19 @@ export interface MealBotsRig {
   dispose(): void
 }
 
+/**
+ * The meal bot's contact shadow: how dark under it, and its shape (half x, half z, corner radius, penumbra; metres): the 0.6 x 1.1 m body
+ * (MEALBOT_SIZE) and its bumpers, inside the 1.0 x 1.55 m shadow quad with the penumbra.
+ */
+export const MEALBOT_SHADOW_DARKNESS = 0.55
+const SHADOW_SHAPE = [0.31, 0.57, 0.12, 0.17] as const
+
+function shadowShape(vertices: number): Float32Array {
+  const a = new Float32Array(vertices * 4)
+  for (let i = 0; i < vertices; i++) a.set(SHADOW_SHAPE, i * 4)
+  return a
+}
+
 export function createMealBotsRig(): MealBotsRig {
   const fadeAttr = new InstancedBufferAttribute(new Float32Array(N), 1)
   const geos = { statics: botStaticGeometry(), door: botDoorGeometry(), ring: botRingGeometry(), shadow: botShadowGeometry() }
@@ -71,7 +84,9 @@ export function createMealBotsRig(): MealBotsRig {
   // W3: lit like the palette around them (the baked light volume), composed after the fade patch
   patchMaterialLook(bodyMat, 'plain')
   patchMaterialLook(ringMat, 'plain')
-  const shadowMat = fadeMaterial(createBlobMaterial(), 'alpha', 'mealbot-shadow')
+  // realism step 2: the soft contact shadow every live thing shares (src/scene/lighting/contact), its fade from `aFade`
+  const shadowMat = createContactShadowMaterial(MEALBOT_SHADOW_DARKNESS)
+  geos.shadow.setAttribute('aShape', new Float32BufferAttribute(shadowShape(geos.shadow.attributes.position.count), 4))
 
   const statics = new InstancedMesh(geos.statics, bodyMat, N)
   const door = new InstancedMesh(geos.door, bodyMat, N)
@@ -162,7 +177,6 @@ export function createMealBotsRig(): MealBotsRig {
       for (const g of Object.values(geos)) g.dispose()
       bodyMat.dispose()
       ringMat.dispose()
-      shadowMat.map?.dispose()
       shadowMat.dispose()
     },
   }

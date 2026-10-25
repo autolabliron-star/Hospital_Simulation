@@ -23,7 +23,9 @@ import { BUILDING_MODEL_ON } from '@/scene/building/model/flags'
 import { getBuildingSource, getManifest, whenBuildingSourceKnown } from '@/scene/building/model/source'
 import { LOBBY_BOX, LOBBY_PROBE_POS, setReflectionBox } from '@/scene/building/model/reflections'
 import { inPilotRegion } from '@/scene/building/model/region'
-import { zoneContainsDrawn, zoneDef, type ZoneDef } from '@/scene/building/model/zones'
+import { zoneContainsDrawn, zoneDef, zoneDistance, type ZoneDef } from '@/scene/building/model/zones'
+import type { FieldSource } from '@/scene/lighting/bake/field'
+import { projectEquirectSH, type EquirectImage } from '@/scene/lighting/bake/sh'
 import type { Bounds, BuildingManifest } from '@/scene/building/model/manifest'
 import { LEVEL_Y, type LevelId } from '@/sim/levels'
 
@@ -47,6 +49,8 @@ export interface ZoneProbeEntry {
   box: Bounds
   /** The PMREM texture once loaded (per-zone binding), else null. */
   texture: Texture | null
+  /** (Realism step 2) the probe's diffuse light as SH9 (../bake/sh.ts), projected from the HDR when it loaded, else null. */
+  sh: Float32Array | null
 }
 
 const entries: ZoneProbeEntry[] = []
@@ -58,13 +62,13 @@ const LOBBY_LEGACY_BOX: Bounds = { ...LOBBY_BOX }
 
 /** The probes of a building source (pure; tests call it with a manifest). */
 export function probeEntriesFor(source: 'pilot' | 'zones', manifest: BuildingManifest | null): ZoneProbeEntry[] {
-  const legacy = (zone: string, def: ZoneDef | null): ZoneProbeEntry => ({ zone, level: 1, def, file: LOBBY_ENV_FILE, eye: { ...LOBBY_PROBE_POS }, box: LOBBY_LEGACY_BOX, texture: null })
+  const legacy = (zone: string, def: ZoneDef | null): ZoneProbeEntry => ({ zone, level: 1, def, file: LOBBY_ENV_FILE, eye: { ...LOBBY_PROBE_POS }, box: LOBBY_LEGACY_BOX, texture: null, sh: null })
   if (source === 'pilot' || !manifest) return [legacy('pilot', null)]
   const out: ZoneProbeEntry[] = []
   for (const z of manifest.zones) {
     const def = zoneDef(z.id)
     if (!z.probe || !def) continue
-    out.push({ zone: z.id, level: z.level, def, file: `assets/building/${z.probe.hdr}`, eye: { ...z.probe.position }, box: z.probe.box, texture: null })
+    out.push({ zone: z.id, level: z.level, def, file: `assets/building/${z.probe.hdr}`, eye: { ...z.probe.position }, box: z.probe.box, texture: null, sh: null })
   }
   if (out.length === 0 && manifest.zones.some((z) => z.id === 'lobby')) out.push(legacy('lobby', zoneDef('lobby') ?? null))
   return out
@@ -131,9 +135,22 @@ export interface LobbyEnvDeps {
   pmrem(source: Texture): WebGLRenderTarget
 }
 
-async function loadProbe(gl: WebGLRenderer, url: string, deps?: LobbyEnvDeps): Promise<WebGLRenderTarget | null> {
+/** The SH9 of a loaded equirect HDR texture (its CPU data), or null when it carries none (a test double, a texture without data). */
+export function probeSH(source: Texture): Float32Array | null {
+  const img = source.image as Partial<EquirectImage> | null | undefined
+  if (!img || typeof img.width !== 'number' || typeof img.height !== 'number' || !img.data || img.width <= 0 || img.height <= 0) return null
+  try {
+    return projectEquirectSH(img as EquirectImage)
+  } catch {
+    return null
+  }
+}
+
+async function loadProbe(gl: WebGLRenderer, url: string, deps?: LobbyEnvDeps, entry?: ZoneProbeEntry): Promise<WebGLRenderTarget | null> {
   try {
     const source = await (deps ? deps.load(url) : new HDRLoader().loadAsync(url))
+    // the diffuse light for live objects (realism step 2): from the CPU data, before the PMREM and before the source is freed
+    if (entry) entry.sh = probeSH(source)
     source.mapping = EquirectangularReflectionMapping
     let target: WebGLRenderTarget
     if (deps) target = deps.pmrem(source)
@@ -153,7 +170,7 @@ async function loadProbe(gl: WebGLRenderer, url: string, deps?: LobbyEnvDeps): P
 export async function loadLobbyEnvironment(gl: WebGLRenderer, base: string, deps?: LobbyEnvDeps): Promise<WebGLRenderTarget | null> {
   await whenBuildingSourceKnown(base)
   syncEntries()
-  const target = await loadProbe(gl, `${base}${primary?.file ?? LOBBY_ENV_FILE}`, deps)
+  const target = await loadProbe(gl, `${base}${primary?.file ?? LOBBY_ENV_FILE}`, deps, primary ?? undefined)
   if (target && primary) primary.texture = target.texture
   return target
 }
@@ -164,7 +181,7 @@ export async function loadZoneProbes(gl: WebGLRenderer, base: string, deps?: Lob
   syncEntries()
   const targets: WebGLRenderTarget[] = []
   for (const e of entries) {
-    const t = await loadProbe(gl, `${base}${e.file}`, deps)
+    const t = await loadProbe(gl, `${base}${e.file}`, deps, e)
     if (!t) continue
     e.texture = t.texture
     targets.push(t)
@@ -174,11 +191,57 @@ export async function loadZoneProbes(gl: WebGLRenderer, base: string, deps?: Lob
     textures: targets.map((t) => t.texture),
     dispose: () => {
       perZone = false
-      for (const e of entries) e.texture = null
+      for (const e of entries) {
+        e.texture = null
+        e.sh = null
+      }
       current = null
       for (const t of targets) t.dispose()
     },
   }
+}
+
+/**
+ * (Realism step 2) Who lights live objects where (../bake/field.ts): every probe that loaded, over its zone's rects (the pilot's over the pilot
+ * region); and every other zone the manifest lists (authored, so its walls are baked too) borrows the SH of the nearest loaded probe on its
+ * storey (`imaging<-lobby`: the imaging zone ships no probe today). Zones the manifest does not list keep the live light. Pure.
+ */
+export function fieldSourcesFor(list: readonly ZoneProbeEntry[], manifest: BuildingManifest | null): FieldSource[] {
+  const out: FieldSource[] = []
+  const lit = list.filter((e) => e.sh !== null)
+  for (const e of lit) {
+    const def = e.def
+    out.push({
+      name: e.zone,
+      level: e.level,
+      contains: def ? (x, z) => zoneContainsDrawn(def, x, z) : (x, z) => inPilotRegion(x, z),
+      sh: e.sh as Float32Array,
+    })
+  }
+  if (!manifest) return out
+  for (const z of manifest.zones) {
+    if (lit.some((e) => e.zone === z.id)) continue
+    const def = zoneDef(z.id)
+    if (!def) continue
+    let best: ZoneProbeEntry | null = null
+    let bestD = Infinity
+    for (const e of lit) {
+      if (e.level !== def.level) continue
+      const d = zoneDistance(def, e.eye.x, e.eye.z)
+      if (d < bestD) {
+        bestD = d
+        best = e
+      }
+    }
+    if (!best) continue
+    out.push({ name: `${z.id}<-${best.zone}`, level: def.level, contains: (x, zz) => zoneContainsDrawn(def, x, zz), sh: best.sh as Float32Array })
+  }
+  return out
+}
+
+/** `fieldSourcesFor` over the loaded registry and the decided manifest. */
+export function bakeFieldSources(): FieldSource[] {
+  return fieldSourcesFor(entries, getBuildingSource() === 'zones' ? getManifest() : null)
 }
 
 /** The registry, for tests. */

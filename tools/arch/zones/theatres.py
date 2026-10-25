@@ -36,7 +36,7 @@ from shell import R, line_box, ribbon_glazing
 try:
     from kit import arch, cafe, er, patient, support, theatre
     from kit import parts as pt
-    from kit.base import root
+    from kit.base import fillet, root
     from kit.parts import sw
 except Exception:      # noqa: BLE001  (no kit: build() falls back to the shell)
     arch = None
@@ -61,8 +61,8 @@ FLOORS = {'l2Or': 'TheatreFloor', 'l2Hall': 'TheatreFloor', 'l2Corridor': 'Terra
           'l2LiftA': 'Terrazzo', 'l2LiftB': 'Terrazzo'}
 
 # --- runtime hints ---
-# the procedural furniture this design draws instead (src/scene/rooms/surgery/shell.ts footprints). The OR (or.ts) is NOT replaced: its
-# table, consoles, carts, robot, lights and screens are procedural / animated and stay exactly where they are.
+# the procedural furniture this design draws instead (src/scene/rooms/surgery/shell.ts footprints). In the OR (or.ts) only the static
+# furniture is replaced (or_furniture); its table, consoles, carts, robot, lights and screens are procedural / animated and stay.
 REPLACES = [
     'footprint:l2:preop:bed*',        # trolley, monitor pole (the live monitor's bezel stays: metalDark above 1 m), IV pole, per bay
     'footprint:l2:preop:div*',        # bay curtains
@@ -82,6 +82,14 @@ REPLACES = [
     'footprint:l2:hall:scrub',
     'footprint:l2:hall:cabinet',
     'footprint:l2:corridor:bench*',
+    # the theatre's static furniture (or_furniture): back table, Mayo stand, the anaesthetist's stool, the console chairs (with the consoles'
+    # foot pedals, which stand in the chairs' footprints), the circulator's desk (its monitor, stand and keyboard stay: metalDark above 1 m)
+    'footprint:l2:or:backtable',
+    'footprint:l2:or:mayo',
+    'footprint:l2:or:stool',
+    'footprint:l2:or:console:surgeon:chair',
+    'footprint:l2:or:console:teach:chair',
+    'footprint:l2:or:desk',
 ]
 
 # review stills (plan x, z) -> look at (x, z), eye 1.6 m above the level-2 floor, 24 mm
@@ -395,6 +403,59 @@ def screen_stand(k, x, z, y0, y1):
     """A slim desk stand under one of the procedural screens (they float over the top otherwise)."""
     k.rbox(sw(pt.GRAPHITE), x, y0, z, 0.2, 0.012, 0.15, 0.03, axis='y', seg=3)
     k.vcyl(sw(pt.GRAPHITE), x, y0, z - 0.03, 0.017, y1 - y0, seg=12)
+
+
+def or_furniture(ctx):
+    """The theatre's static furniture on the procedural room's own footprints and seats (src/scene/rooms/surgery/or.ts; places.ts SURGERY),
+    baked so it takes the room's light and contact shadows: the draped back table, the Mayo stand at the table's foot, the anaesthetist's
+    stool, the two console operators' chairs with the consoles' foot pedals (they stand in the chairs' footprints), the circulator's standing
+    desk. The devices stay procedural and live: table, robot cart, consoles, vision cart, anaesthesia machine, lights, pendant, boom, every
+    screen and bezel (the desk's monitor, its stand and the keyboard stay too: metalDark above 1 m)."""
+    geo = ctx.geo
+    fp = ctx.fur['footprints']
+    seats = {s['id']: s for s in ctx.fur['seats']}
+    # the back table (places.ts SURGERY.backTable: 0.75 x 1.5 m, its long side along z; top 0.9 m), draped, instruments laid out
+    bt = fp.get('l2:or:backtable')
+    if bt:
+        theatre.instrument_table(geo, Frame(bt['x'] + 0.0375, bt['z'], math.pi / 2), w=1.5, d=0.72, h=0.9, draped=True)
+    # the Mayo stand: its column south of the tray, the tray cantilevered north over the table's foot (0.95 m)
+    my = fp.get('l2:or:mayo')
+    if my:
+        theatre.mayo_stand(geo, Frame(my['x'], my['z'] + 0.05, math.pi), h=0.98)
+    # the anaesthetist's stool (seat 0.55, a low back)
+    st = seats.get('console:or:anaes')
+    if st:
+        support.pedestal_chair(geo, Frame(st['x'], st['z'], st['heading']), st['height'], back=(st['height'] + 0.08, st['height'] + 0.26), arms=False,
+                       base_r=0.23)
+    # the console operators' chairs (seat 0.45, facing west to the viewer) and each console's foot pedals: a graphite tray with five pedals,
+    # 0.5..0.78 m in front of the console's centre (or.ts buildConsole)
+    for who in ('surgeon', 'teach'):
+        s = seats.get('console:or:' + who)
+        if s:
+            support.pedestal_chair(geo, Frame(s['x'], s['z'], s['heading']), s['height'], back=(s['height'] + 0.03, s['height'] + 0.5))
+        con = fp.get('l2:or:console:' + who)
+        if con:
+            k = root(geo, Frame(con['x'], con['z'], con['rotationY']))
+            k.box(sw(pt.GRAPHITE), -0.28, 0.0, 0.5, 0.28, 0.04, 0.78, bev=0.008)
+            for i in range(5):
+                x = -0.24 + i * 0.12
+                k.box(sw(pt.GRAPHITE if i % 2 else pt.MGREY), x - 0.04, 0.04, 0.56, x + 0.04, 0.07, 0.7, bev=0.006)
+                k.box('Rubber', x - 0.036, 0.07, 0.58, x + 0.036, 0.074, 0.68)
+    # the circulator's standing desk against the north wall (1.4 x 0.42, top 1.0 m): a white carcass on a recessed plinth, three drawers,
+    # an oak top; a phone and a document tray on it (the monitor, its stand and the keyboard are procedural)
+    dk = fp.get('l2:or:desk')
+    if dk:
+        k = root(geo, Frame(dk['x'], dk['z'], 0.0))
+        k.box('ShadowGap', -0.66, 0.0, -0.19, 0.66, 0.08, 0.17)
+        k.box('SolidSurface', -0.7, 0.08, -0.21, 0.7, 0.96, 0.21, bev=0.006)
+        for i in range(3):
+            x0 = -0.68 + i * 0.4533
+            k.box('SolidSurface', x0 + 0.004, 0.55, 0.21, x0 + 0.449, 0.93, 0.218, bev=0.003)
+            k.box(sw(pt.MGREY), x0 + 0.13, 0.9, 0.218, x0 + 0.32, 0.912, 0.232, bev=0.003)
+        k.box('Oak', -0.73, 0.96, -0.23, 0.73, 1.0, 0.23, bev=0.004)
+        k.rbox(sw(pt.WHITE), 0.45, 1.0, 0.08, 0.14, 0.03, 0.16, 0.015, axis='y', seg=2)
+        k.box(sw(pt.GRAPHITE), 0.41, 1.03, 0.04, 0.49, 1.045, 0.12, bev=0.004)
+        k.box(sw(pt.LGREY), -0.62, 1.0, -0.05, -0.36, 1.03, 0.15, bev=0.004)
 
 
 # --- rooms ------------------------------------------------------------------------------------------------------------------------------------
@@ -776,6 +837,7 @@ def build(ctx):
         return
     facades(ctx)
     operating_room(ctx)
+    or_furniture(ctx)
     hall(ctx)
     preop(ctx)
     pacu(ctx)

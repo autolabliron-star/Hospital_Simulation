@@ -20,11 +20,13 @@ import { useFrame } from '@react-three/fiber'
 import { BoxGeometry, Color, Object3D, type InstancedMesh } from 'three'
 import { MEDICINES } from '@/content/catalogue'
 import { MAT, STATUS } from '@/scene/materials'
+import { registerStaticShadows } from '@/scene/lighting/contact/layoutShadows'
+import { LEVEL_Y } from '@/sim/levels'
 import { hideInstances } from '@/scene/robots/instancing'
 import { ensureTintedGlow } from '@/scene/robots/tintGlow'
 import { loop, sim } from '@/sim'
 import { followTray, handTargets, trayPackPose, type HandTargets, type PackPose } from './gantryMotion'
-import { dockIndex, DOCKS, FACE_SIGN, MV, PACK, TRAY, TRAY_TRAVEL, WARDS } from './layout'
+import { dockIndex, DOCKS, FACE_SIGN, ISLAND, ISLAND_CX, MV, PACK, TRAY, TRAY_TRAVEL, WARDS } from './layout'
 import { binGeometry, binInstances, binTint, GANTRY_INSTANCES, GANTRY_PARTS, packGeometry, packInstances, TRAY_BASE } from './medvendParts'
 
 ensureTintedGlow()
@@ -93,6 +95,16 @@ export function MedVend() {
     },
     [data],
   )
+
+  // realism step 2: the dispensing island's soft contact shadow on the core's floor (anchored on the bins: none while level 1 is hidden)
+  useEffect(() => {
+    const b = bins.current
+    if (!b) return
+    const half = { x: (ISLAND.x1 - ISLAND.x0) / 2, z: (ISLAND.z1 - ISLAND.z0) / 2 }
+    return registerStaticShadows('medvend', b, [
+      { x: ISLAND_CX, y: LEVEL_Y[1], z: (ISLAND.z0 + ISLAND.z1) / 2, heading: 0, halfX: half.x, halfZ: half.z, radius: 0.1, pen: 0.3, darkness: 0.5 },
+    ])
+  }, [])
 
   // the stocked bins and packs never move: write them once
   useLayoutEffect(() => {

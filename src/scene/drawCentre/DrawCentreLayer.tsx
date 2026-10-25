@@ -10,7 +10,9 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useFocus } from '@/scene/camera/focus.store'
+import { getLayout } from '@/scene/building/layout'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { layoutShadows, registerStaticShadows } from '@/scene/lighting/contact/layoutShadows'
 import { loop, sim } from '@/sim'
 import { usePower } from '@/app/power'
 import { createCallAnnouncer } from '@/audio/devices/speech'
@@ -27,6 +29,12 @@ const ANNOUNCE_MS = 250
 
 export function DrawCentreLayer() {
   const rig = useMemo(() => createDrawRig(stripMaterial()), [])
+
+  // realism step 2: soft contact shadows under the robots, the prep machine, check-in and the send station (the chairs and bench are baked)
+  useEffect(
+    () => registerStaticShadows('draw-centre', rig.root, layoutShadows(getLayout().footprints, (id) => /^draw:(robot\d+|prep|checkin|send)$/.test(id), { darkness: 0.5, pen: 0.22 })),
+    [rig],
+  )
 
   useEffect(() => {
     const undoTiles = registerDrawTiles()

@@ -69,6 +69,8 @@ export const FRAME_PRIORITY = {
   lab: -0.22,
   w4Screens: -0.21,
   bedsWall: -0.2,
+  /** Realism step 2: the soft contact shadows follow their sources after every layer above has moved them (src/scene/lighting/contact). */
+  contactShadows: -0.05,
   labels: 0,
 } as const
 

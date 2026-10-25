@@ -69,8 +69,8 @@
     "y1": 3.32
    },
    "draws": 24,
-   "tris": 27982,
-   "lightmapMB": 15.44,
+   "tris": 34166,
+   "lightmapMB": 15.25,
    "probe": "zones/lobby/env_lobby.hdr",
    "probeAt": [
     -53,
@@ -79,15 +79,19 @@
    ],
    "proxy": {
     "glb": "zones/lobby/lobby.proxy.glb",
-    "tris": 6394,
+    "tris": 9407,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 1.126,
-    "kb": 512
+    "scale": 1.647,
+    "kb": 610
    },
    "nodes": [],
-   "bakeSeconds": 799,
-   "bakedAt": "2026-10-22T14:17:26.954Z",
+   "replaces": [
+    "lobby",
+    "footprint:spine:*"
+   ],
+   "bakeSeconds": 974,
+   "bakedAt": "2026-10-25T10:58:46.859Z",
    "validator": {
     "errors": 0,
     "warnings": 43
@@ -153,7 +157,7 @@
    },
    "draws": 27,
    "tris": 168148,
-   "lightmapMB": 10,
+   "lightmapMB": 11,
    "probe": "zones/er/env_er.hdr",
    "probeAt": [
     -53,
@@ -163,22 +167,23 @@
    "anchors": "zones/er/anchors.json",
    "proxy": {
     "glb": "zones/er/er.proxy.glb",
-    "tris": 41548,
+    "tris": 41634,
     "mb": 1.33,
     "atlas": 1024,
     "scale": 1.708,
-    "kb": 989
+    "kb": 975
    },
    "nodes": [],
    "replaces": [
     "footprint:er:*",
-    "footprint:triage:*"
+    "footprint:triage:*",
+    "rect:-62.15,-61.85,11.8,16.2"
    ],
    "visibleFrom": [
     "lobby"
    ],
-   "bakeSeconds": 435,
-   "bakedAt": "2026-10-24T19:39:38.254Z",
+   "bakeSeconds": 679,
+   "bakedAt": "2026-10-25T09:20:44.233Z",
    "validator": {
     "errors": 0,
     "warnings": 36
@@ -249,15 +254,15 @@
     "y1": 3.06
    },
    "draws": 28,
-   "tris": 63420,
+   "tris": 68964,
    "lightmapMB": 10.08,
    "proxy": {
     "glb": "zones/imaging/imaging.proxy.glb",
-    "tris": 20012,
+    "tris": 20820,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 2.594,
-    "kb": 761
+    "scale": 2.643,
+    "kb": 770
    },
    "nodes": [],
    "replaces": [
@@ -286,14 +291,20 @@
     "footprint:imaging:sink",
     "footprint:draw:bench",
     "footprint:imaging:cubicles:bench*",
-    "rect:-23.6,-23.3,3.8,8.2"
+    "rect:-23.6,-23.3,3.8,8.2",
+    "footprint:imaging:cubicles:part*",
+    "rect:-36.9,-36.3,-3.7,-2.9",
+    "rect:-27.9,-27.3,-3.7,-2.9",
+    "rect:-27.2,-26.6,9.9,10.45",
+    "rect:-25.5,-24.9,9.9,10.45",
+    "rect:-23.8,-23.2,9.9,10.45"
    ],
    "visibleFrom": [
     "lobby",
     "core"
    ],
-   "bakeSeconds": 505,
-   "bakedAt": "2026-10-24T19:48:16.113Z",
+   "bakeSeconds": 531,
+   "bakedAt": "2026-10-25T10:29:02.689Z",
    "validator": {
     "errors": 0,
     "warnings": 49
@@ -368,7 +379,7 @@
    },
    "draws": 31,
    "tris": 194162,
-   "lightmapMB": 12.33,
+   "lightmapMB": 13.33,
    "probe": "zones/wardA/env_wardA.hdr",
    "probeAt": [
     0,
@@ -378,11 +389,11 @@
    "anchors": "zones/wardA/anchors.json",
    "proxy": {
     "glb": "zones/wardA/wardA.proxy.glb",
-    "tris": 43082,
+    "tris": 43144,
     "mb": 1.33,
     "atlas": 1024,
     "scale": 1.837,
-    "kb": 1142
+    "kb": 1130
    },
    "nodes": [],
    "replaces": [
@@ -397,8 +408,8 @@
     "core",
     "atrium"
    ],
-   "bakeSeconds": 549,
-   "bakedAt": "2026-10-24T19:08:15.756Z",
+   "bakeSeconds": 843,
+   "bakedAt": "2026-10-25T09:50:02.567Z",
    "validator": {
     "errors": 0,
     "warnings": 49
@@ -467,7 +478,7 @@
    },
    "draws": 28,
    "tris": 198294,
-   "lightmapMB": 12.08,
+   "lightmapMB": 13.08,
    "probe": "zones/wardB/env_wardB.hdr",
    "probeAt": [
     0,
@@ -477,11 +488,11 @@
    "anchors": "zones/wardB/anchors.json",
    "proxy": {
     "glb": "zones/wardB/wardB.proxy.glb",
-    "tris": 46674,
+    "tris": 46730,
     "mb": 1.33,
     "atlas": 1024,
     "scale": 1.837,
-    "kb": 1190
+    "kb": 1178
    },
    "nodes": [],
    "replaces": [
@@ -496,8 +507,8 @@
     "core",
     "atrium"
    ],
-   "bakeSeconds": 498,
-   "bakedAt": "2026-10-24T19:30:59.751Z",
+   "bakeSeconds": 821,
+   "bakedAt": "2026-10-25T10:05:30.986Z",
    "validator": {
     "errors": 0,
     "warnings": 40
@@ -754,7 +765,7 @@
     "y1": 7.26
    },
    "draws": 34,
-   "tris": 175326,
+   "tris": 183302,
    "lightmapMB": 13.77,
    "probe": "zones/theatres/env_theatres.hdr",
    "probeAt": [
@@ -765,11 +776,11 @@
    "anchors": "zones/theatres/anchors.json",
    "proxy": {
     "glb": "zones/theatres/theatres.proxy.glb",
-    "tris": 37536,
+    "tris": 38541,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 1.726,
-    "kb": 1058
+    "scale": 1.641,
+    "kb": 1056
    },
    "nodes": [],
    "replaces": [
@@ -790,10 +801,16 @@
     "footprint:l2:sterile:*",
     "footprint:l2:hall:scrub",
     "footprint:l2:hall:cabinet",
-    "footprint:l2:corridor:bench*"
+    "footprint:l2:corridor:bench*",
+    "footprint:l2:or:backtable",
+    "footprint:l2:or:mayo",
+    "footprint:l2:or:stool",
+    "footprint:l2:or:console:surgeon:chair",
+    "footprint:l2:or:console:teach:chair",
+    "footprint:l2:or:desk"
    ],
-   "bakeSeconds": 668,
-   "bakedAt": "2026-10-24T19:20:59.014Z",
+   "bakeSeconds": 781,
+   "bakedAt": "2026-10-25T10:19:55.205Z",
    "validator": {
     "errors": 0,
     "warnings": 57
@@ -1129,11 +1146,11 @@
  },
  "totals": {
   "draws": 208,
-  "tris": 1077458,
-  "lightmapMB": 91.79,
-  "textureMB": 121.94,
+  "tris": 1097162,
+  "lightmapMB": 94.6,
+  "textureMB": 124.75,
   "proxies": 8,
-  "proxyTris": 246619,
+  "proxyTris": 251649,
   "proxyMB": 10.64,
   "withinBudget": true
  }

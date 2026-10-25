@@ -119,7 +119,7 @@ describe('the look table', () => {
 
 describe('the debug flags', () => {
   it('default to the new look with everything on', () => {
-    expect(parseLightingFlags('')).toEqual({ model: false, volume: true, reflect: true, roomEnv: false })
+    expect(parseLightingFlags('')).toEqual({ model: false, volume: true, reflect: true, roomEnv: false, bakeLight: true })
   })
 
   it('read ?look=model, ?lv=0, ?refl=0 and ?env=room', () => {
@@ -130,7 +130,7 @@ describe('the debug flags', () => {
   })
 
   it('ignores other values', () => {
-    expect(parseLightingFlags('?look=fancy&lv=1&refl=1&env=hospital')).toEqual({ model: false, volume: true, reflect: true, roomEnv: false })
+    expect(parseLightingFlags('?look=fancy&lv=1&refl=1&env=hospital')).toEqual({ model: false, volume: true, reflect: true, roomEnv: false, bakeLight: true })
   })
 })
 

@@ -72,10 +72,18 @@ const RIDER_SNAP = 1.7
 const FOOT_REST = 0.178
 /** How fast a patient's torso follows the bed head being raised or lowered (per second): the bed layer already smooths, this only catches a step. */
 const RECLINE_RATE = 10
-/** Blob shadow: a person's footprint and how dark it is. */
-const BLOB_PERSON = 0.95
+/**
+ * Contact shadow (realism step 2, src/scene/lighting/contact/material.ts: a soft rounded box, measured in metres): a standing person's is the
+ * feet's footprint (half 0.12 across, 0.15 along the heading, round) with a 0.33 m penumbra, scaled with the person; a vehicle's is its own
+ * footprint a little inset with a 0.28 m penumbra. `BLOB_ALPHA` is the presence share (the material's darkness does the rest).
+ */
+const BLOB_FEET_X = 0.12
+const BLOB_FEET_Z = 0.15
+const BLOB_PEN = 0.33
+const BLOB_VEHICLE_INSET = 0.92
+const BLOB_VEHICLE_PEN = 0.28
 const BLOB_ALPHA = 0.9
-const BLOB_LIFT = 0.03
+const BLOB_LIFT = 0.012
 
 const PROP_OF: Record<PropKind, number> = { none: PROP.none, tablet: PROP.tablet, folder: PROP.folder, tray: PROP.tray, coffee: PROP.cup, bag: PROP.bag, flowers: PROP.flowers }
 const VEHICLE_OF: Record<VehicleKind, number> = { none: VEHICLE.none, wheelchair: VEHICLE.wheelchair, stretcher: VEHICLE.stretcher, cleaningCart: VEHICLE.cleaningCart, linenCart: VEHICLE.linenCart }
@@ -265,6 +273,8 @@ export class CrowdModel {
   /** Blob shadows: a 4x4 matrix and a fade per instance (written straight into the InstancedMesh's attributes). */
   readonly blobMatrix = new Float32Array(MAX_BLOBS * 16)
   readonly blobFade = new Float32Array(MAX_BLOBS)
+  /** Their shapes: footprint half x, half z, corner radius, penumbra (metres). */
+  readonly blobShape = new Float32Array(MAX_BLOBS * 4)
   readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0, avatars: 0, avatarHigh: 0, avatarMid: 0, avatarFar: 0, badges: 0, caps: 0, blankets: 0 }
   /** Blankets draw: the row of each covered lying patient (the blanket is in its prop frame), and the kind (always PROP.blanket). */
   readonly blanketRows = new Float32Array(MAX_BLANKETS)
@@ -992,21 +1002,33 @@ export class CrowdModel {
     const st = this.stats
     const fade = BLOB_ALPHA * p.presence
     if (p.posture !== 'lie' && st.blobs < MAX_BLOBS) {
-      const s = BLOB_PERSON * p.look.scale
-      this.setBlob(st.blobs, p.x, p.y + BLOB_LIFT, p.z, p.heading, s, s, fade)
+      const s = p.look.scale
+      this.setBlob(st.blobs, p.x, p.y + BLOB_LIFT, p.z, p.heading, BLOB_FEET_X * s, BLOB_FEET_Z * s, BLOB_FEET_X * s, BLOB_PEN * s, fade)
       st.blobs++
     }
     if (p.vKind !== 0 && st.blobs < MAX_BLOBS) {
-      const [hw, hl] = VEHICLE_FOOTPRINT[p.vKind]
+      const fp = VEHICLE_FOOTPRINT[p.vKind]
+      const hw = fp[0] * BLOB_VEHICLE_INSET
+      const hl = fp[1] * BLOB_VEHICLE_INSET
       const sn = Math.sin(p.heading)
       const cs = Math.cos(p.heading)
-      this.setBlob(st.blobs, p.x + sn * p.vOff, p.y + BLOB_LIFT * 1.2, p.z + cs * p.vOff, p.heading, hw * 2.3, hl * 2.1, fade)
+      this.setBlob(st.blobs, p.x + sn * p.vOff, p.y + BLOB_LIFT * 1.2, p.z + cs * p.vOff, p.heading, hw, hl, Math.min(hw, hl) * 0.4, BLOB_VEHICLE_PEN, fade)
       st.blobs++
     }
   }
 
-  /** A column-major matrix: width sx on the heading's X, length sz on its Z, at (x, y, z). */
-  private setBlob(i: number, x: number, y: number, z: number, heading: number, sx: number, sz: number, fade: number): void {
+  /**
+   * A column-major matrix for a quad of the footprint (half x, half z) plus its penumbra on every side, turned to the heading, at (x, y, z);
+   * the shape row; the fade.
+   */
+  private setBlob(i: number, x: number, y: number, z: number, heading: number, hx: number, hz: number, radius: number, pen: number, fade: number): void {
+    const sh = this.blobShape
+    sh[i * 4] = hx
+    sh[i * 4 + 1] = hz
+    sh[i * 4 + 2] = radius
+    sh[i * 4 + 3] = pen
+    const sx = 2 * (hx + pen)
+    const sz = 2 * (hz + pen)
     const m = this.blobMatrix
     const o = i * 16
     const c = Math.cos(heading)

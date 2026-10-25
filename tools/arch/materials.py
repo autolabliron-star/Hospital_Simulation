@@ -444,6 +444,11 @@ def unwrap_of(name):
     return SPEC['materials'].get(name, {}).get('lightmapUnwrap', 'smart')
 
 
+def lightmap_blur_of(name):
+    """Texels of gaussian smoothing over the material's baked lightmap (materials.json `lightmapBlur`, default 0: none; bake.py smooth_lightmap)."""
+    return float(SPEC['materials'].get(name, {}).get('lightmapBlur', 0.0))
+
+
 def bake_samples_of(name, default=512):
     return int(SPEC['materials'][name].get('bakeSamples', default))
 

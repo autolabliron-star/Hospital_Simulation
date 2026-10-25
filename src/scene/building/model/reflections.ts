@@ -12,8 +12,11 @@
  *   uBoxMix     0 = the plain probe (today's picture, everywhere outside presentation), 1 = box-projected. Faded out over BOX_FADE metres
  *               outside the box (the spine's floor beyond the lobby's span is drawn by the same material).
  *   uReflGain   the environment's specular gain on the baked materials. The probe is in the bake's own units (both are radiance from the same
- *               Blender scene), so in presentation the probe is read at FLOOR_REFLECT.gain / scene.environmentIntensity, i.e. at its true
- *               brightness, whatever intensity the daylight driver gave the environment for the live objects. 1 = unchanged.
+ *               Blender scene), so whenever a zone probe is bound (walking in its zone, and presenting) it is read at WALK_REFLECT.gain /
+ *               scene.environmentIntensity (presenting: FLOOR_REFLECT.gain / ...), i.e. at its true brightness, whatever intensity the daylight
+ *               driver gave the environment. Before realism step 2 this held only while presenting, and walking read the probe at ~0.26 of
+ *               it: glossy baked kit (stainless, bed rails, satin floors) looked matte. 1 = unchanged (the overview, other environments).
+ *               Live objects share this very uniform (src/scene/lighting/bake/uniforms.ts uBkSpec).
  *   uRoughScale the floors' roughness multiplier (FLOOR_REFLECT.roughnessScale in presentation, 1 otherwise; floors only, see FLOOR_REFLECT).
  *
  * `updateModelReflections` writes them once a frame (Effects.tsx, with presentation's blend): plain numbers, no allocation.
@@ -67,19 +70,29 @@ export function setReflectionBox(eye: { x: number; y: number; z: number }, box: 
 }
 
 /** Is this a reflective floor material (FLOOR_REFLECT.materials, by its glTF name; a clone keeps the name)? */
+/**
+ * TUNING KNOB (realism step 2): the probe's specular brightness on the baked materials while WALKING in a zone with a bound probe, as a share of
+ * its true radiance (1 = physically matched to the bake, as presentation's FLOOR_REFLECT.gain). Highlight check (node, the shipped probes
+ * blurred like a roughness 0.2..0.4 PMREM): the LED lines peak at 3.2 (lobby, sigma 0.1 rad) / 1.5 (0.2 rad) radiance; a dielectric floor reflects
+ * 4 % of that face-on (0.13) and at most ~0.3..0.5 of it at grazing (~1..1.5), stainless ~0.8 (~2.5): through AgX at the walk exposure 1.31
+ * that is 0.85..0.93 display, a soft highlight, not a clipped one (AgX and the Blender LUT both roll off). Lower it if the floors glare.
+ */
+export const WALK_REFLECT = { gain: 1.0 } as const
+
 export function isReflectiveFloor(m: Material): boolean {
   return FLOOR_REFLECT.materials.includes(m.name)
 }
 
 /**
- * Presentation's blend `present` (0..1), whether the lobby probe is the bound environment, and the environment intensity the daylight driver
- * set: the uniforms for this frame. Allocation-free.
+ * Presentation's blend `present` (0..1), whether a zone probe is the bound environment, and the environment intensity the daylight driver
+ * set: the uniforms for this frame. The box projection and the floors' roughness follow presentation; the gain is physical whenever a zone
+ * probe is bound (WALK_REFLECT walking, FLOOR_REFLECT presenting). Allocation-free.
  */
 export function updateModelReflections(present: number, lobbyBound: boolean, envIntensity: number): void {
   const k = lobbyBound ? present : 0
   reflectionUniforms.uBoxMix.value = k
-  const full = FLOOR_REFLECT.gain / Math.max(envIntensity, 1e-3)
-  reflectionUniforms.uReflGain.value = 1 + (full - 1) * k
+  const env = Math.max(envIntensity, 1e-3)
+  reflectionUniforms.uReflGain.value = lobbyBound ? (WALK_REFLECT.gain + (FLOOR_REFLECT.gain - WALK_REFLECT.gain) * k) / env : 1
   floorRoughUniform.value = 1 + (FLOOR_REFLECT.roughnessScale - 1) * k
 }
 

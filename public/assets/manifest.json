@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "tools/fetch-assets.mjs and tools/convert-people.mjs",
-  "totalBytes": 90564318,
+  "totalBytes": 92727981,
   "assets": {
     "rb-business-female-02-fbx": {
       "kind": "people",
@@ -3139,180 +3139,180 @@
       "licenceUrl": null,
       "author": "The Ideal Hospital (tools/arch)",
       "notes": "Authored architecture, zone lobby: Blender generate.py export, meshopt geometry, KTX2 lightmaps (tools/arch/optimize.mjs); material textures in arch-building.",
-      "sha256": "782a72fa7da8b48181d1feb734f1a62072223aa69bafe45e88dcde5744842cd2",
-      "bytes": 600672,
+      "sha256": "aba451db6e0fd8927ade41bafe02d67f27ea96340d5fde5b349da63bc5944cd3",
+      "bytes": 756856,
       "files": [
         {
           "path": "building/zones/lobby/lobby.glb",
-          "sha256": "782a72fa7da8b48181d1feb734f1a62072223aa69bafe45e88dcde5744842cd2",
-          "bytes": 600672,
+          "sha256": "aba451db6e0fd8927ade41bafe02d67f27ea96340d5fde5b349da63bc5944cd3",
+          "bytes": 756856,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Accent.ktx2",
-          "sha256": "a2b108d7cda02ee8f9ab4bd79b85a8acafe0776dc96d7621026d379584d0496f",
-          "bytes": 34745,
+          "sha256": "9f315cb070afbbded750566d5d58b445629e9f0c8c69cf0938831abf326b5050",
+          "bytes": 148324,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_AcousticTile.ktx2",
-          "sha256": "51c62170e26098212c77f3f917efe0af8e8adfb1f6a2d48b0156bb77549b9dcc",
-          "bytes": 13539,
+          "sha256": "8f809fc5d95c89a7815e9bc8cf2b10b49451d246040f158d6a50e0d9bd448041",
+          "bytes": 36652,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_CeilingGrid.ktx2",
-          "sha256": "b3f299a1a9da03f0329a6f35262a29be9115e966cca1ced769727ed6538c2b4d",
-          "bytes": 16958,
+          "sha256": "6879d538df5695894d4ab5bcdf915645fb9099d7bcb067377ce28077b443aa8e",
+          "bytes": 17400,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_CeilingPlaster.ktx2",
-          "sha256": "834cda35a9a12a317804570a41df5305f66e362fc6f2abf118869107e157ac67",
-          "bytes": 217679,
+          "sha256": "b7083e277517da6fef08ef236f7dcfb3b2ed13ccefb93f00f6cb65976bb98e53",
+          "bytes": 351989,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Concrete.ktx2",
-          "sha256": "3d9098d4e07fb11ed3fdda0475aa85372ec68ffcac65ab9e826acf3834cb631d",
-          "bytes": 48749,
+          "sha256": "d1d9ea1885a477616e2178ea5da1b7b78104c13d3e205f1d892516b2b369b8c8",
+          "bytes": 168044,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_DoorFrame.ktx2",
-          "sha256": "a92d09dbdc7857924c4cce0c09ce78383b1e3d1e43754ae7525ae3260b17ccf9",
-          "bytes": 184125,
+          "sha256": "6ba4a4a8d47f2dbe72d4f253985f7a9b816d568ae69b6a7ee7f8fdba47b2f5b3",
+          "bytes": 192872,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Fabric.ktx2",
-          "sha256": "674fc3876ad9218afe8eecae5d9528ffc0ce6c9491191b0e5a1d46c60a417dc9",
-          "bytes": 200711,
+          "sha256": "6c997a528247ccc3cf53f5a5392a911fece23b9a0c1dcc8a83153030048fbc45",
+          "bytes": 192811,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_FabricAccent.ktx2",
-          "sha256": "1c5535d18b3c15b9b4871d7566c1559163f189b904f9332071d5e7b889999e3f",
-          "bytes": 207072,
+          "sha256": "a3bdfb0eb7fc2cdcc92c2664d94d1f4d92e2024f5422f7d9662e7cf60b5ef3c5",
+          "bytes": 199603,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Leaf.ktx2",
-          "sha256": "0f1a98fb5ab726aff45c2e04aa9aecba757c3d180fe5c81777fddc1e93dc5c6a",
-          "bytes": 277523,
+          "sha256": "77537b3ca5ce9a0efa1cefb08ea94a65e8e4e5bffc42cc903c00aa02ed1fe302",
+          "bytes": 311183,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Matting.ktx2",
-          "sha256": "170f42667b87b531f56e17dbbe18f131cbf977002cd7aa25b134c50812bb5aca",
-          "bytes": 30812,
+          "sha256": "f8149a47bc5fafa3f70de3b37ad238d4d5b26809da3962a86b3465bfb9592eae",
+          "bytes": 22647,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Mullion.ktx2",
-          "sha256": "f59c49f6ae53a7f35a2f509af34d139ef3c5e7b3ed119fd13df3ccf04b0ad00c",
-          "bytes": 178787,
+          "sha256": "5c733cf332706952c0bc13728970c9cfdde3bca385859e52a286421cef8c455f",
+          "bytes": 189104,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Oak.ktx2",
-          "sha256": "6d7028b1b1ee1c4ee8c95288151b10427c9a403f4ad11eae1935f87de9e41194",
-          "bytes": 778680,
+          "sha256": "1789dc3cc5335dd9cd227ecc253b610b9bb8c0ad74d9ed4d270c76e2a524bc7f",
+          "bytes": 751714,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Paving.ktx2",
-          "sha256": "775e7bf0de3ad5c127964eab0db32966c5266a3be615f5c67cb0dc70b87cd3d4",
-          "bytes": 41950,
+          "sha256": "b3e1d10cf460d37aaf42aaad302a4bb40ed5720fcca2ed9930c2875658c7895c",
+          "bytes": 67396,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_ShadowGap.ktx2",
-          "sha256": "620f2e120e917dcd08d311ae1fb44f3f973ab82dd1148121f970dd6b62fa5139",
-          "bytes": 35739,
+          "sha256": "0cd89ae1d216a403ce5510e30d69f8f8bcf73746718e0959a4cdeb57d0deed41",
+          "bytes": 158607,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_SheetVinyl.ktx2",
-          "sha256": "e1913af87e46e666989dbaa2bbdc9a3e587c6f0dabe6cdaa538cbd9dfe15d76e",
-          "bytes": 32876,
+          "sha256": "5a41e50d06b8c582c8cb1316d16bf8e70824f623643bfdd525e7c4a09f999c19",
+          "bytes": 99901,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Soil.ktx2",
-          "sha256": "b20bfe6efe06b90cec1d7c086eacec7f7c3637d5af4efd17605d270f9842be3b",
-          "bytes": 19915,
+          "sha256": "d310fc3aaa89c469f48d4307db35280be89e1b9ba70f6978138a84a0a054e79b",
+          "bytes": 70271,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_SolidSurface.ktx2",
-          "sha256": "462e0ba8e876010a98016bd9c31b0b6b48ef6cb6bf31dcdd44fcfbe392fe4656",
-          "bytes": 518069,
+          "sha256": "a49e27f3ca0c9c520a7d0ad32d8f6a094fa1b22cacf6a3bb9e3186ba2f8895dd",
+          "bytes": 159221,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Steel.ktx2",
-          "sha256": "9ddecec0a3cec01003c8dcfab50faafb285b7dfe3f087abc77d14b148b8288b4",
-          "bytes": 220222,
+          "sha256": "f39c0e63247ac5e00b5971cebe8c850a6f45cfe52ea04ce112d89426fdb19323",
+          "bytes": 219136,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_Terrazzo.ktx2",
-          "sha256": "fc1a9bbf009dc00e8856dab752b7d241d2a4af06fb27f0429aa89ce57e411b04",
-          "bytes": 732079,
+          "sha256": "7e68086078ae02140e6d132f70cbfa1c5e0577b0aa42b14f2a424766042c1708",
+          "bytes": 1273138,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_WallClinical.ktx2",
-          "sha256": "2d9f344282ddf40215e574b8081ca1ec4d498c6ecb8410a8622db95dc3d63de3",
-          "bytes": 363934,
+          "sha256": "7a7a863b0cf08567a6b81077bd1ef272fbb179709f2964cff0ab10fe5e7204cc",
+          "bytes": 269013,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lm_WallPaint.ktx2",
-          "sha256": "712b834291c140a44d72414b4c218d13d69ea3890c216f84984215f9f8ee1a27",
-          "bytes": 528129,
+          "sha256": "e86d174f53a319500de13239f5d71a972e4d0f82d15d0dbdbbcb22488bafa894",
+          "bytes": 460918,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/env_lobby.hdr",
-          "sha256": "5eee2f1a1b213221d84067861bf33ed09d8d50f4300386a8e6d8176b1af17bd1",
-          "bytes": 1397189,
+          "sha256": "f53f711045896628a81f53bfa756b98fc187adb1757f88b6b06e293fc4cca6c5",
+          "bytes": 1388462,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/lobby/lobby.proxy.glb",
-          "sha256": "925ef76a6c83dcb32668339c076e1346e30972558098746f6393462f1b1a296a",
-          "bytes": 524532,
+          "sha256": "bf0a6a8a43ed259582d9e7e8f8336e8c0d7dc69e4dca76138a040bb4f1234acb",
+          "bytes": 625052,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         }
       ],
       "validator": null,
-      "fetchedAt": "2026-10-24T20:09:50.137Z"
+      "fetchedAt": "2026-10-25T10:59:01.744Z"
     },
     "arch-building": {
       "kind": "building",
@@ -3327,13 +3327,13 @@
       "licenceUrl": null,
       "author": "The Ideal Hospital (tools/arch)",
       "notes": "The building manifest (zones, budgets) and the shared KTX2 material textures every zone glb references (tools/arch/optimize.mjs).",
-      "sha256": "73a6c7702a5657375ba4b1fd980190b2fca790e027c3665b37a9ed3b193e0321",
-      "bytes": 30287,
+      "sha256": "0db15e2b20f9f2b0d207fc05752cdd2bc65b4c722aaee368cd10b63e3eff9b9a",
+      "bytes": 30798,
       "files": [
         {
           "path": "building/manifest.json",
-          "sha256": "73a6c7702a5657375ba4b1fd980190b2fca790e027c3665b37a9ed3b193e0321",
-          "bytes": 30287,
+          "sha256": "0db15e2b20f9f2b0d207fc05752cdd2bc65b4c722aaee368cd10b63e3eff9b9a",
+          "bytes": 30798,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
@@ -3528,7 +3528,7 @@
         }
       ],
       "validator": null,
-      "fetchedAt": "2026-10-24T20:09:50.204Z"
+      "fetchedAt": "2026-10-25T10:59:01.747Z"
     },
     "arch-zone-er": {
       "kind": "building",
@@ -3543,188 +3543,188 @@
       "licenceUrl": null,
       "author": "The Ideal Hospital (tools/arch)",
       "notes": "Authored architecture, zone er: Blender generate.py export, meshopt geometry, KTX2 lightmaps (tools/arch/optimize.mjs); material textures in arch-building.",
-      "sha256": "5520e4b93585faec1eb0462401954a4f68ea3b6ddc026c4097a7e8be7bb6322c",
-      "bytes": 2761892,
+      "sha256": "8485de0c9b9bed63768b4034bd285f349c6ff5247bb9ef9b162f73164991a435",
+      "bytes": 2762872,
       "files": [
         {
           "path": "building/zones/er/er.glb",
-          "sha256": "5520e4b93585faec1eb0462401954a4f68ea3b6ddc026c4097a7e8be7bb6322c",
-          "bytes": 2761892,
+          "sha256": "8485de0c9b9bed63768b4034bd285f349c6ff5247bb9ef9b162f73164991a435",
+          "bytes": 2762872,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Accent.ktx2",
-          "sha256": "af3af0fe93cff5e8fa4e349fa8d05de9837b9f7728e4cd22cc73b2d6918a996c",
-          "bytes": 33255,
+          "sha256": "fb10538a2887f6aa865719c3c94af199938a42550403fa673490d796eedeea02",
+          "bytes": 33144,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_AcousticTile.ktx2",
-          "sha256": "17346a335c4eaf74b0086cd10237f009f25be3b4c3cca9ffeed377446f1a8c05",
-          "bytes": 367676,
+          "sha256": "24ccb13ea738a05a4b19a96b52419b2b241a5f8491f472e59d53c1ac65a02f25",
+          "bytes": 368121,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_CeilingGrid.ktx2",
-          "sha256": "de1d62a19a903e517a415712aaf93d4332f6fc31fa76fcd17052e5ec6d44a073",
-          "bytes": 118249,
+          "sha256": "307e31bbe64cfd67c497968a77db3c1c5a437fbfc3afa35c5e6b6b237588c3e1",
+          "bytes": 117941,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_CeilingPlaster.ktx2",
-          "sha256": "41735eef6ee9f9b5d5cba3eefdafb9e0a5cfcf4b8aad484294f209e235dd9c1d",
-          "bytes": 115144,
+          "sha256": "0ce108c0044186822589a6b1f28900760a88a4d0df93e8a4e9bb2196b8ed3070",
+          "bytes": 115301,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_CrashRail.ktx2",
-          "sha256": "515d18113681fb03cfa4e99e6d8db23821b02c49600e9cd66f11331e4687f178",
-          "bytes": 46855,
+          "sha256": "ea28aee9c3f5ec5ec52f2d313883c24c3ea5e7dd5e8a189dfd4bc2c50b502222",
+          "bytes": 44744,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Curtain.ktx2",
-          "sha256": "bd4c1471c15054ffb1b84d8e95d6edc355f7e7245f4292cfd0a6a5cdaa7aabdc",
-          "bytes": 242040,
+          "sha256": "f099e1f4dbea393c666261da4c267f0829ac513e9c12ce0d514acf3c94eadfa2",
+          "bytes": 630220,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_DoorFrame.ktx2",
-          "sha256": "1a284b65ad0f137d6ed1e0b11843a280ca82417c420a85d0888ff2cfa75cef21",
-          "bytes": 52998,
+          "sha256": "26125a5a01e6b28da881f07f58dab137e9efcf2209f331e0814fff387d81fc9a",
+          "bytes": 52695,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_KitPlastic.ktx2",
-          "sha256": "10eedcffa947a2acecf7452eb3f437087b8b02fb567d145e05f5823aaf1caa22",
-          "bytes": 163080,
+          "sha256": "558f5bd1ad504b451389550227a5d1bae7677ccf50767f609d6596825dcf606e",
+          "bytes": 163002,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Linen.ktx2",
-          "sha256": "a58abbe0e5d1e7c4e4c74043a09069f8875900f4d450c3ebad3044398141621b",
-          "bytes": 53881,
+          "sha256": "8144b6c3c20279b16f16dcf555e1ff3e430bb798005401e2925ca0f61ffd2647",
+          "bytes": 53934,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Mullion.ktx2",
-          "sha256": "f50e9959aaf356683f95101aa9b228650755c88134170a6cd92ca89777494784",
-          "bytes": 225380,
+          "sha256": "70316bcbd9c8b577ae76570aade484e6d499237272661e0443360cdd6b396a93",
+          "bytes": 224892,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Oak.ktx2",
-          "sha256": "229979fea4f94a2ee99e0d34394582044d11fa4ea2c337a9db1286f22eb8f996",
-          "bytes": 241378,
+          "sha256": "eab55ce949b4a61e9fde96dbeb9381ac7ff7d6c17bdc2576db9186ace3cd8676",
+          "bytes": 241379,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_PowderWhite.ktx2",
-          "sha256": "2482ebe2eb9598702e1ba10e97c71abb55809ac554c4f6d5d19cf50bd4687848",
-          "bytes": 190048,
+          "sha256": "e833102ded6e2b3f2ed2b5ac82ee64bf86aeeaae62cc1e6ebb066752ceef5b24",
+          "bytes": 189499,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Rubber.ktx2",
-          "sha256": "0f2080427355157d4331b6ab2e8f66851a577567ce7c53430418180baf5b88b8",
-          "bytes": 70613,
+          "sha256": "b95d10eb718d0b1f2e9e3839b05cf41e567915107b7fefb35d7a83fe64436969",
+          "bytes": 70703,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Screen.ktx2",
-          "sha256": "cd748f64b180624d4cd99f3f8d656494cf9971f60d1816e240ea76ba222c4940",
-          "bytes": 49496,
+          "sha256": "baa135d2d504d95854b34e69e898994f8ed9c3863356ee5fafcf7f25c2e11b19",
+          "bytes": 49522,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_ShadowGap.ktx2",
-          "sha256": "71377c5b25836e74b57b28652cbf34a94b37a544daab5e4f4162ebca9621964f",
-          "bytes": 28044,
+          "sha256": "52c6e17ebc500338334c7033b53c0db94abf13b88a461fd99c0ef7cfe3ffc000",
+          "bytes": 28113,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_SheetVinyl.ktx2",
-          "sha256": "e3192eae34addad4895c3a7e32d0d2d060ab3756e525fc9a43641d06871f6adc",
-          "bytes": 390271,
+          "sha256": "32df327753409b894401b7a8d1a239b21397c354dc3d262bcf640a6d896f513d",
+          "bytes": 390336,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_SolidSurface.ktx2",
-          "sha256": "9827d654da216233b7f56c7efe2a2e8b4e69d69042fa76f086f0fe0e2f158d3e",
-          "bytes": 494188,
+          "sha256": "cf72d9369607eace0f82f8d06b1bf275034475f09c744ba73ab0d8bb9ad144c3",
+          "bytes": 494411,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Stainless.ktx2",
-          "sha256": "fcc8fe79432c8aa21cbb9338d8c5c3cbb39cc269a775bf66a14c27182be65973",
-          "bytes": 38291,
+          "sha256": "ea2ad48f16370163a73c8e61e48f544e537a79f2ab18b4787e58a85ed6448c33",
+          "bytes": 38287,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_Steel.ktx2",
-          "sha256": "3c8fb0e482db767479e18c94bda59a6bba3178cdffec8b62166caf1da57bf074",
-          "bytes": 31400,
+          "sha256": "ee564611743cb998950c0fe75cb4012a487fb4ed73cfc4dab282155ca9d33f22",
+          "bytes": 31572,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_TheatreFloor.ktx2",
-          "sha256": "b0e4c04c21d819da8c3840ca6912f2970131be41737db846fd1b433c453bed4d",
-          "bytes": 33696,
+          "sha256": "e657f093204b8d6314ab3fa08414c0a026fafec43b16994e05afaebf348e8630",
+          "bytes": 33613,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_VinylGrey.ktx2",
-          "sha256": "24e17604ad376bc922911faa51fcdb46606c8ae675de8525e046b7ca63d8db10",
-          "bytes": 56055,
+          "sha256": "79fd961961a0a6885c10266c247def5e2a84ca667542d01717501747a2f24e94",
+          "bytes": 55982,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_VinylTeal.ktx2",
-          "sha256": "641f47c4e550a3f7cc849f2b2e92c56ce905e983283eccf66762660576e815fa",
-          "bytes": 54060,
+          "sha256": "7dba2849fb9cac981a1b41327595343466f637adbe818de8d71714f86f83df9d",
+          "bytes": 54156,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_WallClinical.ktx2",
-          "sha256": "fee6e7b8a57b0faf78cef33a9032a1e8803dfacc380c518836498a0b2756e452",
-          "bytes": 266491,
+          "sha256": "af20521690585801e4a70a68b50dfc27328d430926ce4a551fb4b3864a86e32c",
+          "bytes": 266420,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/lm_WallPaint.ktx2",
-          "sha256": "05cf5367c86e47ee85f1a9ecc5cb1d73bf31e21a65ef19bbd01e086236b2b18f",
-          "bytes": 376892,
+          "sha256": "d1e8f75674c2ff27639b35028b1a26f045a0df57d1cf9c394109ffd794fcf9dd",
+          "bytes": 376772,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/er/env_er.hdr",
-          "sha256": "03fc9e0191402e963bc1e5e1aa528b092951f824ddabdbbf393841f06e84f86b",
-          "bytes": 1638272,
+          "sha256": "dc7b3f163b5e72c5a44607d4942517f1e778ef743f4038daab013ac3cf5a8fd9",
+          "bytes": 1638678,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
@@ -3737,14 +3737,14 @@
         },
         {
           "path": "building/zones/er/er.proxy.glb",
-          "sha256": "5c3c5f1e589b300f8648b22255aa29e9aed370e8252fa1b53010b750b8a86ebb",
-          "bytes": 1012936,
+          "sha256": "192b0a1d8fc20bfe674ad981cd796ef055ff49cc44138858eca901cffd971014",
+          "bytes": 998252,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         }
       ],
       "validator": null,
-      "fetchedAt": "2026-10-24T20:09:50.147Z"
+      "fetchedAt": "2026-10-25T09:21:00.455Z"
     },
     "arch-zone-imaging": {
       "kind": "building",
@@ -3759,201 +3759,201 @@
       "licenceUrl": null,
       "author": "The Ideal Hospital (tools/arch)",
       "notes": "Authored architecture, zone imaging: Blender generate.py export, meshopt geometry, KTX2 lightmaps (tools/arch/optimize.mjs); material textures in arch-building.",
-      "sha256": "add07dd07e6a0ecff7d2b6150bdb420be6da02782e8b178322f66b2e8978b6ab",
-      "bytes": 1333396,
+      "sha256": "8b0219718e563b220fddb14e937d6e6a543d4584c220f533355a728fbb59147c",
+      "bytes": 1407560,
       "files": [
         {
           "path": "building/zones/imaging/imaging.glb",
-          "sha256": "add07dd07e6a0ecff7d2b6150bdb420be6da02782e8b178322f66b2e8978b6ab",
-          "bytes": 1333396,
+          "sha256": "8b0219718e563b220fddb14e937d6e6a543d4584c220f533355a728fbb59147c",
+          "bytes": 1407560,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Accent.ktx2",
-          "sha256": "60b42bf73b17eaab7187ab7b1b55b9bd82b8d4cc296c2494996e20bbfb5bf6ff",
-          "bytes": 35016,
+          "sha256": "f6e1f912cc06ce2a3686b3390590400411244e092a115428493b809a546a2705",
+          "bytes": 35092,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_AcousticTile.ktx2",
-          "sha256": "cfa4072b06d0c4f52a67a39f3ac65c8ee728d3b05d6e83f17a76782f0adca4f4",
-          "bytes": 460558,
+          "sha256": "5f7bd9b9ffe116e365845eb7180ac931fe90d0dd2158df73a6dfb569dc0b1150",
+          "bytes": 461116,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_CeilingGrid.ktx2",
-          "sha256": "d380476b59ae59ee9421533cdd68ee5ebfd02d047f137bb0c67c835308f6954c",
-          "bytes": 151653,
+          "sha256": "b0d402148ae2f0c52b38ec0cadaa4fceac91d8d7ba2297a434bd6ae40a099989",
+          "bytes": 151137,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Concrete.ktx2",
-          "sha256": "50c7aaf78ac61e0d96b2d51285036c3b59d6550aed6c60c20a9efb2ae28acedc",
-          "bytes": 55120,
+          "sha256": "d3ad23ddd05e1d56fe31ecdd4c9451140624bc37c8f900340d23e40830bc8a38",
+          "bytes": 54975,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_DoorFrame.ktx2",
-          "sha256": "a39700d94fe5d699af2bdb6f3694616e5cc0d5833c1f3a2f834afd1f9f6d0e18",
-          "bytes": 190439,
+          "sha256": "bdc7206799b8699daaa739a8c99ad497866f867140879a4e6cfc284b056184c7",
+          "bytes": 190674,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Fabric.ktx2",
-          "sha256": "7317f817c3c31026ac1b777927367ffabf6286ff6e375b8aa2232e954e137197",
-          "bytes": 44627,
+          "sha256": "43eda7aec09ccca60f6b8467fd69389ed8f7578a3cdbe4aad0ed1342705068c3",
+          "bytes": 44629,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_FabricAccent.ktx2",
-          "sha256": "21539c16afce8f28fc2a500b3672f75ca11ee5fa6e51aa2453643672dc324bf1",
-          "bytes": 57247,
+          "sha256": "4a4e32fd263a64bf001379415e4986bbb69a6f4a9703a39c5702f65c32f8603d",
+          "bytes": 57398,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_KitPlastic.ktx2",
-          "sha256": "9983e861af8350626b50e1ef2b812260b261ceb99c19614c1851bb7c57d584cf",
-          "bytes": 62123,
+          "sha256": "4ab0cc71da6c1143fcf239906428aa2c80b85c633cc31fd847cbe3c8cc95f23d",
+          "bytes": 65577,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Leaf.ktx2",
-          "sha256": "1b8afd97f5c24ec23612bff8f423001f8b26ac853793174b8e1cfad478a95ffc",
-          "bytes": 82340,
+          "sha256": "87b3fa2af19f908d6248d49eb8e5a5885a9d2ee170871c73c965c9a97d753b13",
+          "bytes": 82359,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Linen.ktx2",
-          "sha256": "fc0975cf0dac6e6ab0d146656e1582acecff27dff692f3f6e4961f5359fca64d",
-          "bytes": 44570,
+          "sha256": "accfe05b844da5968535b191ba0bb1517a280c0087a7e0399784ec04cbed8a65",
+          "bytes": 44809,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Mullion.ktx2",
-          "sha256": "35fa8c25a1e1d973fb72331d3fc45cd0b9e3844a1ec5b30776fdbec4f3da57f8",
-          "bytes": 188920,
+          "sha256": "8193bce460cdaeb2b0994334808b08812132a1c776be2e9bf637cc8f9feae205",
+          "bytes": 188369,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Oak.ktx2",
-          "sha256": "3327c92b484880d55f5676e2187471d48a742c73e5035a01b9ec1cbec8d3de0a",
-          "bytes": 225290,
+          "sha256": "22948c3259ac785a17910655508e382607893b0f1bb203fddd759d7af9898655",
+          "bytes": 225362,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_PowderWhite.ktx2",
-          "sha256": "f9c9a350a97c4e923b5f4e7da279f3db66f81466751518e7478cab1b91697893",
-          "bytes": 57540,
+          "sha256": "1bf1e866e19c80a836ffc6b3ed906ee7fec55533ffb267bcdb0fbc8bfc25046a",
+          "bytes": 57450,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_ShadowGap.ktx2",
-          "sha256": "869b374338e5dfb30cf9aad2b3e4f3f775682f9df3910751894072cac6e46d68",
-          "bytes": 157739,
+          "sha256": "097e77e1456420cef7f9001c8232dcfac717c264d31411b92b6a59b6a92b2cc6",
+          "bytes": 157584,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_SheetVinyl.ktx2",
-          "sha256": "4032356b212c6e1f16cd5ecc0b40056f857ed7dfae2f0e8ce8865206f76c12eb",
-          "bytes": 346092,
+          "sha256": "2b19f475cfc9b8e19bc7e6f99bce4f5a36846ff43b311ffb5266ef9a03c9b485",
+          "bytes": 351930,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Soil.ktx2",
-          "sha256": "9c123d17557524346c6683adf837a7d36b8f8a26d31565f2ef6581895774c9cd",
-          "bytes": 63565,
+          "sha256": "e3edf82a8e2b648a10b994f23b75ff08ed1c1fa371965c996afe1a8a3b30c434",
+          "bytes": 63599,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_SolidSurface.ktx2",
-          "sha256": "b01ce7dbb8bd1378f60c6ab975abe8bdbd2800f9b65f10543cf74ca173a7190a",
-          "bytes": 490131,
+          "sha256": "927132356a976a48d7a39bf57cf13dc3819b0eb3a80c34688baf0f4738ce99b0",
+          "bytes": 499216,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Stainless.ktx2",
-          "sha256": "79daf217c534556b2dbf68567a1a8ff69168ccd21ce56d4c04a7bc20675afbc9",
-          "bytes": 48365,
+          "sha256": "3f056969bc028a913fe376e8fa3add65fd9ee903dcb109c9a5edcc67b1a29196",
+          "bytes": 65742,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_Steel.ktx2",
-          "sha256": "5c19b2a696432726d27936956c16407432cd7fab85ec739d91dfe6ff2763d073",
-          "bytes": 226657,
+          "sha256": "55e8f133c01806401594b9f12fcd288853063ba571391bcbcd4983db02385404",
+          "bytes": 227893,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_VinylGrey.ktx2",
-          "sha256": "8f55ac34e0b9bab1e7ec76f8d9510ce537ed69ec5c802a04594c37d6999eac33",
-          "bytes": 47632,
+          "sha256": "df473d3cb5398aded204e3ab66060065684043bee457fe3d4e2b79cef63102ec",
+          "bytes": 54371,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_VinylTeal.ktx2",
-          "sha256": "681427c2eb995616b9560792d5a04e4792cd3902a23613e887ff25e9a2f79f08",
-          "bytes": 59105,
+          "sha256": "73703ab458ad17144ce99f13dd3fac590d7ce8f6030e5955dbee56945a9e953a",
+          "bytes": 66870,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_WallClinical.ktx2",
-          "sha256": "b0b79294b3cfc2a98914208b0651ae9eb8f93b54f4a6d7c8358a3f1ca4185730",
-          "bytes": 363959,
+          "sha256": "d009e6fed40d2e0e93bef3689d276f29988077ddca21d29324374a5827105d63",
+          "bytes": 363948,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_WallPaint.ktx2",
-          "sha256": "1984d1c572a4874f84a9fec16ed4a40f506b71352337d7f19a86df4631f89b21",
-          "bytes": 361562,
+          "sha256": "41be8f0d73126831fe22d48feb98d5bc50fe586c32351d781fa5e2912b819134",
+          "bytes": 362238,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_WallTintBlue.ktx2",
-          "sha256": "2d7ba5ab4e5b0df0cc0f835c1238d8aed8699cad96ffce05fe24d91bd608fb92",
-          "bytes": 37143,
+          "sha256": "06997d261999e4a117912e781fa858d77698055bd64d4e39e25b63bbe13c4b80",
+          "bytes": 36136,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/lm_WallTintLilac.ktx2",
-          "sha256": "9f70b6df825295a97db4f0217339af2d40a2c400aa7db28b6bdc7e3f80586fb7",
-          "bytes": 154255,
+          "sha256": "7c71e448e9dc035e6713373f5aaf52099ae98fd8bf1d4ee11a9ed32e743f437c",
+          "bytes": 151739,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/imaging/imaging.proxy.glb",
-          "sha256": "5e51b185043b30b130c87254cf87df008c406e226391680fcbe7f04a954c93ec",
-          "bytes": 779576,
+          "sha256": "0a47dfc1ba37a2a64e4f14a302c24a708203b034301c755d8893cfc074b4303f",
+          "bytes": 788228,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         }
       ],
       "validator": null,
-      "fetchedAt": "2026-10-24T20:09:50.154Z"
+      "fetchedAt": "2026-10-25T10:29:13.262Z"
     },
     "arch-zone-wardA": {
       "kind": "building",
@@ -3968,216 +3968,216 @@
       "licenceUrl": null,
       "author": "The Ideal Hospital (tools/arch)",
       "notes": "Authored architecture, zone wardA: Blender generate.py export, meshopt geometry, KTX2 lightmaps (tools/arch/optimize.mjs); material textures in arch-building.",
-      "sha256": "d2a02fdffea7e775146a2aadc9142dab314874035be8d5fd40b3ad459b9e3579",
-      "bytes": 3166692,
+      "sha256": "00c96b3ca1f858c00330abc448f8b00edc9a255d5ca69e155b78db19f412cb2e",
+      "bytes": 3167320,
       "files": [
         {
           "path": "building/zones/wardA/wardA.glb",
-          "sha256": "d2a02fdffea7e775146a2aadc9142dab314874035be8d5fd40b3ad459b9e3579",
-          "bytes": 3166692,
+          "sha256": "00c96b3ca1f858c00330abc448f8b00edc9a255d5ca69e155b78db19f412cb2e",
+          "bytes": 3167320,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Accent.ktx2",
-          "sha256": "5f5f48aa84a9dcd4871ef2e0e3cd232ff92e74f7def1f689cd3cedc091b0b244",
-          "bytes": 105811,
+          "sha256": "4c9b9a1d369a645ca537b05e2da3652a81c0fc5aca4162b79fec69af6314aa1a",
+          "bytes": 105734,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_AcousticTile.ktx2",
-          "sha256": "483457dd25853795ce32fe0401205d3c259ad76f8d83484693d1aac342ec59bd",
-          "bytes": 488348,
+          "sha256": "aea9e854dbbbf25f1a9816aa2dd7fab0e525bfcacc78be08866facc6c86aea80",
+          "bytes": 487074,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_CeilingGrid.ktx2",
-          "sha256": "0f41bf3650e61fdd1556bae0175c865f32a4826a7ae9e1b69c6983c31c841945",
-          "bytes": 102879,
+          "sha256": "bde1d28df982120dfcf765b05a549a18ff6a9b727648bf015f17192e61e49337",
+          "bytes": 103045,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_CeilingPlaster.ktx2",
-          "sha256": "3ddafe037106e07c439f8f4d44a2d6b935549bc79448c890d41e1efd8580c6fc",
-          "bytes": 360600,
+          "sha256": "3f9a12d1bc608527e0e77234ed6c8e4daf76543dff5fa2da14f56f6a5068f1ce",
+          "bytes": 359922,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Concrete.ktx2",
-          "sha256": "c605fb4437cfebbe979b40e45e884c4e16e915e38bb4c874a84ff4b28be8f569",
-          "bytes": 57079,
+          "sha256": "55a8814556efd9daeb27869e62aad7d645c773c19a32b736ac6b34de44895f02",
+          "bytes": 56916,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_CrashRail.ktx2",
-          "sha256": "f7cab79a50522418c429a26445a3225d713a5f6e78d52f207b940e3b52c43a1e",
-          "bytes": 47130,
+          "sha256": "be3d0fbf3ae1c12ecd4b7680ed00f873d8188c89c008aac74b536cb9e01fdfb0",
+          "bytes": 47121,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Curtain.ktx2",
-          "sha256": "51f64d91d07a25bb78a2eb4bf22dbfa9228e96d59596a646313ca6beb84bc6e2",
-          "bytes": 251104,
+          "sha256": "7c5c1e8426cbe2ba9a9ceb876081352e2b921cebc00bdeda995e1e29407113d6",
+          "bytes": 605352,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_DoorFrame.ktx2",
-          "sha256": "84d7a03e44e23389ae6fb319576b44302d5d4bd22f3686982100f33dd67a3603",
-          "bytes": 211479,
+          "sha256": "f7a38376aaa95c545932fa100fda18dcc7e999dc3be80799898d84260fa95c79",
+          "bytes": 211610,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Fabric.ktx2",
-          "sha256": "a2cefcfc91df5f4617f4cdadcc1e4cefad19892fa08c1573ec9a2fbd3ae19797",
-          "bytes": 165963,
+          "sha256": "7ba1afeec5cdd3ce1e376e836b51379dd33faf06b88b1fb34e1a962d2a7ec70e",
+          "bytes": 166176,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_FabricAccent.ktx2",
-          "sha256": "1052022deb2171096c8ecec1f05d009b04cf12fc6da281c68619f14a5df4a405",
-          "bytes": 61261,
+          "sha256": "76553780684c7a3948b954052860a7bba2d0fb161b1898d92223b2d92c23d1b0",
+          "bytes": 61162,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_KitPlastic.ktx2",
-          "sha256": "69efd363a2143414af154e6a62da7dac3a1b27de68c1aa3c25e142a483079e43",
-          "bytes": 122781,
+          "sha256": "1c358fd9e6feaaf89e7a96cae0c0f3723f91d6f238dfcf3014f68dadb4050b1b",
+          "bytes": 121937,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Leaf.ktx2",
-          "sha256": "1a3d6d65a6fbfa494455b54a2acd04f0e0cd6c9b3562dae742a143d73af40a13",
-          "bytes": 82275,
+          "sha256": "01583adbd2dba1df29d1b79583476ba993084b0e7cc2137e6e163953207196fe",
+          "bytes": 82233,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Linen.ktx2",
-          "sha256": "14ae87ca27605b66addbd56a0f114263c03501901f11b81869711751ad2f510b",
-          "bytes": 50559,
+          "sha256": "28fd34151f91f7e5094aa5c4cb37d2c9b00a710b290ff3103750e4cd9c4da7a4",
+          "bytes": 50631,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Mullion.ktx2",
-          "sha256": "a8aa9509b1cecbcf7a78c18355fabfc3a3c2d3c15093f2a36919067ea580b1bf",
-          "bytes": 256842,
+          "sha256": "838209321cfa75e34390e3d0ed18a9afff91ef27d3eecbd29636de1ac0393b3d",
+          "bytes": 254591,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Oak.ktx2",
-          "sha256": "0ce4ff322abe6db1e47f93f1c7daa0c803baa4e04b05f8a4513308e7b0401c11",
-          "bytes": 655381,
+          "sha256": "208832a8b141ba76324bbe1b5e98aea4ba4c0533b9eaff42fc16769405bee741",
+          "bytes": 655390,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_PowderWhite.ktx2",
-          "sha256": "173319b70292e8373fee5a1b213ea2d25227b5f8fb07647febf643e4ae278b2a",
-          "bytes": 166945,
+          "sha256": "ca021cfae8694b3ee878177e9584754aacf35ba48ac5a92d323df2dd5eb0ab44",
+          "bytes": 166904,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Rubber.ktx2",
-          "sha256": "f2cda359b81fd279e9d36b7b2ea64d129f2f24b519b919b19ee2cbb992b690be",
-          "bytes": 76888,
+          "sha256": "3566f206f31309c2a327ebef2cee9a5ad34bccc96933b8c302122af4378dac0b",
+          "bytes": 76807,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Screen.ktx2",
-          "sha256": "fd7cec0512019a5a9dc474ef96a7d571968229d745545734d8b4659e4ab19e17",
-          "bytes": 49348,
+          "sha256": "744f56520d40ac12edefe4cec78c399013ee5a92a2db908279585fe0828b4b85",
+          "bytes": 49207,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_ShadowGap.ktx2",
-          "sha256": "102f9187d400c96dce630c435b5774cd07201b9b5f3eecd1fa104a0799f9940e",
-          "bytes": 125924,
+          "sha256": "41c76a94501a2b1bb9759b49841c96ea3f38465dd18d1d741edd4ab42cdde8e7",
+          "bytes": 125885,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_SheetVinyl.ktx2",
-          "sha256": "c952c3fa081c23ce0995c8580e7306135261b41f5d1eb749eb000bf11dd41d51",
-          "bytes": 514292,
+          "sha256": "cbaec0a9308f71458b7a54cf735583e6f3db0b4ac94fd7d675d239b0b0d21b32",
+          "bytes": 514501,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Soil.ktx2",
-          "sha256": "a89dc7aaeda8830cdc443210b2977d8c95bf749588f2666cddf7f91a59ff4d08",
-          "bytes": 64912,
+          "sha256": "1881c25173ab542da7c08bd202c2fdd7418bef9d687fc9287ecf75f3550c89d6",
+          "bytes": 64865,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_SolidSurface.ktx2",
-          "sha256": "101979f02538594f35b229da001aee7656eee6fc7257267ccd384dbccc67d2e4",
-          "bytes": 540719,
+          "sha256": "b68aa8041669ca5c4360092624127d9c6c2743b320d665fda0596be0302e0555",
+          "bytes": 540899,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Stainless.ktx2",
-          "sha256": "ecce0e9998a236d33984aaf4ac9cc895dfec3d5253aecb51a33448035b02a4d7",
-          "bytes": 70153,
+          "sha256": "0abf852e930e1ae937d01948c2d68e8ee03937ff1d8056b8088e5a5fa85d8ae2",
+          "bytes": 70175,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_Steel.ktx2",
-          "sha256": "d28b56462e36eaacf9d68a9d674b38a2a6baf7f0b56485b5e4dfb1b9c65b2648",
-          "bytes": 65243,
+          "sha256": "2c3736cac93d3e70c60c312c50e729aa11858954590e9890cecc62dcebe4b98b",
+          "bytes": 65177,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_VinylTeal.ktx2",
-          "sha256": "bc7f5343b6a803f939ce73d322345393fb2e33bd260a2d3ed3c9f21c3cfdbe06",
-          "bytes": 68996,
+          "sha256": "7c3ff03ac37e73f23fea84889ca64dba94f81497b0f27185a383dd0092967f68",
+          "bytes": 68999,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_WallClinical.ktx2",
-          "sha256": "0efc42688f1850b9304682686d910e71748cde511e066fef40e2a2f1bf154ea6",
-          "bytes": 576362,
+          "sha256": "9901e25bf74eb1a5f2dfcff3f9938e6485fb34ebac6728aacef9bd0248abd6a7",
+          "bytes": 576357,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_WallTintBlue.ktx2",
-          "sha256": "de6c468d243945b36bc3133481152c8fec84a1065135a4ef8b53a6bd02cf0755",
-          "bytes": 161821,
+          "sha256": "7b6ff4e67a1bdf385bf6e9d9bdf143cf519952265fff2b28215c5ca0352ecdfc",
+          "bytes": 153548,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/lm_WallTintSand.ktx2",
-          "sha256": "612f8dfb4b3bce01ad86464b375be0612491e341c87a780ad607ce180aca1bc3",
-          "bytes": 26290,
+          "sha256": "4fb3d03849f7e4449488424e299c09a23a79cc43b64467f32922b73c3e45f1d3",
+          "bytes": 23838,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardA/env_wardA.hdr",
-          "sha256": "eb24151bba40630793726f97eee039267dcca8ceecf35cf1e22c363fa4be55d7",
-          "bytes": 1511781,
+          "sha256": "ef1da0ab7335b0117041760e589006a8fe38143b537f9e0212c85531a7bbd534",
+          "bytes": 1512217,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
@@ -4190,14 +4190,14 @@
         },
         {
           "path": "building/zones/wardA/wardA.proxy.glb",
-          "sha256": "8b923d59afa50e6599793789f71176639c1af4deec3ae47336ff1bed4acc2b24",
-          "bytes": 1169680,
+          "sha256": "51b58a55a7b9be7a0fc44f080b2845bd0c7d209c3360590801fe5418574367f4",
+          "bytes": 1157480,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         }
       ],
       "validator": null,
-      "fetchedAt": "2026-10-24T20:09:50.167Z"
+      "fetchedAt": "2026-10-25T09:50:16.423Z"
     },
     "arch-zone-wardB": {
       "kind": "building",
@@ -4212,195 +4212,195 @@
       "licenceUrl": null,
       "author": "The Ideal Hospital (tools/arch)",
       "notes": "Authored architecture, zone wardB: Blender generate.py export, meshopt geometry, KTX2 lightmaps (tools/arch/optimize.mjs); material textures in arch-building.",
-      "sha256": "c70170b69d292b50fadd04bebcda8570818dfee0980daefd0136c9893c6d71ad",
-      "bytes": 3157704,
+      "sha256": "d92924bf708c92b5e8911c7b07f78723d76f07875ba2f81110bb4173bc656775",
+      "bytes": 3158192,
       "files": [
         {
           "path": "building/zones/wardB/wardB.glb",
-          "sha256": "c70170b69d292b50fadd04bebcda8570818dfee0980daefd0136c9893c6d71ad",
-          "bytes": 3157704,
+          "sha256": "d92924bf708c92b5e8911c7b07f78723d76f07875ba2f81110bb4173bc656775",
+          "bytes": 3158192,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Accent.ktx2",
-          "sha256": "1050dedf48600625619ea834e10b5e0446dd864b4ccee591221114854139bee1",
-          "bytes": 103610,
+          "sha256": "68bafb6ba44a13ea7f92d1f24efb1cd2cb60ec4b4dfcf6cd411870d14684ad99",
+          "bytes": 103314,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_AcousticTile.ktx2",
-          "sha256": "b7aefa5fd4153ecb8e32d62b468bf69629b9d973f9b4d699b8447d9239d7f1de",
-          "bytes": 472209,
+          "sha256": "6eebf7969b0f38e6e034335334a7a16130bed0dd5c468d7d6010dbccb79703a0",
+          "bytes": 471235,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_CeilingGrid.ktx2",
-          "sha256": "7eeb63afc4bebf99a3b24797f0fea7ea46607fea95b8c34a2fb1240db597867e",
-          "bytes": 100734,
+          "sha256": "ede8a954183b3fd41897dbf725bec787ae1543e1fb5f1fc71d1d94d0cf2f7784",
+          "bytes": 100619,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_CeilingPlaster.ktx2",
-          "sha256": "90a838b2a72cd3e29bfe4b28cb0708a9f35ccffc56e2b69c049750e19448116c",
-          "bytes": 328931,
+          "sha256": "b6cf4ccc0ef38b539abd07cd7066ca3838d72cd4be23e2d2d36109a4ec395734",
+          "bytes": 328533,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Concrete.ktx2",
-          "sha256": "f1bf82e823d1ed4186d5b10a18b81bcce7f8cb15c67bfa4f70007dfc86e356cd",
-          "bytes": 53401,
+          "sha256": "f820a697d134817cbe752bdceea642298ff19a5bb5ef40d565717b8731205281",
+          "bytes": 53337,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_CrashRail.ktx2",
-          "sha256": "05b786f5248c53616fcbae3e88e4999835fa83b836ec2fb770de139bb19868f2",
-          "bytes": 47934,
+          "sha256": "f37d20bf369f157fbd57b639d578618437b6f2bb453f8a11755a145e5382c91c",
+          "bytes": 47804,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Curtain.ktx2",
-          "sha256": "c38859ec12ba05e4bdfb8bae0774b5f753538dcb24f4ca522a7679bff3bc3123",
-          "bytes": 246823,
+          "sha256": "be86d25bcaa30f80403e8e07013ad140d8d050d655dcbd8318996812981cee9e",
+          "bytes": 621772,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_DoorFrame.ktx2",
-          "sha256": "7e7f5ff6d36f6053d3d5c945b976415c68b3adeeb1cbe8a031c91409e58930e4",
-          "bytes": 205811,
+          "sha256": "337d9561e5c5ffc64b800397675f322d63e5cb5f5549b51a8eac90c9737ad10d",
+          "bytes": 205122,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_KitPlastic.ktx2",
-          "sha256": "2988eebba64944e40a239d59902acd83e4a9cf54b1c30ebf01e06826d3a2a683",
-          "bytes": 126797,
+          "sha256": "2ff05c72502efc557900adfece96e5c6c89ca97f8e0d91f749b5b8630df6dab2",
+          "bytes": 126592,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Leaf.ktx2",
-          "sha256": "95ddfde8716c0944ea9454325f63ed742eade2df278b8d6d6b36faffbed9d61d",
-          "bytes": 80139,
+          "sha256": "dda0451d232ea11ebe2427fa623ab749bae9d10949dd2524bdad27daf03fa9ca",
+          "bytes": 80134,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Linen.ktx2",
-          "sha256": "b633c7fffe441c7ac89a9d20e2481921c5edc0ad619b3499d0eac170e2752257",
-          "bytes": 44301,
+          "sha256": "d2c187a7256f61def8d25bbc8d2fde4f3d29ed6d523979051a472652ad59d079",
+          "bytes": 44255,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Mullion.ktx2",
-          "sha256": "3c6d366901e3d43c597f0aed5cf8c6787cba480b5d9857a8f59cc0d26ba590f0",
-          "bytes": 252599,
+          "sha256": "415bc5673da285f3a327273c7b27a32f4701d19b5522e7379454c88d432742ab",
+          "bytes": 249259,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Oak.ktx2",
-          "sha256": "eebca91b917a1170214427115e1da900082c3941163ee6df3165fdab3481f94f",
-          "bytes": 622673,
+          "sha256": "2c4e835e4c886165b4bf9a86cfda49c8224475274c26cb0b9832f34abe3b7311",
+          "bytes": 622192,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_PowderWhite.ktx2",
-          "sha256": "ce1d6422cbbd206d58a26561ddbe47fe96b6b98ac26eec44f3b77130e627bee8",
-          "bytes": 165264,
+          "sha256": "35eb5e29c250953bf2f29dd358ec00f9c8231fcb2e7e16ffcb2bec09ce1975e3",
+          "bytes": 165444,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Rubber.ktx2",
-          "sha256": "aa4a68cc9238beb95ac9b57a3182d49570e46bfb87ca291cefac6f249d22d841",
-          "bytes": 77287,
+          "sha256": "2776fc143a8e01272ec7a05a16d8ce49c936c7a2d69d497370c1e7a71ee6d2ce",
+          "bytes": 77330,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Screen.ktx2",
-          "sha256": "bcce36bc7b27b39351927dc05dc47d6a522eb5095d8b4675610b06f9d126b23f",
-          "bytes": 46918,
+          "sha256": "169622749924870a27a8e1c8c62ad05f04f5d1b3d0ad8ecd03db524b346f324a",
+          "bytes": 46912,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_ShadowGap.ktx2",
-          "sha256": "32f5c106083a351708ebeadb763b70d5f485b9af86cc77fd51fcc8a1e2c5c476",
-          "bytes": 117100,
+          "sha256": "9560798c714568a2659cc3dc04d3e680348dcfb70ba242b5de869a67b914a5eb",
+          "bytes": 117205,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_SheetVinyl.ktx2",
-          "sha256": "5b18edf0e5ec55c772c05fbe794ca971cc63df2739e2fae44691e24b5e5a2f24",
-          "bytes": 450190,
+          "sha256": "88d1e35231ac43b1849c617e233e4129fd41cdcb6268e0d6845897c05dc61886",
+          "bytes": 449976,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Soil.ktx2",
-          "sha256": "9ef4daa3a475ca8687916c9f0182f8aa02df0c6969165cec16281b9d230b21af",
-          "bytes": 54552,
+          "sha256": "49459ade3e50676d0c677260b22624a2a5e200413401d0f5f2059efb7bc3ab32",
+          "bytes": 54565,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_SolidSurface.ktx2",
-          "sha256": "e959768604614943c69d444d6d3113d6b9ca509920d330ff090914633adc53be",
-          "bytes": 542654,
+          "sha256": "ab29b7cedaa5e277d394657446ab52113936189e77bce7471bd4d9fe9593151f",
+          "bytes": 542356,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Stainless.ktx2",
-          "sha256": "07dc2f0984b5a631a42a34bda93d5032ad2cee7e927f29de7a4e8c46a8a84a6a",
-          "bytes": 68025,
+          "sha256": "feaf3d2d931d8eb9dcbc890fba14a7f88cf7619e21be30bdf8e9a634c6d54eb7",
+          "bytes": 68169,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_Steel.ktx2",
-          "sha256": "a025ec8dbe5cb1c1da0948e465cfa586bed8ef6fe3b112ae782aa8f6ae696ccf",
-          "bytes": 67379,
+          "sha256": "e3c4285fd2a721824ae8b709d6c89adaa9cdd0965e1c6591bccaf04369eeae3e",
+          "bytes": 67518,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_VinylSage.ktx2",
-          "sha256": "56bb052bce9b81b21c88a93462def3c76ff0ada434b1f6d4f9d1f74f361b861e",
-          "bytes": 234874,
+          "sha256": "895073b5ed2323c8b61a23214c05e4d79d774b4fcff41e8d83be3ba59fd22563",
+          "bytes": 234743,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_WallClinical.ktx2",
-          "sha256": "eb56c8641fc0da75f2c4f58fb3a4d8a44c8687748c4fcf5116eede810d3ce845",
-          "bytes": 560105,
+          "sha256": "734d4e7874b43d06c48e0704ee8b3dc435c8925511be6c44c0c10534541d8e07",
+          "bytes": 560208,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/lm_WallTintSage.ktx2",
-          "sha256": "de69b6a06e4f3f8c80d6604b6a15e0ce8508ae52175ff64455318f1c5ef01af7",
-          "bytes": 157937,
+          "sha256": "fd6e93b14be194463c44088ad41c37700530f6e5a434bb58b35de766889b98cf",
+          "bytes": 156066,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/wardB/env_wardB.hdr",
-          "sha256": "2ce643f9ec70fe230116e965c7cc5c90e7359229fa45e543d80d4fd3d596ab29",
-          "bytes": 1512239,
+          "sha256": "67b554cbfe3b77d648ba5e90953ff16f6a23b5427603a6b573a85dd19e3eaf7c",
+          "bytes": 1511740,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
@@ -4413,14 +4413,14 @@
         },
         {
           "path": "building/zones/wardB/wardB.proxy.glb",
-          "sha256": "edee4a819801c4614ae01b762ee260e684a25cb5fe62bf947b4c02088920958f",
-          "bytes": 1218612,
+          "sha256": "ff2142923d0468f365a909a9c8d47b2a6c87a58d5134d9a8920123f20542aba4",
+          "bytes": 1206592,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         }
       ],
       "validator": null,
-      "fetchedAt": "2026-10-24T20:09:50.179Z"
+      "fetchedAt": "2026-10-25T10:05:45.050Z"
     },
     "arch-zone-core": {
       "kind": "building",
@@ -4748,237 +4748,237 @@
       "licenceUrl": null,
       "author": "The Ideal Hospital (tools/arch)",
       "notes": "Authored architecture, zone theatres: Blender generate.py export, meshopt geometry, KTX2 lightmaps (tools/arch/optimize.mjs); material textures in arch-building.",
-      "sha256": "431e89bfa5192cf7b1d044d39765e3be6f6181937c240a88f0af9eacc425588d",
-      "bytes": 2837012,
+      "sha256": "ae83390675a06c002612e04d028c49443433bd4a8337299efc2841c876d954a4",
+      "bytes": 2934696,
       "files": [
         {
           "path": "building/zones/theatres/theatres.glb",
-          "sha256": "431e89bfa5192cf7b1d044d39765e3be6f6181937c240a88f0af9eacc425588d",
-          "bytes": 2837012,
+          "sha256": "ae83390675a06c002612e04d028c49443433bd4a8337299efc2841c876d954a4",
+          "bytes": 2934696,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Accent.ktx2",
-          "sha256": "d00d2a83b77b64e17e3775c880bff50bb9b0d4dbc5018a42003ab098a9dc4dbc",
-          "bytes": 51820,
+          "sha256": "eda34249227253a45820e100f33b9332c46078257db3f8abb43358ab51609d58",
+          "bytes": 51552,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_AcousticTile.ktx2",
-          "sha256": "2ee571eefee597118e7ca0fc9f016420460fde2a58e184a97bb80f7baca884dc",
-          "bytes": 265044,
+          "sha256": "941db79e2627e6952bad135a0cb587cc9768287577150fe23e6ffa8719f0020d",
+          "bytes": 265167,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_CeilingGrid.ktx2",
-          "sha256": "706a8f5e40fc7f443d424af5963119204a2a8e5aee5178444cf28ea34939f1fa",
-          "bytes": 77769,
+          "sha256": "b73ed771a3330c5e313a861b16039906a440805dc8e23f1a62190ea09ca41fc4",
+          "bytes": 77838,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_CeilingPlaster.ktx2",
-          "sha256": "088c6498a1b85d9bc1f58a5c4bfb6497c9ccfaf3209b4f29a44267bd04a5841a",
-          "bytes": 363304,
+          "sha256": "0ea8ead456f164fffd60439a1d1053c0696fb8f496ab5df0a68defa1e6750389",
+          "bytes": 365313,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Concrete.ktx2",
-          "sha256": "d0b7562ad204e714d0ebb4af8f2aa7838a2d8de0502c5b34103d32564ed997a4",
-          "bytes": 51002,
+          "sha256": "d9377ad11e9a1d70326c743e8c9970f85f3d9ddc3f1a74ae38d7252d527cbe33",
+          "bytes": 51023,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_CrashRail.ktx2",
-          "sha256": "ebba9f57aad2af5f8dffe052ddc1c240e84c9bf7b5603522961f90d2615a68ec",
-          "bytes": 36506,
+          "sha256": "45e01a844027afb3171e33585d7ac6066a90adba3bca7c3853c18637dc89e73f",
+          "bytes": 33423,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Curtain.ktx2",
-          "sha256": "209d8df7c693238fe951ca333beb86a34441c2a4421e4cf3a25f066e0d79d3e2",
-          "bytes": 220729,
+          "sha256": "260bffbd9b29c80c171017c19e8ceab38f5ce976402c6a8f0ccdc115337dec8b",
+          "bytes": 179280,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_DoorFrame.ktx2",
-          "sha256": "4ebd9a159866c232c82f9b162d73202bfd0022821dceb39d3b30ec33400c31d4",
-          "bytes": 24757,
+          "sha256": "8c203e84c84f431bcde5741956af88c8a2d8903ade21029a92bd7e1014175f41",
+          "bytes": 24414,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Fabric.ktx2",
-          "sha256": "706a68dd50cf61585526a81c1ec6393878306e755df2c5bb45037f4ebd93c564",
-          "bytes": 168479,
+          "sha256": "12e9bd3e6b75bf20200d4a142a323b5f7e01cdecd4e650d5e8382db399d66679",
+          "bytes": 168571,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_FabricAccent.ktx2",
-          "sha256": "3972591f379cc9f726afd032dfa6cd562afdd992fa03bd09b24c0c25bcafa2cb",
-          "bytes": 181315,
+          "sha256": "6eb9dc26cc5a76018f1c3daa2afb1f9227d6590e3d384aba98e9d6d693e0befa",
+          "bytes": 181137,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_KitPlastic.ktx2",
-          "sha256": "051c782926d027867e2974584513da06ebbc6da12e4a0112392b27e35d0472f1",
-          "bytes": 196627,
+          "sha256": "92ea58d471fc2af665fed6f9d0a33f6921f73da495d300534a19b1fcbde9f3ae",
+          "bytes": 191153,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Leaf.ktx2",
-          "sha256": "720f1f55ad37c6b326ec0ae259d4c8d62be4cdf43f4623a31a67a53e11166c9f",
-          "bytes": 81613,
+          "sha256": "929f63aeb0f3bcd973bb736f50283423fed3dafd7cfa064ce9891a480c9b43b5",
+          "bytes": 81627,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Linen.ktx2",
-          "sha256": "c15ee7dda17b68538eda3ea325926e47d51df930940981dddb994e6b1acceee8",
-          "bytes": 49612,
+          "sha256": "badcacbfc7f930066b4f06f75ec19df730b97617740c4e1e02008481de1d8c68",
+          "bytes": 50610,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Mullion.ktx2",
-          "sha256": "13bda617028d7c4cd80e51e8eed8f024f3057d092414c4d7e0737ac4de215bb9",
-          "bytes": 246111,
+          "sha256": "ba6e3ce98d41760e6fd8c947e595bd864d583e1b106c772d6969018805709bd3",
+          "bytes": 245686,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Oak.ktx2",
-          "sha256": "bb471256cb88d63d3f55cce5469714b878dc56aaaa4d51b098f079e52d11ea49",
-          "bytes": 636729,
+          "sha256": "0fd93a1fca7350741f837c42fe017b24f10b544154fa9040ef00b4261fb5e2c7",
+          "bytes": 629444,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_PowderWhite.ktx2",
-          "sha256": "73ed6d84fd2c164fa098575876f5dd8fb376033fc5a5832ab76c22bc0da6cda2",
-          "bytes": 54505,
+          "sha256": "1e400181653a39cc2017e2d931e0687a02d26de9e7afcc42f4dd7a43941fdbb7",
+          "bytes": 54621,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Rubber.ktx2",
-          "sha256": "d663fcc80a697b96a0d472f09f0a7e0ecc54aacdd9225d120351a29a5ee8566b",
-          "bytes": 66696,
+          "sha256": "637e7ad71a2b0cbf20f6dffd74f6b19499abd533c51c5872b5e92b88a2e99b5a",
+          "bytes": 68550,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Screen.ktx2",
-          "sha256": "8e207689445543ee9792825fa9a4aea198b752af3924ae58066b1b34aad7c179",
-          "bytes": 47536,
+          "sha256": "5c930547d55891700309deedf7834d63bc1b7bf3eb1eda0f506145ecc61b7e26",
+          "bytes": 47588,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_ShadowGap.ktx2",
-          "sha256": "b2fa5ff2cd835d29516aa676d2599b2b26c95783b8275dbc39436c667a78f922",
-          "bytes": 176583,
+          "sha256": "56064cbb50f474760136c7967008efbca2b398e3f373830500a6846b29885f53",
+          "bytes": 181412,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_SheetVinyl.ktx2",
-          "sha256": "4953d164dcc17ce18e5539a373c5dcf8e73c1384a8a1ff0105bca7552d7c5de9",
-          "bytes": 381111,
+          "sha256": "7cf5b721b74e19dbed070a295de24a0ef0eb050e037aa961e33359b0616d008d",
+          "bytes": 381368,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Soil.ktx2",
-          "sha256": "0d63d96dd6d3adb8f3a6c9652a20dcd651fe9b8d9451b17775cd04d98e41a84e",
-          "bytes": 9635,
+          "sha256": "0eec5aa30d834f0a5308e58e7001a180a04b2d0adea8d8adebb71ad9942fc6c9",
+          "bytes": 9623,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_SolidSurface.ktx2",
-          "sha256": "0faec1a9f82a2bcd6d521ad0467afb358647a5b4ce8629aa35e08effaddebcd5",
-          "bytes": 164332,
+          "sha256": "20e46e7dcadc5e9a5a2349d6c1926500096f3f783a15ca3a8247351dd780b2c3",
+          "bytes": 167073,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Stainless.ktx2",
-          "sha256": "ced765da1047779fb614d214c0702ba949d94e8317a22d1dcb62c58f3333c6da",
-          "bytes": 30692,
+          "sha256": "6843799ad365e5345740f3480224b58631e4e437119082819fec8206ccc24770",
+          "bytes": 30932,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Steel.ktx2",
-          "sha256": "88518989f24e50845a929197c8c4a3790705329c59ae6784b72a879de585053f",
-          "bytes": 75307,
+          "sha256": "19ffa721d1a37fb0525f2b2afdaa5a5ab1873170fd83cb50b561175407b6e8e9",
+          "bytes": 75157,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_Terrazzo.ktx2",
-          "sha256": "59efabe5ba98c7d11799f32b27e71f581dd03e41c5db398380e0b6acbb5c6ba7",
-          "bytes": 331982,
+          "sha256": "de2318d28206c60929401339fbfb4ab1bdbf5a9229b36ebb3cc3b4237228cda4",
+          "bytes": 331554,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_TheatreFloor.ktx2",
-          "sha256": "50acafb6dbc5aa515b21e4c740a9e90b650db0aa465ef7b042defecb5b2b7deb",
-          "bytes": 98565,
+          "sha256": "2f7bc73d16a18214f7ba0322aac8fd31fa17c1df225e337936e6e2bdad2f38c8",
+          "bytes": 102488,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_VinylTeal.ktx2",
-          "sha256": "8acdd15c51b449b16bbd9ccefb2fdc06154b24456359ef713caa54692b0e67c8",
-          "bytes": 48799,
+          "sha256": "d63ecdf78bd93c3b53364e17dddd97a2af6cee04fd6df4ffcc2365c7b8dd8588",
+          "bytes": 48012,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_WallClinical.ktx2",
-          "sha256": "1206d08e1f21ca998d3d2d039e52bd1ea54998c6c3c5861be8141233a0db393d",
-          "bytes": 543425,
+          "sha256": "99b73d884296f22139165f764efa949425ddeee9d1223ddc3e06897a46c89940",
+          "bytes": 544378,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_WallPaint.ktx2",
-          "sha256": "cadc4649718beaa35629ad6bbdde6fffd629b499fdeb08a90dc91852d7e01d7d",
-          "bytes": 326819,
+          "sha256": "ab10cf91216e87f20a9f8ce67f7c720e1bb5d429616cc5c27ba99de9a3e066b5",
+          "bytes": 327122,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_WallTintSage.ktx2",
-          "sha256": "0c44594186c567903f70bc03967d4353090f5d0adffd85f7e1ad24e2c5bf4c8c",
-          "bytes": 138808,
+          "sha256": "6495150b5f8d4e1b0ffc0cc4f000ff1d94396d8abcea60bb34ff956d94210e05",
+          "bytes": 138276,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/lm_WallTintSand.ktx2",
-          "sha256": "3a9301a037cdef88040807c2c01b6234a1e207e74dc4716e661bd7f960c2756c",
-          "bytes": 30014,
+          "sha256": "61db1f70e8f639ecf1f3e648e7f33d7a117625f7a52612c4ace2bafc6871e590",
+          "bytes": 29476,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
         {
           "path": "building/zones/theatres/env_theatres.hdr",
-          "sha256": "d02ac2088ff87f8902e749a51aeb8c327c63a99f8927f6436e7200927124c863",
-          "bytes": 1465380,
+          "sha256": "e2deae2cb69b9711f3687c244f3c579dade06c87f339ed6b53cf60f32bd0267e",
+          "bytes": 1465144,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         },
@@ -4991,14 +4991,14 @@
         },
         {
           "path": "building/zones/theatres/theatres.proxy.glb",
-          "sha256": "72a99f1832cba6e921e0c8b7e57464b179c54abda0da1aed9e76c835ece7310e",
-          "bytes": 1083692,
+          "sha256": "05d50f9ca4e22610dffebe4fbe2ad93377ef8b501a5bbd9444c86a52b623a383",
+          "bytes": 1080848,
           "role": "derived",
           "tool": "tools/arch/optimize.mjs"
         }
       ],
       "validator": null,
-      "fetchedAt": "2026-10-24T20:09:50.200Z"
+      "fetchedAt": "2026-10-25T10:20:08.782Z"
     },
     "ph-sparse-grass-diff-1k": {
       "kind": "textures",

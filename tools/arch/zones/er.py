@@ -54,7 +54,9 @@ DOOR_ACCENT = {'ambulance': 'Accent:2'}
 # --- runtime hints ---
 # every static piece of the procedural triage / ER furniture is redrawn here (trolleys, monitor stands, curtains and their rails, the triage
 # desk and chairs, the supply runs, the crash carts, the parked trolley); the live bezels and screens always stay (region.ts keptAlways)
-REPLACES = ['footprint:er:*', 'footprint:triage:*']
+# + the procedural exterior's old ambulance door frame on the west façade at z 11.9..16.1 (src/scene/landscape/exterior.ts ambulanceBay: two
+# 1.3 m posts and a rail standing in the designed glazing; the real ambulance doors are at z 9.2..11.6)
+REPLACES = ['footprint:er:*', 'footprint:triage:*', 'rect:-62.15,-61.85,11.8,16.2']
 VISIBLE_FROM = ['lobby']
 # --- review and bake hints ---
 POSES = [((-49.6, 6.7), (-55.5, 20.5)),          # the ER from the lobby door

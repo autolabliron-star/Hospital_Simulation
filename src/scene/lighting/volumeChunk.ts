@@ -14,12 +14,15 @@
  *   vertex    the vertex's world position into a varying;
  *   fragment  after the stock environment lookups, one fetch of the baked volume 0.2 m in front of the surface: scales the ambient light
  *             (hemisphere, environment diffuse and specular) by the ambient occlusion, then adds the ceiling panels' and the windows' light.
+ *             (Realism step 2) Then, inside the authored building, the light of the Cycles bake replaces the live light by the field's
+ *             weight: the zone probe's SH9 irradiance, no hemisphere, no sun (./bake, ./volume/glsl.ts BAKE_MAIN; uniforms `bakeUniforms`).
  * The uniforms are the shared objects of `lvUniforms`: the daylight driver writes them, nothing here ever recompiles. If a stock anchor is
  * missing (a material built on another shader) the shader is left exactly as it was.
  */
 import type { WebGLProgramParametersWithUniforms } from 'three'
 import { FRAG_LV, FRAG_PARS, VERT_MAIN, VERT_PARS } from './volume/glsl'
 import { lvUniforms } from './volume/uniforms'
+import { bakeUniforms } from './bake/uniforms'
 
 export const LIGHT_VOLUME_KEY = 'lv0'
 
@@ -50,6 +53,7 @@ export function hasAnchors(shader: Pick<WebGLProgramParametersWithUniforms, 'ver
 export function applyLightVolume(shader: WebGLProgramParametersWithUniforms): void {
   if (!hasAnchors(shader)) return
   for (const name of Object.keys(lvUniforms) as (keyof typeof lvUniforms)[]) shader.uniforms[name] = lvUniforms[name]
+  for (const name of Object.keys(bakeUniforms) as (keyof typeof bakeUniforms)[]) shader.uniforms[name] = bakeUniforms[name]
   shader.vertexShader = after(after(shader.vertexShader, '#include <common>', VERT_PARS), '#include <project_vertex>', VERT_MAIN)
   shader.fragmentShader = after(after(shader.fragmentShader, '#include <common>', FRAG_PARS), '#include <lights_fragment_maps>', FRAG_LV)
 }

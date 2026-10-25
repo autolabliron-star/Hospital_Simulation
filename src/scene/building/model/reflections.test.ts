@@ -11,6 +11,7 @@ import {
   floorRoughUniform,
   reflectionUniforms,
   updateModelReflections,
+  WALK_REFLECT,
 } from './reflections'
 
 type Shader = { uniforms: Record<string, unknown>; vertexShader: string; fragmentShader: string }
@@ -82,11 +83,13 @@ describe('the baked look with box projection', () => {
 })
 
 describe('the reflection uniforms', () => {
-  it('leave the picture alone outside presentation', () => {
+  it('walking in a zone with its probe bound: the probe at its true brightness (realism step 2), no box projection, the floors as authored', () => {
     updateModelReflections(0, true, 0.26)
     expect(reflectionUniforms.uBoxMix.value).toBe(0)
-    expect(reflectionUniforms.uReflGain.value).toBe(1)
+    expect(reflectionUniforms.uReflGain.value * 0.26).toBeCloseTo(WALK_REFLECT.gain, 9)
     expect(floorRoughUniform.value).toBe(1)
+    expect(WALK_REFLECT.gain).toBeGreaterThan(0)
+    expect(WALK_REFLECT.gain).toBeLessThanOrEqual(1.5)
   })
 
   it('read the probe at its true brightness while presenting in the lobby', () => {

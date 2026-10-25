@@ -158,9 +158,11 @@ def hero_fraction(o, hero):
     return inside / tot if tot else 0.0
 
 
-def plan_lightmaps(objs, mats, hero=()):
+def plan_lightmaps(objs, mats, hero=(), density=None):
     """{material: size}: forced or by area, then fitted to the zone budget by halving, one step at a time, the map with the most texels per m2
-    weighted down by its share in the hero spaces (so the lift lobby's vinyl goes before the reception desk); --draft then halves all."""
+    weighted down by its share in the hero spaces (so the lift lobby's vinyl goes before the reception desk); --draft then halves all.
+    `density`: texels per m2 (a design's LIGHTMAP_DENSITY, else --density)."""
+    density = density or args.density
     area = {n: max(bk.surface_area(o), 1e-3) for n, o in objs.items() if mats[n].get('bake', True)}
     weight = {n: 0.25 + hero_fraction(objs[n], hero) for n in area}
     sizes = {}
@@ -168,8 +170,8 @@ def plan_lightmaps(objs, mats, hero=()):
         forced = mt.lightmap_of(n)
         # a forced size is the most a material gets, not a floor: a zone with a few faces of it (the atrium's 10 terrazzo triangles, the
         # ER's accent strips) gets at most 4x the texels its area asks for, which leaves the budget to the maps that need it
-        sizes[n] = min(int(forced), args.max_lightmap, bk.lightmap_size(a, args.density * 4, args.max_lightmap)) if forced \
-            else bk.lightmap_size(a, args.density, args.max_lightmap)
+        sizes[n] = min(int(forced), args.max_lightmap, bk.lightmap_size(a, density * 4, args.max_lightmap)) if forced \
+            else bk.lightmap_size(a, density, args.max_lightmap)
     cuts = []
     while sum(lm_mb(s) for s in sizes.values()) > LM_BUDGET:
         cand = [n for n, s in sizes.items() if s > 128]
@@ -319,7 +321,7 @@ def run_zone(zid):
 
     # bake
     bake_info = {}
-    lm_sizes, lm_final, cuts = plan_lightmaps(OBJS, MATS, pl.hero)
+    lm_sizes, lm_final, cuts = plan_lightmaps(OBJS, MATS, pl.hero, getattr(design, 'LIGHTMAP_DENSITY', None))
     if not args.no_bake:
         tb = time.time()
         scene.render.bake.use_clear = True
@@ -332,7 +334,8 @@ def run_zone(zid):
             scene.cycles.samples = samples
             ts = time.time()
             bk.unwrap(o, lm_sizes[name], name, mt.unwrap_of(name))
-            bk.bake_object(o, name, lm_sizes[name], out_dir, not args.no_denoise, self_shadow=mt.self_shadow_of(name))
+            bk.bake_object(o, name, lm_sizes[name], out_dir, not args.no_denoise, self_shadow=mt.self_shadow_of(name),
+                           blur=mt.lightmap_blur_of(name))
             per[name] = {'size': lm_sizes[name], 'samples': samples, 'seconds': round(time.time() - ts, 1)}
         scene.cycles.samples = args.samples
         bake_info = {'seconds': round(time.time() - tb), 'quality': QUALITY, 'lightmaps': per, 'budgetCuts': cuts}

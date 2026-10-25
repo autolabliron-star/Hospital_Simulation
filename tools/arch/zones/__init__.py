@@ -16,6 +16,7 @@ generate.py builds a zone in this order:
   4. review and bake hints (optional): POSES [((x, z), (look_x, look_z)), ...] eye-level stills (the first one is
      docs/screenshots/zone-<id>-draft.jpg; default: down the long axis of the zone's largest area), PROBE (x, y, z) the reflection probe's
      position (y above the level floor; default: none unless a floor is glossy, then the centre of the largest area at 1.6 m).
+     LIGHTMAP_DENSITY texels per m2 for the zone's lightmap sizes (default --density 400; the lobby, the hero, spends its whole budget).
 
 `ctx` (Ctx below) is the whole API a design module needs:
   ctx.geo                  the zone's geometry (common.Geo): ctx.geo.box / fbox / cbox / cyl / disc / ring / poly with a material name

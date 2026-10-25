@@ -75,16 +75,17 @@ export interface LightmapResult {
 /**
  * Sets `material.lightMap` (channel 1, intensity from `lightmapIntensityOf`) and the baked look on every mesh that names one. `resolve` returns the texture for a file name (the same Texture
  * for the same name). A mesh whose material already holds another lightmap gets its own clone, so the material count stays the number of
- * (material, lightmap) pairs, which the Blender export keeps small.
+ * (material, lightmap) pairs, which the Blender export keeps small. (Realism step 2) `skip` names meshes that stay live (the movable kit,
+ * ./zoneLoader.ts): no lightmap is wired on them, their materials are still listed.
  */
-export function applyLightmaps(root: Object3D, resolve: (file: string) => Texture | null): LightmapResult {
+export function applyLightmaps(root: Object3D, resolve: (file: string) => Texture | null, skip?: (o: Object3D) => boolean): LightmapResult {
   const materials = new Set<Material>()
   const textures = new Set<Texture>()
   const missing: string[] = []
   root.traverse((o) => {
     const mesh = o as Mesh
     if (!mesh.isMesh) return
-    const file = lightmapNameOf(o)
+    const file = skip?.(o) ? null : lightmapNameOf(o)
     const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
     if (file) {
       const tex = resolve(file)

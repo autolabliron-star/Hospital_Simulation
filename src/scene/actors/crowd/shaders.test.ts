@@ -3,6 +3,7 @@
  * silent: the person would simply not be posed. There is no GL context in node, so this checks the next best thing: every token the patches
  * look for is in the stock shader, every patch lands, nothing is declared twice, and the braces still balance.
  */
+import { CONTACT_PROGRAM_KEY } from '@/scene/lighting/contact/material'
 import { DataTexture, FloatType, RGBAFormat, ShaderChunk, type WebGLProgramParametersWithUniforms } from 'three'
 import { describe, expect, it } from 'vitest'
 import { FEATURE_FIRST, FIXED_COLORS, FX, MAX_PEOPLE, PALETTE_SLOTS, SLOT, TEX, fixedSlot } from './constants'
@@ -125,13 +126,15 @@ describe('crowd shaders', () => {
     expect(mats.vehicles.defines?.GEAR_PROP).toBeUndefined()
   })
 
-  it('the blob shadow fades per instance', () => {
+  it('the blob shadow is the shared contact shadow: it fades and takes its shape per instance', () => {
     const s = patched(mats.blob as never, ShaderChunk.meshbasic_vert, ShaderChunk.meshbasic_frag)
     expect(s.vertexShader).toContain('attribute float aFade;')
-    expect(s.vertexShader).toContain('vFade = aFade;')
-    expect(s.fragmentShader).toContain('diffuseColor.a *= vFade;')
+    expect(s.vertexShader).toContain('attribute vec4 aShape;')
+    expect(s.vertexShader).toContain('vCsFade = aFade;')
+    expect(s.fragmentShader).toContain('diffuseColor.a *= csA * csA * vCsFade * uContactDark;')
     expect(mats.blob.transparent).toBe(true)
     expect(mats.blob.depthWrite).toBe(false)
+    expect(mats.blob.customProgramCacheKey()).toBe(CONTACT_PROGRAM_KEY)
   })
 
   it('compiles six programs: two body variants, props, vehicles, blob', () => {

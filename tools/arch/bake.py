@@ -382,10 +382,55 @@ def unwrap(o, size, name='', method='smart'):
     # correct_aspect off: it stretches the islands by the aspect of the MATERIAL's image (a palette strip is 128 x 16: every KitPlastic island
     # came out 8x too thin, the packer then scaled them all to nothing); the lightmap is its own square image
     if method == 'sheet':
-        bpy.ops.mesh.select_mode(type='EDGE')
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.mesh.edges_select_sharp(sharpness=math.radians(80))
-        bpy.ops.mesh.mark_seam(clear=False)
+        # A curtain (kit ribbon: a closed 8 mm sheet, every face a vertical rectangle) gets seams only on its HORIZONTAL sharp edges (its faces
+        # against the hem and top strips) and round its two end caps: the vertical edges between pleat faces are never cut however deep the
+        # fold (a gathered curtain turns > 80 degrees there: cutting at every sharp edge, as before, left 25 cm x 2.4 m islands packed 6
+        # texels tall, which mip and bleed into horizontal bands), so each side of a curtain unfolds as ONE developable strip. Everything
+        # else on the material (blankets, drapes, covers: boxes and prisms) keeps the plain rule: a seam on every edge sharper than 80 degrees.
+        import bmesh
+        bm = bmesh.from_edit_mesh(me)
+        bm.faces.ensure_lookup_table()
+        seen = set()
+        sharp = math.radians(80)
+        for f0 in bm.faces:
+            if f0.index in seen:
+                continue
+            comp, stack = [], [f0]
+            seen.add(f0.index)
+            while stack:
+                f = stack.pop()
+                comp.append(f)
+                for e in f.edges:
+                    for g in e.link_faces:
+                        if g.index not in seen:
+                            seen.add(g.index)
+                            stack.append(g)
+            zs = [v.co.z for f in comp for v in f.verts]
+            area = sum(f.calc_area() for f in comp) or 1.0
+            upright = sum(f.calc_area() for f in comp if abs(f.normal.z) < 0.2) / area
+            ribbon = len(comp) >= 8 and max(zs) - min(zs) > 0.8 and upright > 0.95
+            edges = {e for f in comp for e in f.edges}
+            for e in edges:
+                e.seam = False
+                if len(e.link_faces) != 2:
+                    continue
+                ang = e.calc_face_angle(0.0)
+                if not ribbon:
+                    e.seam = ang > sharp
+                    continue
+                d = e.verts[1].co - e.verts[0].co
+                if d.length < 1e-9:
+                    continue
+                if abs(d.z) < 0.3 * d.length:
+                    e.seam = ang > math.radians(60)
+                else:
+                    # a vertical edge of an end cap (a face as narrow as the sheet is thick) is cut, so the sheet is not a closed tube
+                    for g in e.link_faces:
+                        xs = [(v.co.x, v.co.y) for v in g.verts]
+                        wmax = max(math.hypot(a[0] - b[0], a[1] - b[1]) for a in xs for b in xs)
+                        if wmax < 0.015:
+                            e.seam = True
+        bmesh.update_edit_mesh(me)
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=False, correct_aspect=False, margin=1.0 / size)
         bpy.ops.mesh.mark_seam(clear=True)
@@ -456,12 +501,44 @@ def denoise(img, size):
     return res
 
 
-def bake_object(o, name, size, outdir, use_denoise=True, self_shadow=True):
+def smooth_lightmap(rgb, size, sigma):
+    """A gaussian blur of `sigma` texels over a baked lightmap (rgb: size*size x 3, linear), inside the baked texels only (normalized
+    convolution: the empty background between the islands, black after the bake's clear, neither darkens the islands' edges nor is filled).
+    For surfaces whose light really changes slowly but whose bake stays grainy at affordable samples: the pleated cubicle curtains
+    (materials.json `lightmapBlur`), where the leftover noise of thin unfolded islands read as blotches and horizontal streaks."""
+    img = rgb.reshape(size, size, 3)
+    luma = img[..., 0] * 0.2126 + img[..., 1] * 0.7152 + img[..., 2] * 0.0722
+    mask = (luma > 1e-6).astype(np.float32)
+    r = max(1, int(math.ceil(3.0 * sigma)))
+    w = np.exp(-0.5 * (np.arange(-r, r + 1, dtype=np.float32) / sigma) ** 2)
+    w /= w.sum()
+
+    def blur(a):
+        for axis in (0, 1):
+            pad = [(0, 0)] * a.ndim
+            pad[axis] = (r, r)
+            p = np.pad(a, pad, mode='constant')
+            out = np.zeros_like(a)
+            for i, wi in enumerate(w):
+                sl = [slice(None)] * a.ndim
+                sl[axis] = slice(i, i + a.shape[axis])
+                out += wi * p[tuple(sl)]
+            a = out
+        return a
+
+    num = blur(img * mask[..., None])
+    den = blur(mask)[..., None]
+    out = np.where(mask[..., None] > 0, num / np.maximum(den, 1e-6), 0.0)
+    return out.reshape(-1, 3).astype(np.float32)
+
+
+def bake_object(o, name, size, outdir, use_denoise=True, self_shadow=True, blur=0.0):
     """Bake one material's lightmap. `self_shadow` False (materials.json `bakeSelfShadow: false`: the pleated cubicle curtains) bakes the
     surface as if it did not occlude itself: for the length of its own bake the object is hidden from diffuse, glossy, transmission and
     shadow rays, so a pleat's valley is not darkened by its neighbouring folds (a thin, translucent fabric in diffuse light reads almost
     evenly lit; the bake had 4-6x stripes between neighbouring 3.5 cm facets, aliased and noisy at 3-7 cm a texel, which the game showed as
-    dark smudges on a grey, 'metallic' curtain). It still occludes every OTHER material's bake as before."""
+    dark smudges on a grey, 'metallic' curtain). It still occludes every OTHER material's bake as before. `blur` > 0 (materials.json
+    `lightmapBlur`, texels): smooth_lightmap after the denoiser."""
     mat = o.data.materials[0]
     nt = mat.node_tree
     bsdf = nt.nodes['Principled BSDF']
@@ -505,6 +582,8 @@ def bake_object(o, name, size, outdir, use_denoise=True, self_shadow=True):
     px = np.empty(size * size * 4, dtype=np.float32)
     img.pixels.foreach_get(px)
     rgb = np.clip(np.nan_to_num(px.reshape(-1, 4)[:, :3], nan=0.0, posinf=0.0, neginf=0.0), 0.0, 400.0)
+    if blur > 0:
+        rgb = smooth_lightmap(rgb, size, blur)
     luma = rgb[:, 0] * 0.2126 + rgb[:, 1] * 0.7152 + rgb[:, 2] * 0.0722
     lit = luma[luma > 1e-4]
     # 99.5th percentile: sun patches keep most of their punch; only the very hottest texels clip

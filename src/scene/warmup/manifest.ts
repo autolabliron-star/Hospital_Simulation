@@ -28,10 +28,10 @@ export interface MaterialSite {
 export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/materials.ts': { count: 1, via: 'palette', where: 'MAT: building meshes, pods, props; every key also registered through ALL_MATERIALS' },
   'src/scene/actors/crowd/shaders.ts': {
-    count: 6,
+    count: 5,
     via: 'mounted',
     where:
-      'crowdRig objects: three bodies, props, vehicles, blob shadows, selection ring (hidden until used); W3 wave B: the realistic people\'s avatar bodies (one program), added to the crowd-people group by attachPeople while the warm gate "people" holds the warm-up (hidden until used)',
+      'crowdRig objects: three bodies, props, vehicles, selection ring (hidden until used); W3 wave B: the realistic people\'s avatar bodies (one program), added to the crowd-people group by attachPeople while the warm gate "people" holds the warm-up (hidden until used). The blob shadows use src/scene/lighting/contact/material.ts',
   },
   'src/scene/building/render/commandWall.ts': { count: 1, via: 'mounted', where: 'BuildingMeshes: the command-wall mesh' },
   'src/scene/building/render/labels.ts': { count: 1, via: 'mounted', where: 'BuildingMeshes: floor labels, in the overview-only group (hidden while walking)' },
@@ -43,8 +43,13 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/imaging/machines/machineMaterials.ts': { count: 3, via: 'mounted', where: 'imaging rig: MACHINE_BODY, MACHINE_GLOW and the four monitors (made at mount by createRig)' },
   'src/scene/landscape/grounds/material.ts': { count: 2, via: 'mounted', where: 'World: the exterior (ground, paving, props, neighbours: matte; car paint and glass: gloss), mounted at load and visible in the overview and the walk; the haze is a shader patch with a fixed program cache key' },
   'src/scene/lighting/env/hospitalEnvironment.ts': { count: 1, via: 'offline', where: 'the hospital environment: unlit room faces, light panels and a daylight strip, rendered once into a PMREM at mount (never in a frame)' },
+  'src/scene/lighting/contact/material.ts': {
+    count: 1,
+    via: 'mounted',
+    where:
+      'realism step 2, the soft contact shadows (one program): the crowd blobs (crowdRig), the MealBot shadow mesh (botsRig) and the contact-shadow layer that <Lighting /> mounts at load (instance count 0 until a source writes)',
+  },
   'src/scene/lighting/env/SkyDome.tsx': { count: 1, via: 'mounted', where: 'World: the sky dome (one sphere, hidden in the overview and shown while walking; mounted at load, so the warm-up reveals and compiles it)' },
-  'src/scene/meals/blob.ts': { count: 1, via: 'mounted', where: 'MealBot shadow mesh' },
   'src/scene/meals/botsRig.ts': { count: 2, via: 'mounted', where: 'MealBot body and light ring (kept on hidden zero-size instances while no bot is out)' },
   'src/scene/meals/traysRig.ts': { count: 1, via: 'mounted', where: 'tray and cloche meshes (hidden instances)' },
   'src/scene/meals/ward/wardParts.ts': { count: 2, via: 'mounted', where: 'ward rig: bedside screens and door tiles' },

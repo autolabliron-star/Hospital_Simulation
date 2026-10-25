@@ -5,7 +5,9 @@
  */
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { getLayout } from '@/scene/building/layout'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { layoutShadows, registerStaticShadows } from '@/scene/lighting/contact/layoutShadows'
 import { visualDt } from '@/scene/timeScale'
 import { sim, simGeneration } from '@/sim'
 import { createLabRig, type LabStep } from './rig'
@@ -13,6 +15,8 @@ import { registerLabTiles } from './tiles'
 
 export function LabLayer() {
   const rig = useMemo(() => createLabRig(), [])
+  // realism step 2: soft contact shadows under the lab's benches, analysers, centrifuges and desk (their layout footprints: kept procedural)
+  useEffect(() => registerStaticShadows('lab', rig.root, layoutShadows(getLayout().footprints, (id) => id.startsWith('lab:'), { darkness: 0.45, pen: 0.22 })), [rig])
   useEffect(() => {
     const off = registerLabTiles(() => sim.lab.state)
     return () => {

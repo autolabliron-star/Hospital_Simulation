@@ -6,6 +6,9 @@
  *     component swaps `scene.environment` between frames, no allocation, no recompile;
  *   - with the authored building, each zone's baked HDR probe (src/scene/lighting/env/lobbyProbe.ts), PMREM'd once behind a warm gate and bound
  *     while the camera is in that zone (`liveLook.lobbyEnv`, `zoneProbeTexture`); a missing file changes nothing;
+ *   - (realism step 2) from the same probes, the bake field (src/scene/lighting/bake): each zone's diffuse light as SH9 over the plan, built in
+ *     the same warm gate, which people, robots and devices read instead of the live sun and hemisphere while walking in the authored building;
+ *     and the soft contact shadows under them (src/scene/lighting/contact, one draw call for everything that registers);
  *   - (W3) the light volume's bake starts here, behind the loading screen (a warm gate, src/scene/lighting/volume/texture.ts), and the
  *     textures of the realistic light are registered with the warm-up so they upload before the Enter button;
  *   - after a lost and restored WebGL context (a GPU reset, a display plugged in) the environments and the shadow map are rebuilt (F-44, glContext.ts);
@@ -23,7 +26,11 @@ import { watchContextRestore } from '@/scene/glContext'
 import { LIGHT_NOON } from '@/scene/daylight/lightAt'
 import { createCeilingTexture } from '@/scene/lighting/ceilingMap'
 import { buildHospitalEnvironment, disposeEnvironment } from '@/scene/lighting/env/hospitalEnvironment'
-import { loadZoneProbes, zoneProbeTexture } from '@/scene/lighting/env/lobbyProbe'
+import { bakeFieldSources, loadZoneProbes, zoneProbeTexture } from '@/scene/lighting/env/lobbyProbe'
+import { buildBakeField } from '@/scene/lighting/bake/field'
+import { installBakeProbe } from '@/scene/lighting/bake/probe'
+import { bakeFieldTexture, clearBakeField, setBakeField } from '@/scene/lighting/bake/uniforms'
+import { ContactShadows } from '@/scene/lighting/contact/ContactShadows'
 import { createGradeLut } from '@/scene/lighting/grade'
 import { liveLook } from '@/scene/lighting/liveLook'
 import { ensureLightVolume } from '@/scene/lighting/volume/texture'
@@ -115,6 +122,9 @@ export function Lighting() {
       probes = p
       envs.current.zones = p.textures
       envs.current.lobby = p.textures[0] ?? null
+      // realism step 2: the probes' diffuse light over the plan, for the live objects (a few ms, once, behind the loading screen)
+      const sources = bakeFieldSources()
+      if (sources.length > 0) setBakeField(buildBakeField(sources), sources.map((src) => src.name))
     })
     const unregister = registerWarmGate('zone-probes', work)
     return () => {
@@ -122,9 +132,13 @@ export function Lighting() {
       unregister()
       envs.current.zones = []
       envs.current.lobby = null
+      clearBakeField()
       probes?.dispose()
     }
   }, [gl, restores])
+
+  // ?probe=1: window.__hospitalBakeLight (the field's sources, a sample at a point, the uniforms)
+  useEffect(() => installBakeProbe(), [])
 
   // the realistic light's textures upload behind the loading screen, and the light volume bakes there too (a warm gate: the warm-up waits)
   useEffect(() => {
@@ -132,7 +146,7 @@ export function Lighting() {
     return registerWarmSource({
       name: 'lighting',
       textures: () => {
-        const list: Texture[] = [volumeTexture, createCeilingTexture(), createGradeLut()]
+        const list: Texture[] = [volumeTexture, bakeFieldTexture, createCeilingTexture(), createGradeLut()]
         if (envs.current.room) list.push(envs.current.room)
         if (envs.current.hospital) list.push(envs.current.hospital)
         for (const t of envs.current.zones) list.push(t)
@@ -176,6 +190,7 @@ export function Lighting() {
 
   return (
     <>
+      <ContactShadows />
       <hemisphereLight ref={setHemi} args={['#f4fbff', '#d9d3c8', LIGHT_NOON.hemiIntensity]} />
       <primitive object={target} position={[CX, 0, CZ]} />
       <directionalLight

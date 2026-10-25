@@ -14,7 +14,11 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { registerBlockers } from '@/scene/blockers'
+import { getLayout } from '@/scene/building/layout'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { layoutShadows, writeStaticShadows } from '@/scene/lighting/contact/layoutShadows'
+import { registerContactSource, shownInScene, type ContactBuffer } from '@/scene/lighting/contact/registry'
+import type { Object3D } from 'three'
 import { useFocus } from '@/scene/camera/focus.store'
 import { domEnv } from '@/scene/imaging/images/ctx'
 import { interaction } from '@/scene/interact'
@@ -53,6 +57,15 @@ function teachingEnv(): TeachingEnv {
 /** `?probe=1` installs the endoscope's probe handle (endo/debug.ts). */
 const probeEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('probe') === '1'
 
+/** The patient cart's base (box instance 0: 0.9 x 1.38 m, rig.ts writeCart) as a contact shadow on level 2's floor; nothing while it is hidden. */
+export const CART_SHADOW = { halfX: 0.45, halfZ: 0.69, radius: 0.08, pen: 0.25, darkness: 0.5 } as const
+
+function writeCartShadow(anchor: Object3D, m: Float32Array, buf: ContactBuffer): void {
+  if (m[15] === 0 || !shownInScene(anchor)) return
+  const s = CART_SHADOW
+  buf.add(m[12] - LEVEL2_DX, LEVEL_Y[2], m[14], Math.atan2(m[8], m[10]), s.halfX, s.halfZ, s.radius, s.pen, s.darkness)
+}
+
 export function SurgeryLayer() {
   const rig = useMemo(() => createSurgeryRig(), [])
   const live = useMemo(() => createLiveResources(domEnv), [])
@@ -60,6 +73,19 @@ export function SurgeryLayer() {
   const kit = useMemo(() => createStatusRig({ tiles: surgeryTiles }), [])
   const teaching = useMemo(() => new TeachingSession(teachingEnv()), [])
   const cartBlockers = useMemo(createCartBlockers, [])
+
+  // realism step 2: soft contact shadows under the OR table, the consoles, the vision cart and the anaesthesia machine (layout footprints; the
+  // chairs, stool, back table, Mayo stand and desk are baked) and under the robot's patient cart, which follows its pose
+  useEffect(() => {
+    const list = layoutShadows(getLayout().footprints, (id) => /^l2:or:(table|console:surgeon|console:teach|vision|anaesthesia)$/.test(id), { darkness: 0.5, pen: 0.22 })
+    return registerContactSource({
+      name: 'surgery',
+      write: (buf) => {
+        writeStaticShadows(rig.root, list, buf)
+        writeCartShadow(rig.root, rig.boxes.instanceMatrix.array as Float32Array, buf)
+      },
+    })
+  }, [rig])
 
   // the cart is solid for as long as this layer is mounted (its box is in sim coordinates, on level 2's strip, so it never reaches you on level 1)
   useEffect(() => {

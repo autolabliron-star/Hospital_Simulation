@@ -10,6 +10,7 @@ import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { getLayout } from '@/scene/building/layout'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
+import { layoutShadows, registerStaticShadows } from '@/scene/lighting/contact/layoutShadows'
 import { interaction } from '@/scene/interact'
 import { HealthCheck, healthCheckRegistry, type HealthEnv, type HealthSim } from '@/scene/interact/healthCheck'
 import { placePlayer } from '@/scene/player/api'
@@ -52,6 +53,12 @@ function healthEnv(): HealthEnv {
 export function KioskLayer() {
   const rig = useMemo(() => createRig(), [])
   const health = useMemo(() => new HealthCheck(healthEnv()), [])
+
+  // realism step 2: the towers' soft contact shadows (their layout footprints; the bodies are procedural, not baked)
+  useEffect(
+    () => registerStaticShadows('health-kiosks', rig.root, layoutShadows(getLayout().footprints, (id) => /^lobby:kiosk\d+$/.test(id), { darkness: 0.5, pen: 0.22 })),
+    [rig],
+  )
 
   useEffect(() => {
     const unregister = registerKioskTiles(tileSource, getLayout())
