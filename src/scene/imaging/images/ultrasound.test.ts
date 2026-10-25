@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PROTOCOLS } from '@/content/imaging'
-import { US_MAX_BLOBS, createUsScene, usScene, usViewOf, US_VIEWS, type UsScene } from './ultrasound'
+import { mulberry32 } from '@/sim/rng'
+import { BREAST_TUMOUR_MM, TUMOUR_EXTENT, US_APEX_Y, US_MAX_BLOBS, createUsScene, nthRandom, usScene, usViewOf, US_VIEWS, type UsScene } from './ultrasound'
 
 const snapshot = (s: UsScene): string => JSON.stringify(s.blobs.slice(0, s.count))
 
@@ -71,5 +72,45 @@ describe('ultrasound geometry', () => {
       if (s.blobs.slice(0, s.count).some((b) => b.behind < 0)) found = true
     }
     expect(found).toBe(true)
+  })
+
+  it('draws the same numbers as mulberry32, without a generator per frame', () => {
+    for (const seed of [0, 1, 77, 0x9e3779b1, 123456789]) {
+      const r = mulberry32(seed)
+      for (let k = 0; k < 20; k++) expect(nthRandom(seed, k)).toBe(r())
+    }
+  })
+
+  it('breast: a linear picture, the same for the same seed, with a ~1.2 cm dark tumour at about 2 cm in the gland', () => {
+    expect(usViewOf('Probe placement', 'breast')).toBe('breast')
+    expect(usViewOf('Freeze 1', 'breast')).toBe('breast')
+    const tumourMm: number[] = []
+    for (const seed of [3, 41, 977, 31337]) {
+      const a = usScene(createUsScene(), 'breast', seed, 0.5, 2.5)
+      const b = usScene(createUsScene(), 'breast', seed, 0.5, 2.5)
+      expect(snapshot(a)).toBe(snapshot(b))
+      expect(a.linear).toBe(true)
+      expect(a.depthCm).toBe(5)
+      expect(a.count).toBeGreaterThan(15)
+      // the tumour: the scene's target, a dark blob there
+      expect(a.tr).toBeGreaterThan(0)
+      const d = (2 * a.tr) / TUMOUR_EXTENT / a.mm
+      expect(d).toBeGreaterThanOrEqual(BREAST_TUMOUR_MM[0] - 0.01)
+      expect(d).toBeLessThanOrEqual(BREAST_TUMOUR_MM[1] + 0.01)
+      tumourMm.push(d)
+      const depthMm = (a.ty - US_APEX_Y) / a.mm
+      expect(depthMm).toBeGreaterThan(17)
+      expect(depthMm).toBeLessThan(24)
+      expect(Math.abs(a.tx)).toBeLessThan(0.1)
+      const core = a.blobs.slice(0, a.count).find((k) => Math.abs(k.cx - a.tx) < 1e-9 && Math.abs(k.cy - a.ty) < 1e-9)
+      expect(core?.echo).toBeLessThan(0.15)
+      // ribs deep with their shadows, a bright layer (the gland) brighter than the fat
+      const blobs = a.blobs.slice(0, a.count)
+      expect(blobs.filter((k) => k.behind < 0 && k.cy > 0.75).length).toBe(2)
+      expect(Math.max(...blobs.filter((k) => k.rx > 0.5 && k.cy < 0.5).map((k) => k.echo))).toBeGreaterThan(0.55)
+      // the other views keep a zero target
+      expect(usScene(createUsScene(), 'liver', seed, 0.5, 2.5).tr).toBe(0)
+    }
+    expect(new Set(tumourMm.map((x) => x.toFixed(2))).size).toBeGreaterThan(1)
   })
 })

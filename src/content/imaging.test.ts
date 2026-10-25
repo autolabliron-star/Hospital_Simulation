@@ -146,12 +146,23 @@ const EXPECTED: Array<[id: string, modality: string, bodyPart: string, sequences
       ['Bladder', 'sweep', 'none', 60, 2],
     ],
   ],
+  [
+    'us-cryo-breast',
+    'us',
+    'breast',
+    [
+      ['Probe placement', 'sweep', 'none', 150, 3],
+      ['Freeze 1', 'sweep', 'none', 420, 6],
+      ['Thaw', 'sweep', 'none', 240, 3],
+      ['Freeze 2', 'sweep', 'none', 420, 6],
+    ],
+  ],
 ]
 
 /** The brief's clinical rules, one reason each. */
 
 describe('protocols', () => {
-  it('defines exactly the protocols in the brief (thirteen, the R3 knee radiograph and the non-contrast CT KUB)', () => {
+  it('defines exactly the protocols in the brief (thirteen, the R3 knee radiograph, the non-contrast CT KUB and the ProSense cryoablation)', () => {
     expect(Object.keys(PROTOCOLS).sort()).toEqual(EXPECTED.map(([id]) => id).sort())
   })
 
@@ -167,6 +178,28 @@ describe('protocols', () => {
     for (const p of Object.values(PROTOCOLS)) {
       expect(ProtocolSchema.safeParse(p).success, p.id).toBe(true)
     }
+  })
+
+  it('marks the cryoablation steps (place, freeze, thaw, freeze), and every other protocol is plain scans (no step)', () => {
+    expect(protocolById('us-cryo-breast').sequences.map((s) => s.step)).toEqual(['place', 'freeze', 'thaw', 'freeze'])
+    for (const p of Object.values(PROTOCOLS)) if (p.id !== 'us-cryo-breast') for (const s of p.sequences) expect(s.step, `${p.id} ${s.name}`).toBeUndefined()
+  })
+
+  it('rejects procedure steps outside the ultrasound, a thaw before any freeze, and scan sweeps mixed into a procedure', () => {
+    const cryo = protocolById('us-cryo-breast')
+    expect(ProtocolSchema.safeParse(cryo).success).toBe(true)
+    expect(ProtocolSchema.safeParse({ ...cryo, id: 'mri-cryo', modality: 'mri' }).success).toBe(false)
+    expect(ProtocolSchema.safeParse({ ...cryo, id: 'ct-cryo', modality: 'ct' }).success).toBe(false)
+    const [place, freeze, thaw] = cryo.sequences
+    expect(ProtocolSchema.safeParse({ ...cryo, sequences: [place, thaw, freeze] }).success).toBe(false)
+    expect(ProtocolSchema.safeParse({ ...cryo, sequences: [place, { ...thaw, step: undefined }, freeze] }).success).toBe(false)
+    expect(ProtocolSchema.safeParse({ ...cryo, sequences: [place] }).success).toBe(false)
+    expect(ProtocolSchema.safeParse({ ...cryo, sequences: [{ ...freeze, step: 'boil' }] }).success).toBe(false)
+    // an explicit 'sweep' is a scan, allowed on any modality; ids keep the lower-case hyphen form
+    const brain = protocolById('mri-brain')
+    expect(ProtocolSchema.safeParse({ ...brain, sequences: brain.sequences.map((s) => ({ ...s, step: 'sweep' })) }).success).toBe(true)
+    expect(ProtocolSchema.safeParse({ ...cryo, id: 'us-Cryo' }).success).toBe(false)
+    expect(ProtocolSchema.safeParse({ ...cryo, id: 'us-cryo-' }).success).toBe(false)
   })
 
   it('protocolById returns the protocol and throws on an unknown id', () => {

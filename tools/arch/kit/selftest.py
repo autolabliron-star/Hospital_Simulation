@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 import materials as mt  # noqa: E402
 from common import Frame, Geo  # noqa: E402
-from kit import arch, base, cafe, er, patient, support, theatre  # noqa: E402
+from kit import arch, base, cafe, cryo, er, patient, support, theatre  # noqa: E402
 
 # item -> (call, triangle budget)
 ITEMS = {
@@ -55,6 +55,7 @@ ITEMS = {
     'support.linen_cart': (lambda g, n: support.linen_cart(g, Frame(0, 0), node=n), 2500),
     'support.wheelchair': (lambda g, n: support.wheelchair(g, Frame(0, 0), node=n), 3500),
     'support.beam_seating(3)': (lambda g, n: support.beam_seating(g, Frame(0, 0), n=3), 1500),
+    'cryo.console': (lambda g, n: cryo.console(g, Frame(0, 0), node=n), 4000),
     'theatre.anaesthesia_pendant': (lambda g, n: theatre.supply_pendant(g, Frame(0, 0), node=n), 3500),
     'theatre.surgeon_pendant': (lambda g, n: theatre.supply_pendant(g, Frame(0, 0), node=n, kind='surgeon'), 3000),
     'theatre.surgical_light': (lambda g, n: theatre.surgical_light(g, Frame(0, 0), node=n), 6000),

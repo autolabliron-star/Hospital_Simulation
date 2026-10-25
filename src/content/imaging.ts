@@ -5,7 +5,7 @@
  * here, with the file and field named. Everything is synthetic; the sim makes no clinical decisions.
  */
 import { z } from 'zod'
-import type { BodyPart, ImagingModality, ScanContrast, ScanPlane, ScanSequence } from '@/sim/types'
+import type { BodyPart, ImagingModality, ScanContrast, ScanPlane, ScanSequence, ScanStep } from '@/sim/types'
 import imagingJson from './imaging.json'
 import outpatientsJson from './outpatients.json'
 import { LAB_CATALOGUE } from './lab'
@@ -65,6 +65,7 @@ const BODY_PART_CHECK: Record<BodyPart, true> = {
   wrist: true,
   neck: true,
   kidneys: true,
+  breast: true,
 }
 const PLANE_CHECK: Record<ScanPlane, true> = {
   axial: true,
@@ -74,6 +75,8 @@ const PLANE_CHECK: Record<ScanPlane, true> = {
   sweep: true,
   scout: true,
 }
+/** What an ultrasound step does: a scan ('sweep', the default) or a step of the cryoablation (docs/research/cryoablation.md). */
+const STEP_CHECK: Record<ScanStep, true> = { sweep: true, place: true, freeze: true, thaw: true }
 const CONTRAST_CHECK: Record<ScanContrast, true> = {
   T1: true,
   T2: true,
@@ -116,15 +119,31 @@ export const ScanSequenceSchema: z.ZodType<ScanSequence> = z.strictObject({
   contrast: enumOf(CONTRAST_CHECK),
   seconds: z.number().positive(),
   images: z.number().int().min(1),
+  step: enumOf(STEP_CHECK).optional(),
 })
 
-export const ProtocolSchema: z.ZodType<Protocol> = z.strictObject({
-  id: z.string().regex(/^[a-z]+-[a-z]+$/, 'id looks like mri-brain'),
-  modality: enumOf(MODALITY_CHECK),
-  bodyPart: enumOf(BODY_PART_CHECK),
-  name: z.string().min(1),
-  sequences: z.array(ScanSequenceSchema).min(1),
-})
+export const ProtocolSchema: z.ZodType<Protocol> = z
+  .strictObject({
+    id: z.string().regex(/^[a-z]+(-[a-z]+)+$/, 'id looks like mri-brain or us-cryo-breast'),
+    modality: enumOf(MODALITY_CHECK),
+    bodyPart: enumOf(BODY_PART_CHECK),
+    name: z.string().min(1),
+    sequences: z.array(ScanSequenceSchema).min(1),
+  })
+  .superRefine((p, ctx) => {
+    // the procedure steps (cryoablation: place, freeze, thaw) run on the ultrasound only; a thaw follows a freeze, and a
+    // procedure is all procedure (no scan sweeps mixed in, so the screen and the sim read one kind of exam)
+    const steps = p.sequences.map((s) => s.step ?? 'sweep')
+    const procedure = steps.some((st) => st !== 'sweep')
+    steps.forEach((st, i) => {
+      if (st !== 'sweep' && p.modality !== 'us') {
+        ctx.addIssue({ code: 'custom', path: ['sequences', i, 'step'], message: `the step "${st}" is for the ultrasound only` })
+      }
+      if (procedure && st === 'sweep') ctx.addIssue({ code: 'custom', path: ['sequences', i, 'step'], message: 'a procedure has no scan sweeps' })
+      if (st === 'thaw' && !steps.slice(0, i).includes('freeze')) ctx.addIssue({ code: 'custom', path: ['sequences', i, 'step'], message: 'a thaw follows a freeze' })
+    })
+    if (procedure && !steps.includes('freeze')) ctx.addIssue({ code: 'custom', path: ['sequences'], message: 'a procedure has at least one freeze' })
+  })
 
 const ErTestInput = z.strictObject({
   chance: z.number().min(0).max(1),

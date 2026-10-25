@@ -211,6 +211,7 @@
     "zones/imaging/lm_Mullion.ktx2",
     "zones/imaging/lm_Oak.ktx2",
     "zones/imaging/lm_PowderWhite.ktx2",
+    "zones/imaging/lm_Screen.ktx2",
     "zones/imaging/lm_ShadowGap.ktx2",
     "zones/imaging/lm_SheetVinyl.ktx2",
     "zones/imaging/lm_Soil.ktx2",
@@ -253,16 +254,16 @@
     "y0": -0.05,
     "y1": 3.06
    },
-   "draws": 28,
-   "tris": 68964,
-   "lightmapMB": 10.08,
+   "draws": 29,
+   "tris": 72908,
+   "lightmapMB": 10.17,
    "proxy": {
     "glb": "zones/imaging/imaging.proxy.glb",
-    "tris": 20820,
+    "tris": 21639,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 2.643,
-    "kb": 770
+    "scale": 2.755,
+    "kb": 776
    },
    "nodes": [],
    "replaces": [
@@ -303,8 +304,8 @@
     "lobby",
     "core"
    ],
-   "bakeSeconds": 531,
-   "bakedAt": "2026-10-25T10:29:02.689Z",
+   "bakeSeconds": 663,
+   "bakedAt": "2026-10-25T12:29:51.838Z",
    "validator": {
     "errors": 0,
     "warnings": 49
@@ -1145,12 +1146,12 @@
   ]
  },
  "totals": {
-  "draws": 208,
-  "tris": 1097162,
-  "lightmapMB": 94.6,
-  "textureMB": 124.75,
+  "draws": 209,
+  "tris": 1101106,
+  "lightmapMB": 94.69,
+  "textureMB": 124.84,
   "proxies": 8,
-  "proxyTris": 251649,
+  "proxyTris": 252468,
   "proxyMB": 10.64,
   "withinBudget": true
  }

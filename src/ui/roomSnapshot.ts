@@ -87,7 +87,8 @@ export interface QueuedBooking {
 /** What the viewer needs from `sim.imaging`: the scanner states, the demo button and (if the sim has it) the waiting lists. */
 export interface ImagingSimLike {
   scanners: Record<ImagingModality, ScannerState>
-  startDemoScan(m: ImagingModality): boolean
+  /** `protocolId` picks a demo procedure (the sim's DEMO_PROCEDURES, e.g. 'us-cryo-breast'); without it, the room's usual demo scan. */
+  startDemoScan(m: ImagingModality, protocolId?: string): boolean
   hasOperator?(m: ImagingModality): boolean
   queues?: Record<ImagingModality, { readonly waiting: readonly QueuedBooking[] }>
 }
@@ -123,6 +124,8 @@ export interface ScannerView {
   completed: number[]
   /** A demo patient has already been asked for and is on the way. */
   demoPending: boolean
+  /** The exam is a cryoablation (a step places, freezes or thaws): the viewer shows the device card. */
+  cryo: boolean
   queueLabel: 'Next in queue' | 'Next booked'
   queueText: string
 }
@@ -174,6 +177,7 @@ export function scannerView(imaging: ImagingSimLike, m: ImagingModality, simT: n
     percent: stepPercent(s),
     remainingText: exam && s.phase !== 'idle' ? formatDuration(s.remaining) : null,
     completed: completedSteps(s, total),
+    cryo: exam ? exam.sequences.some((q) => q.step !== undefined && q.step !== 'sweep') : false,
     ...queueSummary(imaging, m, exam, simT),
   }
 }

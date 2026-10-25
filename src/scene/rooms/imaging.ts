@@ -397,6 +397,9 @@ function buildUltrasound(b: LayoutBuilder): void {
   w.rbox(-33.64, 0.92, 6.0, 0.14, 0.2, 0.1, 'tinted', { r: 0.03, color: '#8ec9d6', cast: false }) // gel bottle
   w.rect('imaging:us:counter', -33.63, 5.5, 0.54, 1.8)
   cabinet(w, 'imaging:us:cabinet', -28.35, 4.0, 1.5, 0.5, -Math.PI / 2)
+  // the cryoablation console (baked by the imaging zone: tools/arch/kit/cryo.py, origin (-33.45, 10.5), screen facing north): west of the
+  // couch's head end, clear of the couch approach; its collision only (the hose coil, push handle and probe holder included)
+  w.rect('imaging:us:cryo', -33.42, 10.49, 0.54, 0.76)
 }
 
 // ---------------------------------------------------------------------------------------------

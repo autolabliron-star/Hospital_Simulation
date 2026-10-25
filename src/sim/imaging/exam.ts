@@ -4,7 +4,7 @@
  */
 import { CONFIG } from '../config'
 import type { Rng } from '../rng'
-import type { BodyPart, ImagingExam, ImagingModality, ScanSequence } from '../types'
+import type { BodyPart, ImagingExam, ImagingModality, ScanSequence, ScanStep } from '../types'
 
 /** What the sim needs from a protocol (src/content/imaging.ts `Protocol` satisfies it). */
 export interface ProtocolLike {
@@ -61,6 +61,66 @@ export interface PlanOptions {
   transported: boolean
 }
 
+/**
+ * The ultrasound-guided cryoablation (ProSense, docs/research/cryoablation.md): an ultrasound "exam" whose steps are a procedure
+ * (place, freeze, thaw, freeze) instead of scan sweeps. Change request: these belong in CONFIG.imaging (`cryo`).
+ */
+export const CRYO = {
+  /** The consent and the local anaesthetic take this many times the ultrasound history talk (`explainSeconds.us`). */
+  explainFactor: 3,
+  /** The demo patient is already consented: only the local anaesthetic, this share of a normal talk. */
+  demoExplainFactor: 0.4,
+  /** Skin prep, gel and a sterile drape: this many times the ultrasound positioning. */
+  positionFactor: 2.5,
+  /** A small dressing on the probe site, then the room wiped down: this many times the usual cleanup. */
+  cleanupFactor: 2,
+  /** Ice-ball size (0..1) at the end of a freeze that is not the last one; the last freeze ends at 1. */
+  firstFreezeSize: 0.8,
+  /** The share of its size the ice ball keeps through a thaw. */
+  thawKeep: 0.85,
+  /** `activity` (cryogen flow) while the probe is being placed: probe contact only, no cryogen. */
+  placeActivity: 0.15,
+  /** How fast the cryogen flow ramps up at a freeze, and down at a thaw or a pause (fraction per second). */
+  flowUpPerSecond: 0.25,
+  flowDownPerSecond: 0.2,
+} as const
+
+/** What a sequence does (absent = a scan sweep). */
+export function stepOf(s: ScanSequence): ScanStep {
+  return s.step ?? 'sweep'
+}
+
+/** Is this exam a procedure (the cryoablation) rather than a scan? */
+export function isProcedure(exam: { sequences: readonly ScanSequence[] }): boolean {
+  for (const s of exam.sequences) if (stepOf(s) !== 'sweep') return true
+  return false
+}
+
+const easeOut = (k: number): number => 1 - (1 - k) * (1 - k)
+const smooth = (k: number): number => k * k * (3 - 2 * k)
+
+/**
+ * The ice ball's size (0..1) at `progress` through sequence `i` of a cryoablation (`i` = -1: none yet), carried across the
+ * steps: a freeze grows it fast at first and then slower (towards `CRYO.firstFreezeSize`, the last freeze to 1), a thaw
+ * eases it back to `CRYO.thawKeep` of its size, placing the probe leaves it as it is. Pure, no allocation: the scene may call it.
+ */
+export function iceSize(sequences: readonly ScanSequence[], i: number, progress: number): number {
+  let last = -1
+  for (let k = 0; k < sequences.length; k++) if (stepOf(sequences[k]) === 'freeze') last = k
+  let size = 0
+  for (let k = 0; k <= i && k < sequences.length; k++) {
+    const q = k < i ? 1 : progress <= 0 ? 0 : progress >= 1 ? 1 : progress
+    const step = stepOf(sequences[k])
+    if (step === 'freeze') {
+      const target = k === last ? 1 : Math.max(size, CRYO.firstFreezeSize)
+      size += (target - size) * easeOut(q)
+    } else if (step === 'thaw') {
+      size -= size * (1 - CRYO.thawKeep) * smooth(q)
+    }
+  }
+  return size
+}
+
 const span = (r: Record<string, readonly [number, number]>, m: string): readonly [number, number] => r[m] ?? [0, 0]
 
 /** Is the pause after sequence `i` the wait between two contrast phases of a CT (arterial, then portal venous)? */
@@ -75,8 +135,15 @@ export function drawPlan(rng: Rng, exam: ImagingExam, o: PlanOptions): ExamPlan 
   const prep = m === 'mri' ? rng.between(cfg.mriPrepSeconds) : 0
   const changeS = m === 'mri' && !o.demo && !o.transported ? prep * cfg.mriChangeShare : 0
   const screenS = m === 'mri' ? Math.max(35, prep * (1 - cfg.mriChangeShare)) : 0
-  const explainS = m === 'mri' || o.demo ? 0 : rng.between(span(cfg.explainSeconds, m)) * (o.transported ? 0.6 : 1)
-  const positionS = rng.between(span(cfg.positioningSeconds, m))
+  const procedure = isProcedure(exam)
+  // the cryoablation: consent and the local anaesthetic before, skin prep and a sterile drape, a dressing after (the same draws, scaled,
+  // except that the demo patient still gets the local anaesthetic: one extra draw for her)
+  const explainS = procedure
+    ? rng.between(span(cfg.explainSeconds, m)) * (o.demo ? CRYO.demoExplainFactor : CRYO.explainFactor)
+    : m === 'mri' || o.demo
+      ? 0
+      : rng.between(span(cfg.explainSeconds, m)) * (o.transported ? 0.6 : 1)
+  const positionS = rng.between(span(cfg.positioningSeconds, m)) * (procedure ? CRYO.positionFactor : 1)
   const gapS: number[] = []
   for (let i = 0; i < exam.sequences.length - 1; i++) {
     // one draw per gap, whatever its kind, so the stream stays the same length; a contrast CT's portal phase follows the arterial one
@@ -91,7 +158,7 @@ export function drawPlan(rng: Rng, exam: ImagingExam, o: PlanOptions): ExamPlan 
     positionS,
     gapS,
     tableS: cfg.tableSeconds[m] ?? 0,
-    cleanupS: rng.between(cfg.cleanupSeconds),
+    cleanupS: rng.between(cfg.cleanupSeconds) * (procedure ? CRYO.cleanupFactor : 1),
     reportS: rng.between(span(cfg.reportSeconds, m)),
   }
 }

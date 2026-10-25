@@ -12,7 +12,8 @@ colour: imaging purple (door linings, door-head signs, the directory) on pale li
                     over the magnet and table, a stainless threshold and the warning lamp at the RF door, coil storage, a tall cabinet
   CT, X-ray         lead-lined (graphite) door frames, stainless thresholds, a warning lamp over each door, lead-apron racks, cabinets, a lead-glass
                     screen and an exposure desk in the X-ray booth
-  ultrasound        a clean couch with a paper roll, a hand-wash station, a cabinet, a stool
+  ultrasound        a clean couch with a paper roll, a hand-wash station, a cabinet, a stool, and the liquid-nitrogen cryoablation console
+                    (kit.cryo.console) west of the couch's head end, its screen to the north, the probe's hose within reach of the couch
   blood draw        a hand-wash station, the waiting bench in the lobby's language, changing cubicle benches with hooks, a lilac wall behind the
                     cubicles (they stood against the glass wall onto the core)
 
@@ -29,10 +30,11 @@ from shell import GAP_D, GAP_H, line_box
 try:
     from kit import arch as karch
     from kit import base as kbase
+    from kit import cryo as kcryo
     from kit import patient as kpatient
     from kit import support as ksupport
 except Exception:      # noqa: BLE001  (no kit: the zone still builds, without the kit's pieces)
-    karch = kbase = kpatient = ksupport = None
+    karch = kbase = kcryo = kpatient = ksupport = None
 
 CH = 3.0
 T = 0.2
@@ -48,6 +50,10 @@ OWN_CEILINGS = ('imagingHall', 'mri')
 SKIP_DOORS = ()
 
 # doors: imaging purple on the corridor-side doors, graphite (lead-lined) on the doors into a radiation or RF room
+# the cryoablation console (kit.cryo.console): plan (x, z, heading). Its collision is src/scene/rooms/imaging.ts 'imaging:us:cryo' (the
+# footprint has no procedural prims, so it is not in REPLACES)
+CRYO = (-33.45, 10.5, math.pi)
+
 DOOR_LINING = {'mriControl': PURPLE, 'ctControl': PURPLE, 'ultrasound': PURPLE, 'bloodDraw': PURPLE, 'xray': 'Steel', 'mriRoom': 'Steel', 'ctRoom': 'Steel'}
 
 # review stills (plan x, z) -> look at (x, z), eye 1.6 m, 24 mm: the hall, the MRI control room, the CT room, the blood-draw centre
@@ -472,6 +478,9 @@ def ultrasound(ctx):
     tall_cabinet(geo, cb['x'], cb['z'], cb['w'], cb['d'], cb['rotationY'])
     # a lilac wall behind the couch (the south wall)
     tint_panel(geo, True, 11.9, -1, -33.9, -28.1)
+    # the cryoablation console beside the couch's head end, on the side opposite the ultrasound cart
+    if kcryo:
+        kcryo.console(geo, Frame(*CRYO))
 
 
 # --- blood-draw centre ---------------------------------------------------------------------------------------------------------------------------------

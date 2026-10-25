@@ -30,7 +30,7 @@ import { IMAGING } from '../places'
 import type { SeatRegistry } from '../seats'
 import type { ImagingExam, ImagingModality, ScannerPhase, ScannerState, SimEventType, Vec2 } from '../types'
 import type { Booking } from './booking'
-import { sequenceSeconds, scanningSeconds, type ExamPlan } from './exam'
+import { CRYO, iceSize, isProcedure, sequenceSeconds, scanningSeconds, stepOf, type ExamPlan } from './exam'
 import type { ImagingOperator } from './operator'
 import { CubiclePool, dist, firstWalkable, type ScannerSites } from './sites'
 
@@ -97,6 +97,8 @@ interface Session {
   stationSent: boolean
   /** The cubicle the MRI patient changes in, or -1. */
   cubicle: number
+  /** The exam is the ultrasound-guided cryoablation (steps place, freeze, thaw), not a scan. */
+  cryo: boolean
 }
 
 const ease = (k: number): number => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k))
@@ -176,6 +178,7 @@ export class Scanner {
       scanElapsed: 0,
       stationSent: false,
       cubicle: -1,
+      cryo: isProcedure(exam),
     }
     this.sess = s
     const st = this.state
@@ -240,6 +243,7 @@ export class Scanner {
       scanElapsed,
       stationSent: this.modality === 'xray' && seq === 0,
       cubicle: -1,
+      cryo: isProcedure(exam),
     }
     this.sess = s
     const st = this.state
@@ -378,10 +382,25 @@ export class Scanner {
         if (this.modality !== 'us') op.goTo(a.handler.at, { face: a.handler.heading })
         break
       case 'explain':
+        if (s.cryo) {
+          this.say(
+            'scanSequence',
+            s.booking.kind === 'demo'
+              ? `${this.who()} is numbing the skin with a local anaesthetic for ${exam.patientName}'s cryoablation.`
+              : `${this.who()} is going through the consent with ${exam.patientName} and numbing the skin with a local anaesthetic.`,
+            s.booking,
+          )
+        }
         break
       case 'positioning':
         p!.rideTable(this.ref)
-        this.say('scanSequence', `${this.who()} is positioning ${exam.patientName} for the ${exam.protocol}.`, s.booking)
+        this.say(
+          'scanSequence',
+          s.cryo
+            ? `${this.who()} is cleaning the skin, putting on the gel and a sterile drape for ${exam.patientName}'s cryoablation.`
+            : `${this.who()} is positioning ${exam.patientName} for the ${exam.protocol}.`,
+          s.booking,
+        )
         break
       case 'tableIn':
         this.say('scanSequence', `The ${MODALITY_NAME[this.modality]} table is moving ${exam.patientName} in.`, s.booking)
@@ -397,7 +416,13 @@ export class Scanner {
         this.say('scanSequence', `The ${MODALITY_NAME[this.modality]} table is bringing ${exam.patientName} out.`, s.booking)
         break
       case 'cleanup':
-        this.say('scanSequence', `${this.who()} is helping ${exam.patientName} off the table and wiping down the ${MODALITY_NAME[this.modality]} room.`, s.booking)
+        this.say(
+          'scanSequence',
+          s.cryo
+            ? `${this.who()} is putting a small dressing on ${exam.patientName}, helping her off the couch and wiping down the ${MODALITY_NAME[this.modality]} room.`
+            : `${this.who()} is helping ${exam.patientName} off the table and wiping down the ${MODALITY_NAME[this.modality]} room.`,
+          s.booking,
+        )
         if (subject) {
           if (s.booking.kind === 'er') subject.scanFinished()
           else subject.scanReleased()
@@ -417,7 +442,23 @@ export class Scanner {
     this.state.sequence = i
     this.state.progress = 0
     this.go('scan')
-    this.say(i === 0 ? 'scanStarted' : 'scanSequence', `${this.who()} started the ${s.exam.protocol} for ${s.exam.patientName}: ${seq.name}.`, s.booking)
+    this.say(i === 0 ? 'scanStarted' : 'scanSequence', s.cryo ? this.cryoLine(seq.name, stepOf(seq)) : `${this.who()} started the ${s.exam.protocol} for ${s.exam.patientName}: ${seq.name}.`, s.booking)
+  }
+
+  /** The log line of a cryoablation step. */
+  private cryoLine(name: string, step: string): string {
+    const who = this.who()
+    const patient = this.sess!.exam.patientName
+    switch (step) {
+      case 'place':
+        return `${who} is guiding the cryoprobe into the tumour under ultrasound for ${patient}: ${name}.`
+      case 'freeze':
+        return `${who} started ${name} for ${patient}: liquid nitrogen is flowing and the ice ball is growing.`
+      case 'thaw':
+        return `${who} started the thaw for ${patient}: the ice ball softens before the second freeze.`
+      default:
+        return `${who} started the ${this.sess!.exam.protocol} for ${patient}: ${name}.`
+    }
   }
 
   private force(what: string): void {
@@ -658,7 +699,11 @@ export class Scanner {
 
   private finishScanning(): void {
     const s = this.sess!
-    this.say('scanDone', `${s.exam.protocol} for ${s.exam.patientName} finished: images sent.`, s.booking)
+    this.say(
+      'scanDone',
+      s.cryo ? `The cryoablation for ${s.exam.patientName} is finished: the probe is out, the images are sent.` : `${s.exam.protocol} for ${s.exam.patientName} finished: images sent.`,
+      s.booking,
+    )
     this.ports.examDone(s.exam, s.booking, s.plan)
     s.booking.subject?.scanRequestReturn()
     if (this.modality === 'mri' || this.modality === 'ct') this.go('tableOut')
@@ -689,7 +734,12 @@ export class Scanner {
         st.activity = inSeq && s.seqT < cfg.xrayFlashSeconds ? 1 : 0
         break
       case 'us':
-        st.activity = inSeq ? 1 : 0
+        if (s.cryo) {
+          // the cryogen flow: full while freezing (it ramps), off while thawing; probe contact only while the probe is placed
+          const step = inSeq ? stepOf(s.exam.sequences[s.seq]) : 'sweep'
+          const target = step === 'freeze' ? 1 : step === 'place' ? CRYO.placeActivity : 0
+          st.activity = towards(st.activity, target, target > st.activity ? CRYO.flowUpPerSecond : CRYO.flowDownPerSecond, dt)
+        } else st.activity = inSeq ? 1 : 0
         break
     }
     if (this.modality === 'xray') {
@@ -697,7 +747,9 @@ export class Scanner {
       const active = s.step === 'positioning' || s.step === 'scan' || s.step === 'gap'
       st.detail = towards(st.detail, chest && active ? 1 : 0, cfg.xrayTubePerSecond, dt)
     } else if (this.modality === 'us') {
-      st.detail = inSeq ? ease(st.progress) : towards(st.detail, 0, cfg.usProbeResetPerSecond, dt)
+      // a cryoablation: the ice ball's size, carried across the steps (and held through the pauses and the dressing)
+      if (s.cryo) st.detail = iceSize(s.exam.sequences, s.seq, inSeq ? st.progress : 1)
+      else st.detail = inSeq ? ease(st.progress) : towards(st.detail, 0, cfg.usProbeResetPerSecond, dt)
     }
     st.remaining = this.remaining()
   }

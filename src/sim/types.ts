@@ -493,7 +493,14 @@ export const DEFAULT_KEYMAP: KeyMap = {
 export type ImagingModality = 'mri' | 'ct' | 'xray' | 'us'
 export const MODALITIES: readonly ImagingModality[] = ['mri', 'ct', 'xray', 'us'] as const
 
-export type BodyPart = 'brain' | 'head' | 'lumbarSpine' | 'cervicalSpine' | 'knee' | 'chest' | 'abdomen' | 'pelvis' | 'ankle' | 'wrist' | 'neck' | 'kidneys'
+export type BodyPart = 'brain' | 'head' | 'lumbarSpine' | 'cervicalSpine' | 'knee' | 'chest' | 'abdomen' | 'pelvis' | 'ankle' | 'wrist' | 'neck' | 'kidneys' | 'breast'
+
+/**
+ * What an ultrasound step does (docs/research/cryoablation.md). Absent = 'sweep' (a scan). The cryoablation protocol (ProSense,
+ * liquid nitrogen) runs 'place' (the cryoprobe guided into the tumour), 'freeze', 'thaw', 'freeze': while freezing the ice ball grows
+ * with `progress`, while thawing it softens and shrinks a little.
+ */
+export type ScanStep = 'sweep' | 'place' | 'freeze' | 'thaw'
 
 export type ScanPlane = 'axial' | 'sagittal' | 'coronal' | 'projection' | 'sweep' | 'scout'
 
@@ -510,6 +517,8 @@ export interface ScanSequence {
   seconds: number
   /** Number of slices / images this step produces (the viewer builds them up as `progress` runs). */
   images: number
+  /** Ultrasound only: what the step does (ScanStep); absent = 'sweep'. */
+  step?: ScanStep
 }
 
 export interface ImagingExam {
@@ -555,7 +564,10 @@ export interface ScannerState {
    * full speed), X-ray exposure flash, ultrasound probe contact. Drives animation and sound.
    */
   activity: number
-  /** X-ray: tube over the table (0) or at the wall detector (1). Ultrasound: probe position 0..1 along the sweep. */
+  /**
+   * X-ray: tube over the table (0) or at the wall detector (1). Ultrasound: probe position 0..1 along the sweep; during a cryoablation
+   * the ice ball's size, 0 (none) .. 1 (full size, the end of the second freeze), carried across the freeze-thaw-freeze steps.
+   */
   detail: number
   /** The radiographer or sonographer working it. */
   operatorId: string | null

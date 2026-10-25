@@ -21,8 +21,27 @@
       "kidneyL": "LT KIDNEY  LONG",
       "spleen": "SPLEEN  LONG",
       "bladder": "BLADDER  TRANS",
-      "pancreas": "PANCREAS  TRANS"
+      "pancreas": "PANCREAS  TRANS",
+      "breast": "LT BREAST  RADIAL"
+    },
+    "linearParams": "L12-5  10 MHz  Gain 55",
+    "cryo": {
+      "place": "PROBE PLACEMENT",
+      "freeze": "FREEZE {n}",
+      "thaw": "THAW",
+      "temp": "{c} °C",
+      "timer": "{m}:{s}",
+      "ice": "Ice ball {w} x {d} mm",
+      "probe": "CRYOPROBE"
     }
+  },
+  "cryoCard": {
+    "label": "Device",
+    "title": "ProSense cryoablation",
+    "what": "Freezes the tumour with liquid nitrogen: an ice ball at about −170 °C, guided by ultrasound, no cut",
+    "status": "FDA authorized October 2025 for early, low-risk breast cancer in women 70 and over, with hormone therapy",
+    "synthetic": "Synthetic patient",
+    "start": "Start a cryoablation (ProSense)"
   },
   "image": "Im {n}/{total}",
   "orient": {

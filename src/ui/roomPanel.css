@@ -338,6 +338,37 @@
   gap: 8px;
 }
 
+.sv-device {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 3px solid #9edcff;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.sv-device p {
+  margin: 0;
+}
+
+.sv-device__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-weight: 650;
+}
+
+.sv-device__line {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sv-device__status {
+  color: var(--hud-muted);
+}
+
 .sv-series {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));

@@ -413,6 +413,46 @@
           "images": 2
         }
       ]
+    },
+    "us-cryo-breast": {
+      "id": "us-cryo-breast",
+      "modality": "us",
+      "bodyPart": "breast",
+      "name": "Ultrasound-guided cryoablation, left breast (ProSense)",
+      "sequences": [
+        {
+          "name": "Probe placement",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 150,
+          "images": 3,
+          "step": "place"
+        },
+        {
+          "name": "Freeze 1",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 420,
+          "images": 6,
+          "step": "freeze"
+        },
+        {
+          "name": "Thaw",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 240,
+          "images": 3,
+          "step": "thaw"
+        },
+        {
+          "name": "Freeze 2",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 420,
+          "images": 6,
+          "step": "freeze"
+        }
+      ]
     }
   },
   "erTests": {

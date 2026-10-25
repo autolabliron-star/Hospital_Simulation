@@ -7,7 +7,7 @@ import { STAFF } from '@/content/staff'
 import { CONFIG } from '@/sim/config'
 import { OUTPATIENTS, OutpatientSchema, PROTOCOLS, outpatientTimeSeconds, protocolById } from './imaging'
 import patientsJson from './patients.json'
-import { FIRST_NAMES, LAST_NAMES, normaliseName } from './roster'
+import { FIRST_NAMES, LAST_NAMES, normaliseName, presentationOf } from './roster'
 
 /** Every word of a name, lower-cased and accent-free, so "Tomás" matches "Tomas". */
 const tokens = (name: string): string[] =>
@@ -110,6 +110,29 @@ describe('outpatients', () => {
       expect(seen.has(o.name), o.name).toBe(false)
       seen.add(o.name)
     }
+  })
+})
+
+describe('the cryoablation booking (docs/research/cryoablation.md)', () => {
+  const cryo = OUTPATIENTS.filter((o) => o.protocol === 'us-cryo-breast')
+
+  it('books one ProSense cryoablation, mid-morning, for a woman of 70 or more (the FDA indication)', () => {
+    expect(cryo).toHaveLength(1)
+    const [o] = cryo
+    expect(o.id).toBe('op-19')
+    expect(o.time).toBe('10:15')
+    expect(o.age).toBeGreaterThanOrEqual(70)
+    // her first name is in the female presentation pool, so her avatar is drawn as a woman
+    expect(presentationOf(o.name), o.name).toBe('female')
+    expect(o.reason).toMatch(/breast cancer/i)
+    expect(o.reason).toMatch(/cryoablation/i)
+  })
+
+  it('leaves the ultrasound room room for it: about 45 minutes before the next ultrasound booking', () => {
+    const us = OUTPATIENTS.filter((o) => modalityOf(o) === 'us').map((o) => minutesOf(o.time))
+    const at = minutesOf(cryo[0].time)
+    const next = us.find((t) => t > at)!
+    expect(next - at).toBeGreaterThanOrEqual(40)
   })
 })
 

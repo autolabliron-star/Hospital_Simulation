@@ -153,6 +153,7 @@ calls if the item were alone (in a zone they share the zone's per-material meshe
 | `support.linen_cart(geo, f, node)` | stainless cart, folded linen, cover | 2.3k | 5 | |
 | `support.wheelchair(geo, f, node, seat, frame)` | tyres, mag hubs, push rims, castors, frame, slings, footplates | 3.5k | 4 | |
 | `support.beam_seating(geo, f, n=3, pitch=0.6, fabric)` | the approved lobby bench (`furniture.bench_row`), fabric or wipe-clean vinyl | 0.35k | 3 | |
+| `cryo.console(geo, f, node, tyre)` | brand-free liquid-nitrogen cryoablation console (0.45 x 0.60 x 1.10 m) on castors: white solid-surface body, side bay with the stainless dewar (frost-white cap), 40-degree touchscreen with a faint glowing UI, status strip, coiled hose on a hook to a pen-like cryoprobe in a side holder, push handle (tyres in black KitPlastic: no Rubber draw call) | 3.9k | 5 | |
 | `theatre.supply_pendant(geo, f, node, ceiling, kind='anaesthesia'\|'surgeon'\|'resus', swing1, swing2)` | ceiling pendants | 2.5-2.9k | 4 | `arm1`, (`arm1/arm2`), `.../head` |
 | `theatre.surgical_light(geo, f, node, ceiling, angles=(30, 150), tilt)` | twin LED domes on arms, spring arms, yokes, handles | 3.0k | 3 | `arm<i>`, `.../spring<i>`, `.../yoke<i>`, `.../dome<i>` |
 | `theatre.laminar_canopy(geo, f, ceiling, size=3.2)` | UCV canopy: frame, LED band, diffuser, glass skirts | 0.2k | 5 | |

@@ -34,6 +34,9 @@ export function regionsFor(modality: ImagingModality, bodyPart: BodyPart): Regio
       return ['head']
     case 'chest':
       return modality === 'ct' ? ['thorax', 'abdomen'] : ['thorax', 'abdomen']
+    case 'breast':
+      // the chest wall; the breast itself has no phantom region, so the screen keeps the vector picture (images/ultrasound.ts)
+      return ['thorax']
     case 'knee':
       return ['knee']
     case 'ankle':

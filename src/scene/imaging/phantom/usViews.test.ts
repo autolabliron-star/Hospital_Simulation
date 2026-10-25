@@ -7,9 +7,9 @@ import { regionsFor } from './regions'
 import { tissue } from './tissues'
 import { US_LITE, UsRenderer } from '../render/us'
 
-const VIEWS: UsViewId[] = ['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder', 'pancreas']
+const VIEWS: UsViewId[] = ['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder', 'pancreas', 'breast']
 /** The frame meta names the organs it counts (the pancreas view is checked on the tissue shares, below). */
-type MetaView = Exclude<UsViewId, 'pancreas'>
+type MetaView = Exclude<UsViewId, 'pancreas' | 'breast'>
 const METAVIEWS: MetaView[] = ['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder']
 const ORGAN: Record<MetaView, 'liver' | 'gallbladder' | 'kidney' | 'spleen' | 'bladder'> = { liver: 'liver', gallbladder: 'gallbladder', kidneyR: 'kidney', kidneyL: 'kidney', spleen: 'spleen', bladder: 'bladder' }
 

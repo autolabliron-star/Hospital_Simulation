@@ -49,6 +49,7 @@ const MARKER: Record<UsViewId, [number, number, number]> = {
   spleen: [0.9, 0.36, 1.25],
   bladder: [0.5, 0.86, 0],
   pancreas: [0.5, 0.3, 0],
+  breast: [0.7, 0.14, -0.35],
 }
 
 /** The overlay: everything that does not change from frame to frame of a sweep. */

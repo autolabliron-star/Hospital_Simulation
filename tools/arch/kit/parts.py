@@ -20,17 +20,18 @@ def sw(i):
 WHITE, LGREY, MGREY, GRAPHITE, BLACK, YELLOW, RED, BLUE, GREEN, ORANGE, PURPLE, SLATE, PALEBLUE, CARTRED, WARMWHITE, CLEAR = range(16)
 
 
-def castor(k, x, z, r=0.05, w=None, housing=GRAPHITE, top=None, swivel=0.0, twin=False):
-    """A swivel castor whose wheel touches the floor at local (x, z): wheel (rubber tyre on a grey hub), fork/housing, stem up to `top`."""
+def castor(k, x, z, r=0.05, w=None, housing=GRAPHITE, top=None, swivel=0.0, twin=False, tyre='Rubber'):
+    """A swivel castor whose wheel touches the floor at local (x, z): wheel (rubber tyre on a grey hub), fork/housing, stem up to `top`.
+    `tyre`: the tyre's material ('Rubber'; a zone without Rubber can pass sw(BLACK) and save a draw call)."""
     w = w or r * 0.7
     c = k.at(x, 0, z, ry=swivel)
     trail = r * 0.45
     # wheel along local x, centre at (0, r, -trail)
     if twin:
         for s in (-1, 1):
-            c.cyl('Rubber', (s * w * 0.15, r, -trail), (s * (w * 0.15 + w * 0.42), r, -trail), r, seg=10)
+            c.cyl(tyre, (s * w * 0.15, r, -trail), (s * (w * 0.15 + w * 0.42), r, -trail), r, seg=10)
     else:
-        c.cyl('Rubber', (-w / 2, r, -trail), (w / 2, r, -trail), r, seg=16)
+        c.cyl(tyre, (-w / 2, r, -trail), (w / 2, r, -trail), r, seg=16)
         c.cyl(sw(MGREY), (-w / 2 - 0.002, r, -trail), (w / 2 + 0.002, r, -trail), r * 0.55, seg=10)
     # housing: a rounded hood over the wheel's top and the swivel head
     hw = w + 0.012

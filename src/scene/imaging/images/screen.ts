@@ -6,7 +6,8 @@
  *   prep / positioning / table the patient-setup page (name, protocol, what is happening)
  *   scanning (MRI, CT, X-ray)  the current slice of the current series, revealed from the top down as the acquisition advances
  *                              (the previous slice stays below the reveal line); after the last step the final slice stays up
- *   scanning (ultrasound)      the live fan, redrawn at the update rate; it freezes between sweeps
+ *   scanning (ultrasound)      the live fan, redrawn at the update rate; it freezes between sweeps. A cryoablation (the breast, ProSense)
+ *                              stays live through every step (placing, freezing, thawing) with the probe, the ice ball and its readout
  *
  * Cost: the anatomy is rasterised only when the SLICE changes (every few seconds); every other update is one image blit, a clip and
  * a line. `update` is called every frame and decides itself whether this frame needs a redraw (a rate limit, then a change check).
@@ -17,7 +18,7 @@ import type { Env, Surface } from './ctx'
 import type { Painter } from './paint'
 import { paramsLine, pickImage, sliceAt } from './scan'
 import { createUsScene, usScene } from './ultrasound'
-import { paintUltrasound } from './usPaint'
+import { createCryoReadout, cryoReadoutInto, isCryoExam, paintCryoReadout, paintUltrasound, stepOf } from './usPaint'
 import { newProbeFrame } from '../phantom/usViews'
 import { US_FULL, US_LITE, fanGeometry } from '../render/us'
 import type { ImagingBackend } from '../worker/client'
@@ -79,6 +80,7 @@ export class LiveScreen {
   private readonly prev: Surface
   private readonly overlay: Surface
   private readonly us = createUsScene()
+  private readonly cryo = createCryoReadout()
   private lastDraw = -1e9
   private prevValid = false
   private curValid = false
@@ -138,7 +140,7 @@ export class LiveScreen {
   /** Call every frame. `minInterval` is the redraw period in milliseconds (100 in the focused room, 1000 elsewhere). Returns true if it drew. */
   update(state: ScannerState, simT: number, nowMs: number, minInterval: number): boolean {
     const ex = state.exam
-    if (this.backend && this.modality === 'us' && ex && state.sequence >= 0 && (state.phase === 'scanning' || state.phase === 'tableOut' || state.phase === 'cleanup')) {
+    if (this.backend && this.modality === 'us' && ex && usOnPhantom(ex) && state.sequence >= 0 && (state.phase === 'scanning' || state.phase === 'tableOut' || state.phase === 'cleanup')) {
       // R3: frames come from the worker whenever they are ready; requests follow the rate limit
       const drew = this.updateUsLive(ex, state, simT, nowMs, minInterval)
       if (drew) {
@@ -321,7 +323,9 @@ export class LiveScreen {
 
   private updateUs(exam: ImagingExam, state: ScannerState, simT: number): boolean {
     const seqIndex = Math.max(0, Math.min(exam.sequences.length - 1, state.sequence))
-    const live = state.phase === 'scanning' && state.activity > 0.3
+    // a cryoablation step is watched live throughout (the probe held still; `detail` is then the ice ball, not the sweep position)
+    const cryo = stepOf(exam.sequences[seqIndex]) !== 'sweep'
+    const live = state.phase === 'scanning' && (cryo || state.activity > 0.3)
     const tQ = Math.floor(simT * 10)
     const sameSeries = this.mode === 'us' && this.exam === exam && this.seq === seqIndex
     if (sameSeries && !live && this.frozenDrawn) return false
@@ -337,13 +341,17 @@ export class LiveScreen {
     this.frozenDrawn = !live
     const pick = pickImage(exam, seqIndex, 0)
     if (pick.kind !== 'us') return false
-    usScene(this.us, pick.view, exam.imageSeed + seqIndex * 977, state.detail, simT)
+    const phase = cryo ? 0.5 : state.detail
+    // the cryoablation's exam seed is the same for every step, so the tumour stays where the probe was put
+    usScene(this.us, pick.view, exam.imageSeed + (cryo ? 0 : seqIndex * 977), phase, simT)
     const { fine, speckle } = this.painter.tiles
-    paintUltrasound(this.final.ctx, S, this.us, speckle, fine, simT, state.detail, live)
+    if (cryo) cryoReadoutInto(this.cryo, exam, seqIndex, state.phase === 'scanning' ? state.progress : 1, state.detail)
+    paintUltrasound(this.final.ctx, S, this.us, speckle, fine, simT, phase, live, cryo ? this.cryo : null)
     this.final.ctx.globalAlpha = 1
     this.final.ctx.drawImage(this.overlay.canvas, 0, 0)
     text(this.final.ctx, live ? `${this.us.title.toUpperCase()}  LIVE` : 'FREEZE', S / 2, 14, 'center', 10, live ? '#7ee0c3' : '#ffd68c')
-    text(this.final.ctx, `${Math.round(state.detail * 100)}%`, 8, S - 24, 'left', 9, 'rgba(190,215,218,0.9)', false)
+    if (cryo) paintCryoReadout(this.final.ctx, S, this.us, this.cryo)
+    else text(this.final.ctx, `${Math.round(state.detail * 100)}%`, 8, S - 24, 'left', 9, 'rgba(190,215,218,0.9)', false)
     return true
   }
 
@@ -725,6 +733,26 @@ export class LiveScreen {
   }
 }
 
+/** Can the worker's synthetic body picture this ultrasound exam? The breast has no phantom region: it keeps the vector picture. */
+export function usOnPhantom(exam: Pick<ImagingExam, 'bodyPart'>): boolean {
+  return exam.bodyPart !== 'breast'
+}
+
+/** The ice ball a finished cryoablation step leaves (ScannerState.detail is not kept per step): for the step's thumbnail. */
+function iceAfterStep(exam: ImagingExam, si: number): number {
+  let freezes = 0
+  let total = 0
+  for (let i = 0; i < exam.sequences.length; i++) {
+    if (stepOf(exam.sequences[i]) !== 'freeze') continue
+    total++
+    if (i <= si) freezes++
+  }
+  const step = stepOf(exam.sequences[si])
+  if (step === 'place' || freezes === 0) return 0
+  if (step === 'thaw') return 0.72
+  return freezes >= total ? 1 : 0.82
+}
+
 // ---------------------------------------------------------------------------------------------
 // Thumbnails (once per finished step, on a fresh canvas the caller can read)
 // ---------------------------------------------------------------------------------------------
@@ -735,6 +763,12 @@ export function renderThumbnailOn(env: Env, painter: Painter, exam: ImagingExam,
   const pick = pickImage(exam, si, Math.floor(seq.images / 2))
   if (pick.kind === 'slice') {
     painter.paint(s, size, pick.model, pick.look, pick.grain, pick.coil)
+  } else if (isCryoExam(exam) && stepOf(seq) !== 'sweep') {
+    // a cryoablation step: the picture it ends on (the probe in place, the ice ball as that step left it)
+    const sc = createUsScene()
+    usScene(sc, pick.view, exam.imageSeed, 0.5, 3)
+    const ro = cryoReadoutInto(createCryoReadout(), exam, si, 1, iceAfterStep(exam, si))
+    paintUltrasound(s.ctx, size, sc, painter.tiles.speckle, painter.tiles.fine, 3, 0.5, false, ro)
   } else {
     const sc = createUsScene()
     usScene(sc, pick.view, exam.imageSeed + si * 977, 0.5, 3)

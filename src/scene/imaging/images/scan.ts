@@ -3,6 +3,7 @@
  * Slices are spread across the part of the anatomy a scan covers, in the order the scanner acquires them, and every slice of every series
  * of one exam comes from the same exam seed, so the T1 and T2 of one patient show the same patient.
  */
+import { IMAGING_UI } from '@/content/imagingUi'
 import { mixSeed } from '@/sim/rng'
 import type { ImagingExam, ImagingModality, ScanSequence } from '@/sim/types'
 import { brainAxial, brainSagittal } from './brain'
@@ -173,6 +174,6 @@ export function paramsLine(modality: ImagingModality, seq: ScanSequence, bodyPar
     case 'xray':
       return bodyPart === 'chest' ? '110 kV  2 mAs' : bodyPart === 'pelvis' ? '75 kV  16 mAs' : '55 kV  3.2 mAs'
     case 'us':
-      return 'C5-1  3.5 MHz  Gain 62'
+      return bodyPart === 'breast' ? IMAGING_UI.us.linearParams : 'C5-1  3.5 MHz  Gain 62'
   }
 }

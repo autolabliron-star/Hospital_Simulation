@@ -13,6 +13,13 @@ const line = z
   .max(48)
   .refine((s) => !/[\r\n]/.test(s), 'one line only')
 
+/** A sentence on a card (still one line of text, but longer than a screen label). */
+const sentence = z
+  .string()
+  .min(1)
+  .max(160)
+  .refine((s) => !/[\r\n]/.test(s), 'one line only')
+
 export const ImagingUiSchema = z.strictObject({
   institution: line,
   disclaimer: line,
@@ -29,8 +36,14 @@ export const ImagingUiSchema = z.strictObject({
     mi: line,
     tis: line,
     noContact: line,
-    views: z.strictObject({ liver: line, gallbladder: line, kidneyR: line, kidneyL: line, spleen: line, bladder: line, pancreas: line }),
+    views: z.strictObject({ liver: line, gallbladder: line, kidneyR: line, kidneyL: line, spleen: line, bladder: line, pancreas: line, breast: line }),
+    /** The scan parameters of the linear (breast) probe, in place of the curved array's. */
+    linearParams: line,
+    /** The cryoablation readout on the live picture: the step, the probe temperature, the step timer, the ice ball and the probe label. */
+    cryo: z.strictObject({ place: line, freeze: line, thaw: line, temp: line, timer: line, ice: line, probe: line }),
   }),
+  /** The device card the Scan viewer shows for a cryoablation (docs/research/cryoablation.md): the real product named on the card only. */
+  cryoCard: z.strictObject({ label: line, title: line, what: sentence, status: sentence, synthetic: line, start: line }),
   /** The image counter of a series. */
   image: line,
   /** Orientation letters at the picture's edges: right, left, anterior, posterior, head, feet. */

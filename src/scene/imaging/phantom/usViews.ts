@@ -10,6 +10,7 @@
  *   spleen       left intercostal                        the head end               across the spleen
  *   bladder      suprapubic, transverse                  patient's right            head to foot through the bladder
  *   pancreas     epigastric, transverse, tipped up       patient's right            tilting from the head of the gland to its tail
+ *   breast       left breast, upper outer, radial plane    patient's right            none: held still (the cryoablation, a linear probe)
  *
  * A probe frame is the face centre on the skin (LPS mm), the beam direction (into the body) and the array axis (image +x), all unit
  * vectors, plus skin contact 0..1. Between views the probe glides over the skin to the next window (in contact when it is near, lifted
@@ -19,7 +20,7 @@ import type { V3 } from './body'
 import type { PatientParams } from './params'
 import { outlineAt } from './regions/abdomen'
 
-export type UsViewId = 'liver' | 'gallbladder' | 'kidneyR' | 'kidneyL' | 'spleen' | 'bladder' | 'pancreas'
+export type UsViewId = 'liver' | 'gallbladder' | 'kidneyR' | 'kidneyL' | 'spleen' | 'bladder' | 'pancreas' | 'breast'
 
 export interface ProbeFrame {
   ox: number
@@ -79,6 +80,10 @@ export function viewSpec(view: UsViewId, p: PatientParams): ViewSpec {
       // through the left lobe of the liver; the fan tilts it along the gland (the same body as phantom/regions/abdomen.ts: neck to tail)
       return { target: [14 * p.width, -14 * p.depth, 267 * p.height], beam: unit([0, 1, 0.35]), array: [1, 0, 0], fan: [-16, 6], depth: 130 }
     }
+    case 'breast':
+      // the left breast over the chest wall (the trunk outline at the level of the nipple line), the beam straight back, 5 cm deep; the
+      // picture itself is the vector one (images/ultrasound.ts), this only puts the probe where it belongs
+      return { target: [75 * p.width, -96 * p.depth, 470 * p.height], beam: [0, 1, 0], array: [1, 0, 0.35], fan: [0, 0], depth: 50 }
     case 'bladder': {
       const f = Math.cbrt(p.bladderFill)
       return { target: [0, (-36 + 6 * (1 - f)) * p.depth, (28 + 20 * f) * p.height], beam: unit([0, 0.86, -0.5]), array: [1, 0, 0], fan: [-15, 15], depth: 140 }

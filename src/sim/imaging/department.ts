@@ -6,12 +6,14 @@
  *   ER patients     ask for a scan when the doctor orders one (`requestErExam`); a porter brings them to the table
  *   outpatients     arrive from their appointment time minus a few minutes, check in, wait in the imaging hall
  *   the presenter   `startDemoScan(modality)`: a demo patient appears in the hall within `demoArrivalSeconds` and goes to
- *                   the front of that scanner's queue
+ *                   the front of that scanner's queue; `startDemoScan('us', 'us-cryo-breast')` books the cryoablation instead
+ *                   (DEMO_PROCEDURES)
  *
  * A scanner takes the best waiting booking (demo, then ER by acuity, then outpatients by appointment) as soon as it is
  * free; the exam runs as the script in scanner.ts. `scanners[m]` is the `ScannerState` the scene animates.
  */
 import { OUTPATIENTS, outpatientTimeSeconds, protocolById, PROTOCOLS } from '@/content/imaging'
+import { syntheticNameOf } from '@/content/roster'
 import { CONFIG } from '../config'
 import type { World } from '../er/world'
 import { clockText } from '../events'
@@ -35,6 +37,17 @@ const DEMO_PROTOCOLS: Record<ImagingModality, string[]> = {
   xray: ['xr-ankle', 'xr-wrist', 'xr-hip', 'xr-knee'],
   us: ['us-abdo', 'us-renal'],
 }
+
+/**
+ * Procedures the presenter can start instead of the default demo exam (`startDemoScan(m, protocolId)`): the ultrasound room's
+ * ProSense cryoablation of an early breast cancer (docs/research/cryoablation.md). The default demo of every room is unchanged.
+ */
+export const DEMO_PROCEDURES: Readonly<Partial<Record<ImagingModality, readonly string[]>>> = {
+  us: ['us-cryo-breast'],
+}
+
+/** The cryoablation's demo patient is a woman of 70 or more (the FDA indication): her age is drawn from this span. */
+const CRYO_DEMO_AGE: readonly [number, number] = [70, 82]
 
 /**
  * The exams placed mid-way at an in-flight start, per scanner: [protocol, the sequences it may be in]. Long sequences first
@@ -63,6 +76,8 @@ interface Due {
   booking: Booking
   name: string
   id: string
+  /** The demo patient's age, when the procedure needs one (the cryoablation: 70 or more); otherwise a seeded adult age. */
+  age?: number
 }
 
 export class ImagingDepartment {
@@ -286,12 +301,17 @@ export class ImagingDepartment {
    * The presenter's "start a scan now": a demo patient appears in the hall within a few seconds, at the front of the queue.
    * Returns false, books nobody and spawns nobody when no operator is on duty for the scanner (F-06): the viewer says so.
    */
-  startDemoScan(m: ImagingModality): boolean {
+  startDemoScan(m: ImagingModality, protocolId?: string): boolean {
+    // a named protocol must be one of this room's demo procedures (a wrong id from the UI books nothing, never throws mid-demo)
+    if (protocolId !== undefined && !(DEMO_PROCEDURES[m] ?? []).includes(protocolId)) return false
     if (!this.hasOperator(m)) return false
     const list = DEMO_PROTOCOLS[m]
-    const proto = protocolById(list[this.demoCount++ % list.length])
+    const proto = protocolById(protocolId ?? list[this.demoCount++ % list.length])
     const id = this.world.id('demo')
-    const name = this.world.uniqueName(this.rng)
+    // the breast cryoablation's patient is a woman of 70 or more: her first name is from the female pool, so her avatar is a woman
+    const woman = proto.bodyPart === 'breast'
+    const name = woman ? this.uniqueWomanName() : this.world.uniqueName(this.rng)
+    const age = woman ? this.rng.int(CRYO_DEMO_AGE[0], CRYO_DEMO_AGE[1]) : undefined
     const b: Booking = {
       id: this.world.id('bk'),
       kind: 'demo',
@@ -308,8 +328,16 @@ export class ImagingDepartment {
       subject: null,
     }
     this.enqueue(b)
-    this.pendingDemos.push({ at: this.t + CONFIG.imaging.demoArrivalSeconds, booking: b, name, id })
+    this.pendingDemos.push({ at: this.t + CONFIG.imaging.demoArrivalSeconds, booking: b, name, id, age })
     return true
+  }
+
+  /** A fictional name with a first name from the female pool, not used by any booking today; claimed in the world's name book. */
+  private uniqueWomanName(): string {
+    let n = syntheticNameOf(this.rng, 'female')
+    for (let i = 0; i < 12 && this.bookings.some((b) => b.patientName === n); i++) n = syntheticNameOf(this.rng, 'female')
+    this.world.claimName(n)
+    return n
   }
 
   /** A demo booking whose operator left before the patient appeared: take it out of the queue and the books. */
@@ -426,6 +454,7 @@ export class ImagingDepartment {
       this.walkerFor(d.id),
       this.rng.fork(d.id),
       true,
+      d.age,
     )
     b.subject = p
     p.fadeIn()

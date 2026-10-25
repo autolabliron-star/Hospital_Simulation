@@ -17,7 +17,7 @@
   { "id": "op-16", "name": "Priscilla Quarrie", "age": 85, "time": "09:50", "protocol": "ct-abdo", "reason": "Bowel changes, planned scan" },
   { "id": "op-17", "name": "Ian Redfern", "age": 60, "time": "10:00", "protocol": "mri-lumbar", "reason": "Lower back pain, physio referral" },
   { "id": "op-18", "name": "Frankie Sayers", "age": 31, "time": "10:05", "protocol": "xr-hip", "reason": "Hip pain when walking" },
-  { "id": "op-19", "name": "Greer Tanner", "age": 69, "time": "10:15", "protocol": "us-renal", "reason": "Bladder check after infection" },
+  { "id": "op-19", "name": "Ann Thistlewood", "age": 74, "time": "10:15", "protocol": "us-cryo-breast", "reason": "Early breast cancer, freezing treatment (cryoablation)" },
   { "id": "op-20", "name": "Bernard Underhill", "age": 74, "time": "10:25", "protocol": "mri-brain", "reason": "Persistent headaches, planned scan" },
   { "id": "op-21", "name": "Kirsty Vaughan", "age": 42, "time": "10:35", "protocol": "ct-head", "reason": "Balance problems, planned head scan" },
   { "id": "op-22", "name": "Leonard Wetherall", "age": 88, "time": "10:50", "protocol": "xr-ankle", "reason": "Ankle sprain, review at clinic" },

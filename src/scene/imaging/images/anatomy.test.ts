@@ -46,7 +46,7 @@ describe('every protocol has pictures', () => {
           const b = pickImage(exam, si, k)
           if (a.kind === 'us') {
             expect(b.kind).toBe('us')
-            expect(['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder', 'pancreas']).toContain(a.view)
+            expect(['liver', 'gallbladder', 'kidneyR', 'kidneyL', 'spleen', 'bladder', 'pancreas', 'breast']).toContain(a.view)
             continue
           }
           expect(b.kind).toBe('slice')

@@ -7,7 +7,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAudio } from '@/audio/audio.store'
+import { IMAGING_UI } from '@/content/imagingUi'
 import { sim } from '@/sim'
+import { DEMO_PROCEDURES } from '@/sim/imaging/department'
 import type { ImagingModality } from '@/sim/types'
 import { loadImagingScene, type ImagingScene } from './imagingApi'
 import { imagingOf, scannerView, type ScannerView } from './roomSnapshot'
@@ -137,6 +139,25 @@ function Series({ scene, modality, view }: { scene: ImagingScene | null | undefi
 }
 
 // ---------------------------------------------------------------------------------------------
+// The device card (a cryoablation: docs/research/cryoablation.md)
+// ---------------------------------------------------------------------------------------------
+
+/** What the machine is and what it is authorized for, in three short lines; the patient is synthetic. */
+export function CryoCard() {
+  const c = IMAGING_UI.cryoCard
+  return (
+    <section className="sv-device" aria-label={`${c.label}: ${c.title}`}>
+      <h3 className="hud-field__label">{c.label}</h3>
+      <p className="sv-device__title">
+        {c.title} <span className="hud-chip">{c.synthetic}</span>
+      </p>
+      <p className="sv-device__line">{c.what}</p>
+      <p className="sv-device__line sv-device__status">{c.status}</p>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------------------------
 // Sound toggle
 // ---------------------------------------------------------------------------------------------
 
@@ -162,6 +183,9 @@ function SoundToggle() {
 // ---------------------------------------------------------------------------------------------
 // The viewer
 // ---------------------------------------------------------------------------------------------
+
+/** The ultrasound room's procedure demo: the ProSense cryoablation (docs/research/cryoablation.md). */
+const CRYO_DEMO = DEMO_PROCEDURES.us?.[0]
 
 export function ScanViewer({ modality }: { modality: ImagingModality }) {
   const scene = useImagingScene()
@@ -192,11 +216,11 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
     if (noOperator) setAsked(false)
   }, [noOperator])
 
-  const start = () => {
+  const start = (protocolId?: string) => {
     try {
       // F-06: the sim refuses (false) when nobody is on duty; then nobody is booked and nobody walks to the hall
       const img = imagingOf(sim)
-      const result = img?.startDemoScan(modality) as unknown
+      const result = img?.startDemoScan(modality, protocolId) as unknown
       if (result !== false) setAsked(true)
     } catch {
       // the sim refused (nothing to do); the button stays available
@@ -257,15 +281,22 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
             </div>
           </dl>
 
+          {view.cryo && <CryoCard />}
+
           <section className="sv-section" aria-label="Series">
             <h3 className="hud-field__label">Series</h3>
             <Series scene={scene} modality={modality} view={view} />
           </section>
 
           <div className="sv-actions">
-            <button type="button" className="hud-send sv-start" disabled={busy || waitingForPatient || noOperator} aria-describedby="sv-queue" onClick={start}>
+            <button type="button" className="hud-send sv-start" disabled={busy || waitingForPatient || noOperator} aria-describedby="sv-queue" onClick={() => start()}>
               {waitingForPatient ? 'Patient on the way…' : 'Start a scan now'}
             </button>
+            {modality === 'us' && CRYO_DEMO && !waitingForPatient && (
+              <button type="button" className="hud-send sv-start" disabled={busy || noOperator} onClick={() => start(CRYO_DEMO)}>
+                {IMAGING_UI.cryoCard.start}
+              </button>
+            )}
             {noOperator && (
               <p className="sv-queue sv-queue--closed" role="status">
                 No {staffTitle} on duty: the {name} is closed until the day team is back.
