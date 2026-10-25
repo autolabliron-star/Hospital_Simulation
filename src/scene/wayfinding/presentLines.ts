@@ -1,6 +1,7 @@
 /**
- * Presentation mode (C) hides the coloured floor lines: an architectural walkthrough shows the floor, not the game's guidance. They stay in the
- * walk and the overview.
+ * The coloured floor lines are the map's guidance, not part of the place: they show in the overview (the map view) only. Walking (step 3: a real
+ * place, not a game; their rounded caps read as a pointer at eye level), the flights between the two and presentation mode (C) hide them.
+ * `linesHidden` is that rule. The flights count as walking, so the lines change only while the camera is up at the overview, where they are small.
  *
  * The lines are prims of the building layout (./lines.ts), compiled with every other coloured decal on the palette's `tinted` material into the
  * building's instanced meshes (src/scene/building/render/compile.ts: one InstancedMesh per tinted shape, shared with e.g. the imaging rooms' floor
@@ -8,10 +9,19 @@
  * same numbers the layout was built from) and given a zero matrix (no triangles); on leaving, the saved matrices go back. Nothing remounts,
  * nothing recompiles; it runs only when the mode changes (one scene walk and one small buffer upload), never per frame.
  *
- * `syncPresentLines(scene, presenting)` is called once a frame by Effects.tsx and returns at once unless `presenting` changed.
+ * `syncPresentLines(scene, hide)` is called once a frame by Effects.tsx (with `linesHidden(...)`) and returns at once unless `hide` changed.
  */
 import type { InstancedMesh, Material, Object3D } from 'three'
+import type { PlayerMode } from '@/sim/types'
 import { wayfindingPieces } from './lines'
+
+/**
+ * Are the floor lines hidden now: in presentation mode, and whenever the player is not in the overview (walking, or flying to or from it). With no
+ * player mounted (`phase` null) only presentation hides them.
+ */
+export function linesHidden(presenting: boolean, phase: PlayerMode | null): boolean {
+  return presenting || (phase !== null && phase !== 'overview')
+}
 
 /** Centres (instance translations) of the line pieces, as a set of rounded keys. Built on first use. */
 let centres: Set<string> | null = null
@@ -82,20 +92,20 @@ export function showLines(): void {
   hidden = []
 }
 
-/** While presenting with nothing hidden yet (the building is not mounted yet: `?view=present` is on from the first frame), look again this often (frames). */
+/** While hiding with nothing hidden yet (the building is not mounted yet: the app starts walking, and `?view=present` is on from the first frame), look again this often (frames). */
 const RETRY_FRAMES = 30
 let retryIn = 0
 
-/** Called every frame: acts only when `presenting` changed (or, while presenting, until the lines have been found). */
-export function syncPresentLines(root: Object3D, presenting: boolean): void {
-  if (presenting === state) {
-    if (!presenting || hidden.length > 0 || --retryIn > 0) return
+/** Called every frame: acts only when `hide` changed (or, while hiding, until the lines have been found). */
+export function syncPresentLines(root: Object3D, hide: boolean): void {
+  if (hide === state) {
+    if (!hide || hidden.length > 0 || --retryIn > 0) return
     retryIn = RETRY_FRAMES
     hideLines(root)
     return
   }
-  state = presenting
-  if (presenting) {
+  state = hide
+  if (hide) {
     retryIn = RETRY_FRAMES
     hideLines(root)
   } else showLines()

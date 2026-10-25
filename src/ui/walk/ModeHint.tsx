@@ -1,4 +1,4 @@
-/** A small hint of the keys, "Tab · Overview   V · First person   E · Use", that shows for a few seconds each time you start walking, then fades. */
+/** A small hint of the keys, "Tab · Overview   V · Change view   E · Use", that shows for a few seconds each time you start walking, then fades. */
 import { useEffect, useState } from 'react'
 import { keyLabel, WALK } from '@/content/walk'
 import { useWalk } from '@/scene/player/state'

@@ -348,10 +348,17 @@ describe('look-ahead and the aim point', () => {
 
 describe('the field of view and your avatar', () => {
   it('is the walk lens behind your shoulder, the first-person lens through your eyes, blended between', () => {
-    expect(chaseFov(0)).toBe(CONFIG.player.camera.fovDeg)
-    expect(chaseFov(1)).toBeCloseTo(CONFIG.player.camera.fovFirstDeg, 9)
-    expect(chaseFov(0.5)).toBeGreaterThan(CONFIG.player.camera.fovDeg)
-    expect(chaseFov(0.5)).toBeLessThan(CONFIG.player.camera.fovFirstDeg)
+    const { fovDeg, fovFirstDeg } = CONFIG.player.camera
+    expect(chaseFov(0)).toBe(fovDeg)
+    expect(chaseFov(1)).toBeCloseTo(fovFirstDeg, 9)
+    expect(chaseFov(0.5)).toBeGreaterThan(Math.min(fovDeg, fovFirstDeg))
+    expect(chaseFov(0.5)).toBeLessThan(Math.max(fovDeg, fovFirstDeg))
+  })
+
+  it('through your eyes is the walkthrough\'s lens and eye (step 3): 55 degrees at 1.6 m, narrower than the chase lens', () => {
+    expect(CONFIG.player.camera.fovFirstDeg).toBe(55)
+    expect(CONFIG.player.camera.eyeHeight).toBe(1.6)
+    expect(CONFIG.player.camera.fovFirstDeg).toBeLessThan(CONFIG.player.camera.fovDeg)
   })
 
   it('your avatar fades out below hideAvatarBelow and in first person, and is fully there at the normal boom', () => {

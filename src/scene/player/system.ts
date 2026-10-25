@@ -3,8 +3,12 @@
  * component steps once a frame at `FRAME_PRIORITY.player` (-10), after the simulation (-100) and before the camera rig (-1), the
  * label anchors (-0.5) and every <Html> label (0), so the text over the picture sees this frame's camera.
  *
+ * Step 3 (a real place, not a game): you walk through your own eyes by default (`WALK_VIEW`: the start of the day, Tab back from the overview, leaving the
+ * walkthrough from the overview), at the walkthrough's eye height and lens (1.6 m, 55 degrees), with a light look damping (`CHASE.eyeLookSeconds`), no
+ * head bob and no avatar (your body fades out at the end of a flight down). V gives you the chase camera over your shoulder, and back.
+ *
  * What happens each frame (`update`):
- *   1. the keys: Tab flips between walking and the overview, V between third and first person, Q between the two shoulders;
+ *   1. the keys: Tab flips between walking and the overview, V between first and third person, Q between the two shoulders;
  *   2. walking (`scheme.ts`): by default W and S walk along the way you face and A and D TURN you (the camera follows behind by
  *      itself); with `?controls=classic` W A S D are camera-relative and the mouse steers. The body is a `BodyMover` (`body.ts`): a
  *      critically damped speed spring (`CONFIG.player` start / stop / shift seconds) and a collide-and-slide circle that cannot enter any
@@ -42,7 +46,7 @@ import { PRESENT_VIEW_URL, presentActive, usePresentation } from '@/ui/present/p
 import { SHOTS, nextShot, prevShot, shotYaw, type Shot } from '@/ui/present/shots'
 import { WallBoxProbe, type BoomProbe } from './boomProbe'
 import { ChaseCamera, type CameraFrame, type CameraSubject } from './chaseCamera'
-import { angleDelta, approach, clamp, wrapAngle } from './chaseMath'
+import { angleDelta, approach, clamp, smooth01, wrapAngle } from './chaseMath'
 import { BodyMover, copyBodyState, BODY_FEEL } from './body'
 import { settle, type DynamicShapes } from './collision'
 import { ModeFlight, newFlightState, type FlightState } from './flight'
@@ -50,7 +54,7 @@ import { PlayerInput, type InputAxes } from './input'
 import { facingFromVelocity, turnTowards } from './motion'
 import { DEFAULT_SCHEME, turnedHeading, type ControlScheme } from './scheme'
 import { useWalk, walkBody, walkCam } from './state'
-import { BODY, CHASE, FLIGHT, MOVE, PRESENT } from './tuning'
+import { BODY, CHASE, FLIGHT, MOVE, PRESENT, WALK_VIEW } from './tuning'
 
 export { BodyMover } from './body'
 
@@ -69,6 +73,11 @@ export interface PlayerDeps {
   reducedMotion?: () => boolean
   /** How the keys steer you: `easy` (A and D turn you, the camera follows) or `classic` (camera-relative WASD). Default `easy`; `index.tsx` reads `?controls=`. */
   scheme?: ControlScheme
+  /**
+   * The view walk mode starts in: at the start of the day, Tab back from the overview, leaving the walkthrough from the overview. Default
+   * `WALK_VIEW.initial` (first person); V toggles it while walking. The chase camera's own tests ask for 'third'.
+   */
+  walkView?: PlayerViewKind
 }
 
 function prefersReducedMotion(): boolean {
@@ -106,11 +115,14 @@ export class PlayerSystem {
   private readonly deps: PlayerDeps
 
   private phase: PlayerMode = 'walk'
-  private viewKind: PlayerViewKind = 'third'
+  /** The view every entry into walk mode starts in: through your own eyes by default (`WALK_VIEW`, step 3: a real place, not a game). */
+  private readonly walkView: PlayerViewKind
+  /** The view now; V toggles the chase camera over your shoulder and back. */
+  private viewKind: PlayerViewKind
   /** The walking body: position, heading, the speed spring and the collision. Pure (`body.ts`). */
   readonly body: BodyMover
   private readonly feet = { x: 0, y: 0, z: 0 }
-  private readonly subject: CameraSubject = { feet: this.feet, vx: 0, vz: 0, heading: 0, turning: false }
+  private readonly subject: CameraSubject = { feet: this.feet, vx: 0, vz: 0, heading: 0, turning: false, eyeDrop: 0 }
   private readonly frame: CameraFrame = { dt: 0, dx: 0, dy: 0, wheel: 0, dragging: false, firstPerson: false, floorY: 0 }
   private readonly axes: InputAxes = { forward: 0, right: 0, hurry: false }
   private readonly look = { dx: 0, dy: 0, wheel: 0 }
@@ -127,6 +139,8 @@ export class PlayerSystem {
   private offX = 0
   private offY = 0
   private avatarFadeNow = 1
+  /** 0 standing .. 1 seated: your eyes come down as you sit (first person), eased (`BODY.seatedEye*`). */
+  private sitBlend = 0
   /** How visible you are at the chase camera's resting pose (the flight down to you lands on it). */
   private restFade = 1
   private readonly scratch = new PerspectiveCamera(CHASE.fov, 16 / 9, FLIGHT.walkNear, 500)
@@ -137,7 +151,7 @@ export class PlayerSystem {
   // presentation mode (src/ui/present): the walkthrough. `presenting` follows the store at the top of every frame.
   private presenting = false
   /** The view you had before presentation forced first person, restored on leaving. */
-  private presentPrevView: PlayerViewKind = 'third'
+  private presentPrevView: PlayerViewKind
   private readonly glide = new Glide()
   /** The shot you last stood at (or glided to); -1 before the first. The glide goes to the one after it, looping. */
   private shotIdx = -1
@@ -175,6 +189,9 @@ export class PlayerSystem {
   constructor(deps: PlayerDeps) {
     this.deps = deps
     this.scheme = deps.scheme ?? DEFAULT_SCHEME
+    this.walkView = deps.walkView ?? WALK_VIEW.initial
+    this.viewKind = this.walkView
+    this.presentPrevView = this.walkView
     this.chase = new ChaseCamera(this.scheme)
     this.probe = deps.probe ?? new WallBoxProbe()
     this.body = new BodyMover(this.scheme)
@@ -424,6 +441,10 @@ export class PlayerSystem {
     this.subject.vz = this.body.state.vz
     this.subject.heading = this.heading
     this.subject.turning = Math.abs(this.body.turn.rate) > TURNING_RATE
+    // through your eyes, sitting down (the seats put your avatar in its 'sit' pose) brings the eyes down to a seated height
+    const avatar = this.deps.getSim().playerAvatar
+    this.sitBlend = approach(this.sitBlend, avatar !== null && avatar.anim === 'sit' ? 1 : 0, dt / BODY.seatedEyeSeconds)
+    this.subject.eyeDrop = BODY.seatedEyeDrop * smooth01(this.sitBlend)
     const f = this.frame
     f.dt = dt
     f.dx = this.look.dx
@@ -509,10 +530,10 @@ export class PlayerSystem {
     return out
   }
 
-  /** Put the chase camera at rest behind you and the lens in walk mode, at once (no flight): the app starts walking. */
+  /** Put the camera at rest (through your eyes, or behind you) and the lens in walk mode, at once (no flight): the app starts walking. */
   private enterWalkNow(): void {
     this.phase = 'walk'
-    this.viewKind = this.presenting ? 'first' : 'third'
+    this.viewKind = this.presenting ? 'first' : this.walkView
     this.primeRig()
     this.restPose(this.deps.camera)
     this.input.discardPending()
@@ -535,6 +556,7 @@ export class PlayerSystem {
   /**
    * Reset the chase camera behind you (facing the way you face) and let it settle: the pose it would rest in is written to
    * `camera` and the look target kept. It is where the flight down to you lands, so the chase camera takes over with no jump.
+   * In first person (the default walk view) it settles at your eyes, looking level, with your body faded out.
    */
   private restPose(camera: PerspectiveCamera): void {
     this.feet.x = this.x
@@ -547,7 +569,10 @@ export class PlayerSystem {
     this.subject.turning = false
     camera.near = FLIGHT.walkNear
     this.chase.reset(this.feet, this.heading)
-    const report = this.chase.settle(this.subject, { firstPerson: this.presenting, floorY: this.feet.y }, this.probe, camera)
+    const eyes = this.viewKind === 'first'
+    // through your eyes you arrive looking level (the chase camera's resting pose looks down on you a little)
+    if (eyes) this.chase.snapView(this.heading, 0)
+    const report = this.chase.settle(this.subject, { firstPerson: eyes, floorY: this.feet.y }, this.probe, camera)
     camera.updateProjectionMatrix()
     // (drawn, like every other camera pose: the flight down to you lands on it)
     this.present(camera, report.target)
@@ -631,8 +656,9 @@ export class PlayerSystem {
       this.cameraState(this.flightFrom)
     }
     this.primeRig()
-    // where it lands: the chase camera at rest behind you (through your eyes in the walkthrough). Computed on a scratch camera, so the flight's own writes are not disturbed.
-    this.viewKind = this.presenting ? 'first' : 'third'
+    // where it lands: at rest in the walk view (through your eyes by default, and always in the walkthrough; behind you in third person). Computed on a
+    // scratch camera, so the flight's own writes are not disturbed.
+    this.viewKind = this.presenting ? 'first' : this.walkView
     this.restPose(this.scratch)
     this.avatarFadeNow = 1 // you are seen all the way down
     this.flightTo.px = this.scratch.position.x
@@ -660,6 +686,11 @@ export class PlayerSystem {
     if (this.phase === 'toOverview') this.avatarFadeNow = approach(this.avatarFadeNow, 1, dt / 0.25)
     if (this.flight.active) {
       const done = this.flight.tick(dt)
+      // flying down into your own eyes, your body fades out over the end of the flight (seen all the way down until then)
+      if (this.phase === 'toWalk' && this.restFade < 1) {
+        const k = smooth01((this.flight.progress - FLIGHT.eyesFadeFrom) / (1 - FLIGHT.eyesFadeFrom))
+        this.avatarFadeNow = 1 + (this.restFade - 1) * k
+      }
       this.writeFlight()
       if (done) this.landFlight()
     }
@@ -818,7 +849,7 @@ export class PlayerSystem {
         this.presentPrevView = this.viewKind
         this.viewKind = 'first'
       } else if (this.phase === 'overview') {
-        this.presentPrevView = 'third'
+        this.presentPrevView = this.walkView
         this.beginToWalk()
       }
     } else {

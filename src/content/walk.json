@@ -57,9 +57,8 @@
   },
   "hint": [
     { "action": "walk", "label": "Overview" },
-    { "action": "firstPerson", "label": "First person" },
+    { "action": "firstPerson", "label": "Change view" },
     { "action": "interact", "label": "Use" },
-    { "action": "shoulderSwap", "label": "Shoulder" },
     { "action": "present", "label": "Walkthrough" },
     { "action": "presentNext", "label": "Next shot" }
   ]

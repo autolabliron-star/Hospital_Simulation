@@ -9,6 +9,7 @@
  * (negative = looking down), so the default camera elevation is `-pitchDeg` degrees above the pivot.
  */
 import { CONFIG } from '@/sim/config'
+import type { PlayerViewKind } from '@/sim/types'
 
 const P = CONFIG.player
 const C = P.camera
@@ -19,6 +20,9 @@ export const BODY = {
   radius: P.bodyRadius,
   /** Your eyes above your feet, for first person. */
   eyeHeight: C.eyeHeight,
+  /** Sitting (a chair, a console, a kiosk stool) lowers them this much (a seated eye is about 1.2 m), eased over this long. */
+  seatedEyeDrop: 0.42,
+  seatedEyeSeconds: 0.5,
 } as const
 
 export const MOVE = {
@@ -66,6 +70,11 @@ export const CHASE = {
   /** Smoothing times, seconds (critically damped, so the view is at rest a short while after the mouse stops, and then EXACTLY at rest). */
   yawSeconds: 0.05,
   pitchSeconds: 0.07,
+  /**
+   * Through your own eyes (the default walk view) the look is damped a little more, so the picture glides like the walkthrough's (which uses
+   * `PRESENT.lookSeconds`, 0.25 s) while aiming at a kiosk or a door stays quick: the mouse look (yaw and pitch) and the follow of A / D turns.
+   */
+  eyeLookSeconds: 0.1,
   zoomSeconds: 0.08,
   /** The follow point trails your head by this much, and never by more than `maxFollowLag` metres. */
   lagSeconds: 0.08,
@@ -192,8 +201,7 @@ export const EASY = {
   followSeconds: 0.22,
   /** ...and never lags by more than this angle, radians. */
   maxYawLag: (40 * Math.PI) / 180,
-  /** In first person the view is glued to your heading, with this smoothing time. */
-  firstPersonFollowSeconds: 0.06,
+  /** (In first person the view follows your heading with `CHASE.eyeLookSeconds`.) */
   /** A mouse look swings back behind you after this long without any mouse input, while you move or turn... */
   recenterDelay: 1.0,
   /** ...with this smoothing time. */
@@ -203,6 +211,15 @@ export const EASY = {
   /** First person: the mouse turns the BODY. The look offset moves into your heading with this smoothing time (`ChaseCamera.absorbLook`). */
   firstPersonLookSeconds: 0.05,
 } as const
+
+/**
+ * Step 3 (a real place, not a game): the view you walk in. Entering walk mode (the start of the day, Tab back from the overview, leaving the
+ * walkthrough from the overview) puts you here; V toggles to the chase camera over your shoulder and back. First person is at the walkthrough's
+ * eye height and lens (`CONFIG.player.camera`: 1.6 m, 55 degrees), with no avatar, no blob shadow and no head bob (the view is your eyes).
+ */
+export const WALK_VIEW: { readonly initial: PlayerViewKind } = {
+  initial: 'first',
+}
 
 /** The walk <-> overview flights. */
 export const FLIGHT = {
@@ -216,6 +233,8 @@ export const FLIGHT = {
   /** How far the camera pulls back mid-flight per metre travelled, so long hops swoop instead of slide (as the room focus does). */
   bulgePerMetre: 0.16,
   bulgeMax: 22,
+  /** Flying down into first person, your body fades out over the last part of the flight (from this share of it on), so you never see the inside of your own head. */
+  eyesFadeFrom: 0.55,
 } as const
 
 /**

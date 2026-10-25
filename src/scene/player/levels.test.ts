@@ -49,7 +49,8 @@ const made: PlayerSystem[] = []
 function make(sim = new Simulation(5)): Rig {
   const camera = new PerspectiveCamera(OVERVIEW_FOV_DEG, 16 / 9, 1, 500)
   const rig = new FakeRig()
-  const sys = new PlayerSystem({ camera, getSim: () => sim, getRig: () => rig, reducedMotion: () => false })
+  // (the chase camera across storeys: walked in third person, the view V gives you)
+  const sys = new PlayerSystem({ camera, getSim: () => sim, getRig: () => rig, reducedMotion: () => false, walkView: 'third' })
   made.push(sys)
   return { sim, camera, rig, sys }
 }

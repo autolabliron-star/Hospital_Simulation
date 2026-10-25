@@ -692,8 +692,8 @@ export const CONFIG = {
       hideAvatarBelow: 0.75,
       pitchDeg: -8,
       fovDeg: 60,
-      fovFirstDeg: 72,
-      eyeHeight: 1.65,
+      fovFirstDeg: 55,
+      eyeHeight: 1.6,
       /** The camera's near plane while walking (the overview keeps 1). */
       near: 0.1,
       /** Seconds of the walk <-> overview flight. */

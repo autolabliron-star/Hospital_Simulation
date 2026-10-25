@@ -1,10 +1,10 @@
-/** Presentation mode hides the floor lines per instance, and puts them back exactly. */
+/** The floor lines show in the overview only: walking (step 3), its flights and presentation mode hide them per instance, and put them back exactly. */
 import { afterEach, describe, expect, it } from 'vitest'
 import { Group, InstancedMesh, Matrix4, MeshStandardMaterial, PlaneGeometry } from 'three'
 import { buildLayout } from '@/scene/building/layout'
 import { compileLayout } from '@/scene/building/render/compile'
 import { wayfindingPieces } from './lines'
-import { hideLines, resetPresentLinesForTests, setLineMaterial, showLines, syncPresentLines } from './presentLines'
+import { hideLines, linesHidden, resetPresentLinesForTests, setLineMaterial, showLines, syncPresentLines } from './presentLines'
 
 afterEach(() => resetPresentLinesForTests())
 
@@ -67,5 +67,52 @@ describe('hiding and showing', () => {
     expect(Array.from(mesh.instanceMatrix.array)).toEqual(Array.from(before))
     syncPresentLines(root, false)
     expect(Array.from(mesh.instanceMatrix.array)).toEqual(Array.from(before))
+  })
+})
+
+describe('when they are hidden', () => {
+  it('walking, the flights and presentation hide them; the overview (the map view) shows them; with no player only presentation counts', () => {
+    expect(linesHidden(false, 'walk')).toBe(true)
+    expect(linesHidden(false, 'toWalk')).toBe(true)
+    expect(linesHidden(false, 'toOverview')).toBe(true)
+    expect(linesHidden(false, 'overview')).toBe(false)
+    expect(linesHidden(true, 'walk')).toBe(true)
+    expect(linesHidden(true, 'overview')).toBe(true)
+    expect(linesHidden(false, null)).toBe(false)
+    expect(linesHidden(true, null)).toBe(true)
+  })
+
+  it('a day of Tab: hidden while walking, back in the overview, hidden again on the way down; each change acts once', () => {
+    const tinted = new MeshStandardMaterial()
+    setLineMaterial(tinted)
+    const pieces = wayfindingPieces().filter((p) => p.shape === 'plane')
+    const mesh = new InstancedMesh(new PlaneGeometry(1, 1), tinted, pieces.length)
+    mesh.name = 'tinted|plane|abc|01'
+    const m = new Matrix4()
+    pieces.forEach((p, i) => mesh.setMatrixAt(i, m.makeTranslation(p.x, p.y, p.z)))
+    const root = new Group()
+    root.add(mesh)
+    const before = Float32Array.from(mesh.instanceMatrix.array)
+    const zeroed = (): boolean => Array.from(mesh.instanceMatrix.array).every((v) => v === 0)
+    let uploads = 0
+    let version = mesh.instanceMatrix.version
+    const frame = (phase: 'walk' | 'toOverview' | 'overview' | 'toWalk'): void => {
+      syncPresentLines(root, linesHidden(false, phase))
+      if (mesh.instanceMatrix.version !== version) {
+        uploads++
+        version = mesh.instanceMatrix.version
+      }
+    }
+    for (let i = 0; i < 10; i++) frame('walk')
+    expect(zeroed()).toBe(true)
+    for (let i = 0; i < 10; i++) frame('toOverview')
+    expect(zeroed()).toBe(true) // still hidden on the way up (they change only up at the overview)
+    for (let i = 0; i < 10; i++) frame('overview')
+    expect(Array.from(mesh.instanceMatrix.array)).toEqual(Array.from(before))
+    for (let i = 0; i < 10; i++) frame('toWalk')
+    expect(zeroed()).toBe(true)
+    for (let i = 0; i < 10; i++) frame('walk')
+    expect(zeroed()).toBe(true)
+    expect(uploads).toBe(3) // hide, show, hide: never per frame
   })
 })

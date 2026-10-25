@@ -36,7 +36,8 @@ function steerEasy(sys: PlayerSystem, heading: number, want: number): void {
 function walkRoute(route: readonly { x: number; z: number }[], hurry: boolean, scheme: ControlScheme): { frames: number; stuck: boolean } {
   const sim = new Simulation(5)
   const camera = new PerspectiveCamera(35, 16 / 9, 1, 500)
-  const sys = new PlayerSystem({ camera, getSim: () => sim, reducedMotion: () => false, scheme })
+  // (the chase camera is what is walked here: third person, the view V gives you; first person is the eyes, always inside the body's circle)
+  const sys = new PlayerSystem({ camera, getSim: () => sim, reducedMotion: () => false, scheme, walkView: 'third' })
   try {
     sys.input.keyDown('KeyW')
     if (hurry) sys.input.keyDown('ShiftLeft')

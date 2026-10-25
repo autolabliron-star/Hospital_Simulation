@@ -87,6 +87,8 @@ export interface CameraSubject {
   heading: number
   /** The body is turning on the spot (A or D held): that counts as moving when the easy camera decides to swing back behind you. */
   turning: boolean
+  /** How far your eyes are below the standing eye height (metres; sitting down lowers them). First person only. Default 0. */
+  eyeDrop?: number
 }
 
 export interface CameraFrame {
@@ -500,9 +502,13 @@ export class ChaseCamera {
     }
   }
 
-  /** Leaving first person: the boom the camera comes back to (never closer than the wheel allows). */
+  /**
+   * Leaving first person: the boom the camera comes back to (never closer than the wheel allows), at the chase camera's own elevation (it glides
+   * there): through your eyes you mostly look level, which behind you would be a camera at head height.
+   */
   restoreBoom(): void {
     this.dist = Math.max(this.dist, CHASE.minDistance * 1.25)
+    this.pitch = defaultBoom().pitch
   }
 
   /**
@@ -618,7 +624,7 @@ export class ChaseCamera {
     if (looking || f.dragging) this.sinceLook = 0
     else this.sinceLook += dt
     const mix = smooth01(this.pBlend)
-    this.followYaw = followYawStep(this.followYaw, subject.heading, this.followYawVel, fpWanted ? lerp(EASY.firstPersonFollowSeconds, PRESENT.lookSeconds, mix) : EASY.followSeconds, EASY.maxYawLag, dt)
+    this.followYaw = followYawStep(this.followYaw, subject.heading, this.followYawVel, fpWanted ? lerp(CHASE.eyeLookSeconds, PRESENT.lookSeconds, mix) : EASY.followSeconds, EASY.maxYawLag, dt)
     const moving = Math.hypot(subject.vx, subject.vz) > EASY.movingSpeed || subject.turning
     if (!f.dragging && moving && this.sinceLook >= EASY.recenterDelay) {
       this.offset = wrapAngle(dampAngleRest(this.offset, 0, this.recenterVel, EASY.recenterSeconds, dt))
@@ -628,7 +634,7 @@ export class ChaseCamera {
       this.recenterVel.v = 0
       this.recenterPitchVel.v = 0
     }
-    this.offsetS = wrapAngle(dampAngleRest(this.offsetS, this.offset, this.offsetVel, lerp(CHASE.yawSeconds, PRESENT.lookSeconds, mix), dt))
+    this.offsetS = wrapAngle(dampAngleRest(this.offsetS, this.offset, this.offsetVel, lerp(fpWanted ? CHASE.eyeLookSeconds : CHASE.yawSeconds, PRESENT.lookSeconds, mix), dt))
     this.yaw = wrapAngle(this.followYaw + this.offset)
     this.yawS = wrapAngle(this.followYaw + this.offsetS)
   }
@@ -666,10 +672,10 @@ export class ChaseCamera {
       }
     }
 
-    // ---- smoothing: yaw quicker than pitch
+    // ---- smoothing: yaw quicker than pitch (through your own eyes both glide a little more: `CHASE.eyeLookSeconds`)
     if (easy) this.easyYawStep(subject, f, looking, dt)
-    else this.yawS = dampAngle(this.yawS, this.yaw, this.yawVel, lerp(CHASE.yawSeconds, PRESENT.lookSeconds, mix), dt)
-    this.pitchS = smoothDamp(this.pitchS, this.pitch, this.pitchVel, lerp(CHASE.pitchSeconds, PRESENT.lookSeconds, mix), dt)
+    else this.yawS = dampAngle(this.yawS, this.yaw, this.yawVel, lerp(fpWanted ? CHASE.eyeLookSeconds : CHASE.yawSeconds, PRESENT.lookSeconds, mix), dt)
+    this.pitchS = smoothDamp(this.pitchS, this.pitch, this.pitchVel, lerp(fpWanted ? CHASE.eyeLookSeconds : CHASE.pitchSeconds, PRESENT.lookSeconds, mix), dt)
     this.distS = smoothDamp(this.distS, this.dist, this.distVel, CHASE.zoomSeconds, dt)
 
     // ---- your head, the shoulder pivot, the chase point
@@ -845,7 +851,7 @@ export class ChaseCamera {
       const k = smooth01(this.firstPerson)
       const cp = Math.cos(this.pitchS)
       const ex = feet.x + Math.sin(this.yawS) * 0.1
-      const ey = feet.y + lerp(BODY.eyeHeight, PRESENT.eyeHeight, mix)
+      const ey = feet.y + lerp(BODY.eyeHeight, PRESENT.eyeHeight, mix) - (subject.eyeDrop ?? 0)
       const ez = feet.z + Math.cos(this.yawS) * 0.1
       const lx = ex + Math.sin(this.yawS) * cp * 4
       const ly = ey - Math.sin(this.pitchS) * 4

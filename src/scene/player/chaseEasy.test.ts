@@ -211,7 +211,8 @@ describe('the easy camera follows your heading', () => {
       r.step({ turn: -200 * DEG, firstPerson: true })
       worst = Math.max(worst, r.lag())
     }
-    expect(worst / DEG).toBeLessThan(15) // against about 40 behind you in third person
+    // a critically damped follow trails a steady turn by about rate x time: 200 deg/s x `CHASE.eyeLookSeconds` (0.1 s), against about 40 behind you in third person
+    expect(worst / DEG).toBeLessThan(200 * CHASE.eyeLookSeconds + 2)
     expect(worst / DEG).toBeGreaterThan(5)
     r.run(1.5, { firstPerson: true })
     expect(angleDelta(r.chase.facing, r.heading)).toBeCloseTo(0, 12)

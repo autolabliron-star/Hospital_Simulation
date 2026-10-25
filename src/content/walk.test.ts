@@ -22,14 +22,13 @@ describe('walk.json', () => {
     expect(WalkSchema.safeParse(extra).success).toBe(false)
   })
 
-  it('the key hint keeps its four first keys and adds C (walkthrough) and N (next shot), every action a real key', () => {
-    expect(WALK.hint.slice(0, 4).map((h) => [h.action, h.label])).toEqual([
+  it('the key hint keeps its three first keys (walking starts in first person: V changes the view; Q only matters in third person, so it is not hinted) and adds C (walkthrough) and N (next shot), every action a real key', () => {
+    expect(WALK.hint.slice(0, 3).map((h) => [h.action, h.label])).toEqual([
       ['walk', 'Overview'],
-      ['firstPerson', 'First person'],
+      ['firstPerson', 'Change view'],
       ['interact', 'Use'],
-      ['shoulderSwap', 'Shoulder'],
     ])
-    expect(WALK.hint.slice(4).map((h) => keyLabel(DEFAULT_KEYMAP[h.action]))).toEqual(['C', 'N'])
+    expect(WALK.hint.slice(3).map((h) => keyLabel(DEFAULT_KEYMAP[h.action]))).toEqual(['C', 'N'])
     for (const h of WALK.hint) expect(DEFAULT_KEYMAP[h.action], h.action).toBeTruthy()
     expect(new Set(WALK.hint.map((h) => h.action)).size).toBe(WALK.hint.length)
   })

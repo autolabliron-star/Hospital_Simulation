@@ -9,14 +9,14 @@ import { flyTo, isWalkMode, overviewPose, poseToLookAt, presetFor, registerWalkB
 import { useFocus } from '@/scene/camera/focus.store'
 import { PLAYER_SPAWN } from '@/sim/places'
 import { Simulation } from '@/sim/Simulation'
-import type { Entity } from '@/sim/types'
+import type { Entity, PlayerViewKind } from '@/sim/types'
 import { walkBody, walkCam, useWalk } from './state'
 import { buildWallBoxes, insideWallBox } from './boomProbe'
 import { walkableAt } from './collision'
 import { angleDelta, rightOf, shoulderPose } from './chaseMath'
 import type { ControlScheme } from './scheme'
 import { PlayerSystem } from './system'
-import { CHASE, EASY, FLIGHT } from './tuning'
+import { BODY, CHASE, EASY, FLIGHT, WALK_VIEW } from './tuning'
 import { CONFIG } from '@/sim/config'
 
 const DT = 1 / 60
@@ -51,12 +51,16 @@ interface Rig {
 
 const made: PlayerSystem[] = []
 
-/** A player system in the default ("easy") scheme, or in `classic` when a test is about the camera-relative one. */
-function make(reduced = false, scheme?: ControlScheme): Rig {
+/**
+ * A player system in the default ("easy") scheme, or in `classic` when a test is about the camera-relative one. Most of this file is about the
+ * chase camera over your shoulder, so it walks in third person unless asked (`view`); the app's default walk view (first person, step 3) has its own
+ * describe block at the end, made with `view: 'app'` (no `walkView`: the app's own).
+ */
+function make(reduced = false, scheme?: ControlScheme, view: PlayerViewKind | 'app' = 'third'): Rig {
   const sim = new Simulation(5)
   const camera = new PerspectiveCamera(OVERVIEW_FOV_DEG, 16 / 9, 1, 500)
   const rig = new FakeRig()
-  const sys = new PlayerSystem({ camera, getSim: () => sim, getRig: () => rig, reducedMotion: () => reduced, scheme })
+  const sys = new PlayerSystem({ camera, getSim: () => sim, getRig: () => rig, reducedMotion: () => reduced, scheme, walkView: view === 'app' ? undefined : view })
   made.push(sys)
   return { sim, camera, rig, sys }
 }
@@ -99,7 +103,7 @@ describe('arriving', () => {
     run(r, 0.1)
     r.sys.placeAt(-55, 3, 1)
     run(r, 0.1)
-    const again = new PlayerSystem({ camera: new PerspectiveCamera(35, 16 / 9, 1, 500), getSim: () => r.sim, getRig: () => r.rig, reducedMotion: () => false })
+    const again = new PlayerSystem({ camera: new PerspectiveCamera(35, 16 / 9, 1, 500), getSim: () => r.sim, getRig: () => r.rig, reducedMotion: () => false, walkView: 'third' })
     made.push(again)
     expect(r.sim.player!.x).toBeCloseTo(-55, 6)
     expect(again.snapshot().x).toBeCloseTo(-55, 6)
@@ -208,7 +212,7 @@ describe('walking', () => {
 })
 
 describe('first person', () => {
-  it('V puts the camera at your eyes with the wider lens and fades your avatar out; V again brings you back', () => {
+  it('V puts the camera at your eyes with the walkthrough\'s lens and fades your avatar out; V again brings you back', () => {
     const r = make()
     run(r, 0.1)
     expect(r.sim.playerAvatar!.fade).toBe(1)
@@ -1019,7 +1023,7 @@ describe('the write-back', () => {
     p.mode = was.mode
     p.view = was.view
     let current = r.sim
-    const sys = new PlayerSystem({ camera: r.camera, getSim: () => current, getRig: () => r.rig, reducedMotion: () => false })
+    const sys = new PlayerSystem({ camera: r.camera, getSim: () => current, getRig: () => r.rig, reducedMotion: () => false, walkView: 'third' })
     made.push(sys)
     run({ ...r, sys }, 0.2)
     const before = next.player!.x
@@ -1133,5 +1137,148 @@ describe('tidy', () => {
     expect(r.rig.enabled).toBe(true)
     expect(isWalkMode()).toBe(false)
     registerWalkBridge(null)
+  })
+})
+
+describe('the default walk view (step 3): through your own eyes, like the walkthrough, with every function', () => {
+  /** The app's player system: no `walkView`, so `WALK_VIEW.initial`. */
+  const app = (reduced = false): Rig => make(reduced, undefined, 'app')
+
+  it('the day starts in first person at 1.6 m with the 55 degree lens, looking level, with no avatar (and no blob shadow: it shares the fade)', () => {
+    expect(WALK_VIEW.initial).toBe('first')
+    const r = app()
+    expect(r.sim.player!.view).toBe('first')
+    expect(useWalk.getState().view).toBe('first')
+    run(r, 0.1)
+    expect(r.camera.position.y).toBeCloseTo(C.eyeHeight, 6)
+    expect(C.eyeHeight).toBe(1.6)
+    expect(r.camera.fov).toBeCloseTo(55, 6)
+    expect(walkCam.firstPerson).toBe(1)
+    expect(r.sim.playerAvatar!.fade).toBe(0)
+    expect(walkCam.avatarFade).toBe(0)
+    const dir = r.camera.getWorldDirection(new Vector3())
+    expect(Math.abs(dir.y)).toBeLessThan(1e-6) // level, not the chase camera's look down
+  })
+
+  it('V toggles the chase camera over your shoulder and back', () => {
+    const r = app()
+    run(r, 0.2)
+    r.sys.input.keyDown('KeyV')
+    r.sys.input.keyUp('KeyV')
+    run(r, 1)
+    expect(r.sim.player!.view).toBe('third')
+    expect(useWalk.getState().view).toBe('third')
+    expect(r.camera.fov).toBe(C.fovDeg)
+    expect(r.sim.playerAvatar!.fade).toBe(1)
+    expect(r.camera.position.y).toBeGreaterThan(C.eyeHeight + 0.2) // over your shoulder, above your head
+    r.sys.input.keyDown('KeyV')
+    r.sys.input.keyUp('KeyV')
+    run(r, 1)
+    expect(r.sim.player!.view).toBe('first')
+    expect(r.camera.position.y).toBeCloseTo(C.eyeHeight, 6)
+  })
+
+  it('no head bob through your eyes: walking and running keep the eye exactly at 1.6 m, and the lens does not widen', () => {
+    const r = app()
+    r.sys.placeAt(-61, 0, Math.PI / 2)
+    run(r, 0.5)
+    r.sys.input.keyDown('KeyW')
+    for (let i = 0; i < 90; i++) {
+      r.sys.update(DT)
+      expect(r.camera.position.y).toBeCloseTo(C.eyeHeight, 9)
+    }
+    r.sys.input.keyDown('ShiftLeft')
+    for (let i = 0; i < 90; i++) {
+      r.sys.update(DT)
+      expect(r.camera.position.y).toBeCloseTo(C.eyeHeight, 9)
+      expect(r.camera.fov).toBeCloseTo(C.fovFirstDeg, 9)
+    }
+    expect(r.sim.player!.speed).toBeGreaterThan(CONFIG.player.walkSpeed)
+  })
+
+  it('Tab out and back comes down into your eyes, even after V; the body is seen on the way down and fades out at the end', () => {
+    const r = app()
+    run(r, 0.2)
+    r.sys.input.keyDown('KeyV') // third person first: Tab back still starts in first person
+    r.sys.input.keyUp('KeyV')
+    run(r, 0.5)
+    r.sys.input.keyDown('Tab')
+    r.sys.input.keyUp('Tab')
+    run(r, 3)
+    expect(r.sim.player!.mode).toBe('overview')
+    expect(r.sim.playerAvatar!.fade).toBe(1)
+    r.sys.input.keyDown('Tab')
+    r.sys.input.keyUp('Tab')
+    r.sys.update(DT)
+    expect(r.sim.player!.mode).toBe('toWalk')
+    const fades: number[] = []
+    for (let i = 0; i < 60 * 3 && r.sim.player!.mode === 'toWalk'; i++) {
+      r.sys.update(DT)
+      fades.push(r.sim.playerAvatar!.fade ?? 1)
+    }
+    expect(r.sim.player!.mode).toBe('walk')
+    expect(fades[0]).toBe(1) // seen at the start of the flight down
+    for (let i = 1; i < fades.length; i++) expect(fades[i]).toBeLessThanOrEqual(fades[i - 1] + 1e-12) // then only fading
+    run(r, 0.2)
+    expect(r.sim.player!.view).toBe('first')
+    expect(r.camera.position.y).toBeCloseTo(C.eyeHeight, 6)
+    expect(r.camera.fov).toBeCloseTo(C.fovFirstDeg, 6)
+    expect(r.sim.playerAvatar!.fade).toBe(0)
+  })
+
+  it('reduced motion: the jump down lands in first person too', () => {
+    const r = app(true)
+    run(r, 0.2)
+    r.sys.beginToOverview(null)
+    run(r, 0.2)
+    expect(r.sim.player!.mode).toBe('overview')
+    r.sys.input.keyDown('Tab')
+    r.sys.input.keyUp('Tab')
+    run(r, 0.2)
+    expect(r.sim.player!.mode).toBe('walk')
+    expect(r.sim.player!.view).toBe('first')
+    expect(r.sim.playerAvatar!.fade).toBe(0)
+  })
+
+  it('the wheel pulled back leaves first person for the chase camera, and pulled in comes back', () => {
+    const r = app()
+    run(r, 0.2)
+    r.sys.input.addWheel(100)
+    run(r, 0.1)
+    expect(r.sim.player!.view).toBe('third')
+    for (let i = 0; i < 30 && r.sim.player!.view === 'third'; i++) {
+      r.sys.input.addWheel(-100)
+      run(r, 0.1)
+    }
+    expect(r.sim.player!.view).toBe('first')
+  })
+
+  it('sitting down brings your eyes down to a seated height, and standing up lifts them again, both eased', () => {
+    const r = app()
+    r.sys.placeAt(-61, 0, Math.PI / 2)
+    run(r, 0.3)
+    r.sim.playerAvatar!.anim = 'sit' // what the seats do (interact/seats.ts); it is kept while you stand still
+    r.sys.update(DT)
+    expect(r.camera.position.y).toBeLessThan(C.eyeHeight)
+    expect(r.camera.position.y).toBeGreaterThan(C.eyeHeight - 0.05) // eased, not a drop
+    run(r, 1)
+    expect(r.camera.position.y).toBeCloseTo(C.eyeHeight - BODY.seatedEyeDrop, 6)
+    r.sim.playerAvatar!.anim = 'idle'
+    run(r, 1)
+    expect(r.camera.position.y).toBeCloseTo(C.eyeHeight, 6)
+  })
+
+  it('the mouse look is lightly damped (CHASE.eyeLookSeconds): it glides, and lands exactly where you aimed', () => {
+    const r = app()
+    run(r, 0.3)
+    const before = r.sys.snapshot().facing
+    r.sys.input.addLook(-0.6 / CHASE.yawPerPixel, 0)
+    r.sys.update(DT)
+    const first = angleDelta(before, r.sys.snapshot().facing)
+    expect(Math.abs(first)).toBeGreaterThan(0) // it moves at once...
+    expect(Math.abs(first)).toBeLessThan(0.6 * 0.5) // ...but glides there
+    run(r, 1.5)
+    expect(angleDelta(before + 0.6, r.sys.snapshot().facing)).toBeCloseTo(0, 6)
+    expect(angleDelta(r.sim.player!.heading, r.sys.snapshot().facing)).toBeCloseTo(0, 6) // easy: through your eyes the mouse turned the body
   })
 })

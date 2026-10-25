@@ -13,6 +13,7 @@ import { readDrawer } from './drawerModel'
 import { useHudPrefs } from './hudPrefs.store'
 import { PromptView } from './InteractPrompt'
 import { ObjectiveView } from './ObjectiveLine'
+import { RealismToggleView } from './RealismToggle'
 import { useRx } from './rx.store'
 import { ClockView } from './WalkClock'
 import { ToastView } from './WalkToast'
@@ -47,11 +48,12 @@ describe('the HUD in the overview', () => {
 describe('the HUD in walk mode', () => {
   it('is quiet: a clock, the minimap and the key hint; no KPI card, order rail, event line, title card or pill', () => {
     const out = hud({ mode: 'walk' })
+    expect(out).toContain('walk-realism') // step 3: tucked away after a few seconds, never removed (R and a hover bring it back)
     expect(out).toContain('data-hud="walk"')
     expect(out).toContain('walk-clock')
     expect(out).toContain('walk-map')
     expect(out).toContain('walk-hint')
-    expect(out).toContain('First person')
+    expect(out).toContain('Change view')
     expect(out).not.toContain('Key figures')
     expect(out).not.toContain('Orders by stage')
     expect(out).not.toContain('hud-event')
@@ -125,6 +127,16 @@ describe('the pieces', () => {
     expect(html(createElement(ClockView, { clock: '07:42', speed: 1, paused: true }))).toContain('paused')
     expect(html(createElement(ClockView, { clock: '07:42', speed: 4, paused: false }))).toContain('4×')
     expect(html(createElement(ClockView, { clock: '07:42', speed: 1, paused: false }))).toContain('07:42')
+  })
+
+  it('keeps the realism pill (a function) while it is tucked away: it is there, only faded, and still says its state', () => {
+    const shown = html(createElement(RealismToggleView, { on: true, onToggle: noop }))
+    expect(shown).toContain('data-visible="true"')
+    expect(shown).toContain('aria-pressed="true"')
+    const tucked = html(createElement(RealismToggleView, { on: false, onToggle: noop, visible: false }))
+    expect(tucked).toContain('walk-realism')
+    expect(tucked).toContain('data-visible="false"')
+    expect(tucked).toContain('Off')
   })
 
   it('shows what is in a drawer, and whose it is', () => {

@@ -1,7 +1,7 @@
-/* The minimap on level 2 (R2): the surgery suite is a portrait plan (26 x 48 m), so the card narrows to 46% of the HUD column
-   and sits at its right edge, instead of growing as tall as it is wide. */
+/* The minimap on level 2 (R2): the surgery suite is a portrait plan (26 x 48 m), so the card narrows to half the level-1 card (walk.css
+   `--walk-map-w`) and sits at the right edge, instead of growing as tall as it is wide. */
 
 .walk-map[data-level='2'] {
   align-self: flex-end;
-  width: 46%;
+  width: calc(var(--walk-map-w, 184px) * 0.5);
 }

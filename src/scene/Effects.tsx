@@ -8,7 +8,7 @@
  * goes to 0, the vignette to half its darkness, the bloom to a gentler intensity and a higher threshold (so the bright sky does not glow), and the
  * tone mapper moves from three's AgX to Blender's own (the review stills' "AgX - Base Contrast", a LUT sampled from Blender, at look.ts
  * PRESENT_EXPOSURE: lighting/presentToneMapping.ts). The same callback drives the authored lobby's box-projected floor reflections
- * (building/model/reflections.ts, uniforms) and hides the floor lines (wayfinding/presentLines.ts, on the toggle only). The blend is a plain
+ * (building/model/reflections.ts, uniforms) and hides the floor lines (wayfinding/presentLines.ts, on a change only; walking hides them too). The blend is a plain
  * number advanced in a frame callback and written into the effects only when it moves: no define, no recompile, no allocation.
  *
  * The grade (src/scene/lighting/grade.ts) is an always-mounted 32 cubed LUT in blend mode NORMAL: its blend opacity IS its strength, so the
@@ -43,7 +43,7 @@ import { MAT } from '@/scene/materials'
 import { useWalk } from '@/scene/player/state'
 import { aoSettings } from '@/scene/quality/aoProfile'
 import { useRenderStore } from '@/scene/quality/render.store'
-import { setLineMaterial, syncPresentLines } from '@/scene/wayfinding/presentLines'
+import { linesHidden, setLineMaterial, syncPresentLines } from '@/scene/wayfinding/presentLines'
 import { registerWarmSource } from '@/scene/warmup/registry'
 import { presentActive } from '@/ui/present/presentation.store'
 import { BUILDING_MODEL_ON } from '@/scene/building/model/flags'
@@ -131,7 +131,7 @@ export function Effects() {
   useFrame((state, dt) => {
     const on = presentActive()
     // the authored building's photographic look (Blender AgX, exposure, floor reflections) also in the normal walk, with every game function;
-    // presentation mode adds only its camera, the hidden HUD and the hidden floor lines
+    // presentation mode adds only its camera and the hidden HUD (the floor lines hide in every walk)
     const look = on || (BUILDING_MODEL_ON && playerPhase() === 'walk')
     const want = look ? 1 : 0
     if (present.current !== want) {
@@ -141,7 +141,8 @@ export function Effects() {
     const p = present.current
     if (tone) tone.mix.value = p * PRESENT_LOOK.agx
     updateModelReflections(p, liveLook.lobbyEnv, state.scene.environmentIntensity)
-    syncPresentLines(state.scene, on)
+    // the floor lines are the map's: shown in the overview only (walking, its flights and presentation hide them)
+    syncPresentLines(state.scene, linesHidden(on, playerPhase()))
     const l = lut.current
     const v = vignette.current
     const b = bloom.current

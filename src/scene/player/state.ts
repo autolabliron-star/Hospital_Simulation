@@ -100,7 +100,7 @@ export interface WalkState {
 
 export const useWalk = create<WalkState>((set) => ({
   mode: 'walk',
-  view: 'third',
+  view: 'first',
   pointerLocked: false,
   prompt: null,
   objective: null,

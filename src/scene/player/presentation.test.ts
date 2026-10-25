@@ -7,11 +7,12 @@ import { PerspectiveCamera, Vector3 } from 'three'
 import { OVERVIEW_FOV_DEG, type RigHandle } from '@/scene/camera/cameraApi'
 import { CONFIG } from '@/sim/config'
 import { Simulation } from '@/sim/Simulation'
+import type { PlayerViewKind } from '@/sim/types'
 import { SHOTS, nextShot, shotYaw } from '@/ui/present/shots'
 import { usePresentation } from '@/ui/present/presentation.store'
 import { walkableAt } from './collision'
 import { angleDelta } from './chaseMath'
-import { walkCam } from './state'
+import { useWalk, walkCam } from './state'
 import { PlayerSystem } from './system'
 import { PRESENT } from './tuning'
 
@@ -38,11 +39,12 @@ class FakeRig implements RigHandle {
 
 const made: PlayerSystem[] = []
 
-function make() {
+/** The app's player system (walking starts through your eyes), or one that walks in third person (`view: 'third'`, the view V gives you). */
+function make(view?: PlayerViewKind) {
   const sim = new Simulation(5)
   const camera = new PerspectiveCamera(OVERVIEW_FOV_DEG, 16 / 9, 1, 500)
   const rig = new FakeRig()
-  const sys = new PlayerSystem({ camera, getSim: () => sim, getRig: () => rig, reducedMotion: () => false })
+  const sys = new PlayerSystem({ camera, getSim: () => sim, getRig: () => rig, reducedMotion: () => false, walkView: view })
   made.push(sys)
   return { sim, camera, rig, sys }
 }
@@ -65,8 +67,51 @@ describe('the shots are places you can stand', () => {
 })
 
 describe('turning presentation on and off', () => {
-  it('first person at 1.6 m with the 55 degree lens, no avatar; leaving brings back the game\'s view exactly', () => {
+  it('walking already looks like it (step 3): first person at 1.6 m with the 55 degree lens and no avatar, before, during and after', () => {
     const r = make()
+    run(r, 0.6)
+    expect(r.sim.player!.view).toBe('first')
+    expect(r.camera.fov).toBeCloseTo(PRESENT.fov, 6)
+    expect(r.camera.position.y).toBeCloseTo(PRESENT.eyeHeight, 6)
+    expect(r.sim.playerAvatar!.fade).toBe(0)
+    usePresentation.getState().setOn(true)
+    run(r, 1.5)
+    expect(r.sim.player!.view).toBe('first')
+    expect(r.camera.fov).toBeCloseTo(PRESENT.fov, 6)
+    expect(r.camera.position.y).toBeCloseTo(PRESENT.eyeHeight, 6)
+    usePresentation.getState().setOn(false)
+    run(r, 2.5)
+    // C off returns to first person (the walk view), not to the chase camera
+    expect(r.sim.player!.view).toBe('first')
+    expect(useWalk.getState().view).toBe('first')
+    expect(r.camera.fov).toBeCloseTo(C.fovFirstDeg, 6)
+    expect(r.camera.position.y).toBeCloseTo(C.eyeHeight, 6)
+    expect(r.sim.playerAvatar!.fade).toBe(0)
+    // and V still gives you the chase camera
+    r.sys.input.keyDown('KeyV')
+    r.sys.input.keyUp('KeyV')
+    run(r, 1)
+    expect(r.sim.player!.view).toBe('third')
+    expect(r.camera.fov).toBeCloseTo(C.fovDeg, 6)
+  })
+
+  it('from the overview, C flies you down into the walkthrough and C again leaves you walking through your own eyes', () => {
+    const r = make()
+    run(r, 0.2)
+    r.sys.beginToOverview(null)
+    run(r, 3)
+    expect(r.sim.player!.mode).toBe('overview')
+    usePresentation.getState().setOn(true)
+    run(r, 3)
+    expect(r.sim.player!.mode).toBe('walk')
+    usePresentation.getState().setOn(false)
+    run(r, 2)
+    expect(r.sim.player!.view).toBe('first')
+    expect(r.camera.fov).toBeCloseTo(C.fovFirstDeg, 6)
+  })
+
+  it('from third person (V): first person at 1.6 m with the 55 degree lens, no avatar; leaving brings back the chase camera exactly', () => {
+    const r = make('third')
     run(r, 0.2)
     const third = r.sim.player!.view
     expect(third).toBe('third')
@@ -168,7 +213,7 @@ describe('turning presentation on and off', () => {
     run(r, 5)
     expect(r.sim.player!.mode).toBe('walk')
     expect(usePresentation.getState().on).toBe(false)
-    expect(r.sim.player!.view).toBe('third')
+    expect(r.sim.player!.view).toBe('first') // the walk view (step 3), not the walkthrough's
   })
 
   it('a flight out to the overview ends the walkthrough (the game\'s camera, speed and avatar return)', () => {
