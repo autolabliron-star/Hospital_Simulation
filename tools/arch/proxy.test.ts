@@ -160,6 +160,100 @@ describe('a proxy from a small zone', () => {
   })
 })
 
+describe('unbaked foliage in a proxy', () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'proxy-foliage-'))
+  afterAll(() => rmSync(tmp, { recursive: true, force: true }))
+
+  // a baked 10 x 10 m lawn in the sun, and over it a canopy of unbaked, double-sided leaves on a two-swatch palette (materials.json Foliage:
+  // bake false, a white factor over its `_palette` texture). The proxy used to draw the leaves white (the factor x a mean of 1 x flatLight)
+  async function garden(): Promise<Document> {
+    const doc = new Document()
+    const buf = doc.createBuffer()
+    const acc = (type: 'VEC2' | 'VEC3' | 'SCALAR', a: Float32Array | Uint32Array) => doc.createAccessor().setType(type).setArray(a).setBuffer(buf)
+    const lawn = doc
+      .createPrimitive()
+      .setAttribute('POSITION', acc('VEC3', new Float32Array([0, 0, 0, 0, 0, 10, 10, 0, 10, 10, 0, 0])))
+      .setAttribute('TEXCOORD_0', acc('VEC2', new Float32Array(8)))
+      .setAttribute('TEXCOORD_1', acc('VEC2', new Float32Array([0, 0, 0, 1, 1, 1, 1, 0])))
+      .setIndices(acc('SCALAR', new Uint32Array([0, 1, 2, 0, 2, 3])))
+      .setMaterial(doc.createMaterial('Lawn').setBaseColorFactor([0.1, 0.25, 0.06, 1]).setMetallicFactor(0))
+    // 60 small leaves around (5, 2, 5), alternate swatches (u 0.25 the light green, 0.75 the dark one)
+    const pos: number[] = []
+    const uv: number[] = []
+    const idx: number[] = []
+    for (let i = 0; i < 60; i++) {
+      const a = (i * 2.399) % (2 * Math.PI)
+      const r = 0.3 + (i % 7) * 0.15
+      const x = 5 + Math.cos(a) * r
+      const z = 5 + Math.sin(a) * r
+      const y = 1.5 + (i % 5) * 0.2
+      pos.push(x, y, z, x + 0.12, y + 0.05, z, x, y + 0.1, z + 0.12)
+      const u = i % 2 ? 0.75 : 0.25
+      uv.push(u, 0.5, u, 0.5, u, 0.5)
+      idx.push(i * 3, i * 3 + 1, i * 3 + 2)
+    }
+    const palette = await sharp({ create: { width: 16, height: 8, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+      .composite([
+        { input: await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 104, g: 137, b: 60 } } }).png().toBuffer(), left: 0, top: 0 },
+        { input: await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 47, g: 74, b: 40 } } }).png().toBuffer(), left: 8, top: 0 },
+      ])
+      .png()
+      .toBuffer()
+    const leaves = doc
+      .createPrimitive()
+      .setAttribute('POSITION', acc('VEC3', new Float32Array(pos)))
+      .setAttribute('TEXCOORD_0', acc('VEC2', new Float32Array(uv)))
+      .setIndices(acc('SCALAR', new Uint32Array(idx)))
+      .setMaterial(
+        doc
+          .createMaterial('Foliage')
+          .setDoubleSided(true)
+          .setMetallicFactor(0)
+          .setBaseColorTexture(doc.createTexture('Foliage_palette').setImage(new Uint8Array(palette)).setMimeType('image/png')),
+      )
+    const scene = doc.createScene()
+    scene.addChild(doc.createNode('arch_Lawn').setMesh(doc.createMesh().addPrimitive(lawn)).setExtras({ lightmap: 'lm_Lawn.png', lightmapScale: 2 }))
+    scene.addChild(doc.createNode('arch_Foliage').setMesh(doc.createMesh().addPrimitive(leaves)))
+    // the lawn's lightmap: sRGB 200 (sunlit) everywhere
+    await sharp({ create: { width: 64, height: 64, channels: 3, background: { r: 200, g: 200, b: 200 } } })
+      .png()
+      .toFile(path.join(tmp, 'lm_Lawn.png'))
+    return doc
+  }
+
+  it("draws the leaves in their palette's greens, lit like the ground they stand over, never near-white", async () => {
+    await MeshoptDecoder.ready
+    const built = await buildProxyDoc(await garden(), tmp)
+    const { size, rgb } = built.atlas
+    const prim = built.doc.getRoot().listMeshes()[0].listPrimitives()[0]
+    const pos = prim.getAttribute('POSITION')!
+    const uv = prim.getAttribute('TEXCOORD_0')!
+    const p = [0, 0, 0]
+    const t = [0, 0]
+    const sun = srgbToLinear(200) * 2
+    let leaves = 0
+    for (let i = 0; i < pos.getCount(); i++) {
+      pos.getElement(i, p)
+      if (p[1] < 1) continue // the lawn
+      leaves++
+      uv.getElement(i, t)
+      const o = (Math.min(size - 1, Math.floor(t[1] * size)) * size + Math.min(size - 1, Math.floor(t[0] * size))) * 3
+      const [r, g, b] = [rgb[o], rgb[o + 1], rgb[o + 2]]
+      // green, not white: green leads clearly, and the weakest channel is far below it
+      expect(g, `leaf texel ${r},${g},${b}`).toBeGreaterThan(r * 1.15)
+      expect(g).toBeGreaterThan(b * 1.3)
+      expect(Math.min(r, g, b) / Math.max(r, g, b)).toBeLessThan(0.7)
+      // one of the two swatches (linear) x the lawn's light
+      const swatches = [
+        [104, 137, 60],
+        [47, 74, 40],
+      ].map((c) => c.map((v) => srgbToLinear(v) * sun))
+      expect(swatches.some((sw) => sw.every((v, k) => Math.abs(v - [r, g, b][k]) < 0.02)), `leaf texel ${r},${g},${b}`).toBe(true)
+    }
+    expect(leaves).toBeGreaterThan(0)
+  })
+})
+
 // --- the shipped proxies -------------------------------------------------------------------------------------------------------------------------
 const MANIFEST = path.join(ROOT, 'public/assets/building/manifest.json')
 const manifest = existsSync(MANIFEST) ? JSON.parse(readFileSync(MANIFEST, 'utf8')) : null

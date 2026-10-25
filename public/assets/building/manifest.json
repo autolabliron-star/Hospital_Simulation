@@ -77,6 +77,14 @@
     1.6,
     0
    ],
+   "proxy": {
+    "glb": "zones/lobby/lobby.proxy.glb",
+    "tris": 6394,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 1.126,
+    "kb": 512
+   },
    "nodes": [],
    "bakeSeconds": 799,
    "bakedAt": "2026-10-22T14:17:26.954Z",
@@ -145,7 +153,7 @@
    },
    "draws": 27,
    "tris": 168148,
-   "lightmapMB": 15,
+   "lightmapMB": 10,
    "probe": "zones/er/env_er.hdr",
    "probeAt": [
     -53,
@@ -155,11 +163,11 @@
    "anchors": "zones/er/anchors.json",
    "proxy": {
     "glb": "zones/er/er.proxy.glb",
-    "tris": 41244,
+    "tris": 41548,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 2.137,
-    "kb": 862
+    "scale": 1.708,
+    "kb": 989
    },
    "nodes": [],
    "replaces": [
@@ -169,8 +177,8 @@
    "visibleFrom": [
     "lobby"
    ],
-   "bakeSeconds": 787,
-   "bakedAt": "2026-10-22T20:10:00.923Z",
+   "bakeSeconds": 435,
+   "bakedAt": "2026-10-24T19:39:38.254Z",
    "validator": {
     "errors": 0,
     "warnings": 36
@@ -182,7 +190,7 @@
    "level": 1,
    "label": "Imaging (MRI, CT, X-ray, ultrasound)",
    "status": "todo",
-   "quality": "draft",
+   "quality": "final",
    "glb": "zones/imaging/imaging.glb",
    "lightmaps": [
     "zones/imaging/lm_Accent.ktx2",
@@ -242,7 +250,15 @@
    },
    "draws": 28,
    "tris": 63420,
-   "lightmapMB": 3.58,
+   "lightmapMB": 10.08,
+   "proxy": {
+    "glb": "zones/imaging/imaging.proxy.glb",
+    "tris": 20012,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 2.594,
+    "kb": 761
+   },
    "nodes": [],
    "replaces": [
     "footprint:imaging:seatsN1",
@@ -276,8 +292,8 @@
     "lobby",
     "core"
    ],
-   "bakeSeconds": 83,
-   "bakedAt": "2026-10-22T19:20:37.874Z",
+   "bakeSeconds": 505,
+   "bakedAt": "2026-10-24T19:48:16.113Z",
    "validator": {
     "errors": 0,
     "warnings": 49
@@ -352,7 +368,7 @@
    },
    "draws": 31,
    "tris": 194162,
-   "lightmapMB": 15.33,
+   "lightmapMB": 12.33,
    "probe": "zones/wardA/env_wardA.hdr",
    "probeAt": [
     0,
@@ -362,11 +378,11 @@
    "anchors": "zones/wardA/anchors.json",
    "proxy": {
     "glb": "zones/wardA/wardA.proxy.glb",
-    "tris": 41639,
+    "tris": 43082,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 1.543,
-    "kb": 1090
+    "scale": 1.837,
+    "kb": 1142
    },
    "nodes": [],
    "replaces": [
@@ -381,8 +397,8 @@
     "core",
     "atrium"
    ],
-   "bakeSeconds": 458,
-   "bakedAt": "2026-10-22T20:28:01.555Z",
+   "bakeSeconds": 549,
+   "bakedAt": "2026-10-24T19:08:15.756Z",
    "validator": {
     "errors": 0,
     "warnings": 49
@@ -451,7 +467,7 @@
    },
    "draws": 28,
    "tris": 198294,
-   "lightmapMB": 14.83,
+   "lightmapMB": 12.08,
    "probe": "zones/wardB/env_wardB.hdr",
    "probeAt": [
     0,
@@ -461,11 +477,11 @@
    "anchors": "zones/wardB/anchors.json",
    "proxy": {
     "glb": "zones/wardB/wardB.proxy.glb",
-    "tris": 45210,
+    "tris": 46674,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 1.56,
-    "kb": 1142
+    "scale": 1.837,
+    "kb": 1190
    },
    "nodes": [],
    "replaces": [
@@ -480,8 +496,8 @@
     "core",
     "atrium"
    ],
-   "bakeSeconds": 437,
-   "bakedAt": "2026-10-22T20:45:34.095Z",
+   "bakeSeconds": 498,
+   "bakedAt": "2026-10-24T19:30:59.751Z",
    "validator": {
     "errors": 0,
     "warnings": 40
@@ -493,7 +509,7 @@
    "level": 1,
    "label": "Command centre and pharmacy core",
    "status": "todo",
-   "quality": "draft",
+   "quality": "final",
    "glb": "zones/core/core.glb",
    "lightmaps": [
     "zones/core/lm_CeilingPlaster.ktx2",
@@ -543,7 +559,7 @@
    },
    "draws": 18,
    "tris": 52932,
-   "lightmapMB": 2.92,
+   "lightmapMB": 8.67,
    "probe": "zones/core/env_core.hdr",
    "probeAt": [
     0,
@@ -551,6 +567,14 @@
     0
    ],
    "anchors": "zones/core/anchors.json",
+   "proxy": {
+    "glb": "zones/core/core.proxy.glb",
+    "tris": 9257,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 1.621,
+    "kb": 521
+   },
    "nodes": [],
    "replaces": [
     "footprint:command:desk*",
@@ -565,8 +589,8 @@
     "atrium",
     "imaging"
    ],
-   "bakeSeconds": 55,
-   "bakedAt": "2026-10-22T15:16:31.228Z",
+   "bakeSeconds": 399,
+   "bakedAt": "2026-10-24T19:56:26.439Z",
    "validator": {
     "errors": 0,
     "warnings": 41
@@ -578,12 +602,13 @@
    "level": 1,
    "label": "Healing atrium and cafe",
    "status": "todo",
-   "quality": "draft",
+   "quality": "final",
    "glb": "zones/atrium/atrium.glb",
    "lightmaps": [
     "zones/atrium/lm_Concrete.ktx2",
     "zones/atrium/lm_KitPlastic.ktx2",
-    "zones/atrium/lm_Leaf.ktx2",
+    "zones/atrium/lm_Lawn.ktx2",
+    "zones/atrium/lm_LawnB.ktx2",
     "zones/atrium/lm_Mullion.ktx2",
     "zones/atrium/lm_Oak.ktx2",
     "zones/atrium/lm_Paving.ktx2",
@@ -598,7 +623,10 @@
    "materials": [
     "materials/Concrete_diff-50b9cbb8-etc1s.ktx2",
     "materials/Concrete_nor-efe140d4-linear.ktx2",
+    "materials/Foliage_palette-ece878ac-etc1s.ktx2",
     "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+    "materials/Lawn_diff-672e2005-etc1s.ktx2",
+    "materials/Lawn_nor-e683a762-linear.ktx2",
     "materials/Oak_arm-6da71c2b-linear.ktx2",
     "materials/Oak_diff-1245e4ae-etc1s.ktx2",
     "materials/Oak_nor-58a88f7c-linear.ktx2",
@@ -612,14 +640,14 @@
    "bounds": {
     "x0": 12,
     "x1": 40.08,
-    "z0": -12.226,
-    "z1": 12.076,
+    "z0": -12.277,
+    "z1": 12.154,
     "y0": -0.05,
-    "y1": 5.159
+    "y1": 5.133
    },
-   "draws": 16,
-   "tris": 146239,
-   "lightmapMB": 2.58,
+   "draws": 18,
+   "tris": 197194,
+   "lightmapMB": 9.42,
    "probe": "zones/atrium/env_atrium.hdr",
    "probeAt": [
     26,
@@ -627,6 +655,14 @@
     0
    ],
    "anchors": "zones/atrium/anchors.json",
+   "proxy": {
+    "glb": "zones/atrium/atrium.proxy.glb",
+    "tris": 42116,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 1,
+    "kb": 860
+   },
    "nodes": [],
    "replaces": [
     "footprint:atrium:*",
@@ -637,11 +673,11 @@
     "wardB",
     "core"
    ],
-   "bakeSeconds": 2985,
-   "bakedAt": "2026-10-22T19:18:58.049Z",
+   "bakeSeconds": 141,
+   "bakedAt": "2026-10-24T18:57:16.702Z",
    "validator": {
     "errors": 0,
-    "warnings": 27
+    "warnings": 35
    },
    "withinBudget": true
   },
@@ -650,7 +686,7 @@
    "level": 2,
    "label": "Level 2: theatres, pre-op, recovery",
    "status": "todo",
-   "quality": "draft",
+   "quality": "final",
    "glb": "zones/theatres/theatres.glb",
    "lightmaps": [
     "zones/theatres/lm_Accent.ktx2",
@@ -718,8 +754,8 @@
     "y1": 7.26
    },
    "draws": 34,
-   "tris": 173182,
-   "lightmapMB": 3.46,
+   "tris": 175326,
+   "lightmapMB": 13.77,
    "probe": "zones/theatres/env_theatres.hdr",
    "probeAt": [
     -57.5,
@@ -727,6 +763,14 @@
     12
    ],
    "anchors": "zones/theatres/anchors.json",
+   "proxy": {
+    "glb": "zones/theatres/theatres.proxy.glb",
+    "tris": 37536,
+    "mb": 1.33,
+    "atlas": 1024,
+    "scale": 1.726,
+    "kb": 1058
+   },
    "nodes": [],
    "replaces": [
     "footprint:l2:preop:bed*",
@@ -748,8 +792,8 @@
     "footprint:l2:hall:cabinet",
     "footprint:l2:corridor:bench*"
    ],
-   "bakeSeconds": 73,
-   "bakedAt": "2026-10-22T15:11:25.274Z",
+   "bakeSeconds": 668,
+   "bakedAt": "2026-10-24T19:20:59.014Z",
    "validator": {
     "errors": 0,
     "warnings": 57
@@ -767,7 +811,10 @@
    "materials/FabricAccent_diff-ae32f837-etc1s.ktx2",
    "materials/Fabric_diff-4d1de0a3-etc1s.ktx2",
    "materials/Fabric_nor-ffbd0c82-linear.ktx2",
+   "materials/Foliage_palette-ece878ac-etc1s.ktx2",
    "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
+   "materials/Lawn_diff-672e2005-etc1s.ktx2",
+   "materials/Lawn_nor-e683a762-linear.ktx2",
    "materials/Matting_diff-5cc1b8a3-etc1s.ktx2",
    "materials/Oak_arm-6da71c2b-linear.ktx2",
    "materials/Oak_diff-1245e4ae-etc1s.ktx2",
@@ -784,7 +831,7 @@
    "materials/set_weave_diff-08d6903d-etc1s.ktx2",
    "materials/set_weave_nor-778a2d79-linear.ktx2"
   ],
-  "mb": 16.84,
+  "mb": 19.51,
   "details": [
    {
     "file": "materials/Accent_palette-4a5b8ebe-etc1s.ktx2",
@@ -879,6 +926,16 @@
     ]
    },
    {
+    "file": "materials/Foliage_palette-ece878ac-etc1s.ktx2",
+    "w": 96,
+    "h": 16,
+    "mb": 0,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Foliage"
+    ]
+   },
+   {
     "file": "materials/KitPlastic_palette-d34caef2-etc1s.ktx2",
     "w": 128,
     "h": 16,
@@ -886,6 +943,28 @@
     "encoding": "etc1s-srgb",
     "usedBy": [
      "KitPlastic"
+    ]
+   },
+   {
+    "file": "materials/Lawn_diff-672e2005-etc1s.ktx2",
+    "w": 1024,
+    "h": 1024,
+    "mb": 1.33,
+    "encoding": "etc1s-srgb",
+    "usedBy": [
+     "Lawn",
+     "LawnB"
+    ]
+   },
+   {
+    "file": "materials/Lawn_nor-e683a762-linear.ktx2",
+    "w": 1024,
+    "h": 1024,
+    "mb": 1.33,
+    "encoding": "uastc-linear",
+    "usedBy": [
+     "Lawn",
+     "LawnB"
     ]
    },
    {
@@ -1049,13 +1128,13 @@
   ]
  },
  "totals": {
-  "draws": 206,
-  "tris": 1024359,
-  "lightmapMB": 73.14,
-  "textureMB": 93.97,
-  "proxies": 3,
-  "proxyTris": 128093,
-  "proxyMB": 3.99,
+  "draws": 208,
+  "tris": 1077458,
+  "lightmapMB": 91.79,
+  "textureMB": 121.94,
+  "proxies": 8,
+  "proxyTris": 246619,
+  "proxyMB": 10.64,
   "withinBudget": true
  }
 }

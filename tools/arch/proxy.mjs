@@ -60,6 +60,10 @@ export const PROXY = {
    *  to this share of its triangles at most, within this error (metres): a tree keeps its canopy as a few blobs. */
   foliageRatio: 0.1,
   foliageError: 0.3,
+  /** Metres around unbaked foliage within which the upward-facing baked surfaces give it its light (flatColour). */
+  foliageReach: 3,
+  /** Which share of that light (by area, darkest first) it takes: the sunlit ground, not the canopy's own shade under it. */
+  foliageLightPercentile: 0.8,
 }
 
 // --- colour --------------------------------------------------------------------------------------------------------------------------------------
@@ -431,6 +435,85 @@ function albedoAt(look, u, v, out) {
   } else for (let c = 0; c < 3; c++) out[c] = look.factor[c] * look.mean[c]
 }
 
+/** Plan cell size (metres) of the open-air light estimate. */
+const SKY_CELL = 2
+
+/**
+ * Add a baked part's light on its UPWARD-facing triangles (lawn, soil, paving, planters: what open-air planting stands on and in the same
+ * light) to the plan grid `light`: per cell, area-weighted sums of the lightmap (linear) x its scale at each triangle's centre.
+ */
+function sampleSkyLight(part, lmAt, scale, light) {
+  const { positions: p, uv1, indices } = part
+  const lm = [0, 0, 0]
+  for (let t = 0; t < indices.length; t += 3) {
+    const a = indices[t] * 3
+    const b = indices[t + 1] * 3
+    const c = indices[t + 2] * 3
+    const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2]
+    const vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2]
+    const nx = uy * vz - uz * vy
+    const ny = uz * vx - ux * vz
+    const nz = ux * vy - uy * vx
+    const area2 = Math.hypot(nx, ny, nz)
+    if (area2 < 1e-9 || ny / area2 < 0.7) continue
+    const i0 = indices[t] * 2, i1 = indices[t + 1] * 2, i2 = indices[t + 2] * 2
+    lmAt((uv1[i0] + uv1[i1] + uv1[i2]) / 3, (uv1[i0 + 1] + uv1[i1 + 1] + uv1[i2 + 1]) / 3, lm)
+    const key = `${Math.floor((p[a] + p[b] + p[c]) / 3 / SKY_CELL)},${Math.floor((p[a + 2] + p[b + 2] + p[c + 2]) / 3 / SKY_CELL)}`
+    let e = light.get(key)
+    if (!e) light.set(key, (e = [0, 0, 0, 0]))
+    for (let k = 0; k < 3; k++) e[k] += lm[k] * scale * area2
+    e[3] += area2
+  }
+}
+
+/**
+ * The colour of a flat (one-colour) tile: an emitter keeps its emission; a kit part its albedo x PROXY.flatLight (an indoor light level);
+ * unbaked FOLIAGE its albedo x the baked light of the upward-facing surfaces around it (its parts' plan box + PROXY.foliageReach; their
+ * PROXY.foliageLightPercentile: the open sun and sky the canopy's tops get), else of the whole zone's upward-facing surfaces, else flatLight.
+ */
+/**
+ * The light of the cells at the `q` share of their area-weighted luminance order: the canopy's tops are in the open sun, the ground right
+ * under it in its shade, so the planting takes the brighter part of what lies around it (q 0.8), not the shaded mean. Null: no cells.
+ */
+function skyPercentile(cells, q) {
+  const list = cells.filter((e) => e[3] > 0).map((e) => [e[0] / e[3], e[1] / e[3], e[2] / e[3], e[3]])
+  if (!list.length) return null
+  list.sort((a, b) => a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722 - (b[0] * 0.2126 + b[1] * 0.7152 + b[2] * 0.0722))
+  const total = list.reduce((s, e) => s + e[3], 0)
+  let acc = 0
+  for (const e of list) {
+    acc += e[3]
+    if (acc >= q * total) return [e[0], e[1], e[2]]
+  }
+  const e = list[list.length - 1]
+  return [e[0], e[1], e[2]]
+}
+
+export function flatColour(f, light, P = PROXY) {
+  if (f.emissive) return [...f.albedo]
+  let L = null
+  if (f.foliage) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity
+    for (const part of f.parts)
+      for (let i = 0; i < part.positions.length; i += 3) {
+        x0 = Math.min(x0, part.positions[i]); x1 = Math.max(x1, part.positions[i])
+        z0 = Math.min(z0, part.positions[i + 2]); z1 = Math.max(z1, part.positions[i + 2])
+      }
+    const near = []
+    const all = []
+    const r = P.foliageReach
+    for (const [key, e] of light) {
+      const [cx, cz] = key.split(',').map(Number)
+      const x = (cx + 0.5) * SKY_CELL
+      const z = (cz + 0.5) * SKY_CELL
+      all.push(e)
+      if (x >= x0 - r && x <= x1 + r && z >= z0 - r && z <= z1 + r) near.push(e)
+    }
+    L = skyPercentile(near.length ? near : all, P.foliageLightPercentile)
+  }
+  return f.albedo.map((v, i) => v * (L ? L[i] : P.flatLight))
+}
+
 // --- the proxy -----------------------------------------------------------------------------------------------------------------------------------
 /**
  * Build a zone's proxy document from its Blender export (a gltf-transform Document, as read) and the folder of its lightmap PNGs.
@@ -484,12 +567,29 @@ export async function buildProxyDoc(src, lmDir, opts = {}) {
           b.parts.push({ positions, uv0, uv1, indices: kept, look, doubleSided, foliage })
           b.area += area
         } else {
-          // emitters and unbaked (kit) parts: one colour
-          const c = look.emissive ?? look.factor.map((v, i) => v * look.mean[i] * P.flatLight)
-          const key = c.map((v) => v.toFixed(4)).join(',')
-          let f = flat.get(key)
-          if (!f) flat.set(key, (f = { colour: c, parts: [] }))
-          f.parts.push({ positions, indices: kept, doubleSided })
+          // emitters and unbaked parts (kit nodes, open-air foliage): one colour per albedo. A palette material (the foliage's 12 greens,
+          // KitPlastic) is split by the swatch under each triangle, so each swatch keeps its own colour (the palette's factor is white:
+          // without this every leaf came out white). The light is decided once the baked tiles are read (flatColour).
+          const groups = new Map()
+          const alb = [0, 0, 0]
+          for (let t = 0; t < kept.length; t += 3) {
+            if (look.emissive) alb.splice(0, 3, ...look.emissive)
+            else {
+              const i0 = kept[t]
+              const i1 = kept[t + 1]
+              const i2 = kept[t + 2]
+              albedoAt(look, (uv0[i0 * 2] + uv0[i1 * 2] + uv0[i2 * 2]) / 3, (uv0[i0 * 2 + 1] + uv0[i1 * 2 + 1] + uv0[i2 * 2 + 1]) / 3, alb)
+            }
+            const key = `${alb.map((v) => v.toFixed(4)).join(',')}|${look.emissive ? 'e' : foliage ? 'f' : 'k'}`
+            let g = groups.get(key)
+            if (!g) groups.set(key, (g = { albedo: [...alb], emissive: !!look.emissive, indices: [] }))
+            g.indices.push(kept[t], kept[t + 1], kept[t + 2])
+          }
+          for (const [key, g] of groups) {
+            let f = flat.get(key)
+            if (!f) flat.set(key, (f = { albedo: g.albedo, emissive: g.emissive, foliage, colour: null, parts: [] }))
+            f.parts.push({ positions, indices: Uint32Array.from(g.indices), doubleSided, foliage })
+          }
         }
       }
     }
@@ -527,6 +627,8 @@ export async function buildProxyDoc(src, lmDir, opts = {}) {
     base += mesh.positions.length / 3
   }
   const lmCache = new Map()
+  /** the baked light (linear radiance of a white surface) on the upward-facing surfaces, by plan cell: what unbaked foliage stands in */
+  const light = new Map()
   for (const [k, b] of bakedList.entries()) {
     const s = sides[k]
     const tile = { x: at[k].x, y: at[k].y, s, pad: s >= 16 ? P.pad : 1 }
@@ -565,6 +667,7 @@ export async function buildProxyDoc(src, lmDir, opts = {}) {
         for (let c = 0; c < 3; c++) out[c] = alb[c] * lmc[c] * k2
       }
       rasterTile(rgb, cov, atlas, tile, uv1, part.indices, shade)
+      sampleSkyLight(part, lmAt, b.scale, light)
     }
     dilateTile(rgb, cov, atlas, tile, 6)
     for (const part of b.parts) {
@@ -575,6 +678,7 @@ export async function buildProxyDoc(src, lmDir, opts = {}) {
       emit(simple, (i) => [(tile.x + tile.pad + simple.uvs[i * 2] * inner) / atlas, (tile.y + tile.pad + simple.uvs[i * 2 + 1] * inner) / atlas], part.doubleSided)
     }
   }
+  for (const f of flatList) f.colour = flatColour(f, light, P)
   for (const [j, f] of flatList.entries()) {
     const k = bakedList.length + j
     const { x, y } = at[k]
@@ -589,7 +693,8 @@ export async function buildProxyDoc(src, lmDir, opts = {}) {
     const v = (y + s / 2) / atlas
     for (const part of f.parts) {
       const welded = weldPosUv(part.positions, new Float32Array((part.positions.length / 3) * 2), part.indices)
-      const simple = simplifyPart(welded, P.error, 0)
+      // unbaked foliage (materials.json Foliage, bake: false) is clustered like baked foliage: a canopy becomes a few blobs
+      const simple = part.foliage ? simplifyPart(welded, P.foliageError, 0, { ratio: P.foliageRatio }) : simplifyPart(welded, P.error, 0)
       emit(simple, () => [u, v], part.doubleSided)
     }
   }

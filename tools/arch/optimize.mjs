@@ -78,6 +78,20 @@ await MeshoptEncoder.ready
 await MeshoptDecoder.ready
 const io = new NodeIO().setLogger(new Logger(Logger.Verbosity.ERROR)).registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder })
 
+const MATERIAL_SPEC = JSON.parse(readFileSync(path.join(ROOT, 'tools/arch/materials.json'), 'utf8')).materials
+
+/**
+ * Metalness 0, stated, on every material the library does not make metallic. Blender's exporter writes no metallicFactor (= 1) when the ARM
+ * texture's blue channel drives Metallic (Oak, Terrazzo): the texture holds 0 there, so it drew right, but only as long as the compressed blue
+ * channel stays 0. Stainless (metallic 1) keeps its factor.
+ */
+function zeroMetalness(doc) {
+  for (const m of doc.getRoot().listMaterials()) {
+    const spec = MATERIAL_SPEC[m.getName()]
+    if (spec && !(spec.metallic > 0) && m.getMetallicFactor() !== 0) m.setMetallicFactor(0)
+  }
+}
+
 /** Draw calls (mesh nodes x primitives) and triangles of a document. */
 function countDoc(doc) {
   let tris = 0
@@ -177,6 +191,7 @@ async function buildZone(zid, srcRoot) {
   for (const f of readdirSync(outDir)) if (/^lm_.*\.ktx2$|\.glb$|^env_.*\.hdr$|^anchors\.json$/.test(f)) rmSync(path.join(outDir, f))
 
   const doc = await io.read(IN)
+  zeroMetalness(doc)
   // the kit's movable nodes (extras.kitNode): their mesh moves to a child '<name>#mesh', so quantization's corrective transform lands on the
   // child and the named node keeps its pivot (the runtime rotates / slides it)
   for (const node of doc.getRoot().listNodes()) {
@@ -190,7 +205,10 @@ async function buildZone(zid, srcRoot) {
     weld(),
     prune({ keepAttributes: true, keepLeaves: true }),
     reorder({ encoder: MeshoptEncoder }),
-    meshopt({ encoder: MeshoptEncoder, level: 'high' }),
+    // 16-bit positions (the default 14 bits are 2.7 mm steps over a 45 m zone, each material's node on its own grid): surfaces the designs
+    // lay 3-4 mm apart (a tint panel on its wall, a wall's two layers) stayed apart instead of snapping onto one plane and z-fighting.
+    // Stored as 16-bit either way: the GPU memory is the same.
+    meshopt({ encoder: MeshoptEncoder, level: 'high', quantizePosition: 16 }),
   )
   const lightmaps = encodeLightmaps(doc, srcDir, outDir)
 

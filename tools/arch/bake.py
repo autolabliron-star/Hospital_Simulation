@@ -204,7 +204,168 @@ def unwrap_planar(o, size):
     me.uv_layers.active = uv
 
 
-def unwrap(o, size, name=''):
+#: texels between lightmap islands when there is room (mips and bilinear filtering stay inside an island), and the least it may shrink to
+PACK_MARGIN_PX = 5.0
+PACK_MARGIN_MIN_PX = 1.0
+
+
+def pack_margin_px(islands, size):
+    """Texels of margin between islands for a map of `size` holding `islands` islands. A fixed 5-texel margin is right for walls and furniture
+    (tens to hundreds of islands), but a material made of thousands of small parts (KitPlastic's switch plates and boxes, the accents' strips,
+    leaves: 1 000-50 000 islands) then spends the WHOLE square on margins and the packer scales every island to nothing: the lightmap came out
+    black (KitPlastic 0-6 % of its texels covered, Foliage 1.5 %, every face on one texel). So the margin shrinks with the island count until an
+    island and its margin ring are about twice the island alone (margin ~ 0.29 x the side an island gets when half the map is islands)."""
+    if islands <= 0:
+        return PACK_MARGIN_PX
+    m = 0.29 * size / math.sqrt(islands)
+    return max(PACK_MARGIN_MIN_PX, min(PACK_MARGIN_PX, m))
+
+
+#: islands are cut / shortened to at most this share of the map's side (estimated before packing, at PACK_FILL)
+ISLAND_MAX_SIDE = 0.25
+#: the share of the map the islands are expected to fill once packed (for that estimate)
+PACK_FILL = 0.6
+
+
+def _uv_arrays(me):
+    uvl = me.uv_layers.active.data
+    raw = np.empty(len(uvl) * 2, dtype=np.float32)          # foreach_get/set want the property's own type (float32, int32)
+    uvl.foreach_get('uv', raw)
+    starts = np.empty(len(me.polygons), dtype=np.int32)
+    totals = np.empty(len(me.polygons), dtype=np.int32)
+    me.polygons.foreach_get('loop_start', starts)
+    me.polygons.foreach_get('loop_total', totals)
+    return uvl, raw.astype(np.float64).reshape(-1, 2), starts, totals
+
+
+def _axes(pts):
+    """Centre, long axis, short axis, the points along each, and the extents (L >= W) of a point set."""
+    c = pts.mean(axis=0)
+    d = pts - c
+    _w, vec = np.linalg.eigh(d.T @ d)          # ascending: vec[:, 1] the long axis
+    major, minor = vec[:, 1], vec[:, 0]
+    a, b = d @ major, d @ minor
+    return c, major, minor, a, b, float(a.max() - a.min()), float(b.max() - b.min())
+
+
+def shape_islands(me, size):
+    """Make the islands packable (object mode, the ACTIVE uv layer, after average_islands_scale). The packer scales every island alike until
+    the largest fits, so ONE island as long as the room (an 18 m x 1 cm trim strip, a 40 m bulkhead, a corridor's floor) set the scale of all
+    the others: the zones' KitPlastic got 0.1 % of its map (one texel for 10 000 parts: black), the ceilings and floors 3-14 %.
+      1. every island longer than ISLAND_MAX_SIDE of the map's side (estimated from the islands' total area at PACK_FILL) is CUT across its
+         long axis into pieces of about that length, between faces (nothing is resampled: each piece is its own island, the bake's margin
+         fills the seam);
+      2. a piece that is still too long (one long face: a trim strip, a cable) is SHORTENED along its long axis to that length: a strip's
+         light changes slowly along it and it is a few millimetres tall.
+    Returns (islands, cut, squeezed)."""
+    from bpy_extras import mesh_utils
+    uvl, uv, starts, totals = _uv_arrays(me)
+    islands = mesh_utils.mesh_linked_uv_islands(me)
+    loops_of = [np.concatenate([np.arange(starts[f], starts[f] + totals[f]) for f in isl]) for isl in islands]
+    # the islands' area (uv units), and so the side of the square they will fill and the texel size in uv units
+    area = 0.0
+    for p in me.polygons:
+        li = range(p.loop_start, p.loop_start + p.loop_total)
+        q = uv[list(li)]
+        x, y = q[:, 0], q[:, 1]
+        area += abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))) / 2
+    side = math.sqrt(max(area, 1e-12) / PACK_FILL)
+    lmax = ISLAND_MAX_SIDE * side
+    pieces = []       # (loops) of every island after cutting
+    cut = 0
+    shift = 0.0
+    for isl, loops in zip(islands, loops_of):
+        c, major, minor, a, b, L, W = _axes(uv[loops])
+        if L <= lmax or len(isl) < 2:
+            pieces.append(loops)
+            continue
+        # cut: each face goes to the piece of its centre along the long axis, and each piece moves off on its own (the packer places it)
+        k = int(math.ceil(L / lmax))
+        a0 = float(a.min())
+        groups = {}
+        for f in isl:
+            fl = np.arange(starts[f], starts[f] + totals[f])
+            t = float((uv[fl].mean(axis=0) - c) @ major) - a0
+            groups.setdefault(min(k - 1, int(t / (L / k))), []).append(fl)
+        if len(groups) > 1:
+            cut += 1
+        for g in groups.values():
+            fl = np.concatenate(g)
+            shift += 4.0 * side
+            uv[fl] += (shift, 0.0)
+            pieces.append(fl)
+    squeezed = 0
+    for loops in pieces:
+        c, major, minor, a, b, L, W = _axes(uv[loops])
+        if L > lmax:
+            uv[loops] = c + np.outer(a * (lmax / L), major) + np.outer(b, minor)
+            squeezed += 1
+    uvl.foreach_set('uv', uv.astype(np.float32).reshape(-1))
+    return len(mesh_utils.mesh_linked_uv_islands(me)) if cut else len(islands), cut, squeezed
+
+
+def pack_shelves(me, size, margin_px):
+    """Pack the ACTIVE uv layer's islands into the unit square (object mode): each island turned onto its own long axis (horizontal), the
+    tallest first, left to right on shelves, every island in a whole-texel cell with `margin_px` texels to the next, at the largest common
+    scale that fits (bisected). Blender's packer, given thousands of small islands next to long ones, stacked them into one column a tenth
+    of the map wide (the foliage, the ceilings) and could not be told otherwise; this one is plain, deterministic and fills 60-80 %.
+    Returns the texels a uv unit got."""
+    from bpy_extras import mesh_utils
+    uvl, uv, starts, totals = _uv_arrays(me)
+    islands = mesh_utils.mesh_linked_uv_islands(me)
+    items = []
+    for isl in islands:
+        loops = np.concatenate([np.arange(starts[f], starts[f] + totals[f]) for f in isl])
+        c, major, minor, a, b, L, W = _axes(uv[loops])
+        items.append((loops, a - a.min(), b - b.min(), L, W))
+    order = sorted(range(len(items)), key=lambda i: -items[i][4])
+    m = float(margin_px)
+
+    def layout(S):
+        """Texel positions of every island at S texels per uv unit, or None when they do not fit."""
+        pos = [None] * len(items)
+        x = y = shelf = 0.0
+        for i in order:
+            _l, _a, _b, L, W = items[i]
+            w = math.ceil(L * S + m)
+            h = math.ceil(W * S + m)
+            if w > size or h > size:
+                return None
+            if x + w > size:
+                y += shelf
+                x = shelf = 0.0
+            if y + h > size:
+                return None
+            pos[i] = (x, y)
+            x += w
+            shelf = max(shelf, h)
+        return pos
+
+    longest = max((max(it[3], it[4]) for it in items), default=0.0)
+    lo, hi = 0.0, (size - m) / max(longest, 1e-12)
+    best = layout(lo)
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        p = layout(mid)
+        if p is None:
+            hi = mid
+        else:
+            lo, best = mid, p
+    if best is None:
+        return 0.0
+    S = lo
+    for (loops, a, b, _L, _W), (x, y) in zip(items, best):
+        uv[loops, 0] = (x + m / 2 + a * S) / size
+        uv[loops, 1] = (y + m / 2 + b * S) / size
+    uvl.foreach_set('uv', uv.astype(np.float32).reshape(-1))
+    return S
+
+
+def unwrap(o, size, name='', method='smart'):
+    """The lightmap UVs ('Lightmap', TEXCOORD_1) of one material's mesh. `method` (materials.json `lightmapUnwrap`): 'smart' (Smart UV
+    project), or 'sheet' for thin pleated sheets (the curtains): seams on the sharp edges only (front / back / hem / top), the rest unfolded
+    angle-based, so each side of a curtain is ONE island the length of its fabric instead of a hundred 3.5 cm facets (smart project split
+    the deep pleats at every fold: sub-texel slivers, 4-6x stripes, noise)."""
     if name in PLANAR:
         return unwrap_planar(o, size)
     me = o.data
@@ -218,14 +379,41 @@ def unwrap(o, size, name=''):
     bpy.context.view_layer.objects.active = o
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=4.0 / size, area_weight=0.0, correct_aspect=True, scale_to_bounds=False)
+    # correct_aspect off: it stretches the islands by the aspect of the MATERIAL's image (a palette strip is 128 x 16: every KitPlastic island
+    # came out 8x too thin, the packer then scaled them all to nothing); the lightmap is its own square image
+    if method == 'sheet':
+        bpy.ops.mesh.select_mode(type='EDGE')
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.mesh.edges_select_sharp(sharpness=math.radians(80))
+        bpy.ops.mesh.mark_seam(clear=False)
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=False, correct_aspect=False, margin=1.0 / size)
+        bpy.ops.mesh.mark_seam(clear=True)
+    else:
+        bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=1.0 / size, area_weight=0.0, correct_aspect=False,
+                                 scale_to_bounds=False)
     # smart project leaves long thin islands (slots, skirtings) in a corner: re-pack them, rotated, at one texel density, filling the square
     bpy.ops.uv.average_islands_scale()
-    try:
-        bpy.ops.uv.pack_islands(rotate=True, rotate_method='ANY', scale=True, margin_method='FRACTION', margin=5.0 / size, shape_method='AABB')
-    except TypeError:
-        bpy.ops.uv.pack_islands(rotate=True, margin=5.0 / size)
     bpy.ops.object.mode_set(mode='OBJECT')
+    islands, cut, squeezed = shape_islands(me, size)
+    margin = pack_margin_px(islands, size)
+    pack_shelves(me, size, margin)
+    print(f'unwrap {name}: {islands} islands ({cut} cut, {squeezed} shortened), margin {margin:.2f} px of {size}, '
+          f'lightmap coverage {uv_coverage(me):.1%}', flush=True)
+
+
+def uv_coverage(me):
+    """Share of the unit square the active uv layer's faces cover (overlaps counted twice): a packed lightmap's fill."""
+    uv = me.uv_layers.active.data
+    a = 0.0
+    for p in me.polygons:
+        li = list(p.loop_indices)
+        u0, v0 = uv[li[0]].uv
+        for k in range(1, len(li) - 1):
+            u1, v1 = uv[li[k]].uv
+            u2, v2 = uv[li[k + 1]].uv
+            a += abs((u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0)) / 2
+    return a
 
 
 def srgb_encode(v):
@@ -268,7 +456,12 @@ def denoise(img, size):
     return res
 
 
-def bake_object(o, name, size, outdir, use_denoise=True):
+def bake_object(o, name, size, outdir, use_denoise=True, self_shadow=True):
+    """Bake one material's lightmap. `self_shadow` False (materials.json `bakeSelfShadow: false`: the pleated cubicle curtains) bakes the
+    surface as if it did not occlude itself: for the length of its own bake the object is hidden from diffuse, glossy, transmission and
+    shadow rays, so a pleat's valley is not darkened by its neighbouring folds (a thin, translucent fabric in diffuse light reads almost
+    evenly lit; the bake had 4-6x stripes between neighbouring 3.5 cm facets, aliased and noisy at 3-7 cm a texel, which the game showed as
+    dark smudges on a grey, 'metallic' curtain). It still occludes every OTHER material's bake as before."""
     mat = o.data.materials[0]
     nt = mat.node_tree
     bsdf = nt.nodes['Principled BSDF']
@@ -291,7 +484,16 @@ def bake_object(o, name, size, outdir, use_denoise=True):
         nt.links.remove(l)
     metal = metal_in.default_value
     metal_in.default_value = 0.0
-    bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT'}, margin=12, margin_type='EXTEND', use_clear=True)
+    vis = ('visible_diffuse', 'visible_glossy', 'visible_transmission', 'visible_shadow')
+    was = {k: getattr(o, k) for k in vis}
+    if not self_shadow:
+        for k in vis:
+            setattr(o, k, False)
+    try:
+        bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT'}, margin=12, margin_type='EXTEND', use_clear=True)
+    finally:
+        for k, v in was.items():
+            setattr(o, k, v)
     nt.nodes.remove(node)
     metal_in.default_value = metal
     for a, b in metal_links + unlinked:

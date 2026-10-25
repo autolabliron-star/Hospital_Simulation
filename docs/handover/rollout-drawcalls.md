@@ -43,7 +43,7 @@ Blender bake (Emit / Diffuse colour pass to a new UV) would also need a new unwr
 **Manifest** (per zone, optional):
 
 ```jsonc
-"proxy": { "glb": "zones/lobby/lobby.proxy.glb", "tris": 6948, "mb": 1.33, "atlas": 1024, "scale": 1.126, "kb": 514 }
+"proxy": { "glb": "zones/lobby/lobby.proxy.glb", "tris": 6394, "mb": 1.33, "atlas": 1024, "scale": 1.126, "kb": 512 }
 ```
 
 `totals` gains `proxies`, `proxyTris`, `proxyMB` (and `textureMB` now counts the atlases). A proxy whose file is gone is dropped from the record.
@@ -90,7 +90,23 @@ Building only (the authored zones; computed from the manifest, the shipped proxi
 the procedural remainder (about 50 draws on level 1 once every zone has a proxy or model, 14 on level 2: rollout-runtime.md) and people,
 devices and screens.
 
-DRAWCALL_TABLE
+Shipped manifest of 2026-10-24: all 8 zones final, proxies 6.4k-45k triangles each (238k total), every atlas 1024 (10.6 MB GPU in all).
+
+| view (building: the authored zones) | before: draws | tris | after: draws | tris | drawn in full / as proxy |
+|---|---|---|---|---|---|
+| overview, level 1 (default, ~115 m up) | 174 | 902k | **7** | 201k | - / all 7 level-1 zones |
+| overview, level 2 | 157 | 881k | **6** | 190k | - / theatres + the 5 level-1 zones around the slab |
+| walking in the lobby, looking east | 174 | 902k | **56** | 350k | lobby, ER / imaging, wardA, wardB, core, atrium |
+| walking in the lobby, looking west (entrance) | 51 | 196k | 51 | 196k | lobby, ER / - (the rest is behind you) |
+| walking in ward A's corridor, looking east | 95 | 643k | **51** | 332k | wardA, core / wardB, atrium |
+| walking in ward A's corridor, looking west | 156 | 705k | **53** | 358k | wardA, core / lobby, ER, imaging, wardB |
+| inside patient room A4 | 174 | 902k | **54** | 398k | wardA, core / lobby, ER, imaging, wardB, atrium |
+| ER (bays), looking north | 128 | 507k | **54** | 265k | lobby, ER / imaging, wardA, core |
+| theatre (robotic OR, level 2) | 34 | 175k | 34 | 175k | theatres / - (walking on level 2 shows level 2 only) |
+
+With the procedural remainder (about 50 draws on level 1, 14 on level 2) the building costs about **57** draws in the default overview
+(before: about 224) and **about 105** walking in the lobby looking east (before: about 224; the 260 measured there included people, devices and
+screens on top).
 
 Before = every zone in view drawn in full (the shipped manifest's draws and triangles); after = full models near the camera + one draw per proxy.
 
@@ -105,7 +121,7 @@ Before = every zone in view drawn in full (the shipped manifest's draws and tria
   the lobby 51 -> about 37 full-model draws, in ward A's corridor 49 -> about 35. It changes the look slightly (one roughness per group, the
   screens' gloss) and the lightmap contract, so it needs the owner's eye; see Change requests.
 - **Triangles that remain**: the atrium's leaves (110k of its 146k triangles; its proxy clusters them), the ER's and wards' kit plastic (60k a
-  zone, half of it parts under 0.3 m). The proxies cut the overview from about 850k to about 250k building triangles.
+  zone, half of it parts under 0.3 m). The proxies cut the overview from about 900k to about 200k building triangles.
 
 ## How to verify
 

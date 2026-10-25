@@ -166,7 +166,10 @@ def plan_lightmaps(objs, mats, hero=()):
     sizes = {}
     for n, a in area.items():
         forced = mt.lightmap_of(n)
-        sizes[n] = min(int(forced), args.max_lightmap) if forced else bk.lightmap_size(a, args.density, args.max_lightmap)
+        # a forced size is the most a material gets, not a floor: a zone with a few faces of it (the atrium's 10 terrazzo triangles, the
+        # ER's accent strips) gets at most 4x the texels its area asks for, which leaves the budget to the maps that need it
+        sizes[n] = min(int(forced), args.max_lightmap, bk.lightmap_size(a, args.density * 4, args.max_lightmap)) if forced \
+            else bk.lightmap_size(a, args.density, args.max_lightmap)
     cuts = []
     while sum(lm_mb(s) for s in sizes.values()) > LM_BUDGET:
         cand = [n for n, s in sizes.items() if s > 128]
@@ -328,8 +331,8 @@ def run_zone(zid):
             samples = args.bake_samples or (64 if args.draft else mt.bake_samples_of(name))
             scene.cycles.samples = samples
             ts = time.time()
-            bk.unwrap(o, lm_sizes[name], name)
-            bk.bake_object(o, name, lm_sizes[name], out_dir, not args.no_denoise)
+            bk.unwrap(o, lm_sizes[name], name, mt.unwrap_of(name))
+            bk.bake_object(o, name, lm_sizes[name], out_dir, not args.no_denoise, self_shadow=mt.self_shadow_of(name))
             per[name] = {'size': lm_sizes[name], 'samples': samples, 'seconds': round(time.time() - ts, 1)}
         scene.cycles.samples = args.samples
         bake_info = {'seconds': round(time.time() - tb), 'quality': QUALITY, 'lightmaps': per, 'budgetCuts': cuts}

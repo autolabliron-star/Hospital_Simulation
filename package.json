@@ -12,6 +12,7 @@
     "fetch-assets": "node tools/fetch-assets.mjs",
     "convert-people": "node --import tsx tools/convert-people.mjs",
     "test": "vitest run --maxWorkers=2",
+    "test:quick": "QUICK_TESTS=1 vitest run --maxWorkers=2",
     "arch:plan": "tsx tools/arch/export-plan.ts",
     "arch:bake": "mkdir -p assets-src/arch/out/zones && ~/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P tools/arch/generate.py --",
     "arch:stills": "~/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P tools/arch/generate.py -- --zone lobby --no-bake --stills docs/screenshots --all-poses",

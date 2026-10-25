@@ -434,6 +434,16 @@ def lightmap_of(name):
     return SPEC['materials'][name].get('lightmap')
 
 
+def self_shadow_of(name):
+    """False when the material's lightmap is baked without it occluding itself (materials.json `bakeSelfShadow: false`, bake.py)."""
+    return SPEC['materials'].get(name, {}).get('bakeSelfShadow', True) is not False
+
+
+def unwrap_of(name):
+    """How the material's lightmap UVs are made (materials.json `lightmapUnwrap`: 'smart', or 'sheet' for pleated curtains; bake.py unwrap)."""
+    return SPEC['materials'].get(name, {}).get('lightmapUnwrap', 'smart')
+
+
 def bake_samples_of(name, default=512):
     return int(SPEC['materials'][name].get('bakeSamples', default))
 
