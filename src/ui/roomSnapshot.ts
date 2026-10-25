@@ -81,6 +81,8 @@ export function describeHere(h: HereNow): string {
 export interface QueuedBooking {
   patientName: string
   protocolName?: string
+  /** The booked protocol (content/imaging.json), when the sim lists it. */
+  protocolId?: string
   kind?: string
 }
 
@@ -126,16 +128,22 @@ export interface ScannerView {
   demoPending: boolean
   /** The exam is a cryoablation (a step places, freezes or thaws): the viewer shows the device card. */
   cryo: boolean
+  /** A demo cryoablation is booked and waiting (next after the current patient, or walking in). */
+  cryoQueued: boolean
   queueLabel: 'Next in queue' | 'Next booked'
   queueText: string
 }
+
+/** Is this protocol a procedure (a step places, freezes or thaws) rather than a scan? */
+const isProcedure = (protocolId: string | undefined): boolean =>
+  protocolId !== undefined && protocolById(protocolId).sequences.some((q) => q.step !== undefined && q.step !== 'sweep')
 
 function protocolOfBooking(b: QueuedBooking): string {
   return b.protocolName ? `, ${b.protocolName}` : ''
 }
 
 /** The head of the scanner's waiting list, e.g. "Next in queue: Gregor Ashby, MRI brain". */
-function queueSummary(imaging: ImagingSimLike, m: ImagingModality, exam: ImagingExam | null, simT: number): Pick<ScannerView, 'queueLabel' | 'queueText' | 'demoPending'> {
+function queueSummary(imaging: ImagingSimLike, m: ImagingModality, exam: ImagingExam | null, simT: number): Pick<ScannerView, 'queueLabel' | 'queueText' | 'demoPending' | 'cryoQueued'> {
   const waiting = imaging.queues?.[m]?.waiting
   if (waiting) {
     const head = waiting[0]
@@ -143,6 +151,7 @@ function queueSummary(imaging: ImagingSimLike, m: ImagingModality, exam: Imaging
       queueLabel: 'Next in queue',
       queueText: head ? `${head.kind === 'demo' ? 'Demo patient' : head.patientName}${protocolOfBooking(head)}` : 'nobody waiting',
       demoPending: waiting.some((b) => b.kind === 'demo'),
+      cryoQueued: waiting.some((b) => b.kind === 'demo' && isProcedure(b.protocolId)),
     }
   }
   // The sim does not list its queue: say what the day's bookings show instead, and call it that.
@@ -151,6 +160,7 @@ function queueSummary(imaging: ImagingSimLike, m: ImagingModality, exam: Imaging
     queueLabel: 'Next booked',
     queueText: next ? `${next.name}, ${protocolById(next.protocol).name}, ${next.time}` : 'no more bookings today',
     demoPending: false,
+    cryoQueued: false,
   }
 }
 

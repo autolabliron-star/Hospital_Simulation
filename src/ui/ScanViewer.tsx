@@ -292,9 +292,11 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
             <button type="button" className="hud-send sv-start" disabled={busy || waitingForPatient || noOperator} aria-describedby="sv-queue" onClick={() => start()}>
               {waitingForPatient ? 'Patient on the way…' : 'Start a scan now'}
             </button>
-            {modality === 'us' && CRYO_DEMO && !waitingForPatient && (
-              <button type="button" className="hud-send sv-start" disabled={busy || noOperator} onClick={() => start(CRYO_DEMO)}>
-                {IMAGING_UI.cryoCard.start}
+            {modality === 'us' && CRYO_DEMO && (
+              // while the room is busy the cryoablation books next (a demo goes to the front of the queue), so the presenter never
+              // waits out the morning list with a greyed-out button
+              <button type="button" className="hud-send sv-start" disabled={noOperator || view.cryoQueued || view.cryo} onClick={() => start(CRYO_DEMO)}>
+                {view.cryoQueued ? IMAGING_UI.cryoCard.queued : busy ? IMAGING_UI.cryoCard.startNext : IMAGING_UI.cryoCard.start}
               </button>
             )}
             {noOperator && (

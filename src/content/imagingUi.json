@@ -41,7 +41,9 @@
     "what": "Freezes the tumour with liquid nitrogen: an ice ball at about −170 °C, guided by ultrasound, no cut",
     "status": "FDA authorized October 2025 for early, low-risk breast cancer in women 70 and over, with hormone therapy",
     "synthetic": "Synthetic patient",
-    "start": "Start a cryoablation (ProSense)"
+    "start": "Start a cryoablation (ProSense)",
+    "startNext": "Cryoablation next, after this patient",
+    "queued": "Cryoablation booked: next in the room"
   },
   "image": "Im {n}/{total}",
   "orient": {

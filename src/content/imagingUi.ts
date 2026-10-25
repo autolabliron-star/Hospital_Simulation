@@ -43,7 +43,7 @@ export const ImagingUiSchema = z.strictObject({
     cryo: z.strictObject({ place: line, freeze: line, thaw: line, temp: line, timer: line, ice: line, probe: line }),
   }),
   /** The device card the Scan viewer shows for a cryoablation (docs/research/cryoablation.md): the real product named on the card only. */
-  cryoCard: z.strictObject({ label: line, title: line, what: sentence, status: sentence, synthetic: line, start: line }),
+  cryoCard: z.strictObject({ label: line, title: line, what: sentence, status: sentence, synthetic: line, start: line, startNext: line, queued: line }),
   /** The image counter of a series. */
   image: line,
   /** Orientation letters at the picture's edges: right, left, anterior, posterior, head, feet. */
