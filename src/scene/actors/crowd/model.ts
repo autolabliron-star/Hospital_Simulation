@@ -40,6 +40,7 @@ import { modeFor, type Mode, type Posture } from './blend'
 import { clothesOf, lookFor, type Look } from './outfit'
 import { BADGE, GEAR_BIT } from './staff'
 import { applyBinds, avatarBuild, avatarFor, defaultCapFit, type AvatarChoice, type AvatarEntry, type CapFit } from './avatars'
+import { facingTarget, turnFacing } from './facing'
 import { aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
 import { pickRadius, rayVsSegment } from './picking'
 import { VEHICLE_FOOTPRINT } from './gear'
@@ -133,6 +134,14 @@ export interface PersonSlot {
   y: number
   z: number
   heading: number
+  /**
+   * The drawn facing (facing.ts): the body turns toward where it walks, or toward the sim's heading, at a human rate. `faceOk` false: take the
+   * sim's heading as it is next frame (a new person, a jump, back in view, seated, lying, a vehicle, you).
+   */
+  face: number
+  faceOk: boolean
+  /** The body jumped this frame (a teleport, not a walk): `trackMotion` says so. */
+  jumped: boolean
   dist: number
   rim: number
   rimKind: 0 | 1 | 2 | 3
@@ -430,6 +439,9 @@ export class CrowdModel {
       y: e.position.y + LEVEL_Y[levelOf(e.position.x)],
       z: e.position.z,
       heading: e.heading,
+      face: e.heading,
+      faceOk: false,
+      jumped: false,
       dist: 0,
       rim: 0,
       rimKind: 1,
@@ -621,6 +633,8 @@ export class CrowdModel {
       if (e) {
         if (p.key === PLAYER_ID && p.shown) this.legsOnly(p, e, f, dt, o)
         else this.trackMotion(p, dt)
+        // (when they come back into view they face the sim's heading at once)
+        p.faceOk = false
       }
       // (out of sight on the other level: the feet are planted again where the person is when they come back into view)
       if (!p.shown) p.rig.planter.initialised = false
@@ -756,6 +770,7 @@ export class CrowdModel {
     const driven = dv !== null && p.key === PLAYER_ID && dv.live && posture === 'stand' && Math.abs(dv.x + ox - p.x) < DRIVEN_NEAR && Math.abs(dv.z - p.z) < DRIVEN_NEAR && !this.staleBody(p, dv, dt)
     if (driven) this.takeDriven(p, dv)
     else this.trackMotion(p, dt)
+    this.steerFacing(p, driven, dt)
     // what is in the right hand
     let prop = e.prop ? PROP_OF[e.prop] : PROP.none
     if (posture === 'lie') prop = PROP.none
@@ -917,6 +932,20 @@ export class CrowdModel {
     p.hasPrev = true
   }
 
+  /**
+   * The drawn facing (facing.ts): toward where the body walks, else the sim's heading, turned at a human rate. You, vehicles (their footprint is the
+   * sim's), seated and lying people, a jump and a new or returning person take the sim's heading exactly.
+   */
+  private steerFacing(p: PersonSlot, driven: boolean, dt: number): void {
+    if (driven || p.key === PLAYER_ID || p.rideKind !== 0 || p.posture !== 'stand' || !p.faceOk || p.jumped) {
+      p.face = p.heading
+      p.faceOk = true
+      return
+    }
+    p.face = turnFacing(p.face, facingTarget(p.heading, p.vx, p.vz, p.speed), dt, this.scale)
+    p.heading = p.face
+  }
+
   /** The measured, smoothed ground velocity: how far the body actually moved this frame. */
   private trackMotion(p: PersonSlot, dt: number): void {
     if (!p.hasPrev) {
@@ -927,6 +956,7 @@ export class CrowdModel {
     // S1: at the sim's 10x and 30x a person covers `scale` sim seconds of walking per real second: the speed is measured per SIM second (so a stroll is
     // still a stroll), a jump is judged by the sim distance, and the gait is planned in a frame that moved only `gait / scale` as far as the person
     const scale = this.scale
+    p.jumped = false
     if (p.posture !== 'stand') {
       p.vx = 0
       p.vz = 0
@@ -938,6 +968,7 @@ export class CrowdModel {
       const dz = p.z - p.pz
       const jump = dx * dx + dz * dz
       if (jump > 6.25 * scale * scale) {
+        p.jumped = true
         p.vx = 0
         p.vz = 0
         p.speed = 0

@@ -7,6 +7,10 @@
  *
  *   - Speed ramps softly (1.5 m/s^2 up and down) towards the commanded cruise speed.
  *   - It slows into sharp corners and into the final waypoint, and snaps exactly onto the last waypoint.
+ *   - Rounded corners (opt-in, `roundCorners`, the crowd's walkers): the path point still walks the polyline exactly (progress, `remaining`,
+ *     arrival are unchanged), and `rx, rz` is the displacement from it to a curve that leaves the polyline `r` before a waypoint and joins it
+ *     `r` after (a quadratic Bezier through the corner): D = (r - d)^2 / (4 r) (b - a), d the distance to the corner along the path, a and b
+ *     the unit directions in and out. D and its slope are 0 at d = r, so the body bends smoothly into a corner instead of pivoting on it.
  *
  * Coordinates: metres, x east, z south. Heading is atan2(dx, dz): 0 faces +z.
  */
@@ -68,6 +72,12 @@ export class PathFollower {
   // the heading's per-step closing fraction, cached for the last dt (an exp per step per walker adds up)
   private kDt = -1
   private kTurn = 0
+  /** Rounded corners: per waypoint its radius (0: a sharp corner) and b - a (out minus in unit direction); where the path started. */
+  private cr = new Float64Array(32)
+  private ckx = new Float64Array(32)
+  private ckz = new Float64Array(32)
+  private startX = 0
+  private startZ = 0
 
   constructor(x = 0, z = 0, heading = 0) {
     this.x = x
@@ -133,7 +143,12 @@ export class PathFollower {
       this.pz = new Float64Array(cap)
       this.tail = new Float64Array(cap)
       this.corner = new Float64Array(cap)
+      this.cr = new Float64Array(cap)
+      this.ckx = new Float64Array(cap)
+      this.ckz = new Float64Array(cap)
     }
+    this.startX = this.x
+    this.startZ = this.z
     let n = 0
     for (let i = 0; i < len; i++) {
       const p = points[i]
@@ -157,6 +172,7 @@ export class PathFollower {
     }
     this.n = n
     this.idx = 0
+    this.cr.fill(0, 0, Math.max(n, 1))
     if (n === 0) return
     this.tail[n - 1] = 0
     for (let i = n - 2; i >= 0; i--) this.tail[i] = this.tail[i + 1] + Math.hypot(this.px[i + 1] - this.px[i], this.pz[i + 1] - this.pz[i])
@@ -173,6 +189,89 @@ export class PathFollower {
       }
       inX = outX
       inZ = outZ
+    }
+  }
+
+  /**
+   * Round the corners of the current path (call right after `setPath`): each waypoint with a way out turns on a curve of radius up to `maxR`
+   * (at most 0.45 of either leg, none for turns under `minTurn` or over `maxTurn` rad: a U-turn is walked to its end), shrunk by halves (twice)
+   * until `ok` says the apex and the quarter points are free, else left sharp. The final waypoint is never rounded.
+   */
+  roundCorners(maxR: number, ok: (x: number, z: number) => boolean, minTurn = 0.08, maxTurn = 2.4): void {
+    const n = this.n
+    let inX = this.startX
+    let inZ = this.startZ
+    for (let i = 0; i < n - 1; i++) {
+      const wx = this.px[i]
+      const wz = this.pz[i]
+      const ax = wx - inX
+      const az = wz - inZ
+      const la = Math.sqrt(ax * ax + az * az)
+      const bx = this.px[i + 1] - wx
+      const bz = this.pz[i + 1] - wz
+      const lb = Math.sqrt(bx * bx + bz * bz)
+      inX = wx
+      inZ = wz
+      this.cr[i] = 0
+      if (la < 1e-6 || lb < 1e-6) continue
+      const kx = bx / lb - ax / la
+      const kz = bz / lb - az / la
+      const turn = Math.abs(wrapPi(Math.atan2(bx, bz) - Math.atan2(ax, az)))
+      if (turn < minTurn || turn > maxTurn) continue
+      let r = Math.min(maxR, 0.45 * la, 0.45 * lb)
+      for (let tries = 0; tries < 3 && r > 0.05; tries++, r *= 0.5) {
+        // the apex (d = 0) and the curve a quarter in from either end (d = r / 2)
+        const qa = r / 4
+        const qq = r / 16
+        if (
+          ok(wx + kx * qa, wz + kz * qa) &&
+          ok(wx - (ax / la) * (r / 2) + kx * qq, wz - (az / la) * (r / 2) + kz * qq) &&
+          ok(wx + (bx / lb) * (r / 2) + kx * qq, wz + (bz / lb) * (r / 2) + kz * qq)
+        ) {
+          this.cr[i] = r
+          this.ckx[i] = kx
+          this.ckz[i] = kz
+          break
+        }
+      }
+    }
+  }
+
+  /** The rounded-corner displacement at the current position (see the module comment), written by `updateRound`; 0 on a straight. */
+  rx = 0
+  rz = 0
+
+  /** Work out `rx, rz` for where the path point is now. Allocation-free. */
+  updateRound(): void {
+    this.rx = 0
+    this.rz = 0
+    const i = this.idx
+    if (i >= this.n) return
+    // the corner ahead (the next waypoint), then the one just passed
+    let r = this.cr[i]
+    if (r > 0) {
+      const dx = this.px[i] - this.x
+      const dz = this.pz[i] - this.z
+      const d = Math.sqrt(dx * dx + dz * dz)
+      if (d < r) {
+        const k = ((r - d) * (r - d)) / (4 * r)
+        this.rx = k * this.ckx[i]
+        this.rz = k * this.ckz[i]
+        return
+      }
+    }
+    if (i > 0) {
+      r = this.cr[i - 1]
+      if (r > 0) {
+        const dx = this.x - this.px[i - 1]
+        const dz = this.z - this.pz[i - 1]
+        const d = Math.sqrt(dx * dx + dz * dz)
+        if (d < r) {
+          const k = ((r - d) * (r - d)) / (4 * r)
+          this.rx = k * this.ckx[i - 1]
+          this.rz = k * this.ckz[i - 1]
+        }
+      }
     }
   }
 

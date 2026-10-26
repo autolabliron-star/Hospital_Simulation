@@ -3,13 +3,13 @@
  * kinematic path follower (no physics, no yuka vehicles): every walker still follows its planned polyline exactly with a
  * `PathFollower`; the crowd only decides where the BODY stands relative to that path and how fast the path is walked.
  *
- *   body = path point + keep-right offset + avoidance displacement
+ *   body = path point (on a rounded corner) + keep-right offset + avoidance displacement
  *
  * Keep right. A walker on a corridor takes a personal lateral offset of 0.30-0.45 m to the right of its direction of travel
  * (in open halls 0.45-0.9 m), so people walking in opposite directions pass each other. The offset is capped wherever it
  * would not be walkable (walls and furniture; W2: the whole corridor is walkable, there are no robot lanes or crossing zones on
- * the floor), and it fades to nothing at the end of the route and in doorways. The offset is rate-limited (0.9 m/s), so turns at
- * corners are smooth.
+ * the floor), and it fades to nothing at the end of the route and in doorways. The offset is rate-limited (0.9 m/s) and eased (2.5 m/s^2,
+ * LAT_ACC), so lane changes and turns at corners are smooth; the corners themselves are walked on a short curve (CORNER_R).
  *
  * Courtesy (W1 walk-in). `setCourtesy(side, metres)` biases that keep-right target sideways by `metres` more, to the right
  * (+1) or to the left (-1) of the path, so a walker who sees the player coming moves over to one side of the corridor well
@@ -79,6 +79,30 @@ const S_DECAY = 2.0
 const S_MAX = 0.9
 /** The keep-right offset moves at most this fast (m/s). */
 const LAT_RATE = 0.9
+/**
+ * ... and speeds up and slows down at most this hard (m/s^2): a lane change eases in and out instead of starting and stopping at 0.9 m/s
+ * sideways in one step (a seeded morning had a sideways lurch every 2 s per walker, the body's direction kinking by up to 37 degrees in a
+ * frame; walkQuality.test.ts measures it).
+ */
+const LAT_ACC = 2.5
+/**
+ * The avoidance displacement relaxes back no faster than this (m/s), and the relaxing eases in at RELAX_EASE (1/s) once the walker is past
+ * whoever it stepped round (it used to spring back at 2/s of up to 0.9 m: a 1.8 m/s sideways jump in one step).
+ */
+const RELAX_MAX = 0.6
+const RELAX_EASE = 5
+/**
+ * The avoidance displacement's velocity changes by at most this much per second (m/s^2): a sidestep round somebody starts and ends as a
+ * body does, not with a jump in sideways speed in one step (a push that ends when the other is level used to drop at once). The hard rules
+ * (never closer than touching, never off walkable ground) are applied after this and are not eased.
+ */
+const AVOID_ACC = 6
+/**
+ * Corners are walked on a curve of up to this radius (m; follower.ts `roundCorners`), where the curve is walkable for the body: the path point
+ * keeps to the polyline (progress, arrival and door logic are unchanged), the body bends round the corner. A pusher's vehicle takes them sharp.
+ */
+const CORNER_R = 0.6
+const freeForBody = (x: number, z: number): boolean => isWalkable(x, z, BODY_MARGIN)
 /** The most a courtesy sidestep may add to the keep-right offset (m). */
 export const COURTESY_MAX = 0.6
 /** The planned braking deceleration used for stopping short of things (m/s^2). */
@@ -400,6 +424,17 @@ export class CrowdWalker implements Walker {
   private nlz = 0
   private nax = 0
   private naz = 0
+  /** The keep-right offset's velocity (m/s, accelerations limited by LAT_ACC), its candidate, and how far the avoidance relax has eased in (0..1). */
+  private lvx = 0
+  private lvz = 0
+  private nlvx = 0
+  private nlvz = 0
+  private relaxK = 1
+  /** The avoidance displacement's velocity (m/s), eased by AVOID_ACC, and its candidate. */
+  private avx = 0
+  private avz = 0
+  private navx = 0
+  private navz = 0
 
   // personal
   private readonly pref: number
@@ -494,7 +529,10 @@ export class CrowdWalker implements Walker {
     this.f.x = this.bx
     this.f.z = this.bz
     this.lx = this.lz = this.ax = this.az = 0
+    this.lvx = this.lvz = 0
+    this.avx = this.avz = 0
     this.f.setPath(planRoute(this.here, to))
+    if (this.discAt === null) this.f.roundCorners(CORNER_R, freeForBody)
     this.forcedStatic = false
     this.gate = -1
     this.countdown = 1
@@ -508,6 +546,8 @@ export class CrowdWalker implements Walker {
     this.bx = x
     this.bz = z
     this.lx = this.lz = this.ax = this.az = 0
+    this.lvx = this.lvz = 0
+    this.avx = this.avz = 0
     this.gate = -1
     this.blockedT = 0
     this.yieldT = 0
@@ -544,6 +584,8 @@ export class CrowdWalker implements Walker {
     }
     this.nb = new Int32Array(f === null ? MAX_NEIGHBOURS : MAX_NEIGHBOURS_VEHICLE)
     if (f === null) return
+    // (a vehicle takes the rest of its route's corners sharp, as its footprint is laid along the heading)
+    this.f.roundCorners(0, freeForBody)
     const r = f.halfWidth + DISC_EXTRA
     // (the end discs sit far enough in that the box's corners are inside them)
     const inset = Math.max(0, Math.sqrt(Math.max(0, r * r - f.halfWidth * f.halfWidth)) - 0.005)
@@ -574,6 +616,8 @@ export class CrowdWalker implements Walker {
     this.f.x = this.bx
     this.f.z = this.bz
     this.lx = this.lz = this.ax = this.az = 0
+    this.lvx = this.lvz = 0
+    this.avx = this.avz = 0
   }
 
   step(dt: number, speed: number): WalkStatus {
@@ -625,26 +669,71 @@ export class CrowdWalker implements Walker {
     const target = this.aside ? this.asideLat : this.sideStill && !this.courtOn ? 0 : rem < 1.5 ? this.tgtLat * (rem / 1.5) : this.tgtLat
     const goalX = -dirZ * target
     const goalZ = dirX * target
+    // (with eased speed: at most LAT_RATE, changed by at most LAT_ACC per second, and slowing so as to stop on the goal)
     const ex = goalX - this.lx
     const ez = goalZ - this.lz
     const el = Math.sqrt(ex * ex + ez * ez)
-    const maxMove = LAT_RATE * dt
-    if (el <= maxMove) {
+    let wvx = 0
+    let wvz = 0
+    if (el > 1e-9) {
+      const want = Math.min(LAT_RATE, Math.sqrt(2 * LAT_ACC * el))
+      wvx = (ex / el) * want
+      wvz = (ez / el) * want
+    }
+    let cvx = this.lvx
+    let cvz = this.lvz
+    const gx = wvx - cvx
+    const gz = wvz - cvz
+    const gl = Math.sqrt(gx * gx + gz * gz)
+    const maxDv = LAT_ACC * dt
+    if (gl <= maxDv) {
+      cvx = wvx
+      cvz = wvz
+    } else {
+      cvx += (gx / gl) * maxDv
+      cvz += (gz / gl) * maxDv
+    }
+    const cl = Math.sqrt(cvx * cvx + cvz * cvz) * dt
+    if (el <= 1e-4 || (el <= cl && cvx * ex + cvz * ez > 0)) {
+      // there (or it would pass it this step): on the goal, at rest
       this.nlx = goalX
       this.nlz = goalZ
+      this.nlvx = 0
+      this.nlvz = 0
     } else {
-      this.nlx = this.lx + (ex / el) * maxMove
-      this.nlz = this.lz + (ez / el) * maxMove
+      this.nlx = this.lx + cvx * dt
+      this.nlz = this.lz + cvz * dt
+      this.nlvx = cvx
+      this.nlvz = cvz
     }
 
 
     // avoidance displacement: pushed, then relaxing back
     let nax = this.ax + this.pushX * dt
     let naz = this.az + this.pushZ * dt
-    // (while stepping round someone it does not relax: the push alone decides how far to go)
-    const relax = this.sideSeen ? 0 : Math.min(1, S_DECAY * dt)
+    // (while stepping round someone it does not relax: the push alone decides how far to go; after, the relax eases in and is capped)
+    this.relaxK = this.sideSeen ? 0 : Math.min(1, this.relaxK + RELAX_EASE * dt)
+    let relax = this.relaxK * Math.min(1, S_DECAY * dt)
+    const al = Math.sqrt(nax * nax + naz * naz)
+    if (al * relax > RELAX_MAX * dt) relax = (RELAX_MAX * dt) / al
     nax -= nax * relax
     naz -= naz * relax
+    // (eased: the displacement's velocity changes by at most AVOID_ACC per second)
+    const idt = dt > 0 ? 1 / dt : 0
+    let vx = (nax - this.ax) * idt
+    let vz = (naz - this.az) * idt
+    const gvx = vx - this.avx
+    const gvz = vz - this.avz
+    const gv = Math.sqrt(gvx * gvx + gvz * gvz)
+    const maxAv = AVOID_ACC * dt
+    if (gv > maxAv) {
+      vx = this.avx + (gvx / gv) * maxAv
+      vz = this.avz + (gvz / gv) * maxAv
+      nax = this.ax + vx * dt
+      naz = this.az + vz * dt
+    }
+    this.navx = vx
+    this.navz = vz
     const sl = Math.sqrt(nax * nax + naz * naz)
     if (sl > S_MAX) {
       nax *= S_MAX / sl
@@ -677,6 +766,10 @@ export class CrowdWalker implements Walker {
     const oaz = this.az
     this.lx = this.nlx
     this.lz = this.nlz
+    this.lvx = this.nlvx
+    this.lvz = this.nlvz
+    this.avx = this.navx
+    this.avz = this.navz
     this.ax = this.nax
     this.az = this.naz
     this.constrain()
@@ -685,6 +778,11 @@ export class CrowdWalker implements Walker {
       f.restore()
       this.lx = olx
       this.lz = olz
+      // (standing still: the lane change starts again from rest, as the path does)
+      this.lvx = 0
+      this.lvz = 0
+      this.avx = 0
+      this.avz = 0
       this.ax = oax
       this.az = oaz
       this.bx = oldX
@@ -1203,8 +1301,10 @@ export class CrowdWalker implements Walker {
 
   private constrain(): void {
     const f = this.f
-    const px = f.x
-    const pz = f.z
+    // (the path point, on its rounded corner)
+    f.updateRound()
+    const px = f.x + f.rx
+    const pz = f.z + f.rz
     const small = Math.abs(this.lx) + Math.abs(this.lz) + Math.abs(this.ax) + Math.abs(this.az)
     let x = px + this.lx + this.ax
     let z = pz + this.lz + this.az
