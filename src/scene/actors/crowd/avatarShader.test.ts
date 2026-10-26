@@ -10,6 +10,7 @@ import { FRAG_LV, VERT_MAIN } from '@/scene/lighting/volume/glsl'
 import { lvUniforms } from '@/scene/lighting/volume/uniforms'
 import { BADGE_FRAME, BADGE_KIND, CAP_FRAME, CAP_KIND, MAX_PEOPLE, P, SLOT, TEX } from './constants'
 import { readIndex } from './avatars.testkit'
+import { hexToLinear } from './model'
 import { AVATAR_PROGRAM_KEY, avatarUniformValues, createAvatarMaterials, createCrowdMaterials } from './shaders'
 
 const tex = new DataTexture(new Float32Array(TEX.width * MAX_PEOPLE * 4), TEX.width, MAX_PEOPLE, RGBAFormat, FloatType)
@@ -104,8 +105,30 @@ describe('the avatar material', () => {
       const want = avatarUniformValues(a)
       expect(u.uHair.value.toArray()).toEqual(want.hair)
       expect(u.uTintRef.value.x).toBeCloseTo(Math.max(a.tintRef.top, 1e-3), 9)
+      expect(u.uSkin.value.toArray()).toEqual(want.skin)
+      expect(u.uSkin.value.r).toBeCloseTo(hexToLinear(a.palette.skin)[0], 6)
       if (!a.atlas.hair) expect(want.hair[0]).toBeGreaterThan(want.hair[2]) // an empty rectangle: no alpha test anywhere
     }
+  })
+
+  it('paints a gowned person by body part in the same program: three tint bits, the bare and sock zones, the skin and the print', () => {
+    const s = patched(all[0][0] as never)
+    const v = s.vertexShader
+    const f = s.fragmentShader
+    expect(v).toContain('vCrowdTint = vec3(float(cTintBits & 1), float((cTintBits >> 1) & 1), float((cTintBits >> 2) & 1));')
+    expect(v).toContain(`k == ${P.foreL} || k == ${P.foreR} || k == ${P.shinL} || k == ${P.shinR}`)
+    expect(v).toContain(`k == ${P.footL} || k == ${P.footR}`)
+    expect(v).toContain(`k == ${P.head} ? 1.0 : 0.0, k == ${P.handL} || k == ${P.handR} ? 1.0 : 0.0`)
+    for (const c of ['x', 'y', 'z', 'w']) expect(v).toContain(`aWeights.${c} * crowdBare(aJoints.${c})`)
+    // the gown branch sits inside the non-hair branch, before the ordinary tint
+    const gown = f.indexOf('if (vCrowdTint.z > 0.5) {')
+    expect(gown).toBeGreaterThan(f.indexOf('if (cMask < 0.5) discard;'))
+    expect(gown).toBeLessThan(f.indexOf('float cTop = vCrowdTint.x * cTopMask;'))
+    for (const t of ['uniform vec3 uSkin;', 'mix(cGown, uSkin,', 'mix(cCol, cTex, cSkinLike)', 'fwidth(cP.x)', 'mix(cCol, mix(cTex, cGown, cGarment), step(0.5, vCrowdBare.z))', 'mix(cTex, uSkin, cGarment), step(0.5, vCrowdBare.w)']) expect(f, t).toContain(t)
+    expect(s.uniforms.uSkin).toBeDefined()
+    expect(balanced(f, '{', '}')).toBe(true)
+    expect(balanced(f, '(', ')')).toBe(true)
+    expect(balanced(v, '(', ')')).toBe(true)
   })
 
   it('patches the light volume in (after its own patches) and has no depth or shadow material', () => {

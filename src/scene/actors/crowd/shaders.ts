@@ -33,7 +33,7 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three'
 import { BADGE_FRAME, BADGE_KIND, CAP_FRAME, CAP_KIND, FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
-import { TINT_MAX_GAIN, tintContrast, type AvatarEntry } from './avatars'
+import { GOWN_BARE_AT, GOWN_BARE_PARTS, GOWN_KEEP_PARTS, GOWN_PRINT, GOWN_SOCK_AT, GOWN_SOCK_PARTS, GOWN_SOCKS, SKIN_LIKE, TINT_MAX_GAIN, tintContrast, type AvatarEntry } from './avatars'
 import { LIGHT_VOLUME_KEY, applyLightVolume } from '@/scene/lighting/volumeChunk'
 import { createContactShadowMaterial } from '@/scene/lighting/contact/material'
 import { FACE } from './face'
@@ -297,6 +297,15 @@ function patchGear(shader: WebGLProgramParametersWithUniforms, pose: DataTexture
 // Realistic people (W3 wave B): linear-blend skinning from the same pose rows, a textured atlas, garment tints
 // ---------------------------------------------------------------------------------------------
 
+const anyOf = (k: string, parts: readonly number[]): string => parts.map((p) => `${k} == ${p}`).join(' || ')
+
+/** The gown's zones of one influence (avatars.ts gownZone): x bare (forearm, shin), y socks (foot), z the head, w the hands (z and w: GOWN_KEEP_PARTS). */
+const CROWD_BARE_FN = /* glsl */ `
+vec4 crowdBare(float j) {
+  int k = int(j + 0.5);
+  return vec4(${anyOf('k', GOWN_BARE_PARTS)} ? 1.0 : 0.0, ${anyOf('k', GOWN_SOCK_PARTS)} ? 1.0 : 0.0, k == ${GOWN_KEEP_PARTS[0]} ? 1.0 : 0.0, ${anyOf('k', GOWN_KEEP_PARTS.slice(1))} ? 1.0 : 0.0);
+}`
+
 const AVATAR_PARS_VERT = /* glsl */ `
 uniform sampler2D uPose;
 uniform float uLod;
@@ -305,9 +314,11 @@ attribute vec4 aJoints;
 attribute vec4 aWeights;
 flat varying vec4 vCrowdLod;
 flat varying vec3 vCrowdRim;
-flat varying vec2 vCrowdTint;
+flat varying vec3 vCrowdTint;
 flat varying vec3 vCrowdTop;
 flat varying vec3 vCrowdBottom;
+varying vec4 vCrowdBare;
+${CROWD_BARE_FN}
 `
 
 /** One influence: add weight w of part j's row (already M_p * B_p^-1, see avatars.ts applyBinds) to the blend. */
@@ -331,8 +342,9 @@ float cLo = uLod < 0.5 ? 0.0 : (uLod < 1.5 ? cLod.x : cLod.y);
 float cHi = uLod < 0.5 ? cLod.x : (uLod < 1.5 ? cLod.y : cLod.z);
 vCrowdLod = vec4(cLo, cHi, cLod.w, 0.0);
 vCrowdRim = texelFetch(uPose, ivec2(${TEX.rim}, cRow), 0).rgb;
-float cTintBits = texelFetch(uPose, ivec2(${TEX.size}, cRow), 0).z;
-vCrowdTint = vec2(mod(cTintBits + 0.5, 2.0) > 1.0 ? 1.0 : 0.0, cTintBits > 1.5 ? 1.0 : 0.0);
+int cTintBits = int(texelFetch(uPose, ivec2(${TEX.size}, cRow), 0).z + 0.5);
+vCrowdTint = vec3(float(cTintBits & 1), float((cTintBits >> 1) & 1), float((cTintBits >> 2) & 1));
+vCrowdBare = aWeights.x * crowdBare(aJoints.x) + aWeights.y * crowdBare(aJoints.y) + aWeights.z * crowdBare(aJoints.z) + aWeights.w * crowdBare(aJoints.w);
 vCrowdTop = texelFetch(uPose, ivec2(${TEX.palette + SLOT.top}, cRow), 0).rgb;
 vCrowdBottom = texelFetch(uPose, ivec2(${TEX.palette + SLOT.pants}, cRow), 0).rgb;
 vec4 cR0 = vec4(0.0);
@@ -355,17 +367,50 @@ const AVATAR_PARS_FRAG = /* glsl */ `
 uniform vec4 uHair;
 uniform vec2 uTintRef;
 uniform vec2 uTintExp;
+uniform vec3 uSkin;
 flat varying vec4 vCrowdLod;
 flat varying vec3 vCrowdRim;
-flat varying vec2 vCrowdTint;
+flat varying vec3 vCrowdTint;
 flat varying vec3 vCrowdTop;
 flat varying vec3 vCrowdBottom;
+varying vec4 vCrowdBare;
+`
+
+const SOCKS = new Color(GOWN_SOCKS)
+/** Print cycles per atlas UV unit: every avatar's atlas is 1024 x 1536 (tools/convert-people.mjs). */
+const PRINT_UV = [1024 / GOWN_PRINT.texels, 1536 / GOWN_PRINT.texels]
+
+/**
+ * The hospital gown (TINT.gown; avatars.ts gownZone and skinLike say the same in TypeScript): cloth is the gown colour (the palette's top slot) with
+ * a little of its own folds where the mask marks a garment and a small staggered dot print (faded out where it would alias); forearms and shins are
+ * the avatar's own skin (uSkin), feet are socks, and every skin-coloured texel keeps the atlas. The head and the hands keep it too, except where the mask
+ * marks a garment: a collar on the head becomes gown, a cuff on the hand becomes skin.
+ */
+const AVATAR_GOWN_FRAG = /* glsl */ `
+    vec3 cTex = diffuseColor.rgb;
+    float cRatio = cLum / max(dot(uSkin, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    vec3 cChroma = cTex / max(cTex.r + cTex.g + cTex.b, 1e-4) - uSkin / max(uSkin.r + uSkin.g + uSkin.b, 1e-4);
+    float cSkinLike = (1.0 - smoothstep(${g(SKIN_LIKE.chroma[0])}, ${g(SKIN_LIKE.chroma[1])}, length(cChroma))) * smoothstep(${g(SKIN_LIKE.dark[0])}, ${g(SKIN_LIKE.dark[1])}, cRatio) * (1.0 - smoothstep(${g(SKIN_LIKE.light[0])}, ${g(SKIN_LIKE.light[1])}, cRatio));
+    float cGarment = max(cTopMask, cBottomMask);
+    float cRef = cBottomMask > 0.5 ? uTintRef.y : uTintRef.x;
+    float cFold = mix(1.0, clamp(pow(cLum / cRef, 0.35), 0.8, 1.15), cGarment);
+    vec2 cP = vMapUv * vec2(${g(PRINT_UV[0])}, ${g(PRINT_UV[1])});
+    float cAa = max(fwidth(cP.x), fwidth(cP.y));
+    cP.x += 0.5 * mod(floor(cP.y), 2.0);
+    float cDot = (1.0 - smoothstep(${g(GOWN_PRINT.radius)} - cAa, ${g(GOWN_PRINT.radius)} + cAa, length(fract(cP) - 0.5))) * (1.0 - smoothstep(0.25, 0.5, cAa));
+    vec3 cGown = vCrowdTop * cFold * (1.0 - ${g(GOWN_PRINT.depth)} * cDot);
+    vec3 cCol = mix(cGown, uSkin, smoothstep(${g(GOWN_BARE_AT - 0.1)}, ${g(GOWN_BARE_AT + 0.1)}, vCrowdBare.x));
+    cCol = mix(cCol, cTex, cSkinLike);
+    cCol = mix(cCol, vec3(${g(SOCKS.r)}, ${g(SOCKS.g)}, ${g(SOCKS.b)}), smoothstep(${g(GOWN_SOCK_AT - 0.1)}, ${g(GOWN_SOCK_AT + 0.1)}, vCrowdBare.y));
+    cCol = mix(cCol, mix(cTex, cGown, cGarment), step(0.5, vCrowdBare.z));
+    diffuseColor.rgb = mix(cCol, mix(cTex, uSkin, cGarment), step(0.5, vCrowdBare.w));
 `
 
 /**
  * The atlas alpha (tools/people-lib.ts MASK): in the hair region (uHair: u0, v0, u1, v1) it is the opacity of the hair cards, cut at 0.5 (the only
  * alpha test); everywhere else it is the garment mask, 255 untinted, 170 the top garment, 85 the bottom one. A tinted garment takes the person's
- * colour at its own shading: colour x (luminance / the avatar's reference luminance) ^ contrast, at most ${TINT_MAX_GAIN}x the colour.
+ * colour at its own shading: colour x (luminance / the avatar's reference luminance) ^ contrast, at most ${TINT_MAX_GAIN}x the colour. A person in a
+ * gown is repainted by body part instead (AVATAR_GOWN_FRAG).
  */
 const AVATAR_TINT_FRAG = /* glsl */ `
 {
@@ -374,10 +419,16 @@ const AVATAR_TINT_FRAG = /* glsl */ `
     if (cMask < 0.5) discard;
   } else {
     float cLum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-    float cTop = vCrowdTint.x * clamp(1.0 - abs(cMask - 0.6667) * 6.0, 0.0, 1.0);
-    float cBottom = vCrowdTint.y * clamp(1.0 - abs(cMask - 0.3333) * 6.0, 0.0, 1.0);
-    if (cTop > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdTop * min(pow(cLum / uTintRef.x, uTintExp.x), ${g(TINT_MAX_GAIN)}), cTop);
-    if (cBottom > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdBottom * min(pow(cLum / uTintRef.y, uTintExp.y), ${g(TINT_MAX_GAIN)}), cBottom);
+    float cTopMask = clamp(1.0 - abs(cMask - 0.6667) * 6.0, 0.0, 1.0);
+    float cBottomMask = clamp(1.0 - abs(cMask - 0.3333) * 6.0, 0.0, 1.0);
+    if (vCrowdTint.z > 0.5) {
+${AVATAR_GOWN_FRAG}
+    } else {
+      float cTop = vCrowdTint.x * cTopMask;
+      float cBottom = vCrowdTint.y * cBottomMask;
+      if (cTop > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdTop * min(pow(cLum / uTintRef.x, uTintExp.x), ${g(TINT_MAX_GAIN)}), cTop);
+      if (cBottom > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdBottom * min(pow(cLum / uTintRef.y, uTintExp.y), ${g(TINT_MAX_GAIN)}), cBottom);
+    }
   }
   diffuseColor.a = 1.0;
 }
@@ -397,6 +448,8 @@ export interface AvatarUniforms {
   uHair: IUniform<Vector4>
   uTintRef: IUniform<Vector2>
   uTintExp: IUniform<Vector2>
+  /** The avatar's own skin (linear), for the bare forearms and shins under a gown. */
+  uSkin: IUniform<Color>
 }
 
 function patchAvatarBody(shader: WebGLProgramParametersWithUniforms, pose: DataTexture, u: AvatarUniforms): void {
@@ -405,6 +458,7 @@ function patchAvatarBody(shader: WebGLProgramParametersWithUniforms, pose: DataT
   shader.uniforms.uHair = u.uHair
   shader.uniforms.uTintRef = u.uTintRef
   shader.uniforms.uTintExp = u.uTintExp
+  shader.uniforms.uSkin = u.uSkin
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>\n${AVATAR_PARS_VERT}`)
     .replace('#include <beginnormal_vertex>', `${AVATAR_VERT}\nvec3 objectNormal = normalize(cWorldNrm + vec3(0.0, 1e-8, 0.0));`)
@@ -419,12 +473,18 @@ function patchAvatarBody(shader: WebGLProgramParametersWithUniforms, pose: DataT
 /** The one program every avatar body of every LOD shares (the light volume's key composed in). */
 export const AVATAR_PROGRAM_KEY = `hospital-crowd-avatar-v1+${LIGHT_VOLUME_KEY}`
 
-/** The uniform values of an avatar: its hair rectangle as (u0, v0, u1, v1) (nothing when it has no hair cards), its tint references. */
-export function avatarUniformValues(entry: Pick<AvatarEntry, 'atlas' | 'tintRef'>): { hair: [number, number, number, number]; ref: [number, number]; exp: [number, number] } {
+/** The uniform values of an avatar: its hair rectangle as (u0, v0, u1, v1) (nothing when it has no hair cards), its tint references, its skin (linear). */
+export function avatarUniformValues(entry: Pick<AvatarEntry, 'atlas' | 'tintRef' | 'palette'>): {
+  hair: [number, number, number, number]
+  ref: [number, number]
+  exp: [number, number]
+  skin: [number, number, number]
+} {
   const h = entry.atlas.hair
   const hair: [number, number, number, number] = h ? [h[0], h[1], h[0] + h[2], h[1] + h[3]] : [2, 2, -2, -2]
   const ref: [number, number] = [Math.max(entry.tintRef.top, 1e-3), Math.max(entry.tintRef.bottom, 1e-3)]
-  return { hair, ref, exp: [tintContrast(entry.tintRef.top), tintContrast(entry.tintRef.bottom)] }
+  const c = new Color(entry.palette.skin)
+  return { hair, ref, exp: [tintContrast(entry.tintRef.top), tintContrast(entry.tintRef.bottom)], skin: [c.r, c.g, c.b] }
 }
 
 /**
@@ -432,7 +492,7 @@ export function avatarUniformValues(entry: Pick<AvatarEntry, 'atlas' | 'tintRef'
  * Every avatar shares one program (AVATAR_PROGRAM_KEY; the LOD band, the hair rectangle and the tint references are uniforms). No depth or shadow
  * materials: people do not cast (their blob shadows stay). Not alpha tested as a material: the hair region's cut is in the shader.
  */
-export function createAvatarMaterials(pose: DataTexture, atlas: Texture, entry: Pick<AvatarEntry, 'id' | 'atlas' | 'tintRef'>): [MeshStandardMaterial, MeshStandardMaterial, MeshStandardMaterial] {
+export function createAvatarMaterials(pose: DataTexture, atlas: Texture, entry: Pick<AvatarEntry, 'id' | 'atlas' | 'tintRef' | 'palette'>): [MeshStandardMaterial, MeshStandardMaterial, MeshStandardMaterial] {
   const v = avatarUniformValues(entry)
   return [0, 1, 2].map((lod) => {
     const m = new MeshStandardMaterial({ map: atlas, side: DoubleSide, roughness: 0.72, metalness: 0 })
@@ -442,6 +502,7 @@ export function createAvatarMaterials(pose: DataTexture, atlas: Texture, entry: 
       uHair: { value: new Vector4(...v.hair) },
       uTintRef: { value: new Vector2(...v.ref) },
       uTintExp: { value: new Vector2(...v.exp) },
+      uSkin: { value: new Color(...v.skin) },
     }
     m.userData.avatarUniforms = u
     // W3: the baked light volume, applied last

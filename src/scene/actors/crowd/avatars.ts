@@ -21,6 +21,10 @@
  *     garment, 85 bottom garment). A wardrobe asks for its top and/or bottom garment to take the person's palette colour (SLOT.top, SLOT.pants) at
  *     the garment's own shading (colour x luminance / the avatar's reference luminance). A garment whose reference luminance is under
  *     TINT_MIN_REF is too dark to carry a colour and keeps its own.
+ *   - Gown (TINT.gown): a patient in a hospital gown wears an avatar with flat shoes repainted by body part, not by the mask, because the masks miss
+ *     too much (an argyle vest, belts, boots) and a black skirt cannot take a pale colour. The pelvis, chest, upper arms and thighs are gown (a
+ *     small dotted print, a little of the cloth's own folds); forearms and shins are bare (the avatar's own skin); feet are hospital socks; the head and
+ *     the hands keep the atlas, and so does every other texel that already looks like the avatar's skin (`gownZone`, `skinLike`, shaders.ts AVATAR_GOWN_FRAG).
  */
 import type { Presentation } from '@/content/roster'
 import type { Outfit, Role } from '@/sim/types'
@@ -118,8 +122,11 @@ export const SKINNED_PARTS: readonly number[] = [
 // The cast
 // ---------------------------------------------------------------------------------------------
 
-/** Tint bits (TEX.size.z of the pose texture): the top garment takes SLOT.top, the bottom garment SLOT.pants. */
-export const TINT = { none: 0, top: 1, bottom: 2, both: 3 } as const
+/**
+ * Tint bits (TEX.size.z of the pose texture): the top garment takes SLOT.top, the bottom garment SLOT.pants. `gown` repaints the whole avatar as a
+ * hospital gown in SLOT.top (see the header); the shader then ignores the other two bits.
+ */
+export const TINT = { none: 0, top: 1, bottom: 2, both: 3, gown: 4 } as const
 /**
  * A garment darker than this keeps its own colour: dividing by a tiny reference would only amplify the noise of its texels. The threshold is on
  * the reference's perceptual (sRGB-encoded) luminance: 0.15 leaves out only near-black cloth (a black skirt, black trousers), while the saturated
@@ -159,8 +166,11 @@ export interface Wardrobe {
 const EVERYDAY_F = ['female_adult_15', 'female_adult_17', 'business_female_02'] as const
 const EVERYDAY_M = ['male_adult_08', 'male_adult_12', 'male_adult_13'] as const
 
-/** Patients in a gown: the gown is the tint of an everyday outfit (top and bottom in the gown's pale blue). */
-export const GOWN: Wardrobe = Object.freeze({ female: ['business_female_02', 'female_adult_15'], male: ['male_adult_13', 'male_adult_12'], tint: TINT.both })
+/**
+ * Patients in a gown: an avatar repainted as a gown, bare forearms and shins, hospital socks (TINT.gown). Only bodies with flat shoes: painted as socks, the
+ * heeled boots of business_female_02 and female_adult_15 would read as white high heels.
+ */
+export const GOWN: Wardrobe = Object.freeze({ female: ['female_adult_17', 'medical_female_01'], male: ['male_adult_13', 'male_adult_12'], tint: TINT.gown })
 /** Patients in everyday clothes and visitors: the six adults in their own clothes. */
 export const EVERYDAY: Wardrobe = Object.freeze({ female: EVERYDAY_F, male: EVERYDAY_M, tint: TINT.none })
 /**
@@ -234,6 +244,8 @@ export interface AvatarChoice {
  * perceptual).
  */
 export function tintFor(want: number, entry: Pick<AvatarEntry, 'tintRef'>): number {
+  // the gown paints by body part, whatever the garments' references
+  if (want & TINT.gown) return TINT.gown
   let t = 0
   if (want & TINT.top && entry.tintRef.top > 0 && perceptual(entry.tintRef.top) >= TINT_MIN_REF) t |= TINT.top
   if (want & TINT.bottom && entry.tintRef.bottom > 0 && perceptual(entry.tintRef.bottom) >= TINT_MIN_REF) t |= TINT.bottom
@@ -295,6 +307,69 @@ export function avatarFor(key: AvatarKey, avatars: readonly Pick<AvatarEntry, 'i
   out.index = i
   out.tint = tintFor(w.tint, avatars[i])
   return out
+}
+
+// ---------------------------------------------------------------------------------------------
+// The hospital gown on an avatar (TINT.gown)
+// ---------------------------------------------------------------------------------------------
+
+/** Parts left bare under a gown (short sleeves, a knee-length hem): drawn in the avatar's own skin colour. */
+export const GOWN_BARE_PARTS: readonly number[] = [P.foreL, P.foreR, P.shinL, P.shinR]
+/** Parts in hospital socks. */
+export const GOWN_SOCK_PARTS: readonly number[] = [P.footL, P.footR]
+/** Parts that keep the atlas under a gown: the head (face, hair, neck), then the hands (the shader reads them in this order). */
+export const GOWN_KEEP_PARTS: readonly number[] = [P.head, P.handL, P.handR]
+/** The socks: a soft grey-white non-slip sock (sRGB hex). */
+export const GOWN_SOCKS = '#d9dbdc'
+/** A vertex is bare skin when at least this much of its weight is on a bare part, in socks when this much is on a foot (the sock rises a little above the ankle). */
+export const GOWN_BARE_AT = 0.5
+export const GOWN_SOCK_AT = 0.45
+/** The gown's print: a staggered grid of small darker dots, this many atlas texels apart (about 1.7 cm on the cloth), radius and depth. */
+export const GOWN_PRINT = { texels: 10, radius: 0.17, depth: 0.2 } as const
+
+export type GownZone = 'gown' | 'bare' | 'socks' | 'keep'
+
+/**
+ * Where a vertex of an avatar sits under the gown, from its four part influences (what the vertex shader blends and the fragment stage thresholds):
+ * the head and the hands keep the atlas, feet wear socks, forearms and shins are bare, everything else is gown.
+ */
+export function gownZone(joints: ArrayLike<number>, weights: ArrayLike<number>): GownZone {
+  let bare = 0
+  let socks = 0
+  let keep = 0
+  for (let k = 0; k < 4; k++) {
+    const w = weights[k]
+    if (!(w > 0)) continue
+    const j = Math.round(joints[k])
+    if (GOWN_BARE_PARTS.includes(j)) bare += w
+    else if (GOWN_SOCK_PARTS.includes(j)) socks += w
+    else if (GOWN_KEEP_PARTS.includes(j)) keep += w
+  }
+  if (keep >= 0.5) return 'keep'
+  if (socks >= GOWN_SOCK_AT) return 'socks'
+  if (bare >= GOWN_BARE_AT) return 'bare'
+  return 'gown'
+}
+
+/**
+ * How much a texel looks like the avatar's own skin (0..1), both colours linear: the same chromaticity (r, g, b over their sum, within SKIN_LIKE.chroma)
+ * and a luminance between `dark` and `light` times the skin's. Skin that shows outside the head and hands (an ankle, a bare arm) keeps its texture under the
+ * gown. `palette.skin` is the mean of the hand triangles; the chroma window is wide because linear chromaticity spreads skin's shading a lot.
+ */
+export const SKIN_LIKE = { chroma: [0.08, 0.13], dark: [0.35, 0.5], light: [2.0, 2.8] } as const
+
+const smooth = (a: number, b: number, x: number): number => {
+  const t = clamp((x - a) / (b - a), 0, 1)
+  return t * t * (3 - 2 * t)
+}
+const lum = (c: ArrayLike<number>): number => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+export function skinLike(texel: ArrayLike<number>, skin: ArrayLike<number>): number {
+  const ts = Math.max(texel[0] + texel[1] + texel[2], 1e-4)
+  const ss = Math.max(skin[0] + skin[1] + skin[2], 1e-4)
+  const d = Math.hypot(texel[0] / ts - skin[0] / ss, texel[1] / ts - skin[1] / ss, texel[2] / ts - skin[2] / ss)
+  const r = lum(texel) / Math.max(lum(skin), 1e-4)
+  return (1 - smooth(SKIN_LIKE.chroma[0], SKIN_LIKE.chroma[1], d)) * smooth(SKIN_LIKE.dark[0], SKIN_LIKE.dark[1], r) * (1 - smooth(SKIN_LIKE.light[0], SKIN_LIKE.light[1], r))
 }
 
 // ---------------------------------------------------------------------------------------------

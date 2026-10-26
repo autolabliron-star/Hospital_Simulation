@@ -8,6 +8,9 @@ import { BADGE_FRAME, P, PART_COUNT, ROW_FLOATS, SLOT, TEX } from './constants'
 import {
   EVERYDAY,
   GOWN,
+  GOWN_BARE_PARTS,
+  GOWN_KEEP_PARTS,
+  GOWN_SOCK_PARTS,
   PLAYER_AVATAR,
   TINT,
   TINT_MIN_REF,
@@ -15,8 +18,10 @@ import {
   applyBinds,
   avatarFor,
   femaleShare,
+  gownZone,
   invertRigid,
   perceptual,
+  skinLike,
   tintFor,
   wardrobeFor,
   type AvatarKey,
@@ -116,12 +121,104 @@ describe('who wears what', () => {
     expect(tintFor(UNIFORM.radiographer.tint, by('medical_male_05'))).toBe(TINT.both)
     expect(tintFor(UNIFORM.pharmacist.tint, by('medical_female_01'))).toBe(TINT.bottom)
     // a black skirt stays black
-    expect(tintFor(GOWN.tint, by('business_female_02')) & TINT.bottom).toBe(0)
+    expect(tintFor(TINT.both, by('business_female_02')) & TINT.bottom).toBe(0)
     // every choice's bits follow the same rules
     for (let i = 0; i < 300; i++) {
       const role = ROLES[i % ROLES.length]
       const c = avatarFor(keyOf(`t-${i}`, role, undefined, i), INDEX.avatars)
       expect(c.tint).toBe(tintFor(wardrobeFor(role, undefined).tint, INDEX.avatars[c.index]))
+    }
+  })
+})
+
+describe('the hospital gown', () => {
+  const by = (id: string) => INDEX.avatars.find((a) => a.id === id)!
+  const gownIds = [...GOWN.female, ...GOWN.male]
+
+  it('repaints every gowned person by body part (TINT.gown), whatever their garments; nobody else ever gets the gown bit', () => {
+    expect(GOWN.tint).toBe(TINT.gown)
+    for (const id of gownIds) expect(tintFor(GOWN.tint, by(id)), id).toBe(TINT.gown)
+    for (let i = 0; i < 400; i++) {
+      const role = ROLES[i % ROLES.length]
+      const outfit = CLASSES[i % CLASSES.length]
+      const c = avatarFor(keyOf(`g-${i}`, role, outfit, i), INDEX.avatars)
+      const gowned = clothesOf(role, outfit) === 'gown'
+      expect(c.tint === TINT.gown, `${role} ${outfit}`).toBe(gowned)
+      if (!gowned) expect(c.tint & TINT.gown).toBe(0)
+    }
+  })
+
+  it('on every gown avatar: socks on the feet, bare shins up to the knee, the gown from the knee up, bare forearms, the head and hands kept', async () => {
+    for (const id of gownIds) {
+      const a = by(id)
+      const m = cpuMesh(await loadBody(a, 0))
+      const knee = a.body.ankle + a.body.shin
+      let socksTop = -Infinity
+      let gownLow = Infinity
+      let bareLegLow = Infinity
+      let bareLegTop = -Infinity
+      let bareArms = 0
+      for (let v = 0; v < m.count; v++) {
+        const j = m.joints.subarray(v * 4, v * 4 + 4)
+        const w = m.weights.subarray(v * 4, v * 4 + 4)
+        const y = m.pos[v * 3 + 1]
+        const z = gownZone(j, w)
+        const main = Math.round(j[w.indexOf(Math.max(...w))])
+        if (z === 'socks') socksTop = Math.max(socksTop, y)
+        else if (z === 'gown') gownLow = Math.min(gownLow, y)
+        else if (z === 'bare' && (main === P.shinL || main === P.shinR)) {
+          bareLegLow = Math.min(bareLegLow, y)
+          bareLegTop = Math.max(bareLegTop, y)
+        } else if (z === 'bare') bareArms++
+        if (main === P.head || main === P.handL || main === P.handR) expect(z).toBe('keep')
+      }
+      // the socks stop a little above the ankle; the bare shin runs from there to the knee; nothing below the knee is gown
+      expect(socksTop, id).toBeLessThan(a.body.ankle + 0.4 * a.body.shin)
+      expect(bareLegLow, id).toBeLessThan(a.body.ankle + 0.25 * a.body.shin)
+      expect(bareLegTop, id).toBeGreaterThan(knee - 0.1)
+      expect(bareLegTop, id).toBeLessThan(knee + 0.12)
+      expect(gownLow, id).toBeGreaterThan(knee - 0.1)
+      expect(bareArms, id).toBeGreaterThan(20)
+    }
+    expect(GOWN_BARE_PARTS).toEqual([P.foreL, P.foreR, P.shinL, P.shinR])
+    expect(GOWN_SOCK_PARTS).toEqual([P.footL, P.footR])
+    expect(GOWN_KEEP_PARTS).toEqual([P.head, P.handL, P.handR])
+  })
+
+  it('only flat-footed bodies wear the gown: their socks would show a heel as a white high-heeled shoe', async () => {
+    /** Tenths of the left foot's length (heel to toe) whose lowest point stands over 2.5 cm off the floor: a sneaker's arch is one, a heel two or more. */
+    const raised = async (id: string): Promise<number> => {
+      const m = cpuMesh(await loadBody(by(id), 0))
+      const feet: number[] = []
+      let z0 = Infinity
+      let z1 = -Infinity
+      for (let v = 0; v < m.count; v++) {
+        let w = 0
+        for (let k = 0; k < 4; k++) if (Math.round(m.joints[v * 4 + k]) === P.footL) w += m.weights[v * 4 + k]
+        if (w < 0.45) continue
+        feet.push(v)
+        z0 = Math.min(z0, m.pos[v * 3 + 2])
+        z1 = Math.max(z1, m.pos[v * 3 + 2])
+      }
+      const low = new Array<number>(10).fill(Infinity)
+      for (const v of feet) {
+        const b = Math.min(9, Math.floor(((m.pos[v * 3 + 2] - z0) / (z1 - z0)) * 10))
+        low[b] = Math.min(low[b], m.pos[v * 3 + 1])
+      }
+      return low.filter((y) => y > 0.025).length
+    }
+    for (const id of gownIds) expect(await raised(id), id).toBeLessThanOrEqual(1)
+    // the heeled boots this rule keeps out
+    expect(await raised('business_female_02')).toBeGreaterThanOrEqual(2)
+    expect(await raised('female_adult_15')).toBeGreaterThanOrEqual(2)
+  })
+
+  it("keeps real skin and paints the clothes: each avatar's skin is skin-like, the gown avatars' garments are not", () => {
+    for (const a of INDEX.avatars) expect(skinLike(hexToLinear(a.palette.skin), hexToLinear(a.palette.skin)), a.id).toBeCloseTo(1, 6)
+    for (const id of gownIds) {
+      const a = by(id)
+      const skin = hexToLinear(a.palette.skin)
+      for (const k of ['top', 'sleeve', 'pants', 'upperLeg', 'lowerLeg'] as const) expect(skinLike(hexToLinear(a.palette[k]), skin), `${id} ${k} ${a.palette[k]}`).toBeLessThan(0.5)
     }
   })
 })
@@ -209,6 +306,8 @@ describe('crowd model with avatars', () => {
     expect(nurse.tint).toBe(tintFor(TINT.both, INDEX.avatars[nurse.avatar]))
     const bed = m.get('bed-1')!
     expect(GOWN.female.concat(GOWN.male)).toContain(INDEX.avatars[bed.avatar].id)
+    expect(bed.tint).toBe(TINT.gown)
+    expect(m.data[bed.row * ROW_FLOATS + TEX.size * 4 + 2]).toBe(TINT.gown)
     const gown = hexToLinear(bed.look.coat)
     expect(m.data[bed.row * ROW_FLOATS + (TEX.palette + SLOT.pants) * 4]).toBeCloseTo(gown[0], 6)
     expect(m.data[bed.row * ROW_FLOATS + (TEX.palette + SLOT.top) * 4]).toBeCloseTo(hexToLinear(bed.look.top)[0], 6)
