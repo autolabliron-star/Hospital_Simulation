@@ -170,7 +170,7 @@ describe('the doors and the contract\'s spots stay clear', () => {
   const upperDoors = DOORS.filter((d) => d.id.startsWith('l2'))
 
   it('nothing stands in front of any level-2 door: a 1.3 m square on each side of the opening is free of footprints', () => {
-    expect(upperDoors).toHaveLength(9)
+    expect(upperDoors).toHaveLength(12) // R4: + the cryo suite's scan-room, control-room and inner doors
     for (const d of upperDoors) {
       const alongX = d.wallAxis === 'x'
       const half = Math.min(d.width / 2, 1.0)
@@ -299,6 +299,8 @@ describe('the floors, the walls and the labels of level 2', () => {
     expect(mat('l2Sterile')).toBe('floorBlue')
     expect(mat('l2Hall')).toBe('floorBlue')
     expect(mat('l2Lounge')).toBe('floorOak')
+    expect(mat('l2Cryo')).toBe('floorBlue')
+    expect(mat('l2CryoControl')).toBe('floorMint')
     expect(mat('l2PreOp')).toBe('floorMint')
     expect(mat('l2Pacu')).toBe('floorMint')
     // every floor is a patched palette floor, so the light volume's reflection finds it
@@ -314,8 +316,11 @@ describe('the floors, the walls and the labels of level 2', () => {
     const glassCut = pieces.filter((p) => p.cls === 'glassCut')
     const covers = (x: number, z: number): boolean => glassCut.some((p) => (p.alongX ? Math.abs(p.c - z) < 1e-6 && x > p.a && x < p.b : Math.abs(p.c - x) < 1e-6 && z > p.a && z < p.b))
     expect(covers(l2(-57), -22)).toBe(true) // pre-op, north
-    expect(covers(l2(-62), 12)).toBe(true) // lounge, west
-    expect(covers(l2(-57), 22)).toBe(true) // lounge, south
+    expect(covers(l2(-62), 6)).toBe(true) // lounge, west
+    // R4: the cryoablation suite's outer walls are solid (a CT room), and the control room looks into the scan room through full-height glass at z 13
+    expect(covers(l2(-62), 17)).toBe(false)
+    expect(covers(l2(-57), 22)).toBe(false)
+    expect(pieces.some((p) => p.alongX && p.c === 13 && p.cls === 'glassFull' && p.a < l2(-58) && p.b > l2(-58))).toBe(true)
     expect(covers(l2(-48.5), 22)).toBe(true) // recovery, south
     expect(covers(l2(-62), -6)).toBe(true) // theatre staff room, west
     expect(covers(l2(-40), 0)).toBe(true) // theatre corridor, east
@@ -339,7 +344,7 @@ describe('the floors, the walls and the labels of level 2', () => {
       const a = upperAreas.find((q) => l.x > q.rect.x0 && l.x < q.rect.x1 && l.z > q.rect.z0 && l.z < q.rect.z1)
       expect(a, l.text).toBeDefined()
     }
-    expect(b.labels.map((l) => l.text)).toEqual(expect.arrayContaining(['ROBOTIC OR', 'RECOVERY', 'FAMILY LOUNGE']))
+    expect(b.labels.map((l) => l.text)).toEqual(expect.arrayContaining(['ROBOTIC OR', 'RECOVERY', 'FAMILY LOUNGE', 'CT CRYOABLATION']))
     // and the building's own label list carries them, apart from level 1's
     expect(layout.labels.filter((l) => levelOf(l.x) === 2).length).toBe(b.labels.length)
     expect(layout.labels.filter((l) => levelOf(l.x) === 1).length).toBeGreaterThan(30)

@@ -15,9 +15,17 @@ lobby (docs/handover/look-lobby.md): a real modern operating suite around the pr
               language, beam seating on the waiting row, casework, a planter, a hand-wash station and a clock.
   l2Pacu      recovery: three bays on the south façade (same raised-sill bed-head detail), a nurse island under the live station screens, a
               casework wall with glazed wall units, a sage accent wall, a planter, a hand-wash station, a clock.
-  l2Lounge    the family lounge: terrazzo, floor-to-ceiling glazing on the west façade, a warm sand wall with an oak slat feature behind the
-              sofas, a wool rug, wing armchairs with footstools facing the view, sofas, low oak tables, a tea point and water cooler, planters,
-              a smooth plaster ceiling with a recessed LED slot and reading downlights.
+  l2Lounge    the family lounge (the north half of the old lounge, z 2..10): terrazzo, floor-to-ceiling glazing on the west façade, a warm sand
+              wall with an oak slat feature behind the sofa, a wool rug, wing armchairs with footstools facing the view, two sofas, low oak
+              tables, a tea point and water cooler, planters, a smooth plaster ceiling with a recessed LED slot and reading downlights.
+  l2Cryo      R4, the CT-guided, robot-assisted cryoablation suite (docs/R4-CRYO-SUITE.md, the south of the old lounge, z 13..22): the scan room.
+              Anti-static theatre floor coved up the walls, sage wall panels, a windowless west wall behind the gantry, a sealed plaster ceiling
+              with flush LED panels, a lead-glass observation window onto the control room, lead-lined door frames with stainless guards, an
+              "X-ray in use" lamp and a radiation sign at the door, the robot's cart on its docking plate, the argon console with its cylinder
+              cart, the ceiling monitor boom, a supply cabinet with lead aprons and a hand-wash. THE CT GANTRY, ITS TABLE AND THE ROBOT'S ARM
+              ARE LIVE (src/scene/cryoSuite) and are not baked.
+  l2CryoControl  the cryo control room (z 10..13): the CT operator's desk and the robot planning station under the observation glass,
+              with and the bezels the live screens sit in, a clock and a case-list display.
   l2Staff     lockers, a wipe-clean sofa, a meeting table with oak chairs, a kitchenette with wall units, a theatre-list whiteboard, a planter.
   l2Sterile   white powder-coated storage racks with clear-blue bins on three walls.
   l2Corridor  terrazzo, floor-to-ceiling glazing on the east side, a plaster ceiling with a recessed LED slot and wall-washing downlights,
@@ -31,10 +39,10 @@ import math
 
 import furniture as fu
 from common import Frame
-from shell import R, line_box, ribbon_glazing
+from shell import GAP_D, GAP_H, R, line_box, ribbon_glazing
 
 try:
-    from kit import arch, cafe, er, patient, support, theatre
+    from kit import arch, cafe, ctcryo, er, patient, support, theatre
     from kit import parts as pt
     from kit.base import fillet, root
     from kit.parts import sw
@@ -51,14 +59,16 @@ STERILE = (-53.0, -44.0, -10.0, -2.0)
 HALL = (-62.0, -44.0, -2.0, 2.0)
 OR = (-53.0, -44.0, 2.0, 10.0)
 PACU = (-53.0, -44.0, 10.0, 22.0)
-LOUNGE = (-62.0, -53.0, 2.0, 22.0)
+LOUNGE = (-62.0, -53.0, 2.0, 10.0)
+CRYOCTL = (-62.0, -53.0, 10.0, 13.0)
+CRYO = (-62.0, -53.0, 13.0, 22.0)
 CORRIDOR = (-44.0, -40.0, -16.0, 16.0)
 
 # --- shell settings (zones/__init__.py) ---
-HERO = [OR, LOUNGE]
-OWN_CEILINGS = ('l2Or', 'l2Lounge', 'l2Corridor')
+HERO = [OR, LOUNGE, CRYO]
+OWN_CEILINGS = ('l2Or', 'l2Lounge', 'l2Corridor', 'l2Cryo', 'l2CryoControl')
 FLOORS = {'l2Or': 'TheatreFloor', 'l2Hall': 'TheatreFloor', 'l2Corridor': 'Terrazzo', 'l2Lounge': 'Terrazzo',
-          'l2LiftA': 'Terrazzo', 'l2LiftB': 'Terrazzo'}
+          'l2LiftA': 'Terrazzo', 'l2LiftB': 'Terrazzo', 'l2Cryo': 'TheatreFloor'}
 
 # --- runtime hints ---
 # the procedural furniture this design draws instead (src/scene/rooms/surgery/shell.ts footprints). In the OR (or.ts) only the static
@@ -82,6 +92,13 @@ REPLACES = [
     'footprint:l2:hall:scrub',
     'footprint:l2:hall:cabinet',
     'footprint:l2:corridor:bench*',
+    # R4: the cryoablation suite's static furniture (kit/ctcryo.py). The CT (l2:cryo:ct:*: gantry, rotor, moving table) is live and stays procedural.
+    'footprint:l2:cryo:robot',
+    'footprint:l2:cryo:console',
+    'footprint:l2:cryo:cylinders',
+    'footprint:l2:cryo:cabinet',
+    'footprint:l2:cryo:boom',
+    'footprint:l2:cryoctl:*',
     # the theatre's static furniture (or_furniture): back table, Mayo stand, the anaesthetist's stool, the console chairs (with the consoles'
     # foot pedals, which stand in the chairs' footprints), the circulator's desk (its monitor, stand and keyboard stay: metalDark above 1 m)
     'footprint:l2:or:backtable',
@@ -97,15 +114,18 @@ POSES = [
     ((-44.7, 9.4), (-51.6, 3.4)),       # the theatre from its south-east corner: canopy, control panel, storage and PACS on the west wall
     ((-44.6, -0.9), (-55.0, 1.3)),      # the theatre hall from the corridor: scrub trough, theatre door, lounge opening
     ((-44.9, 13.4), (-51.0, 21.2)),     # recovery: the three bays on the south façade, the island
-    ((-54.2, 20.6), (-61.0, 6.0)),      # the family lounge toward the north-west: glazing, armchairs, the slat wall
+    ((-53.7, 9.4), (-61.0, 2.8)),       # the family lounge toward the north-west: glazing, armchairs, the sofa
+    ((-53.8, 15.2), (-59.5, 18.0)),     # the cryoablation scan room from its door: console, robot cart, the gantry's place, the observation glass
+    ((-53.6, 11.2), (-58.5, 13.5)),     # the cryo control room: the operator's desk and the robot station under the observation glass
+    ((-61.3, 21.2), (-55.6, 14.6)),     # the scan room from its south-west corner: boom, robot, console, the door, the glass
 ]
 
-# the reflection probe (the terrazzo is glossy): the family lounge, where the glossy floor and the big glazing are
-PROBE = (-57.5, 1.6, 12.0)
+# the reflection probe (the terrazzo is glossy): the family lounge, where the glossy floor and the big glazing are (z 6: the lounge is z 2..10)
+PROBE = (-57.5, 1.6, 6.0)
 
 # accent swatches (materials.json Accent.palette): 0 ward A blue, 1 ward B green, 2 emergency red, 3 atrium orange, 4 diagnostics purple, 5 grey
-# (src/content/signs.json: the robotic theatre is 'diagnostics', recovery 'wardB')
-DOOR_ACCENT = {'l2Or': 'Accent:4', 'l2Pacu': 'Accent:1'}
+# (src/content/signs.json: the robotic theatre is 'diagnostics', recovery 'wardB', the CT cryoablation suite 'diagnostics')
+DOOR_ACCENT = {'l2Or': 'Accent:4', 'l2Pacu': 'Accent:1', 'l2Cryo': 'Accent:4', 'l2CryoInner': 'Accent:4', 'l2CryoControl': 'Accent:5'}
 
 
 def door_accent(d):
@@ -123,6 +143,11 @@ def skip_glazing(w, a, b):
     if not w['alongX'] and abs(w['c'] + 62.0) < 1e-6 and LOUNGE[2] <= m <= LOUNGE[3]:
         return True
     if not w['alongX'] and abs(w['c'] + 40.0) < 1e-6 and CORRIDOR[2] <= m <= CORRIDOR[3]:
+        return True
+    # the CT scan room has no windows (a radiation room): if the plan still lists glazing on its outer walls, cryo_room() draws them solid
+    if not w['alongX'] and abs(w['c'] + 62.0) < 1e-6 and CRYO[2] <= m <= CRYO[3]:
+        return True
+    if w['alongX'] and abs(w['c'] - 22.0) < 1e-6 and CRYO[0] <= m <= CRYO[1]:
         return True
     return False
 
@@ -644,8 +669,9 @@ def pacu(ctx):
     s = fp.get('l2:pacu:supply')
     if s:
         f = Frame(s['x'], s['z'], math.pi / 2)
-        base_run(geo, f, s['d'] - 0.1, s['w'] - 0.05, h=0.94, sink=-1.6)
-        wall_units(geo, Frame(PACU[0] + T / 2, s['z'], math.pi / 2), s['d'] - 1.3, y0=1.45, glass=True)
+        run = s['d'] - 0.1                  # the cabinet footprint is z 12.2..15.6 (R4: both cryo doors clear it): the sink sits near its south end
+        base_run(geo, f, run, s['w'] - 0.05, h=0.94, sink=-(run / 2 - 0.62))
+        wall_units(geo, Frame(PACU[0] + T / 2, s['z'], math.pi / 2), max(1.2, s['d'] - 0.9), y0=1.45, glass=True)
     p = fp.get('l2:pacu:plant')
     if p:
         fu.planter(geo, p['x'], p['z'], r=p['w'] / 2, seed=9)
@@ -659,33 +685,35 @@ def pacu(ctx):
 
 
 def lounge(ctx):
+    """The family lounge, the north half of the old one (z 2..10; the south half is the cryoablation suite): re-laid on the layout's footprints."""
     geo, pl = ctx.geo, ctx.pl
     fp = ctx.fur['footprints']
     # the floor-to-ceiling west façade
     for w in pl.walls():
         if w['cls'] == 'glassCut' and not w['alongX'] and abs(w['c'] + 62.0) < 1e-6:
             for a, b in pl.spans(w):
-                if skip_glazing(w, a, b):
+                if skip_glazing(w, a, b) and LOUNGE[2] <= (a + b) / 2 <= LOUNGE[3]:
                     curtain_wall(geo, w, a, b)
-    # the east wall: warm sand plaster, an oak slat feature behind the sofas
+    # the east wall: warm sand plaster, an oak slat feature behind the sofa that stands against it
     ef = LOUNGE[1] - T / 2
-    sofas = [f for k, f in fp.items() if k.startswith('l2:lounge:sofa')]
-    sa = min(f['z'] for f in sofas) - 1.6 if sofas else 6.2
-    sb = max(f['z'] for f in sofas) + 1.6 if sofas else 14.6
-    for s0, s1 in ((LOUNGE[2] + T / 2, sa), (sb, LOUNGE[3] - T / 2)):
-        wbox(geo, 'WallTintSand', False, ef, -1, s0, s1, 0.02, CH, 0.0, 0.004)
+    s0f = fp.get('l2:lounge:sofa0')
+    sz = s0f['z'] if s0f else 6.6
+    sa, sb = max(LOUNGE[2] + T / 2, sz - 1.6), min(LOUNGE[3] - T / 2, sz + 1.6)
+    for t0, t1 in ((LOUNGE[2] + T / 2, sa), (sb, LOUNGE[3] - T / 2)):
+        if t1 - t0 > 0.05:
+            wbox(geo, 'WallTintSand', False, ef, -1, t0, t1, 0.02, CH, 0.0, 0.004)
     fu.slat_wall(geo, False, ef, -1, sa, sb, 0.0, CH)
-    # the rug under the sofa group (covers the procedural rug plane, 3.2 x 7.2 m at (-55, 10.4))
-    k = root(geo, Frame(-55.0, 10.4))
-    k.rbox('Fabric', 0, 0.0, 0, 3.5, 0.018, 7.5, 0.06, axis='y', seg=3)
+    # the rug under the sofa group (covers the procedural rug plane)
+    rg = fp.get('l2:lounge:rug')
+    k = root(geo, Frame(rg['x'] if rg else -56.2, rg['z'] if rg else 6.6))
+    k.rbox('Fabric', 0, 0.0, 0, 3.0, 0.018, 3.6, 0.06, axis='y', seg=3)
     # seating
     for i in range(4):
         r = fp.get(f'l2:lounge:recliner{i}')
         if r:
             armchair(geo, Frame(r['x'], r['z'], r['rotationY']), mat='Fabric', seat_h=0.46)
-    for z in (8.5, 14.5):
-        t = fp.get(f'l2:lounge:side{z}')
-        if t:
+    for k_, t in sorted(fp.items()):
+        if k_.startswith('l2:lounge:side'):
             fu.side_table(geo, t['x'], t['z'], r=t['w'] / 2 - 0.01, h=0.5)
     for i in range(2):
         s = fp.get(f'l2:lounge:sofa{i}')
@@ -694,7 +722,7 @@ def lounge(ctx):
         t = fp.get(f'l2:lounge:table{i}')
         if t:
             low_table(geo, Frame(t['x'], t['z'], t['rotationY']), w=t['w'], d=t['d'], h=0.4)
-    # the tea point on the south wall (under the window) and the water cooler
+    # the tea point on the south wall (the control room's north wall behind it) and the water cooler
     tea = fp.get('l2:lounge:tea')
     if tea:
         f = Frame(tea['x'], tea['z'], math.pi)
@@ -718,13 +746,13 @@ def lounge(ctx):
         if p:
             fu.planter(geo, p['x'], p['z'], r=p['w'] / 2 - 0.02, seed=seed)
     # ceiling: smooth plaster with a recessed LED slot down the room, reading lights over the armchairs, wall washers on the slats
-    plaster_ceiling(geo, LOUNGE[0] + 0.08, LOUNGE[1] - T / 2, LOUNGE[2] + T / 2, LOUNGE[3] - T / 2, slots=[('z', -57.6, 3.2, 20.8)])
-    for z in (7.0, 10.0, 13.0, 16.0):
+    plaster_ceiling(geo, LOUNGE[0] + 0.08, LOUNGE[1] - T / 2, LOUNGE[2] + T / 2, LOUNGE[3] - T / 2, slots=[('z', -57.6, LOUNGE[2] + 0.5, LOUNGE[3] - 0.5)])
+    for z in (4.0, 6.2, 8.4):
         downlight(ctx, -60.3, z, power=12.0)
-    for z in (6.2, 8.6, 11.0, 13.4):
-        downlight(ctx, -53.55, z + 0.3, power=12.0)
-    for x in (-58.2, -55.8):
-        downlight(ctx, x, 21.0, power=12.0)
+    for z in (sa + 0.5, sz + 0.4, sb - 0.4):
+        downlight(ctx, -53.55, z, power=12.0)
+    for x in (-57.4, -55.0):
+        downlight(ctx, x, 8.9, power=12.0)
 
 
 def staff(ctx):
@@ -832,6 +860,224 @@ def facades(ctx):
             wbox(geo, 'SolidSurface', True, w['c'] + into * T / 2, into, a, b, 1.3, 1.322, -0.05, 0.035)
 
 
+# --- R4: the CT-guided, robot-assisted cryoablation suite (docs/R4-CRYO-SUITE.md) ---------------------------------------------------------------------
+# Footprint rects (drawn x0, x1, z0, z1) of docs/R4-CRYO-SUITE.md section 2, used when the plan does not carry the footprint (the plan wins).
+CRYO_RECTS = {
+    'l2:cryo:robot': (-58.25, -56.95, 15.85, 16.65),
+    'l2:cryo:console': (-59.35, -58.65, 14.1, 15.1),
+    'l2:cryo:cylinders': (-61.0, -60.2, 14.1, 14.7),
+    'l2:cryo:cabinet': (-61.0, -58.6, 21.35, 21.9),
+    'l2:cryo:boom': (-57.5, -57.3, 19.2, 19.4),
+    'l2:cryoctl:desk': (-61.4, -58.6, 12.2, 12.8),
+    'l2:cryoctl:station': (-58.0, -56.6, 12.2, 12.8),
+}
+
+
+def cryo_fp(ctx, key):
+    f = ctx.fur['footprints'].get(key)
+    if f:
+        return f
+    x0, x1, z0, z1 = CRYO_RECTS[key]
+    return {'id': key, 'x': (x0 + x1) / 2, 'z': (z0 + z1) / 2, 'w': x1 - x0, 'd': z1 - z0, 'rotationY': 0.0}
+
+
+def solid_span(geo, pl, w, a, b):
+    """A span of outer glazing drawn as a solid wall instead (the scan room has no windows)."""
+    line_box(geo, pl.wall_mat(dict(w, a=a, b=b)), w, a, b, GAP_H, pl.H + 0.06, T, drop=('up',))
+    line_box(geo, R('wall.shadowGap', 'ShadowGap'), w, a, b, 0.0, GAP_H, T - 2 * GAP_D, drop=('up', 'down'))
+
+
+def sage_panels(geo, along_x, face, into, a, b, holes=()):
+    """Seamless sage wall panels in 1.2 m modules with fine joints, 10 mm proud of a wall face (the theatre's wall language); over a door the
+    panels continue above its head."""
+    n = max(1, round((b - a) / 1.2))
+    edges = [a + (b - a) * i / n for i in range(n + 1)]
+    cuts = sorted(set([round(e, 5) for e in edges] + [round(h, 5) for hh in holes for h in hh if a < h < b]))
+    for i in range(len(cuts) - 1):
+        s0, s1 = cuts[i], cuts[i + 1]
+        g0 = 0.002 if any(abs(s0 - e) < 1e-4 for e in edges[1:-1]) else 0.0
+        g1 = 0.002 if any(abs(s1 - e) < 1e-4 for e in edges[1:-1]) else 0.0
+        mid = (s0 + s1) / 2
+        hole = next((hh for hh in holes if hh[0] - 1e-6 <= mid <= hh[1] + 1e-6), None)
+        lo = 0.1 if hole is None else DOOR_H + 0.085
+        wbox(geo, 'WallTintSage', along_x, face, into, s0 + g0, s1 - g1, lo, CH, 0.0, 0.01)
+
+
+def door_of(pl, did, default):
+    """(mid, width) of a door on its wall line, from the plan (else the brief's)."""
+    try:
+        d = pl.door(did)
+        return (d['z'] if d['wallAxis'] == 'z' else d['x']), d['width']
+    except StopIteration:
+        return default
+
+
+def trefoil(geo, f, size=0.3):
+    """A radiation warning sign on a wall (local +z out of the wall, origin at the sign's centre on the wall face): a yellow plate with the
+    black trefoil (a hub and three 60-degree blades)."""
+    k = root(geo, f)
+    k.rbox(sw(pt.YELLOW), 0, -size / 2, 0.005, size, size, 0.01, 0.02, axis='z', seg=3)
+    z = 0.0106
+    r0, r1 = size * 0.1, size * 0.4
+
+    def pt_(r, a):
+        return (r * math.cos(a), r * math.sin(a), z)
+
+    for c in (90, 210, 330):
+        a0, a1 = math.radians(c - 30), math.radians(c + 30)
+        n = 6
+        outer = [pt_(r1, a0 + (a1 - a0) * i / n) for i in range(n + 1)]
+        inner = [pt_(r0, a1 - (a1 - a0) * i / n) for i in range(n + 1)]
+        k.poly(sw(pt.BLACK), outer + inner)
+    k.poly(sw(pt.BLACK), [pt_(size * 0.06, 2 * math.pi * i / 14) for i in range(14)])       # the hub
+    return k
+
+
+def xray_lamp(geo, along_x, face, into, t, w=0.5):
+    """The "X-ray in use" lamp over a door: a graphite housing, a red panel and a glowing strip (the theatre hall's lamp, wider)."""
+    wbox(geo, sw(pt.GRAPHITE), along_x, face, into, t - w / 2, t + w / 2, 2.47, 2.63, 0.0, 0.05)
+    wbox(geo, 'Accent:2', along_x, face, into, t - w / 2 + 0.03, t + w / 2 - 0.03, 2.495, 2.605, 0.05, 0.053)
+    wbox(geo, 'LightPanel', along_x, face, into, t - w / 2 + 0.07, t + w / 2 - 0.07, 2.535, 2.565, 0.053, 0.0545)
+
+
+def lead_frame(geo, along_x, face, into, mid, width, lead=True):
+    """A lead-lined door frame: a graphite-grey leaded cover band round the architrave (the lining's skin: 50 mm wide; `lead`) and stainless
+    door guards 0.1..1.0 m on the wall beside it."""
+    h = width / 2 + 0.075
+    if lead:
+        wbox(geo, sw(pt.MGREY), along_x, face, into, mid - h - 0.05, mid - h, 0.0, DOOR_H + 0.125, 0.0, 0.006)
+        wbox(geo, sw(pt.MGREY), along_x, face, into, mid + h, mid + h + 0.05, 0.0, DOOR_H + 0.125, 0.0, 0.006)
+        wbox(geo, sw(pt.MGREY), along_x, face, into, mid - h, mid + h, DOOR_H + 0.075, DOOR_H + 0.125, 0.0, 0.006)
+    for sg in (-1, 1):
+        a0 = mid + sg * (h + 0.05)
+        a1 = mid + sg * (h + 0.3)
+        wbox(geo, 'Stainless', along_x, face, into, a0, a1, 0.1, 1.0, 0.0, 0.004)
+
+
+def cryo_room(ctx):
+    """The cryoablation scan room (z 13..22): architecture, the observation window, and the baked equipment. The CT gantry, its rotor and the
+    moving table, and the robot's arm, are LIVE (src/scene/cryoSuite): nothing here stands in the gantry's or the table's space."""
+    geo, pl = ctx.geo, ctx.pl
+    x0, x1, z0, z1 = CRYO[0] + T / 2, CRYO[1] - T / 2, CRYO[2] + T / 2, CRYO[3] - T / 2      # wall faces -61.9, -53.1, 13.1, 21.9
+    for w in pl.walls():                                                                      # no windows in a radiation room
+        if w['cls'] != 'glassCut':
+            continue
+        for a, b in pl.spans(w):
+            m = (a + b) / 2
+            if (not w['alongX'] and abs(w['c'] + 62.0) < 1e-6 and CRYO[2] <= m <= CRYO[3]) or \
+                    (w['alongX'] and abs(w['c'] - 22.0) < 1e-6 and CRYO[0] <= m <= CRYO[1]):
+                solid_span(geo, pl, w, a, b)
+    door_e = door_holes(pl, False, CRYO[1])
+    door_n = door_holes(pl, True, CRYO[2])
+    walls = [  # (along_x, face, into, a, b, holes)
+        (False, x0, +1, z0 + 0.01, z1 - 0.01, []),
+        (False, x1, -1, z0 + 0.01, z1 - 0.01, door_e),
+        (True, z1, -1, x0, x1, []),
+        (True, z0, +1, x0, x1, door_n),
+    ]
+    for along_x, face, into, a, b, holes in walls:
+        for s0, s1 in minus(a, b, holes):
+            arch.coved_skirting(geo, along_x, face, into, s0, s1, h=0.1, mat='TheatreFloor')
+    # sage panels behind the gantry (west) and on the supply wall (south); the east wall stays white plaster
+    sage_panels(geo, False, x0 + 0.01, +1, z0 + 0.01, z1 - 0.01)
+    sage_panels(geo, True, z1 - 0.01, -1, x0 + 0.01, x1 - 0.01)
+
+    # the observation window: the glass wall (z = 13) is full-height glass from the shell; below 0.95 and above 2.3 it is solid, and the lead
+    # glass sits in a stainless frame between two piers (the control room's desks stand under it)
+    wall = R('wall.hero', 'WallPaint')
+    hole = door_n[0] if door_n else (-54.885, -53.515)
+    xe = hole[0]                                                                                # the door's west edge, with its architrave
+    wx0, wx1 = x0 + 0.4, xe - 0.4
+    zc0, zc1 = CRYO[2] - T / 2 + 0.002, CRYO[2] + T / 2 - 0.002
+    geo.box(wall, x0, GAP_H, zc0, xe, 0.95, zc1)
+    geo.box(wall, x0, 2.3, zc0, xe, CH, zc1, drop=('up',))
+    geo.box(wall, x0, 0.95, zc0, wx0, 2.3, zc1)
+    geo.box(wall, wx1, 0.95, zc0, xe, 2.3, zc1)
+    for zz0, zz1 in ((zc0 + 0.02, zc1 - 0.02),):
+        geo.box('Stainless', wx0, 0.95, zz0, wx1, 0.985, zz1)                                  # sill
+        geo.box('Stainless', wx0, 2.265, zz0, wx1, 2.3, zz1)                                   # head
+        geo.box('Stainless', wx0, 0.985, zz0, wx0 + 0.03, 2.265, zz1)
+        geo.box('Stainless', wx1 - 0.03, 0.985, zz0, wx1, 2.265, zz1)
+    geo.box('Oak', wx0 - 0.02, 0.95, zc1 - 0.02, wx1 + 0.02, 0.97, zc1 + 0.07)       # a ledge on the scan-room side (the sill's cap)
+
+    # doors: the scan-room door (a lead-lined frame on both leaves' scan-room side, stainless guards both sides) and its lamp and sign
+    mid, wd = door_of(pl, 'l2Cryo', (16.8, 1.8))
+    lead_frame(geo, False, x1, -1, mid, wd)
+    lead_frame(geo, False, CRYO[1] + T / 2, +1, mid, wd, lead=False)                          # guards on the recovery side too
+    xray_lamp(geo, False, CRYO[1] + T / 2, +1, mid, w=0.5)
+    xray_lamp(geo, False, x1, -1, mid, w=0.5)
+    trefoil(geo, Frame(CRYO[1] + T / 2, mid + wd / 2 + 0.6, math.pi / 2, y=1.55), size=0.3)
+    mid2, wd2 = door_of(pl, 'l2CryoInner', (-54.2, 1.2))
+    lead_frame(geo, True, z0, +1, mid2, wd2)
+    fu.dispenser(geo, False, x1, -1, mid + wd / 2 + 0.5)
+
+    # the ceiling: sealed plaster with a recessed LED slot along the bore line and flush LED panels
+    slots = [('x', 17.4, CRYO[0] + 0.4, CRYO[1] - 0.4)]
+    plaster_ceiling(geo, x0, x1, z0, z1, slots=slots)
+    panels = [(-60.9, -59.7, 14.3, 14.9), (-58.1, -56.9, 14.3, 14.9), (-55.3, -54.1, 14.3, 14.9),
+              (-60.9, -59.7, 19.9, 20.5), (-55.3, -54.1, 19.9, 20.5), (-59.1, -57.9, 20.5, 21.1)]
+    for (a0, a1, b0, b1) in panels:
+        geo.box('SolidSurface', a0 - 0.02, CH - 0.004, b0 - 0.02, a1 + 0.02, CH, b1 + 0.02, drop=('up',))
+        geo.box('LightPanel', a0, CH - 0.006, b0, a1, CH - 0.003, b1, drop=('up',))
+    for (x, z) in ((-59.0, 15.9), (-55.5, 15.2), (-55.5, 19.3), (-59.8, 20.8), (-57.3, 14.5)):
+        downlight(ctx, x, z, power=10.0)
+
+    # the baked equipment (the footprints of docs/R4-CRYO-SUITE.md; the CT and the robot's arm are live)
+    rb = cryo_fp(ctx, 'l2:cryo:robot')
+    ctcryo.robot_base(geo, Frame(rb['x'], rb['z'], 0.0))
+    cs = cryo_fp(ctx, 'l2:cryo:console')
+    ctcryo.argon_console(geo, Frame(cs['x'], cs['z'], 0.0))
+    cy = cryo_fp(ctx, 'l2:cryo:cylinders')
+    ctcryo.cylinder_cart(geo, Frame(cy['x'], cy['z'], 0.0), console_at=(cs['x'] - cy['x'], cs['z'] - cy['z']))
+    bm = cryo_fp(ctx, 'l2:cryo:boom')
+    ctcryo.monitor_boom(geo, Frame(bm['x'], bm['z'], math.pi), ceiling=CH, spread=0.6)
+    cb = cryo_fp(ctx, 'l2:cryo:cabinet')
+    base_run(geo, Frame(cb['x'], cb['z'], math.pi), cb['w'] - 0.04, cb['d'] - 0.04, h=0.92, top='SolidSurface', front='Oak')
+    wall_units(geo, Frame(cb['x'], z1, math.pi), cb['w'] - 0.04, y0=1.35, glass=False)
+    # south wall: a gas panel at the head end, lead aprons on a rail, a hand-wash, a clock on the west wall
+    pk = root(geo, wall_at(True, z1 - 0.01, -1, -57.9))
+    pk.box('Stainless', -0.3, 1.1, 0.0, 0.3, 1.6, 0.012)
+    for i, (xx, yy, cc) in enumerate(((-0.14, 1.45, pt.WHITE), (0.14, 1.45, pt.BLUE), (-0.14, 1.25, pt.YELLOW), (0.14, 1.25, pt.GREEN))):
+        pt.gas_outlet(pk, xx, yy, cc, z=0.012)
+    ar = root(geo, wall_at(True, z1 - 0.01, -1, -56.4))
+    for xx in (-0.85, 0.85):
+        ar.cyl('Stainless', (xx, 1.6, 0.0), (xx, 1.6, 0.09), 0.008, seg=8)
+    ar.cyl('Stainless', (-0.85, 1.6, 0.09), (0.85, 1.6, 0.09), 0.011, seg=10)
+    for xx in (-0.55, 0.0, 0.55):
+        ar.rbox(sw(pt.SLATE), xx, 0.72, 0.125, 0.46, 0.86, 0.03, 0.025, axis='z', seg=3)
+        ar.box(sw(pt.MGREY), xx - 0.14, 1.4, 0.1, xx + 0.14, 1.58, 0.105)
+        ar.box(sw(pt.WHITE), xx - 0.1, 1.0, 0.141, xx + 0.1, 1.05, 0.1425)
+    ctcryo.wall_clock(geo, wall_at(False, x0 + 0.01, +1, 20.4), y=2.3)
+
+
+def cryo_control(ctx):
+    """The cryo control room (z 10..13): the CT operator's desk and the robot planning station under the observation glass, their chairs."""
+    geo, pl = ctx.geo, ctx.pl
+    d = cryo_fp(ctx, 'l2:cryoctl:desk')
+    ctcryo.ct_desk(geo, Frame(d['x'], d['z'], math.pi), w=d['w'], d=d['d'])
+    st = cryo_fp(ctx, 'l2:cryoctl:station')
+    ctcryo.station_desk(geo, Frame(st['x'], st['z'], math.pi), w=st['w'], d=st['d'])
+    # the operators' swivel chairs stay procedural (cryoRoom.ts draws them without a footprint, so no replaces key can hide them)
+    x0, x1, z0, z1 = CRYOCTL[0] + T / 2, CRYOCTL[1] - T / 2, CRYOCTL[2] + T / 2, CRYOCTL[3] - T / 2     # -61.9, -53.1, 10.1, 12.9
+    for along_x, face, into, a, b, holes in ((True, z0, +1, x0, x1, []), (False, x1, -1, z0, z1, door_holes(pl, False, CRYOCTL[1])),
+                                              (True, z1, -1, x0, x1, door_holes(pl, True, CRYOCTL[3]))):
+        for s0, s1 in minus(a, b, holes):
+            arch.coved_skirting(geo, along_x, face, into, s0, s1, h=0.1)
+    # the ceiling: plaster with three flush LED panels (a plain plaster ceiling keeps the zone's triangle budget: no tegular tiles here)
+    plaster_ceiling(geo, x0, x1, z0, z1)
+    for (a0, a1, b0, b1) in ((-60.6, -59.4, 11.2, 11.8), (-57.9, -56.7, 11.2, 11.8), (-55.2, -54.0, 11.2, 11.8)):
+        geo.box('SolidSurface', a0 - 0.02, CH - 0.004, b0 - 0.02, a1 + 0.02, CH, b1 + 0.02, drop=('up',))
+        geo.box('LightPanel', a0, CH - 0.006, b0, a1, CH - 0.003, b1, drop=('up',))
+    for x in (-60.0, -57.3):
+        downlight(ctx, x, 12.2, power=8.0)
+    # the north wall: the case-list display (flush, stainless) and a clock; a hand-rub by the door
+    wbox(geo, 'Stainless', True, z0, +1, -59.3, -57.9, 1.45, 2.15, 0.0, 0.015)
+    wbox(geo, 'Screen', True, z0, +1, -59.25, -57.95, 1.5, 2.1, 0.015, 0.017)
+    ctcryo.wall_clock(geo, wall_at(True, z0, +1, -56.3), y=2.2)
+    mid, wd = door_of(pl, 'l2CryoControl', (11.0, 1.0))
+    fu.dispenser(geo, False, x1, -1, mid + wd / 2 + 0.45)
+
+
 def build(ctx):
     if arch is None:
         return
@@ -842,6 +1088,8 @@ def build(ctx):
     preop(ctx)
     pacu(ctx)
     lounge(ctx)
+    cryo_room(ctx)
+    cryo_control(ctx)
     staff(ctx)
     sterile(ctx)
     corridor(ctx)

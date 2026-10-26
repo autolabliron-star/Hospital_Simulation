@@ -32,6 +32,7 @@ const KEPT_FOOTPRINTS: Record<string, string> = {
   'l2:or:console:teach': 'the teaching console: live viewer and status screens',
   'l2:or:vision': 'the vision cart: live endoscope screen',
   'l2:or:anaesthesia': 'the anaesthesia machine: live monitor',
+  'l2:cryo:ct': 'the cryo suite CT: gantry, rotor and moving table are live (src/scene/cryoSuite)',
   'command:wall': 'the command centre\'s video wall plinths (the wall\'s screens and bezels are live)',
 }
 
@@ -45,6 +46,7 @@ const KEPT_AREAS: Record<string, string> = {
   corridorB: 'room-door leaves of the overview cut, and the lab\'s pneumatic tube station',
   diagnostics: 'the blood-draw robots\' arm cradles (part of the animated robots)',
   l2Or: 'the theatre\'s surgical light heads, pendant and boom (walkOnly, animated faces)',
+  l2CryoControl: 'the operators\' swivel chairs (cryoRoom.ts draws them without a footprint)',
   l2Hall: 'the level-2 slab under the floor (never seen from inside) and a teal wall sign',
   imagingHall: 'imaging signage discs',
   mri: 'the MRI room\'s warning sign',

@@ -46,10 +46,12 @@ export function floorMaterial(a: Area): MatKey | null {
     case 'l2Hall':
     case 'l2Or':
     case 'l2Sterile':
+    case 'l2Cryo': // R4: the CT cryoablation room is clinical like the imaging scan rooms, its control room calmer
       return 'floorBlue'
     case 'l2PreOp':
     case 'l2Pacu':
     case 'l2Staff':
+    case 'l2CryoControl':
       return 'floorMint'
     case 'l2Lounge':
       return 'floorOak'

@@ -16,7 +16,8 @@
  * Materials are a deliberately short list, so the whole storey merges into about a dozen meshes: the same palette entries the building
  * already has, in the same shadow flags (every prim here lies on level 2, which never casts into the baked sun shadow: layout/index.ts).
  */
-import { LEVEL2_DX } from '@/sim/levels'
+import { LEVEL2_DX, l2 } from '@/sim/levels'
+import type { Vec2 } from '@/sim/types'
 import { BANDS, PACU, PREOP, SURGERY } from '@/sim/places'
 import { wardFrame, type Frame, type LayoutBuilder } from '@/scene/building/layout/builder'
 import { TILE } from '@/scene/building/layout/screenTiles'
@@ -83,10 +84,13 @@ function curtain(f: Frame, id: string, x: number, zWall: number, toward: 1 | -1,
   f.rect(`${id}:curtain`, x, mid, 0.14, 1.9)
 }
 
-/** A sofa for `len` metres facing local +z; `seatPrefix` makes it a two-seater (seats `<prefix>:0`, `<prefix>:1`). */
-function sofa(f: Frame, id: string, x: number, z: number, heading: number, seatPrefix: string, len = 2.2): void {
+/**
+ * A sofa for `len` metres facing local +z; `seatPrefix` makes it a two-seater (seats `<prefix>:0`, `<prefix>:1`). `approaches` (world, sim x) sets the
+ * seats' approach spots by hand where the builder's search would find none.
+ */
+function sofa(f: Frame, id: string, x: number, z: number, heading: number, seatPrefix: string, len = 2.2, approaches?: readonly Vec2[]): void {
   const c = f.sub(x, z, heading)
-  for (let k = 0; k < 2; k++) c.seat(`${seatPrefix}:${k}`, 'lounge', (k - 0.5) * (len / 2), 0.05, 0.5)
+  for (let k = 0; k < 2; k++) c.seat(`${seatPrefix}:${k}`, 'lounge', (k - 0.5) * (len / 2), 0.05, 0.5, approaches ? { approach: approaches[k] } : {})
   c.rbox(0, 0.05, 0, len, 0.35, 0.85, 'fabricSage', { r: 0.05 })
   c.rbox(0, 0.4, -0.3, len, 0.45, 0.22, 'fabricSage', { r: 0.07 })
   for (const s of [-1, 1]) c.rbox(s * (len / 2 - 0.09), 0.4, 0, 0.18, 0.3, 0.85, 'fabricSage', { r: 0.06 })
@@ -240,41 +244,49 @@ function buildPacu(b: LayoutBuilder, D: Frame): void {
   D.bedMonitor('pacu:station', ix + 0.5, 1.28, iz + 0.15, 0.494, 0.32, { ry: 0, lean: 0.12 })
   D.box(ix, 0.5, iz + 0.352, 2.0, 0.05, 0.012, 'glowTeal')
   D.rect('l2:pacu:island', ix, iz, 2.4, 0.8)
-  // supply cabinets along the west wall, north of the bays
-  D.rbox(-52.55, 0, 13.5, 0.5, 0.9, 4.6, 'whitePlastic', { r: 0.03 })
-  D.rbox(-52.55, 0.9, 13.5, 0.55, 0.04, 4.7, 'woodOak', { r: 0.015 })
-  D.rect('l2:pacu:supply', -52.55, 13.5, 0.55, 4.7)
+  // supply cabinets along the west wall, north of the bays: z 12.2..15.6, between the cryo suite's two doors (R4)
+  D.rbox(-52.55, 0, 13.9, 0.5, 0.9, 3.3, 'whitePlastic', { r: 0.03 })
+  D.rbox(-52.55, 0.9, 13.9, 0.55, 0.04, 3.4, 'woodOak', { r: 0.015 })
+  D.rect('l2:pacu:supply', -52.55, 13.9, 0.55, 3.4)
   plant(D, 'l2:pacu:plant', -45.0, 10.9, 1.1)
 }
 
 function buildLounge(b: LayoutBuilder, D: Frame): void {
   b.area = 'l2Lounge'
-  // four recliners facing the window wall, in the pockets of the west side; approached from the room behind them
-  for (let i = 0; i < 4; i++) {
-    recliner(D, `l2:lounge:recliner${i}`, -60.9, 7.0 + i * 3.0, -Math.PI / 2, `lounge:l2Lounge:recliner:${i}`, [Math.PI, 2.4, -2.4, Math.PI / 2, -Math.PI / 2])
+  // R4: the lounge is the north half of the old room (z 2..10); the cryoablation suite took the south half (cryoRoom.ts).
+  // three recliners facing the west window, approached from the room behind them, and a fourth in the south-west corner facing north
+  for (const [i, z] of [4.0, 6.2, 8.4].entries()) {
+    recliner(D, `l2:lounge:recliner${i}`, -60.9, z, -Math.PI / 2, `lounge:l2Lounge:recliner:${i}`, [Math.PI, 2.4, -2.4, Math.PI / 2, -Math.PI / 2])
   }
-  for (const z of [8.5, 14.5]) {
+  recliner(D, 'l2:lounge:recliner3', -58.4, 9.3, Math.PI, 'lounge:l2Lounge:recliner:3', [Math.PI / 2, -Math.PI / 2, 0.7, -0.7])
+  for (const z of [5.1, 7.3]) {
     D.cyl(-60.9, 0, z, 0.42, 0.45, 'woodOak')
     D.circle(`l2:lounge:side${z}`, -60.9, z, 0.24)
   }
-  // two sofas against the east wall facing west, with a low table each
-  sofa(D, 'l2:lounge:sofa0', -53.7, 8.0, -Math.PI / 2, 'lounge:l2Lounge:sofa0')
-  sofa(D, 'l2:lounge:sofa1', -53.7, 12.8, -Math.PI / 2, 'lounge:l2Lounge:sofa1')
-  coffeeTable(D, 'l2:lounge:table0', -55.5, 8.0, -Math.PI / 2, 0.9, 0.5)
-  coffeeTable(D, 'l2:lounge:table1', -55.5, 12.8, -Math.PI / 2, 0.9, 0.5)
-  // a soft rug under the sofa group, and a tea and water station on the south wall
-  D.plane(-55.0, 0.012, 10.4, 3.2, 7.2, 'fabricSage')
-  D.rect('l2:lounge:rug', -55.0, 10.4, 0.2, 0.2, { overhead: true }) // a marker at the rug's centre (not an obstacle): lets the authored zone replace the rug
-  D.rbox(-57.0, 0, 21.55, 3.2, 0.9, 0.6, 'whitePlastic', { r: 0.03 })
-  D.rbox(-57.0, 0.9, 21.55, 3.26, 0.04, 0.66, 'woodOak', { r: 0.015 })
-  D.cyl(-55.9, 0.94, 21.55, 0.16, 0.32, 'metalDark')
-  D.rbox(-58.1, 0.94, 21.5, 0.4, 0.3, 0.4, 'whitePlastic', { r: 0.04 })
-  D.rect('l2:lounge:tea', -57.0, 21.55, 3.26, 0.66)
-  D.rbox(-54.0, 0, 21.55, 0.34, 1.1, 0.34, 'whitePlastic', { r: 0.05 })
-  D.cyl(-54.0, 1.1, 21.55, 0.2, 0.18, 'glass')
-  D.circle('l2:lounge:cooler', -54.0, 21.55, 0.22)
-  plant(D, 'l2:lounge:plantN', -61.2, 3.2, 1.2)
-  plant(D, 'l2:lounge:plantS', -61.2, 19.6, 1.2)
+  // a sofa against the east wall facing west and one against the hall wall facing south, a low table in front of each
+  sofa(D, 'l2:lounge:sofa0', -53.7, 6.6, -Math.PI / 2, 'lounge:l2Lounge:sofa0')
+  // the south-facing sofa's front is its table: its guests step out at the ends (set by hand: the builder's search looks only 1 m out)
+  sofa(D, 'l2:lounge:sofa1', -54.6, 2.55, 0, 'lounge:l2Lounge:sofa1', 2.2, [
+    { x: l2(-56.15), z: 3.0 },
+    { x: l2(-53.65), z: 3.6 },
+  ])
+  coffeeTable(D, 'l2:lounge:table0', -55.5, 6.6, -Math.PI / 2, 0.9, 0.5)
+  coffeeTable(D, 'l2:lounge:table1', -54.6, 3.9, 0, 0.9, 0.5)
+  // a soft rug under the sofa group, and a tea and water station on the south wall (the cryo control room is behind it)
+  D.plane(-56.2, 0.012, 6.6, 3.0, 3.6, 'fabricSage')
+  D.rect('l2:lounge:rug', -56.2, 6.6, 0.2, 0.2, { overhead: true }) // a marker at the rug's centre (not an obstacle): lets the authored zone replace the rug
+  const tx = -55.4
+  const tz = 9.55
+  D.rbox(tx, 0, tz, 3.2, 0.9, 0.6, 'whitePlastic', { r: 0.03 })
+  D.rbox(tx, 0.9, tz, 3.26, 0.04, 0.66, 'woodOak', { r: 0.015 })
+  D.cyl(tx + 1.1, 0.94, tz, 0.16, 0.32, 'metalDark')
+  D.rbox(tx - 1.1, 0.94, tz - 0.05, 0.4, 0.3, 0.4, 'whitePlastic', { r: 0.04 })
+  D.rect('l2:lounge:tea', tx, tz, 3.26, 0.66)
+  D.rbox(-53.5, 0, 8.6, 0.34, 1.1, 0.34, 'whitePlastic', { r: 0.05 })
+  D.cyl(-53.5, 1.1, 8.6, 0.2, 0.18, 'glass')
+  D.circle('l2:lounge:cooler', -53.5, 8.6, 0.22)
+  plant(D, 'l2:lounge:plantN', -61.2, 2.7, 1.2)
+  plant(D, 'l2:lounge:plantS', -61.2, 9.4, 1.2)
 }
 
 function buildStaffRoom(b: LayoutBuilder, D: Frame): void {

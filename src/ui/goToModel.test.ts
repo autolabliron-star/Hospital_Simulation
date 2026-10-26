@@ -77,7 +77,7 @@ describe('Go to… menu: Level 2 · Surgery (R2)', () => {
     const group = buildGoToGroups().find((g) => g.id === 'level2')!
     expect(group.title).toBe('Level 2 · Surgery')
     expect(group.title).toBe(SURGERY_UI.goTo.group)
-    expect(l2Map).toEqual(['l2PreOp', 'l2Sterile', 'l2Or', 'l2Pacu', 'l2Lounge'])
+    expect(l2Map).toEqual(['l2PreOp', 'l2Sterile', 'l2Or', 'l2Pacu', 'l2Lounge', 'l2Cryo'])
     expect(group.items.map((i) => i.area)).toEqual(l2Map)
     expect(group.items.every((i) => i.label.length > 0 && i.detail.length > 0)).toBe(true)
   })

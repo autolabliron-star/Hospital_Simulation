@@ -245,6 +245,11 @@ export interface Task {
 }
 
 export type Title = 'surgeon' | 'assistant' | 'anaesthetist' | 'scrub' | 'circulator' | 'preOp' | 'pacu' | 'porter' | 'cleaner'
+  // R4: the cryoablation suite's people (src/sim/cryoSuite), who reuse the Staffer
+  | 'ir'
+  | 'ctRadiographer'
+  | 'sedation'
+  | 'wardPorter'
 
 export class Staffer extends Actor {
   /** The case (or '') that has this person for a job; the team's own routine leaves them alone meanwhile. */

@@ -23,6 +23,7 @@ import { KioskSection } from './KioskSection'
 import { LabBody } from './LabBody'
 import { OrBody } from './OrBody'
 import { PacuBody } from './PacuBody'
+import { CryoSuiteBody } from './CryoSuiteBody'
 import { PreOpBody } from './PreOpBody'
 
 /** How long the panel stays mounted after Esc so it can slide out. Matches `rp-out` in roomPanel.css. */
@@ -260,6 +261,8 @@ function RoomBody({ area }: { area: AreaId }) {
   if (area === 'l2Or') return <OrBody />
   if (area === 'l2Pacu') return <PacuBody />
   if (area === 'l2PreOp') return <PreOpBody />
+  // R4: the CT cryoablation suite and its control room
+  if (area === 'l2Cryo' || area === 'l2CryoControl') return <CryoSuiteBody />
   if (area === 'lobby')
     return (
       <>

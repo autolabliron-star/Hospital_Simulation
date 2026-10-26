@@ -37,6 +37,7 @@ import { DrawCentre } from './blood'
 import { Lab } from './lab'
 import { LiftBank } from './lifts'
 import { Surgery } from './surgery'
+import { CryoSuite } from './cryoSuite'
 import { VitalsService } from './vitals'
 import { warmErInFlight } from './er/inFlight'
 import { OpeningScript } from './opening/script'
@@ -95,6 +96,8 @@ export class Simulation {
   /** R2: the lifts (now real between level 1 and level 2) and the robotic surgery suite on level 2. */
   readonly lifts: LiftBank
   readonly surgery: Surgery
+  /** R4: the CT-guided, robot-assisted cryoablation suite on level 2 (its patients come down from the surgical ward and recover in PACU). */
+  readonly cryoSuite: CryoSuite
   /** Beds, meals and MealBots for the renderers and the HUD (L1). */
   readonly life: LivingDay
   /** L1 services (src/sim/beds, src/sim/day, src/sim/meals); stepped after the director. */
@@ -178,6 +181,8 @@ export class Simulation {
     this.world.lifts = this.lifts
     this.surgery = new Surgery(this.world, root.fork('surgery'), walkerFor)
     this.world.surgery = this.surgery
+    this.cryoSuite = new CryoSuite(this.world, root.fork('cryoSuite'), walkerFor)
+    this.world.cryoSuite = this.cryoSuite
     this.ctx = {
       t: t0,
       meds: this.meds,
@@ -198,6 +203,7 @@ export class Simulation {
       for (const p of createErStaff(this.world, root.fork('staff'), walkerFor)) this.addPerson(p)
       this.imaging.startOutpatients(t0)
       this.surgery.startDay(t0, this.opening)
+      this.cryoSuite.startDay(t0, this.opening)
       this.director = new Director(this.world, root.fork('director'), walkerFor, (p) => this.addPerson(p), t0)
       // visitors go to whoever lies in the bed now (L1 bed flow), not the morning's catalogue patient
       this.director.occupantName = (r) => this.beds.occupantName(r)
@@ -225,6 +231,7 @@ export class Simulation {
       this.blood.warmStart(startHour)
       this.lifts.warmStart(startHour)
       this.surgery.warmStart(startHour)
+      this.cryoSuite.warmStart(startHour)
       // the ward doctors (the shift change may have replaced them): the patients in bed were seen on the round that has gone by
       for (const p of this.people) if (p instanceof Doctor) p.warmStart(this.ctx, startHour)
     }
@@ -299,6 +306,7 @@ export class Simulation {
     this.lab.step(this.t, dt)
     this.lifts.step(this.t, dt)
     this.surgery.step(this.t, dt)
+    this.cryoSuite.step(this.t, dt)
     this.director?.step(this.t, dt)
     this.beds.step(this.t, dt)
     this.day.step(this.t, dt)
@@ -344,6 +352,7 @@ export class Simulation {
     this.lab.sync(alpha)
     this.lifts.sync(alpha)
     this.surgery.sync(alpha)
+    this.cryoSuite.sync(alpha)
     const people = this.people
     for (let i = 0; i < people.length; i++) {
       const p = people[i]

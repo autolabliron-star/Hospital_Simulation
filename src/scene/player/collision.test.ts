@@ -207,9 +207,9 @@ describe('you can walk everywhere the people can: from the plaza through the doo
       expect(r.ok, `door ${d.id}`).toBe(true)
       expect(Math.hypot(r.x - d.center.x, r.z - d.center.z), `door ${d.id}`).toBeLessThan(0.2)
     }
-    // both levels were walked (level 2 has its nine doors)
+    // both levels were walked (level 2 has its twelve doors: R4 added the cryo suite's three)
     expect(doors[1]).toBeGreaterThan(20)
-    expect(doors[2]).toBe(9)
+    expect(doors[2]).toBe(12)
   })
 
   it('to every patient room\'s bedside, the imaging consoles and the staff room', () => {

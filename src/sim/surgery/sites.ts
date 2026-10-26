@@ -234,7 +234,8 @@ export class SurgerySites {
         spotOf(Math.PI, [-55.8, -12.4]),
         spotOf(Math.PI, [-52.8, -13.4]),
       ],
-      loungeStand: [spotOf(0, [-58.2, 5.0]), spotOf(0, [-56.6, 5.0]), spotOf(0, [-58.2, 6.2]), spotOf(0, [-57.4, 15.0]), spotOf(0, [-58.4, 16.2]), spotOf(0, [-56.4, 10.4])],
+      // R4: the lounge is now drawn z 2..10 (the cryoablation suite took its south half)
+      loungeStand: [spotOf(0, [-58.2, 5.0]), spotOf(0, [-57.0, 5.0]), spotOf(0, [-58.2, 6.4]), spotOf(0, [-58.2, 7.8]), spotOf(0, [-56.8, 8.4]), spotOf(0, [-57.0, 4.2])],
       tableSurgeon: spotNear(SURGERY.staff.tableSurgeon, [-48.0, 5.2], [-47.9, 5.7], [-47.6, 4.9]),
       assistant: spotNear(SURGERY.staff.assistant, [-48.0, 6.2], [-47.8, 6.0]),
       assistantWait: spotNear(SURGERY.staff.assistantWait, [-46.8, 5.2], [-47.3, 5.5], [-46.4, 4.8]),

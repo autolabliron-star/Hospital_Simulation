@@ -29,6 +29,8 @@ export type StaffPost =
   | 'lab'
   /** R2: the robotic surgery suite on level 2. */
   | 'theatre'
+  /** R4: the CT-guided cryoablation suite on level 2. */
+  | 'cryoSuite'
 
 export interface StaffMember {
   id: string
@@ -133,6 +135,17 @@ export const THEATRE_STAFF: (StaffMember & { title: 'surgeon' | 'assistant' | 'a
   { id: 'or-cleaner', role: 'cleaner', post: 'theatre', shift: 'day', name: 'Cleaner Lina', title: 'cleaner' },
 ]
 
+/**
+ * R4: the CT-guided cryoablation suite on level 2 (on site CONFIG.cryoSuite.teamFromHour..teamToHour): the interventional radiologist, the CT
+ * radiographer, the sedation nurse, and the ward porter who brings the patient down from the surgical ward. Synthetic people only.
+ */
+export const CRYO_STAFF: (StaffMember & { title: 'ir' | 'ctRadiographer' | 'sedation' | 'wardPorter' })[] = [
+  { id: 'cryo-ir', role: 'doctor', post: 'cryoSuite', shift: 'office', name: 'Dr. Mireille', title: 'ir' },
+  { id: 'cryo-rad', role: 'radiographer', post: 'cryoSuite', shift: 'office', name: 'Radiographer Pavel', title: 'ctRadiographer' },
+  { id: 'cryo-nurse', role: 'nurse', post: 'cryoSuite', shift: 'office', name: 'Nurse Adaeze', title: 'sedation' },
+  { id: 'cryo-porter', role: 'porter', post: 'cryoSuite', shift: 'day', name: 'Porter Lorcan', title: 'wardPorter' },
+]
+
 // ---------------------------------------------------------------------------------------------
 // The schema (F-34): the staff lists are checked at module load, so a typo names the list and the member instead of failing somewhere later.
 // Each list of values is a Record keyed by the union, so the compiler rejects a missing or an extra value.
@@ -166,6 +179,7 @@ const POST_CHECK: Record<StaffPost, true> = {
   kiosk: true,
   lab: true,
   theatre: true,
+  cryoSuite: true,
 }
 const SHIFT_CHECK: Record<ShiftId, true> = { day: true, night: true, office: true }
 const WARDS: readonly WardId[] = ['A', 'B']
@@ -193,9 +207,9 @@ export const StaffListsSchema = z.array(z.array(StaffMemberSchema)).superRefine(
     }),
   )
 })
-parseOrThrow(StaffListsSchema, [STAFF, NIGHT_STAFF, HOSTS, W4_STAFF, THEATRE_STAFF], 'src/content/staff.ts')
+parseOrThrow(StaffListsSchema, [STAFF, NIGHT_STAFF, HOSTS, W4_STAFF, THEATRE_STAFF, CRYO_STAFF], 'src/content/staff.ts')
 
-const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF, ...THEATRE_STAFF].map((s) => [s.id, s]))
+const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF, ...THEATRE_STAFF, ...CRYO_STAFF].map((s) => [s.id, s]))
 
 export function staffName(id: string): string {
   return BY_ID.get(id)?.name ?? id

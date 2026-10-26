@@ -360,6 +360,12 @@ export type SimEventType =
   | 'whoTimeOut'
   | 'whoSignOut'
   | 'pacuDischarge'
+  // the CT-guided cryoablation suite on level 2 (R4)
+  | 'cryoArrived'
+  | 'cryoPlanned'
+  | 'cryoNeedle'
+  | 'cryoFreeze'
+  | 'cryoDone'
 
 export interface SimEvent {
   /** Sequential, stable across replays with the same seed. */
@@ -1039,6 +1045,8 @@ export interface SurgeryBayState {
   patientId: string | null
   since: number
   curtain: boolean
+  /** R4: a patient of another service lying in this bay (the cryoablation suite's): the name the boards show. */
+  guestName?: string | null
 }
 
 export interface SurgeryState {
@@ -1064,5 +1072,95 @@ export interface LiftCarState {
 
 export interface LiftsState {
   cars: LiftCarState[]
+  version: number
+}
+
+// ---------------------------------------------------------------------------------------------
+// R4: the CT-guided, robot-assisted cryoablation suite (src/sim/cryoSuite; docs/R4-CRYO-SUITE.md)
+// ---------------------------------------------------------------------------------------------
+
+export type CryoStep =
+  | 'idle'
+  | 'arrive'
+  | 'sedation'
+  | 'planningCt'
+  | 'planning'
+  | 'aim'
+  | 'checkCt'
+  | 'freeze1'
+  | 'thaw'
+  | 'freeze2'
+  | 'activeThaw'
+  | 'needlesOut'
+  | 'finalCt'
+  | 'dressing'
+  | 'out'
+  | 'turnover'
+export const CRYO_STEPS: readonly CryoStep[] = [
+  'idle', 'arrive', 'sedation', 'planningCt', 'planning', 'aim', 'checkCt', 'freeze1', 'thaw', 'freeze2', 'activeThaw', 'needlesOut', 'finalCt', 'dressing', 'out', 'turnover',
+] as const
+
+export type CryoRobotPhase = 'stowed' | 'deploying' | 'aiming' | 'aligned' | 'retracting'
+
+export interface CryoNeedleState {
+  index: number
+  /** The planned path in the axial planning slice, mm from the tumour centre (+x the patient's left, +y posterior): skin entry and tip. */
+  entry: { x: number; y: number }
+  tip: { x: number; y: number }
+  /** Offset along the body from the target slice (mm, + toward the head): the paths fan a little in 3D. */
+  dz: number
+  /** 0 not in .. 1 at the tip (pushed through the robot's guide). */
+  inserted: number
+  /** The robot's aiming error once aligned (mm). */
+  errorMm: number
+  active: boolean
+  tempC: number
+}
+
+export interface CryoCaseView {
+  id: string
+  patientId: string | null
+  name: string
+  demo: boolean
+  plannedIn: number
+  step: CryoStep | 'scheduled' | 'pacu' | 'done'
+  wheelsIn: number | null
+  wheelsOut: number | null
+  needles: number
+  tumourMm: number
+}
+
+export interface CryoSuiteState {
+  caseId: string | null
+  patientId: string | null
+  /** The patient's synthetic image seed (the CT painter's base slice). */
+  imageSeed: number
+  step: CryoStep
+  stepSince: number
+  stepEnds: number | null
+  /** 'aim' and 'needlesOut': the needle being worked on; -1 otherwise. */
+  needle: number
+  /** CT: table 0 out .. 1 in (the sim carries the patient), rotor 0..1, lasers. */
+  tablePos: number
+  rotor: number
+  lasers: boolean
+  /** 0..1 through the current scan (planningCt, checkCt, finalCt). */
+  scan: number
+  robot: { phase: CryoRobotPhase; needle: number; since: number; motionSeed: number }
+  needles: CryoNeedleState[]
+  tumourMm: number
+  /** The ice ball 0 .. 1 (full size at the end of freeze 2), and its size now (mm). */
+  ice: number
+  iceMm: { short: number; long: number }
+  /** The temperature sensor at the tumour margin (deg C). */
+  marginC: number
+  argon: boolean
+  heater: boolean
+  /** Seconds into the current freeze or thaw (the console's timer). */
+  timer: number
+  demo: boolean
+  /** The demo is booked to follow the case in the room. */
+  demoQueued: boolean
+  cases: CryoCaseView[]
   version: number
 }

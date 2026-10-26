@@ -30,6 +30,7 @@ import { buildDrawInteractables } from './w4/drawRegs'
 import { buildKioskInteractables } from './w4/kioskRegs'
 import { buildLabInteractables } from './w4/labRegs'
 import { buildSurgeryInteractables } from './surgery/surgeryRegs'
+import { cryoSuiteRegs } from './cryoSuite/cryoRegs'
 
 /** The part of the sim the labels read: who lies in the bed (the bed board's answer, the one a prescription is checked against). */
 export interface RegSim {
@@ -150,6 +151,7 @@ export function registerWalkInteractables(host: RegHost): () => void {
     ...buildDrawInteractables(host),
     ...buildLabInteractables(host),
     ...buildSurgeryInteractables(host),
+    ...cryoSuiteRegs(host),
   ]
   const undo = all.map((item) => useInteract.getState().register(item))
   return () => {

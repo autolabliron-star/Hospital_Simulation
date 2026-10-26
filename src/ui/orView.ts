@@ -39,6 +39,7 @@ export function minutesSince(from: number, now: number): number {
 /** The case of a bay: by the patient in it, or by the bay seat the case says it is in. Null for an empty bay or a patient not on the list. */
 export function caseOfBay(cases: readonly SurgeryCaseView[], bay: SurgeryBayState): SurgeryCaseView | null {
   if (bay.patientId === null) return null
+  if (bay.guestName) return null // R4: another service's patient (the cryo suite): never a surgery case that used the bay earlier
   return cases.find((c) => c.patientId === bay.patientId) ?? cases.find((c) => c.bay === bay.seatId) ?? null
 }
 

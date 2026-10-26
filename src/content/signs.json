@@ -17,6 +17,8 @@
     "l2Or": { "label": "Robotic theatre", "detail": "da Vinci 5 suite", "accent": "diagnostics" },
     "l2Pacu": { "label": "Recovery", "detail": "Three monitored bays", "accent": "wardB" },
     "l2Lounge": { "label": "Family lounge", "detail": "Waiting and day-case discharge", "accent": "atrium" },
+    "l2Cryo": { "label": "CT cryoablation", "detail": "Robot-guided, CT-guided", "accent": "diagnostics" },
+    "l2CryoControl": { "label": "Cryoablation control", "detail": "Staff only", "accent": "neutral" },
     "l2Sterile": { "label": "Sterile supply", "detail": "Instrument trays and drapes", "accent": "neutral" },
     "l2Staff": { "label": "Theatre staff", "detail": "Staff only", "accent": "neutral" },
     "l2LiftA": { "label": "Lifts", "detail": "Back to Level 1", "accent": "neutral" },
@@ -65,7 +67,10 @@
       "l2Staff": { "label": "Theatre staff" },
       "l2Or": { "label": "Robotic theatre" },
       "l2Lounge": { "label": "Family lounge" },
-      "l2Pacu": { "label": "Recovery" }
+      "l2Pacu": { "label": "Recovery" },
+      "l2Cryo": { "label": "CT cryoablation", "sub": "X-ray in use" },
+      "l2CryoControl": { "label": "Cryo control", "sub": "Staff only" },
+      "l2CryoInner": { "label": "CT scan room" }
     }
   }
 }

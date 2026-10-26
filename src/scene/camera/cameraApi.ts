@@ -249,6 +249,8 @@ const SHOTS: Partial<Record<AreaId, Shot>> = {
   l2Or: { target: { x: -48.6, y: UP + 0.9, z: 6.2 }, pitchDeg: 48, yawDeg: 0, box: { x0: -53, x1: -44, y0: UP, y1: UP + 2.6, z0: 2, z1: 10 } },
   l2PreOp: { target: { x: -52.5, y: UP + 0.7, z: -16 }, pitchDeg: 50, yawDeg: 0, box: { x0: -62, x1: -44, y0: UP, y1: UP + 2.2, z0: -22, z1: -10 } },
   l2Pacu: { target: { x: -48.5, y: UP + 0.7, z: 16 }, pitchDeg: 50, yawDeg: 180, box: { x0: -53, x1: -44, y0: UP, y1: UP + 2.2, z0: 10, z1: 22 } },
+  // R4: the CT cryoablation room from the east (the recovery side), along the table to the gantry, with the robot docked at the near (north) flank
+  l2Cryo: { target: { x: -57.5, y: UP + 0.9, z: 17.4 }, pitchDeg: 48, yawDeg: 90, box: { x0: -62, x1: -53, y0: UP, y1: UP + 2.4, z0: 13, z1: 22 } },
 }
 
 function clamp(v: number, lo: number, hi: number): number {

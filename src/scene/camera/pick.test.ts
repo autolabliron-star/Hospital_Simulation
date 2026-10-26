@@ -57,7 +57,7 @@ describe('picking with Level 2 shown', () => {
   })
 
   it('finds every level-2 room from above its centre, and each one is a level-2 area (never a ground-floor room under it)', () => {
-    expect(L2_AREAS.length).toBe(10)
+    expect(L2_AREAS.length).toBe(12) // R4: + the cryo suite and its control room
     for (const id of L2_AREAS) {
       const { area, hit } = rayAt(drawnCentre(id), 2)
       expect(area?.id, id).toBe(id)

@@ -349,6 +349,9 @@ export class Team {
         }
         return this.base(s)
       }
+      default:
+        // (R4: the cryoablation suite's titles share the Staffer; they are never on this team)
+        return this.base(s)
     }
   }
 }

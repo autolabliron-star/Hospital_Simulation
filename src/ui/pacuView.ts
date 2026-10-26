@@ -39,7 +39,7 @@ export function pacuView(state: SurgeryState, t: number): PacuView {
       n,
       label,
       occupied: true,
-      patient: c ? c.name : NO_VALUE,
+      patient: c ? c.name : (bay.guestName ?? NO_VALUE),
       since: minutesText(minutesSince(bay.since, t)),
       outcome: c ? SURGERY_COPY.outcomes[c.outcome] : null,
     }

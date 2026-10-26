@@ -39,7 +39,7 @@ describe('a whole morning with the full population (M3 gate)', () => {
     const sim = new Simulation(2026)
     const stillIn = new Map<string, number>()
     const problems: string[] = []
-    let at1030: { people: number; lobby: { taken: number; total: number }; byRole: Record<string, number> } | null = null
+    let at1030: { people: number; lobby: { taken: number; total: number }; byRole: Record<string, number>; cryo: number } | null = null
     let simMs = 0
     let steps = 0
 
@@ -91,7 +91,10 @@ describe('a whole morning with the full population (M3 gate)', () => {
       if (!at1030 && sim.t >= hour(10.5)) {
         const byRole: Record<string, number> = {}
         for (const e of sim.entities.values()) byRole[e.role] = (byRole[e.role] ?? 0) + 1
-        at1030 = { people: sim.entities.size, lobby: sim.seats.occupancy({ kind: 'waiting', area: 'lobby' }), byRole }
+        // R4: the cryoablation suite's people (its team, the first patient, maybe the ward porter) count toward the band too
+        let cryo = 0
+        for (const e of sim.entities.values()) if (e.id.startsWith('cryo-')) cryo++
+        at1030 = { people: sim.entities.size, lobby: sim.seats.occupancy({ kind: 'waiting', area: 'lobby' }), byRole, cryo }
       }
     }
 
@@ -104,7 +107,7 @@ describe('a whole morning with the full population (M3 gate)', () => {
       .sort((a, b) => a - b)
     const stepUs = (simMs / steps) * 1000
     console.log(
-      `[M3] 10:30 population ${at1030?.people} ${JSON.stringify(at1030?.byRole)}; lobby ${at1030?.lobby.taken}/${at1030?.lobby.total}; ` +
+      `[M3] 10:30 population ${at1030?.people} (cryo ${at1030?.cryo}) ${JSON.stringify(at1030?.byRole)}; lobby ${at1030?.lobby.taken}/${at1030?.lobby.total}; ` +
         `ER finished ${er.finished.length} ${JSON.stringify(outcomes)}, median stay ${los[Math.floor(los.length / 2)]?.toFixed(0)} min; ` +
         `longest wait for cleaning ${er.maxCleanWait.toFixed(0)} s; step ${stepUs.toFixed(1)} µs`,
     )
@@ -114,6 +117,9 @@ describe('a whole morning with the full population (M3 gate)', () => {
     expect(at1030).not.toBeNull()
     expect(at1030!.people).toBeGreaterThanOrEqual(80)
     expect(at1030!.people).toBeLessThanOrEqual(130)
+    // R4: the cryoablation suite is at work at 10:30 (the radiologist, the radiographer, the nurse and the first patient) and fired no safety net
+    expect(at1030!.cryo).toBeGreaterThanOrEqual(4)
+    expect(sim.cryoSuite.stuckFixes, sim.cryoSuite.stuckLog.join(' | ')).toBe(0)
     expect(at1030!.lobby.taken / at1030!.lobby.total).toBeGreaterThanOrEqual(0.8)
     // everyone who came to the ER more than 2 h before 12:30 is through it (discharged, admitted or gave up); a real stay is 1-4 h, the long ones are admissions
     const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < end - 2 * 3600)

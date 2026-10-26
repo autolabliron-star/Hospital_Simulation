@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 import materials as mt  # noqa: E402
 from common import Frame, Geo  # noqa: E402
-from kit import arch, base, cafe, cryo, er, patient, support, theatre  # noqa: E402
+from kit import arch, base, cafe, cryo, ctcryo, er, patient, support, theatre  # noqa: E402
 
 # item -> (call, triangle budget)
 ITEMS = {
@@ -56,6 +56,14 @@ ITEMS = {
     'support.wheelchair': (lambda g, n: support.wheelchair(g, Frame(0, 0), node=n), 3500),
     'support.beam_seating(3)': (lambda g, n: support.beam_seating(g, Frame(0, 0), n=3), 1500),
     'cryo.console': (lambda g, n: cryo.console(g, Frame(0, 0), node=n), 4000),
+    'ctcryo.robot_base': (lambda g, n: ctcryo.robot_base(g, Frame(0, 0), node=n), 4000),
+    'ctcryo.argon_console': (lambda g, n: ctcryo.argon_console(g, Frame(0, 0), node=n), 4000),
+    'ctcryo.cylinder_cart': (lambda g, n: ctcryo.cylinder_cart(g, Frame(0, 0), node=n), 2200),
+    'ctcryo.monitor_boom': (lambda g, n: ctcryo.monitor_boom(g, Frame(0, 0, math.pi)), 2000),
+    'ctcryo.ct_desk': (lambda g, n: ctcryo.ct_desk(g, Frame(0, 0, math.pi)), 3000),
+    'ctcryo.swivel_chair': (lambda g, n: ctcryo.swivel_chair(g, Frame(0, 0)), 600),
+    'ctcryo.wall_clock': (lambda g, n: ctcryo.wall_clock(g, Frame(0, 0)), 300),
+    'ctcryo.station_desk': (lambda g, n: ctcryo.station_desk(g, Frame(0, 0, math.pi)), 3000),
     'theatre.anaesthesia_pendant': (lambda g, n: theatre.supply_pendant(g, Frame(0, 0), node=n), 3500),
     'theatre.surgeon_pendant': (lambda g, n: theatre.supply_pendant(g, Frame(0, 0), node=n, kind='surgeon'), 3000),
     'theatre.surgical_light': (lambda g, n: theatre.surgical_light(g, Frame(0, 0), node=n), 6000),

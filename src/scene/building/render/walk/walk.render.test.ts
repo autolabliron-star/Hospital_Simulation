@@ -358,7 +358,7 @@ describe('W3: the leaves as solid boxes (writeLeafBlockers)', () => {
     for (let i = 0; i < n; i++) {
       const b = read(out, i)
       expect(Math.hypot(b.ux, b.uz)).toBeCloseTo(1, 9)
-      expect(b.hu).toBeGreaterThan(0.25)
+      expect(b.hu).toBeGreaterThan(0.22) // R4: the narrowest auto door is the cryo control room's, 1.0 m: two 0.475 m leaves
       expect(b.hv).toBeGreaterThan(0.02)
     }
   })

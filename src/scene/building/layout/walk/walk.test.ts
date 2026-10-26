@@ -412,7 +412,7 @@ describe('door leaves', () => {
     expect(walk.doors.filter((d) => d.kind === 'swing' && levelOf(d.x) === 2).map((d) => d.id)).toEqual(['l2Staff'])
     expect(walk.doors.filter((d) => d.kind === 'swing').length).toBe(22)
     // level 2's sliding doors: both lifts, pre-op, sterile supply, the OR and recovery (the hall and the lounge are open passages)
-    expect(walk.doors.filter((d) => d.kind === 'auto' && levelOf(d.x) === 2).map((d) => d.id).sort()).toEqual(['l2LiftA', 'l2LiftB', 'l2Or', 'l2Pacu', 'l2PreOp', 'l2Sterile'])
+    expect(walk.doors.filter((d) => d.kind === 'auto' && levelOf(d.x) === 2).map((d) => d.id).sort()).toEqual(['l2Cryo', 'l2CryoControl', 'l2CryoInner', 'l2LiftA', 'l2LiftB', 'l2Or', 'l2Pacu', 'l2PreOp', 'l2Sterile'])
   })
 
   it('a swing leaf swings into the room beyond and its whole sweep clears every footprint of the layout', () => {

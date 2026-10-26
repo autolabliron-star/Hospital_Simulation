@@ -1,0 +1,214 @@
+/*
+ * R4: the CT cryoablation suite panel (src/ui/CryoSuiteBody.tsx). Same frosted language as the room panel (roomPanel.css has the shared .rp-* pieces and
+ * the .sv-bar bar, hud.css the chips, metrics and the send button); only what is specific to the suite is here.
+ */
+
+.cr {
+  display: flex;
+  flex-direction: column;
+}
+
+.cr-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cr-tag {
+  color: var(--hud-muted);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.cr-picture-wrap {
+  position: relative;
+  margin-top: 8px;
+}
+
+.cr-picture {
+  display: block;
+  width: 100%;
+  max-width: 384px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: #05080a;
+}
+
+.cr-toggle {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(5, 8, 10, 0.72);
+}
+
+.cr-toggle__btn {
+  border: 0;
+  border-radius: 7px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #c9d6db;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cr-toggle__btn[aria-pressed='true'] {
+  color: #fff;
+  background: var(--teal);
+}
+
+.cr-now {
+  margin: 0;
+}
+
+.cr-caption {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--hud-muted);
+}
+
+.cr-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cr-step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cr-step__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.cr-step[data-state='done'] .cr-step__dot {
+  background: var(--teal);
+}
+
+.cr-step[data-state='current'] .cr-step__dot {
+  width: 10px;
+  height: 10px;
+  background: var(--teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 25%, transparent);
+}
+
+.cr-step__label {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.cr-needles {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-needles td {
+  padding: 3px 4px;
+  vertical-align: middle;
+}
+
+.cr-needle__in {
+  width: 72px;
+}
+
+.cr-needle__aligned {
+  color: var(--hud-muted);
+}
+
+.cr-needle__temp {
+  text-align: right;
+}
+
+.cr-needle[data-active='true'] .cr-needle__temp {
+  color: var(--teal);
+  font-weight: 650;
+}
+
+.cr-console {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cr-lamps {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 0;
+  font-size: 11.5px;
+}
+
+.cr-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--hud-muted);
+}
+
+.cr-lamp::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.cr-lamp[data-on='true'] {
+  color: inherit;
+  font-weight: 600;
+}
+
+.cr-lamp[data-on='true'][data-kind='argon']::before {
+  background: var(--teal);
+}
+
+.cr-lamp[data-on='true'][data-kind='heater']::before {
+  background: #e3a23a;
+}
+
+.cr-case {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.cr-case__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-muted);
+}
+
+.cr-case[data-current='true'] .cr-case__step {
+  color: #fff;
+  background: var(--teal);
+}
+
+.cr-start {
+  width: 100%;
+}
+
+.cr-note {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+}
+
+.cr-card p {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cr-honesty {
+  font-size: 11px;
+}

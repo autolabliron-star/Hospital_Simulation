@@ -110,6 +110,9 @@ export type AreaId =
   | 'l2Or'
   | 'l2Pacu'
   | 'l2Lounge'
+  // R4: the CT-guided, robot-assisted cryoablation suite (the south of the old family lounge)
+  | 'l2CryoControl'
+  | 'l2Cryo'
   | `room:${string}`
 
 export type AreaKind = 'public' | 'clinical' | 'staff' | 'robot' | 'room' | 'service'
@@ -344,7 +347,10 @@ export const AREAS: Area[] = [
   { id: 'l2Hall', label: 'Theatre hall', subtitle: 'Scrub sinks', rect: { x0: l2(-62), x1: l2(-44), z0: -2, z1: 2 }, kind: 'staff', mapLabel: false },
   { id: 'l2Or', label: 'Robotic theatre', subtitle: 'da Vinci 5 surgical system', rect: { x0: l2(-53), x1: l2(-44), z0: 2, z1: 10 }, kind: 'clinical', mapLabel: true },
   { id: 'l2Pacu', label: 'Recovery', subtitle: 'Post-anaesthesia care (PACU), three bays', rect: { x0: l2(-53), x1: l2(-44), z0: 10, z1: 22 }, kind: 'clinical', mapLabel: true },
-  { id: 'l2Lounge', label: 'Family lounge', subtitle: 'Level 2: waiting and day-case discharge', rect: { x0: l2(-62), x1: l2(-53), z0: 2, z1: 22 }, kind: 'public', mapLabel: true },
+  { id: 'l2Lounge', label: 'Family lounge', subtitle: 'Level 2: waiting and day-case discharge', rect: { x0: l2(-62), x1: l2(-53), z0: 2, z1: 10 }, kind: 'public', mapLabel: true },
+  // R4: the CT-guided, robot-assisted cryoablation suite (docs/R4-CRYO-SUITE.md), both rooms entered from recovery
+  { id: 'l2CryoControl', label: 'Cryoablation control', subtitle: 'CT console and robot planning', rect: { x0: l2(-62), x1: l2(-53), z0: 10, z1: 13 }, kind: 'staff', mapLabel: false },
+  { id: 'l2Cryo', label: 'CT cryoablation', subtitle: 'Robot-guided freezing of small kidney tumours', rect: { x0: l2(-62), x1: l2(-53), z0: 13, z1: 22 }, kind: 'clinical', mapLabel: true },
   ...ROOMS.map(
     (r): Area => ({ id: `room:${r.id}`, label: `Room ${r.id}`, subtitle: '', rect: r.rect, kind: 'room', ward: r.ward, mapLabel: false }),
   ),
@@ -412,6 +418,10 @@ export const DOORS: DoorSpec[] = [
   { id: 'l2Or', center: { x: l2(-47), z: 2 }, width: 1.8, wallAxis: 'x', a: 'l2Hall', b: 'l2Or', kind: 'auto' },
   { id: 'l2Lounge', center: { x: l2(-57.5), z: 2 }, width: 2, wallAxis: 'x', a: 'l2Hall', b: 'l2Lounge', kind: 'opening' },
   { id: 'l2Pacu', center: { x: l2(-44), z: 12.5 }, width: 1.8, wallAxis: 'z', a: 'l2Corridor', b: 'l2Pacu', kind: 'auto' },
+  // R4: the cryoablation suite, off recovery's west wall, and the control room's inner door through the observation wall
+  { id: 'l2CryoControl', center: { x: l2(-53), z: 11.0 }, width: 1.0, wallAxis: 'z', a: 'l2Pacu', b: 'l2CryoControl', kind: 'auto' },
+  { id: 'l2Cryo', center: { x: l2(-53), z: 16.8 }, width: 1.8, wallAxis: 'z', a: 'l2Pacu', b: 'l2Cryo', kind: 'auto' },
+  { id: 'l2CryoInner', center: { x: l2(-54.2), z: 13 }, width: 1.2, wallAxis: 'x', a: 'l2CryoControl', b: 'l2Cryo', kind: 'auto' },
   { id: 'hubA', center: { x: 0, z: -16 }, width: 2, wallAxis: 'x', a: 'corridorA', b: 'hubA', kind: 'counter' },
   { id: 'hubB', center: { x: 0, z: 16 }, width: 2, wallAxis: 'x', a: 'corridorB', b: 'hubB', kind: 'counter' },
   ...ROOMS.map(
@@ -1029,3 +1039,63 @@ export const PACU = {
 
 /** Where the theatre team starts its day and waits between cases (the theatre staff room). */
 export const THEATRE_BASE: Spot = { at: { x: l2(-57.5), z: -6 }, heading: 0 }
+
+/**
+ * R4: the CT-guided, robot-assisted cryoablation suite (docs/R4-CRYO-SUITE.md). Scan room `l2Cryo` (drawn x -62..-53, z 13..22), control room
+ * `l2CryoControl` (z 10..13, observation glass at z 13); both entered from recovery. The CT bore runs along x with the gantry at the WEST end and
+ * the table on its EAST side (the imaging CT turned by pi about `ct.machine`): the patient lies head west (heading +pi/2), the left flank north,
+ * where the needle-guidance robot is floor-docked all day. Screens: the faces are live (scene), the bezels, boom and desks baked.
+ * Headings: atan2(dx, dz), 0 faces +z (south), pi faces north.
+ */
+export const CRYO_SUITE = {
+  ct: {
+    machine: { x: l2(-60.0), z: 17.4 } as Vec2,
+    /** Seat 'scanTable:cryo' (kind scanTable, pose lie) at `out`; `in` puts the kidney in the rotor plane (x -59.8). The sim carries the patient with tablePos. */
+    table: { out: { x: l2(-57.0), z: 17.4 } as Vec2, in: { x: l2(-59.55), z: 17.4 } as Vec2, heading: Math.PI / 2, height: 0.8 },
+  },
+  /** The left kidney (the target) with the table out. */
+  target: { x: l2(-57.25), y: 0.9, z: 17.3 } as Vec3,
+  /** MAXIO/Epione-class robot: base 1.3 (x) x 0.8 (z) x 0.85 m, about 250 kg, floor-docked; the live 5-axis arm starts at `mount`. */
+  robot: { base: { at: { x: l2(-57.6), z: 16.25 }, heading: 0 } as Spot, size: { w: 1.3, d: 0.8, h: 0.85 }, mount: { x: l2(-57.95), y: 1.05, z: 16.45 } as Vec3 },
+  /** Visual-ICE-class argon console (up to 20 needles, 4 temperature sensors), facing south; its live screen face; the cylinder cart beside it. */
+  console: { at: { at: { x: l2(-59.0), z: 14.6 }, heading: 0 } as Spot, size: { w: 0.7, d: 1.0, h: 1.35 }, screen: { x: l2(-59.0), y: 1.42, z: 14.95, w: 0.46, h: 0.3, heading: 0, tilt: 0.35 } },
+  cylinders: { at: { x: l2(-60.6), z: 14.4 }, heading: 0 } as Spot,
+  /** Live screen faces (centre, size, facing heading). In-room boom south of the table facing north; control-room desks facing the seats. */
+  screens: {
+    roomPlan: { x: l2(-58.0), y: 1.75, z: 19.3, w: 0.62, h: 0.38, heading: Math.PI },
+    roomLive: { x: l2(-56.8), y: 1.75, z: 19.3, w: 0.62, h: 0.38, heading: Math.PI },
+    ctConsole: { x: l2(-60.0), y: 1.12, z: 12.55, w: 0.54, h: 0.33, heading: Math.PI },
+    robotStation: { x: l2(-57.3), y: 1.12, z: 12.55, w: 0.54, h: 0.33, heading: Math.PI },
+  },
+  /** Control-room seats (kind 'console', ids 'console:cryo:ct' / 'console:cryo:robot'), facing the glass. */
+  seats: {
+    ctConsole: { at: { x: l2(-60.0), z: 11.75 }, heading: 0 } as Spot,
+    robotStation: { at: { x: l2(-57.3), z: 11.75 }, heading: 0 } as Spot,
+  },
+  staff: {
+    /** The radiologist pushing a needle through the robot's guide (east of the robot, facing the flank). */
+    insert: { at: { x: l2(-56.4), z: 16.5 }, heading: -Math.PI / 4 } as Spot,
+    /** The radiologist at the cryo console during the freezes. */
+    atConsole: { at: { x: l2(-59.0), z: 15.5 }, heading: Math.PI } as Spot,
+    /** The sedation nurse at the head end, south side. */
+    sedation: { at: { x: l2(-58.4), z: 18.25 }, heading: Math.PI } as Spot,
+    /** The radiographer at the table's foot (transfers, positioning). */
+    assist: { at: { x: l2(-55.4), z: 17.4 }, heading: -Math.PI / 2 } as Spot,
+    /** The pusher parks here; the stretcher (VEHICLE_AHEAD 1.45) lies beside the table's south side. */
+    stretcherPark: { at: { x: l2(-55.0), z: 18.6 }, heading: -Math.PI / 2 } as Spot,
+    /** Turnover round (wipe down). */
+    clean: [
+      { at: { x: l2(-55.6), z: 18.3 }, heading: -Math.PI / 2 },
+      { at: { x: l2(-58.9), z: 18.4 }, heading: Math.PI },
+      { at: { x: l2(-56.2), z: 15.4 }, heading: Math.PI },
+    ] as Spot[],
+    /** Where the team waits between cases (control room, behind the seats). */
+    base: [
+      { at: { x: l2(-58.6), z: 10.9 }, heading: 0 },
+      { at: { x: l2(-56.0), z: 10.9 }, heading: 0 },
+      { at: { x: l2(-61.0), z: 10.9 }, heading: 0 },
+    ] as Spot[],
+  },
+  /** Walk mode: E at the control-room glass opens the panel. */
+  viewing: { at: { x: l2(-55.6), z: 11.6 }, heading: 0 } as Spot,
+} as const

@@ -94,6 +94,7 @@ export const MAP_LABELS: readonly { area: AreaId; text: string }[] = [
   { area: 'l2Or', text: 'OR' },
   { area: 'l2Pacu', text: 'PACU' },
   { area: 'l2Lounge', text: 'Lounge' },
+  { area: 'l2Cryo', text: 'Cryo CT' },
 ]
 
 /** The labels of the plan of `level` (the level-2 areas lie in their own strip of the sim, so a label belongs to exactly one plan). */

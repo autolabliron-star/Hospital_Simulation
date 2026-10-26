@@ -26,6 +26,7 @@ import type { DrawCentre } from '../blood'
 import type { Lab } from '../lab'
 import type { LiftBank } from '../lifts'
 import type { Surgery } from '../surgery'
+import type { CryoSuite } from '../cryoSuite'
 import type { VitalsService } from '../vitals'
 
 export interface WorldHooks {
@@ -68,6 +69,8 @@ export class World {
   /** R2: the lifts and the robotic surgery suite on level 2, set by the Simulation; null in a bare world. */
   lifts: LiftBank | null = null
   surgery: Surgery | null = null
+  /** R4: the CT-guided cryoablation suite on level 2, set by the Simulation; null in a bare world. */
+  cryoSuite: CryoSuite | null = null
   /**
    * The bed board (L1): the lifecycle of the 16 ward beds and the bed manager's rules, set by the Simulation's BedFlow;
    * null in a bare world (the ER and the porters then behave as in M3: admitted patients go "to a ward upstairs").

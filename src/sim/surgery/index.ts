@@ -235,6 +235,7 @@ export class Surgery implements SurgeryPort, CaseHost {
       b.patientId = null
       b.since = 0
       b.curtain = false
+      b.guestName = null
     }
     // (removing the people of an earlier settle freed their names: hold them again for the cases still to come)
     for (const n of this.names) {
@@ -328,6 +329,17 @@ export class Surgery implements SurgeryPort, CaseHost {
     b.patientId = patientId
     b.curtain = curtain
     this.touch()
+  }
+
+  /**
+   * R4: a patient of another service (the cryoablation suite) takes recovery bay `seatId` (or leaves it: null, null). The boards show `name`;
+   * the seat claim itself is the caller's (through `sites`).
+   */
+  guestBay(seatId: string, patientId: string | null, name: string | null, t: number): void {
+    const b = this.state.bays.find((x) => x.seatId === seatId)
+    if (!b) return
+    b.guestName = patientId === null ? null : name
+    this.bayChanged(seatId, patientId, t, false)
   }
 
   porterAway(porter: Staffer, returnAt: number, _shaft: 'B'): void {

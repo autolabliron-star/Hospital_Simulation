@@ -24,7 +24,7 @@ const run = (bank: DoorBank, seconds: number, people: PersonLike[], player: { x:
 
 describe('level 2 has its own doors, in sim coordinates', () => {
   it('splits the doors by level: 22 on level 1 minus the pharmacy core\'s, and the seven level-2 leaves', () => {
-    expect(level2.doors.map((d) => d.id).sort()).toEqual(['l2LiftA', 'l2LiftB', 'l2Or', 'l2Pacu', 'l2PreOp', 'l2Staff', 'l2Sterile'])
+    expect(level2.doors.map((d) => d.id).sort()).toEqual(['l2Cryo', 'l2CryoControl', 'l2CryoInner', 'l2LiftA', 'l2LiftB', 'l2Or', 'l2Pacu', 'l2PreOp', 'l2Staff', 'l2Sterile'])
     expect(level1.doors.length + level2.doors.length).toBe(walk.doors.length)
     for (const d of level2.doors) {
       expect(levelOf(d.x), d.id).toBe(2)
@@ -106,7 +106,7 @@ describe('level 2 compiles apart, on the shared sign atlas', () => {
   it('its signs, plates and pictures are in the one atlas the two levels share, and its quads are all on level 2', () => {
     const c = compileWalk(level2, atlas)
     expect(c.signs).not.toBeNull()
-    expect(level2.quads.length).toBe(3 * 2 + 9) // 3 signs x 2 faces + the name plates of its nine doors
+    expect(level2.quads.length).toBe(3 * 2 + 12) // 3 signs x 2 faces + the name plates of its twelve doors (R4: + the cryo suite's three)
     for (const q of level2.quads) expect(atlas.cells.has(q.tile), q.tile).toBe(true)
     for (const q of level1.quads) expect(levelOf(q.cx)).toBe(1)
     // level 2's walk meshes: chunk 4 only, and glass over its window walls

@@ -55,6 +55,11 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/meals/ward/wardParts.ts': { count: 2, via: 'mounted', where: 'ward rig: bedside screens and door tiles' },
   'src/scene/drawCentre/liveTexture.ts': { count: 1, via: 'mounted', where: 'DrawCentreLayer: the three robot screens (draw-screens), made at mount by createDrawRig; imaging-monitor settings, shared program' },
   'src/scene/surgery/liveEndoscope.ts': { count: 1, via: 'mounted', where: 'SurgeryLayer: the four endoscope screens (surgery-live-screens: vision cart, wall monitor, console viewers), made at mount by createLiveResources; imaging-monitor settings, shared program' },
+  'src/scene/cryoSuite/screens.ts': {
+    count: 1,
+    via: 'mounted',
+    where: 'CryoSuiteLayer (R4): the five cryo suite screens on one atlas (cryo-screens), made at mount by createCryoScreens and mounted hidden in the level-2 group; imaging-monitor settings (map, toneMapped false, vertex colours of item size 3), shared program. The CT and the arm reuse MACHINE_BODY, MACHINE_GLOW and MAT.tinted',
+  },
   'src/scene/robots/faceMaterial.ts': { count: 1, via: 'mounted', where: 'PodsLayer: the pod face screens' },
   'src/scene/building/model/farModel.ts': {
     count: 1,

@@ -13,7 +13,7 @@
  *              0.1 + 0.6 sin(phi) m above the hips' plane and 0.1 + 0.6 cos(phi) m behind the hips
  */
 import type { Entity, Vec3 } from '@/sim/types'
-import { IMAGING, groundHeightAt } from '@/sim/places'
+import { CRYO_SUITE, IMAGING, groundHeightAt } from '@/sim/places'
 import { DEFAULT_SEAT_HEIGHT, LIE, LIE_RECLINE_LIFT_MAX, MIN_SEAT_HEIGHT, SEATED_CROWN, SEATED_HEAD_CENTRE, STAND_CROWN, STAND_HEAD_CENTRE, STAND_PELVIS, BODY } from './constants'
 import { postureOf, type Posture } from './blend'
 import { scaleFor } from './outfit'
@@ -85,6 +85,7 @@ const IMAGING_SEAT_SURFACE: ReadonlyMap<string, number> = new Map([
   ['scanTable:ct', IMAGING.ct.table.height],
   ['xrayTable:xray', IMAGING.xray.table.height],
   ['usCouch:us', IMAGING.us.table.height],
+  ['scanTable:cryo', CRYO_SUITE.ct.table.height], // R4: the cryoablation suite's CT table
 ])
 
 /**

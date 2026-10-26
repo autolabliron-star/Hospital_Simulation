@@ -1,0 +1,69 @@
+{
+  "steps": {
+    "idle": "Ready for the next patient",
+    "arrive": "Patient arriving from the ward",
+    "sedation": "Sedation and positioning",
+    "planningCt": "Planning CT scan",
+    "planning": "Planning the needle paths",
+    "aim": "Robot aiming, needles in",
+    "checkCt": "Check CT: needle positions",
+    "freeze1": "First freeze",
+    "thaw": "Passive thaw",
+    "freeze2": "Second freeze",
+    "activeThaw": "Active thaw",
+    "needlesOut": "Needles out",
+    "finalCt": "Final CT: the ablation zone",
+    "dressing": "Dressing the needle sites",
+    "out": "To recovery",
+    "turnover": "Room turnover"
+  },
+  "events": {
+    "arrived": "{patient} is brought down from the surgical ward to the CT cryoablation suite.",
+    "planned": "{ir} plans {n} needle paths for {patient} on the planning CT.",
+    "needle": "Needle {k} of {n} goes in through the robot's guide, aligned within {err} mm.",
+    "freeze": "Freeze {k} of 2 begins for {patient}: the ice ball grows around the tumour.",
+    "done": "{patient}'s cryoablation is complete; the final CT shows the ice covering the tumour."
+  },
+  "card": {
+    "title": "Meet the devices",
+    "robot": "A needle-guidance robot like Perfint MAXIO or Quantum Surgical Epione: it aims a guide along each planned path, and the radiologist pushes the needle through it.",
+    "console": "An argon cryoablation system like Boston Scientific Visual-ICE: it runs several needles at once, freezes their tips to about -150 °C, and thaws them actively at the end.",
+    "honesty": "Simulated. Robot-guided needle placement was accurate in early studies (about 1-2 mm at the tip), but robot plus cryoablation is still an emerging combination. The times and temperatures here are illustrative."
+  },
+  "panel": {
+    "tag": "Simulated",
+    "title": "CT cryoablation suite",
+    "start": "Start a cryoablation now",
+    "startNext": "Book a cryoablation next",
+    "queued": "Booked next: it starts after the case in the room.",
+    "noTeam": "The cryoablation team is on site from 08:00 to 17:30.",
+    "planning": "Planning",
+    "live": "Live",
+    "needle": "Needle {k} of {n}",
+    "aligned": "Aligned {err} mm",
+    "tip": "Tip",
+    "margin": "Margin sensor",
+    "ice": "Ice ball",
+    "timer": "Timer",
+    "list": "Today's list",
+    "empty": "No cryoablation cases today.",
+    "argon": "Argon",
+    "heater": "Heater",
+    "aiming": "Aiming…"
+  },
+  "robotPhases": {
+    "stowed": "Stowed",
+    "deploying": "Deploying",
+    "aiming": "Aiming",
+    "aligned": "Aligned",
+    "retracting": "Retracting"
+  },
+  "listStates": {
+    "booked": "Booked",
+    "pacu": "In recovery",
+    "done": "Done"
+  },
+  "prompts": {
+    "glass": "Watch the cryoablation"
+  }
+}

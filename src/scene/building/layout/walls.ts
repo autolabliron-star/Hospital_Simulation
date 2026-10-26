@@ -70,6 +70,7 @@ const GLAZED_SHELL = (id: AreaId): boolean =>
 const OBSERVATION_PAIRS: readonly (readonly [AreaId, AreaId])[] = [
   ['mriControl', 'mri'],
   ['ctControl', 'ct'],
+  ['l2CryoControl', 'l2Cryo'], // R4: the cryoablation suite's lead glass
 ]
 const isObservation = (a: AreaId, b: AreaId): boolean => OBSERVATION_PAIRS.some(([p, q]) => (a === p && b === q) || (a === q && b === p))
 

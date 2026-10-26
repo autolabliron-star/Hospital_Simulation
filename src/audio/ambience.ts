@@ -120,6 +120,7 @@ export function toneForArea(area: Pick<Area, 'id' | 'kind'> | null): RoomTone {
     case 'liftB':
       return 'corridor'
     case 'l2Or':
+    case 'l2Cryo': // R4: the CT and the cryo console
       return 'machine'
     case 'l2Lounge':
       return 'quiet'
@@ -131,6 +132,7 @@ export function toneForArea(area: Pick<Area, 'id' | 'kind'> | null): RoomTone {
     case 'l2Sterile':
     case 'l2Hall':
     case 'l2Pacu':
+    case 'l2CryoControl':
       return 'hum'
   }
   return toneByKind(area.kind)

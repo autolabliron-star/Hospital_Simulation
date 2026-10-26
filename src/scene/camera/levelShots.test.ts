@@ -39,8 +39,8 @@ class Rig implements FlightControls {
 }
 
 describe('the shots of the level-2 areas are drawn: over the footprint, on the level-2 floor', () => {
-  it('there are ten level-2 areas, each on level 2', () => {
-    expect(L2.length).toBe(10)
+  it('there are twelve level-2 areas (R4: + the cryo suite and its control room), each on level 2', () => {
+    expect(L2.length).toBe(12)
     for (const id of L2) expect(areaLevel(id), id).toBe(2)
     for (const id of L1) expect(areaLevel(id), id).toBe(1)
   })
@@ -96,7 +96,7 @@ describe('the shots of the level-2 areas are drawn: over the footprint, on the l
   })
 
   it('fits the framed box in the window beside the room panel (the hand-tuned shots; the long corridors stop at the maximum distance)', () => {
-    for (const id of ['l2Or', 'l2PreOp', 'l2Pacu'] as const) {
+    for (const id of ['l2Or', 'l2PreOp', 'l2Pacu', 'l2Cryo'] as const) {
       const pose = presetFor(id, DEFAULT_VIEW)
       const need = fitDistance(pose.target, pose.pitchDeg, pose.yawDeg, presetBox(id), DEFAULT_VIEW)
       expect(pose.distance, id).toBeGreaterThanOrEqual(Math.min(need, 40) - 1e-9)

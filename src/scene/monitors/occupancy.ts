@@ -98,7 +98,7 @@ function bayOccupant(s: SurgeryState, seatId: string, kind: 'pacu' | 'preOp', ou
   const k = s.theatre.cases.find((c) => c.patientId === bay.patientId)
   clear(out, kind === 'pacu' ? 'pacu' : 'preop')
   out.id = bay.patientId
-  out.name = k?.name ?? ''
+  out.name = k?.name ?? bay.guestName ?? '' // R4: a guest (the cryo suite's patient) is not on the surgery list
   out.since = bay.since
   out.procedure = k?.procedure ?? null
   return true

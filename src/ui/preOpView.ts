@@ -45,7 +45,7 @@ export function preOpView(state: SurgeryState, t: number): PreOpView {
       n,
       label,
       occupied: true,
-      patient: c ? c.name : NO_VALUE,
+      patient: c ? c.name : (bay.guestName ?? NO_VALUE),
       procedure: c ? SURGERY_COPY.procedures[c.procedure].short : null,
       time: c ? clockText(c.plannedIn) : null,
       since: minutesText(minutesSince(bay.since, t)),

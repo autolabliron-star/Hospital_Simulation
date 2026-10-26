@@ -18,6 +18,7 @@ import { Meals } from './meals'
 import { PharmacyCore } from './pharmacy'
 import { Robots } from './robots'
 import { SurgeryLayer } from './surgery/SurgeryLayer'
+import { CryoSuiteLayer } from './cryoSuite/CryoSuiteLayer'
 import { PatientMonitors } from './monitors/PatientMonitors'
 
 /**
@@ -56,6 +57,8 @@ export function World() {
       </LevelGroup>
       {/* R2 level 2: the da Vinci 5 cart, the OR's screens and your teaching-console session (hidden unless level 2 is shown) */}
       <SurgeryLayer />
+      {/* R4 level 2: the CT-guided cryoablation suite (CT, needle-guidance robot, needles, screens) */}
+      <CryoSuiteLayer />
       {/* R3: the live patient monitors of triage, the ER, pre-op, recovery and the OR (each level's mesh shows only while that level is shown) */}
       <PatientMonitors />
       <People />

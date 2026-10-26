@@ -245,7 +245,7 @@ describe('the solids and the people\'s region agree about where you may be (no l
         doors++
         if (!reachable(d.center.x, d.center.z)) unreachable.push(`door ${d.id}`)
       }
-      expect(doors).toBe(L.level === 1 ? DOORS.filter((d) => d.id !== 'ambulance' && levelOf(d.center.x) === 1).length : 9)
+      expect(doors).toBe(L.level === 1 ? DOORS.filter((d) => d.id !== 'ambulance' && levelOf(d.center.x) === 1).length : 12)
       if (L.level === 1) {
         for (const r of ROOMS) {
           // the bedside is where a person stands: for you, the nearest place you can

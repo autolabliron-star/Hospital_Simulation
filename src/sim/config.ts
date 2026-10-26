@@ -550,6 +550,53 @@ export const CONFIG = {
     lobbyWalkers: 4,
   },
 
+  // R4: the CT-guided, robot-assisted cryoablation suite on level 2 (docs/R4-CRYO-SUITE.md). Sources: docs/research/cryoablation.md (Visual-ICE:
+  // argon freeze, helium or heater thaw, up to 20 needles, 4 temperature sensors); renal cryoablation's double cycle (about 10 min freeze,
+  // passive thaw, 10 min freeze); Perfint MAXIO / Quantum Surgical Epione: floor-docked CT needle-guidance robots, planned paths, guide aligned to 1-2 mm.
+  cryoSuite: {
+    teamFromHour: 8.0,
+    teamToHour: 17.5,
+    /** The day's wheels-in hours, each jittered by +- listJitterMinutes (seeded). */
+    listHours: [10.22, 14.58] as readonly number[],
+    listJitterMinutes: 2,
+    needles: [2, 4] as readonly [number, number],
+    maxNeedles: 6,
+    tumourMm: [18, 35] as readonly [number, number],
+    /** Step lengths (minutes, uniform): compressed, except the freezes. */
+    stepMinutes: {
+      arrive: [3, 4],
+      sedation: [4, 6],
+      planningCt: [1.5, 2.5],
+      planning: [3, 5],
+      aimPerNeedle: [1.5, 2.5],
+      checkCt: [1, 1.5],
+      freeze1: [10, 10],
+      thaw: [5, 6],
+      freeze2: [10, 10],
+      activeThaw: [3, 4],
+      needlesOut: [2, 3],
+      finalCt: [1, 1.5],
+      dressing: [3, 4],
+      out: [1.5, 2.5],
+    } as Readonly<
+      Record<
+        'arrive' | 'sedation' | 'planningCt' | 'planning' | 'aimPerNeedle' | 'checkCt' | 'freeze1' | 'thaw' | 'freeze2' | 'activeThaw' | 'needlesOut' | 'finalCt' | 'dressing' | 'out',
+        readonly [number, number]
+      >
+    >,
+    turnoverMinutes: [12, 18] as readonly [number, number],
+    pacuMinutes: [30, 45] as readonly [number, number],
+    aimErrorMm: [0.6, 1.8] as readonly [number, number],
+    tipMinC: -150,
+    marginMinC: -40,
+    iceMm: [38, 52] as readonly [number, number],
+    firstFreezeSize: 0.85,
+    thawKeep: 0.9,
+    /** The presenter's demo: wheeled out of lift B within this many seconds; every step x demoScale. */
+    demoArrivalSeconds: 5,
+    demoScale: 0.3,
+  },
+
   // ---------------------------------------------------------------------------------------------
   // L1: living day & bed flow (docs/L1-LIVING-DAY.md). Nothing reads these yet: the L1 builders switch the sim over
   // to them, each with its tests. Until then the M3 and R1 tables above run unchanged.

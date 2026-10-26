@@ -98,10 +98,11 @@ describe('room tone on level 2 (the robotic surgery suite)', () => {
   const l2 = AREAS.filter((a) => a.id.startsWith('l2'))
 
   it('hums quietly all through the suite, a little more machine in the robotic OR, and the family lounge stays quiet', () => {
-    expect(l2.length).toBe(10)
+    expect(l2.length).toBe(12)
     expect(toneForArea(areaById('l2Or'))).toBe('machine')
     expect(toneForArea(areaById('l2Lounge'))).toBe('quiet')
-    for (const id of ['l2Corridor', 'l2PreOp', 'l2Staff', 'l2Sterile', 'l2Hall', 'l2Pacu', 'l2LiftA', 'l2LiftB'] as const) expect(toneForArea(areaById(id)), id).toBe('hum')
+    expect(toneForArea(areaById('l2Cryo'))).toBe('machine')
+    for (const id of ['l2Corridor', 'l2PreOp', 'l2Staff', 'l2Sterile', 'l2Hall', 'l2Pacu', 'l2CryoControl', 'l2LiftA', 'l2LiftB'] as const) expect(toneForArea(areaById(id)), id).toBe('hum')
   })
 
   it('names every level-2 area by id (none falls through to the kind: a clinical room there is not the ER\'s "busy")', () => {
@@ -112,7 +113,8 @@ describe('room tone on level 2 (the robotic surgery suite)', () => {
     const at = (drawnX: number, z: number) => toneForArea(areaAt(drawnX + 150, z))
     expect(at(-48.6, 5.9)).toBe('machine') // by the OR's table
     expect(at(-48.5, 16)).toBe('hum') // the recovery island
-    expect(at(-57.5, 12)).toBe('quiet') // the lounge
+    expect(at(-57.5, 6)).toBe('quiet') // the lounge
+    expect(at(-57.5, 17.4)).toBe('machine') // R4: by the cryo suite's CT table
     // the same x, z DRAWN (as if the drawn camera were the listener) is a ground-floor room of level 1: the lobby is airy, the ER busy
     expect(toneForArea(areaAt(-53, 0))).toBe('airy')
     expect(toneForArea(areaAt(-48.6, 12))).toBe('busy')

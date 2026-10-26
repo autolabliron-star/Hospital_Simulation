@@ -71,6 +71,7 @@ export function buildLevel2Labels(b: LayoutBuilder): void {
     { id: 'l2Or', text: 'ROBOTIC OR', x: -48.5, z: 9.45, height: 0.38, maxWidth: 2.6 },
     { id: 'l2Pacu', text: 'RECOVERY', x: -48.5, z: 12.4, height: 0.5, maxWidth: 5.4 },
     { id: 'l2Lounge', text: 'FAMILY LOUNGE', x: -57.5, z: 4.9, height: 0.34, maxWidth: 3.6, soft: true },
+    { id: 'l2Cryo', text: 'CT CRYOABLATION', x: -56.0, z: 21.0, height: 0.34, maxWidth: 4.4 }, // R4: south of the boom, clear of the stretcher park
     { id: 'l2Staff', text: 'THEATRE STAFF', x: -57.5, z: -8.2, height: 0.3, maxWidth: 3.6, soft: true },
     { id: 'l2Sterile', text: 'STERILE SUPPLY', x: -48.6, z: -4.3, height: 0.3, maxWidth: 4.4, soft: true },
     { id: 'l2Hall', text: 'THEATRE HALL', x: -53.8, z: 0, height: 0.32, maxWidth: 3.8, soft: true },

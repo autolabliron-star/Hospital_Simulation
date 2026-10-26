@@ -77,3 +77,44 @@ histotripsy, Exablate) and cold (cryoablation) side by side.
 - [NMPA notice: multimodal tumour treatment system (2023)](https://english.nmpa.gov.cn/2023-06/09/c_940347.htm)
 - [Punjab cryoablation centre (Pakistan Observer)](https://pakobserver.net/first-outcome-of-cm-maryams-china-visit-as-punjab-launches-breakthrough-cancer-treatment/) and [Holy Family Hospital (ProPakistani)](https://propakistani.pk/2026/09/26/holy-family-hospital-starts-advanced-free-cancer-treatment/)
 - [CBN: Israeli company destroys tumours by freezing them](https://www2.cbn.com/news/news/israeli-company-destroys-cancerous-tumors-freezing-them)
+
+## 5. Option C (chosen 2026-10-26): the robot-guided CT cryoablation suite on level 2
+
+The owner asked for the freezing machine that is "really big and accurate and does not depend on the hand movement". That is a
+**robot-guided, CT-guided cryoablation suite**. In this setup, a robot aims the needles instead of the doctor's freehand skill:
+
+1. **CT scanner.** It takes the planning scan and the check scans.
+2. **Planning workstation.** The radiologist draws up to six needle paths on the CT slices.
+3. **Needle-guidance robot.** It is a heavy cart (MAXIO by Perfint: 250 kg, about 131 x 78 x 85 cm, four castors) docked to a floor
+   plate that calibrates it to the CT. Epione by Quantum Surgical is a floor-mounted arm of the same class. Its 5-axis arm turns a needle
+   guide onto each planned path, and the doctor pushes the needle through the guide.
+   - Accuracy reported by the makers: about 1-2 mm at the tip. XACT ACE reports 1.7 mm at first insertion.
+4. **Cryo console.** A large argon console (Visual-ICE class) runs up to 20 needles at once, with temperature sensors. Several needles
+   make one big ice ball for a 3-5 cm kidney, lung or liver tumour.
+
+Evidence (honest status):
+- **Royal Marsden, European Radiology, 2026.** Robot-assisted CT-guided cryoablation of lung metastases: 26 patients, 37 tumours.
+  - 35 of 37 tumours were finished with no switch to freehand.
+  - One major complication: a pneumothorax that needed drainage.
+  - This is an early-stage, single-centre study.
+- **Tianjin, China (NCT06581107).** A CT-guided robot for lung cryoablation, in a feasibility trial.
+- **Regulatory status.** Epione is FDA-cleared for abdominal tumour ablation (2022-2023), and XACT ACE for CT-guided insertion of
+  ablation probes (2022). Robot plus cryoablation remains an emerging combination, so the card says so.
+- **MRI-guided alternative.** Liverpool Hospital, Australia (2026) has the country's first MRI-guided cryoablation. It is not built
+  here.
+
+**Placement:**
+- The family lounge on level 2 is split in two. The lounge keeps the north half; the south half (9 x 12 m) becomes the suite: a CT scan
+  room plus a control room, next to Recovery (PACU).
+- The patient comes from level-2 pre-op and recovers in the PACU.
+- The model stays brand-free. Real products are named on the "Meet the device" card only.
+
+Sources:
+- [Robot-assisted CT-guided cryoablation of pulmonary metastases (BIDMC summary of the IDEAL 2a study)](https://research.bidmc.org/oscar/publications/robot-assisted-ct-guided-cryoablation-pulmonary-metastases-ideal-stage-2a-prospective)
+  and [Medscape](https://www.medscape.com/viewarticle/robot-assisted-ct-guided-cryoablation-shows-high-precision-2026a10004bm)
+- [Starting CT-guided robotic interventional oncology at a UK centre (MAXIO, Royal Marsden)](https://pmc.ncbi.nlm.nih.gov/articles/PMC10996412/)
+- [CT-guided interventional robot in lung cryoablation (NCT06581107)](https://clinicaltrials.gov/study/NCT06581107)
+- [Epione FDA clearance for abdominal cancers (Quantum Surgical)](https://www.quantumsurgical.com/news/fda-clears-quantum-surgicals-epione-robot-for-all-abdominal-cancers)
+- [XACT ACE expanded clearance for ablation (The Robot Report)](https://www.therobotreport.com/fda-clearance-expands-indications-for-xact-robotics-ablation-system/)
+- [Robotics in interventional oncology (Endovascular Today)](https://evtoday.com/articles/2023-oct/robotics-in-interventional-oncology-the-next-frontier-in-image-guided-interventions)
+- [Australia's first MRI-guided cryoablation (Next Science, from ABC)](https://x.com/NextScience/status/2063698245713383769)

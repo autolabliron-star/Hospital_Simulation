@@ -60,6 +60,7 @@ function stuck(s: Simulation): Record<string, number> {
     imaging: s.imaging.stuckFixes,
     blood: s.blood.stuckFixes,
     lifts: s.lifts.stuckFixes,
+    cryoSuite: s.cryoSuite.stuckFixes,
   }
 }
 
@@ -74,6 +75,7 @@ function check(s: Simulation, leg: Leg, log: string[]): void {
     ...s.imaging.stuckLog.map((l) => `imaging ${l}`),
     ...s.surgery.stuckLog.map((l) => `surgery ${l}`),
     ...s.lifts.stuckLog.map((l) => `lifts ${l}`),
+    ...s.cryoSuite.stuckLog.map((l) => `cryoSuite ${l}`),
   ]
   const line = `[soak] ${leg.label}: people ${leg.minPeople}..${leg.maxPeople} over ${leg.samples} samples, stuck ${JSON.stringify(counts)}, ER in ${s.world.er.cases.size} finished ${s.world.er.finished.length}`
   log.push(line)

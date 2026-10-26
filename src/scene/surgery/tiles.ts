@@ -67,7 +67,7 @@ export function minutesText(now: number, t0: number): string {
 /** The patient's name on a bay, or ''. */
 export function bayPatient(s: SurgeryState, bay: SurgeryBayState): string {
   if (bay.patientId === null) return ''
-  return s.theatre.cases.find((c) => c.patientId === bay.patientId)?.name ?? ''
+  return s.theatre.cases.find((c) => c.patientId === bay.patientId)?.name ?? bay.guestName ?? ''
 }
 
 /** `text` cut with an ellipsis so it fits `maxW` pixels at `px` (the canvas draws one line and never wraps). */

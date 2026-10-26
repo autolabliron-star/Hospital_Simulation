@@ -257,7 +257,7 @@ describe('R2: the light volume of level 2 (layers 7..11), and the buffers (6 and
     expect(upper.floorY).toBe(4.2)
     expect(upper.firstLayer).toBe(7)
     expect(upper.layers).toBe(5)
-    expect(upper.areas.length).toBe(10)
+    expect(upper.areas.length).toBe(12) // R4 added the cryoablation suite and its control room
     for (const a of upper.areas) {
       expect(a.x0, a.id).toBeGreaterThanOrEqual(-62)
       expect(a.x1, a.id).toBeLessThanOrEqual(-40)

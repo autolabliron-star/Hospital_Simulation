@@ -9,7 +9,7 @@
     { "id": "wardB", "level": 1, "label": "Ward B, corridor B, lab and supply", "rects": [{ "x0": -40, "x1": 40, "z0": 12, "z1": 22 }], "areas": ["corridorB", "supplyB", "lab", "hubB", "quietB", "room:B1", "room:B2", "room:B3", "room:B4", "room:B5", "room:B6", "room:B7", "room:B8"], "status": "todo" },
     { "id": "core", "level": 1, "label": "Command centre and pharmacy core", "rects": [{ "x0": -22, "x1": 12, "z0": -12, "z1": 12 }], "areas": ["command", "core"], "status": "todo" },
     { "id": "atrium", "level": 1, "label": "Healing atrium and cafe", "rects": [{ "x0": 12, "x1": 40, "z0": -12, "z1": 12 }], "areas": ["atrium"], "status": "todo" },
-    { "id": "theatres", "level": 2, "label": "Level 2: theatres, pre-op, recovery", "rects": [{ "x0": -62, "x1": -40, "z0": -22, "z1": 22 }], "areas": ["l2LiftA", "l2LiftB", "l2Corridor", "l2PreOp", "l2Staff", "l2Sterile", "l2Hall", "l2Or", "l2Pacu", "l2Lounge"], "status": "todo" }
+    { "id": "theatres", "level": 2, "label": "Level 2: theatres, pre-op, recovery", "rects": [{ "x0": -62, "x1": -40, "z0": -22, "z1": 22 }], "areas": ["l2LiftA", "l2LiftB", "l2Corridor", "l2PreOp", "l2Staff", "l2Sterile", "l2Hall", "l2Or", "l2Pacu", "l2Lounge", "l2CryoControl", "l2Cryo"], "status": "todo" }
   ],
   "budgets": {
     "note": "Meta Quest 3 slice per zone (stereo). The whole building: < 200 draw calls in view, < 1.5 M triangles, about 250 MB GPU textures (shared material textures count once).",

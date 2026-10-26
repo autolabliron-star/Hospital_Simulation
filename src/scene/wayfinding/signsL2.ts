@@ -12,7 +12,7 @@ import type { SignAnchor } from '@/sim/places'
 
 export const L2_SIGNS: SignAnchor[] = [
   { id: 'l2-corridor-north', at: { x: l2(-42), z: -14.8 }, heading: Math.PI, points: ['l2PreOp', 'l2Or', 'l2Pacu'] },
-  { id: 'l2-corridor-south', at: { x: l2(-42), z: 14.8 }, heading: 0, points: ['l2Pacu', 'l2Or', 'l2PreOp'] },
+  { id: 'l2-corridor-south', at: { x: l2(-42), z: 14.8 }, heading: 0, points: ['l2Pacu', 'l2Cryo', 'l2Or'] },
   { id: 'l2-hall', at: { x: l2(-45.3), z: 0 }, heading: Math.PI / 2, points: ['l2Or', 'l2Sterile', 'l2Lounge'] },
 ]
 

@@ -637,6 +637,30 @@ function buildGraph(): NavGraph {
     }
     g.add('l2:theatreBase', THEATRE_BASE.at.x, THEATRE_BASE.at.z, 'anchor', 'l2Staff')
     linkGroup('l2Staff', 12)
+    // R4: the cryoablation suite (docs/R4-CRYO-SUITE.md). Both rooms open off recovery's west wall (a node each side of the door), and the
+    // control room joins the scan room through the inner door in the observation wall.
+    for (const [doorId, areaId] of [
+      ['l2CryoControl', 'l2CryoControl'],
+      ['l2Cryo', 'l2Cryo'],
+    ] as const) {
+      const d = doorSpec(doorId)
+      const door = g.add(`${doorId}:door`, d.center.x, d.center.z, 'door')
+      const pacuSide = g.add(`${doorId}:pacu`, l2(-51.6), d.center.z, 'inside', 'l2Pacu')
+      const inside = g.add(`${doorId}:in`, l2(-54.6), d.center.z, 'inside', areaId)
+      must(pacuSide, door)
+      must(door, inside)
+    }
+    {
+      const d = doorSpec('l2CryoInner')
+      const door = g.add('l2CryoInner:door', d.center.x, d.center.z, 'door')
+      must(g.add('l2CryoInner:control', d.center.x, 11.9, 'inside', 'l2CryoControl'), door)
+      must(door, g.add('l2CryoInner:scan', d.center.x, 14.2, 'inside', 'l2Cryo'))
+    }
+    lattice('l2Cryo', 'l2Cryo', 3)
+    lattice('l2CryoControl', 'l2CryoControl', 2)
+    linkGroup('l2Cryo', 12)
+    linkGroup('l2CryoControl', 12)
+    linkGroup('l2Pacu', 12)
     return root
   })()
 

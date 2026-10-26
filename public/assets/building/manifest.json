@@ -766,22 +766,22 @@
     "y1": 7.26
    },
    "draws": 34,
-   "tris": 183302,
-   "lightmapMB": 13.77,
+   "tris": 196356,
+   "lightmapMB": 15.08,
    "probe": "zones/theatres/env_theatres.hdr",
    "probeAt": [
     -57.5,
     5.800000000000001,
-    12
+    6
    ],
    "anchors": "zones/theatres/anchors.json",
    "proxy": {
     "glb": "zones/theatres/theatres.proxy.glb",
-    "tris": 38541,
+    "tris": 41334,
     "mb": 1.33,
     "atlas": 1024,
-    "scale": 1.641,
-    "kb": 1056
+    "scale": 2.752,
+    "kb": 1068
    },
    "nodes": [],
    "replaces": [
@@ -803,6 +803,12 @@
     "footprint:l2:hall:scrub",
     "footprint:l2:hall:cabinet",
     "footprint:l2:corridor:bench*",
+    "footprint:l2:cryo:robot",
+    "footprint:l2:cryo:console",
+    "footprint:l2:cryo:cylinders",
+    "footprint:l2:cryo:cabinet",
+    "footprint:l2:cryo:boom",
+    "footprint:l2:cryoctl:*",
     "footprint:l2:or:backtable",
     "footprint:l2:or:mayo",
     "footprint:l2:or:stool",
@@ -810,8 +816,8 @@
     "footprint:l2:or:console:teach:chair",
     "footprint:l2:or:desk"
    ],
-   "bakeSeconds": 781,
-   "bakedAt": "2026-10-25T10:19:55.205Z",
+   "bakeSeconds": 1035,
+   "bakedAt": "2026-10-26T11:46:34.404Z",
    "validator": {
     "errors": 0,
     "warnings": 57
@@ -1147,11 +1153,11 @@
  },
  "totals": {
   "draws": 209,
-  "tris": 1101106,
-  "lightmapMB": 94.69,
-  "textureMB": 124.84,
+  "tris": 1114160,
+  "lightmapMB": 96,
+  "textureMB": 126.15,
   "proxies": 8,
-  "proxyTris": 252468,
+  "proxyTris": 255261,
   "proxyMB": 10.64,
   "withinBudget": true
  }
