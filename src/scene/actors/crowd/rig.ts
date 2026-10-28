@@ -304,6 +304,9 @@ function putPart(out: Float32Array, o: number, part: number, m: Float64Array, mo
   out[b + 11] = m[mo + 11]
 }
 
+/** How far (nominal metres) a walker's hips may rise above their height at heel strike (see the pelvis in `solveRig`). */
+const WALK_BOB = 0.05
+
 /** Smooth minimum of two numbers (polynomial), so the pelvis height has no kink where the limiting leg changes. */
 function smin(a: number, b: number, k: number): number {
   const h = Math.max(k - Math.abs(a - b), 0) / k
@@ -577,7 +580,12 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     // step), a runner sits lower still and rises and sinks with the stride (`pl.bounce`, from the planter)
     // (a walker's knee is never locked at mid-stance either: about 15 degrees of bend, which is also what keeps the hips from bobbing more than 4-5 cm)
     const crouch = (0.015 * m * (1 - r.run) + 0.045 * r.brisk * (1 - r.run) + 0.004 * r.run) * s - pl.bounce * s
-    const relaxed = ankleY + legFactor * legLen + hop + bounce - crouch
+    let relaxed = ankleY + legFactor * legLen + hop + bounce - crouch
+    // a walker's hips ride at most WALK_BOB above where the leading leg can reach at heel strike (the foot `sl` ahead), the knee a little bent at
+    // mid-stance as people walk: a long stride then bobs the hips 3-4 cm (2026-10-26 walk), not 10 cm as a straight leg would lift them
+    const slp = pl.params.sl
+    const ds = ankleY + Math.sqrt(Math.max(lmax * lmax - slp * slp, floorSq)) + WALK_BOB * s + hop
+    if (!inp.driven && ds < relaxed) relaxed -= (relaxed - ds) * m * (1 - r.run)
     const hip = Math.min(smin(hy0, hy1, 0.03 * s), relaxed)
     ST[PY] = hip + B.hipDrop * s
   }

@@ -225,7 +225,47 @@ export const SPEEDS = { walk: 1.4, brisk: 2.0, runFrom: 2.2, runTo: 2.8 } as con
 /** The vertical bounce of a runner (nominal body, metres): how far the body sinks during a foot's stance and rises during the flight. */
 export const BOUNCE = { dip: 0.01, rise: 0.01, follow: 30 } as const
 
-/** Half the ankle excursion front to back at walking speed `v` (m/s) for a nominal body. */
+/**
+ * The walk (everybody up to 1.4 m/s): a real gait, from the "walk ratio" of gait studies. Adults keep step length / cadence nearly constant over
+ * their walking speeds, about 0.0065 m per step/min, so step length = sqrt(ratio x 60 x v): 0.56 m and 86 steps/min at 0.8 m/s, 0.68 m and 105 at
+ * 1.2, 0.74 m and 114 at 1.4. It scales with body size (`scale`, the person's height over the nominal one): a tall person takes longer, slower steps.
+ * A foot is in the air for `swingFrom`..`swingTo` of its cycle (more double support when slow). (Before: the Waltz walk, 0.55 m steps at
+ * 2 steps/s = 120/min at 1.15 m/s, a quick shuffle; the owner approved the change.)
+ */
+export const WALK = {
+  ratio: 0.0065,
+  /** The slowest cadence (steps/s): a shuffle below about 0.4 m/s takes shorter steps, not slower ones. */
+  minCadence: 1.1,
+  swingFrom: 0.38,
+  swingTo: 0.43,
+  /** A swing lasts this long at least and at most (s): people swing a leg in about 0.4 s at any walking pace, the stance takes up the rest. */
+  swingMin: 0.34,
+  swingMax: 0.5,
+  /** Below `blendFrom` m/s the Waltz numbers hold (standing, turning on the spot), the walk is fully in from `blendTo`. */
+  blendFrom: 0.15,
+  blendTo: 0.5,
+  /**
+   * The share of the planted foot's travel that is ahead of the body (it lands `share` of it in front and lifts the rest behind). People land
+   * nearer than they push off (the trailing heel is up at toe-off, so that leg reaches further): 0.45, as the brisk walk does from 2 m/s.
+   */
+  share: 0.45,
+} as const
+
+/** Step length (m, touchdown to touchdown) of the walk at speed `v` (m/s) for a body of size `scale`. */
+export function walkStep(v: number, scale = 1): number {
+  const vv = v > 0 ? v : 0
+  const s = Math.sqrt(WALK.ratio * 60 * scale * vv)
+  // (at most v / minCadence: a slow shuffle)
+  const cap = vv / WALK.minCadence
+  return s < cap ? s : cap
+}
+
+/** The share of a foot's cycle it spends in the air at walking speed `v`. */
+function walkSwing(v: number): number {
+  return WALK.swingFrom + (WALK.swingTo - WALK.swingFrom) * clamp((v - 0.6) / (SPEEDS.walk - 0.6), 0, 1)
+}
+
+/** Half the ankle excursion front to back at walking speed `v` (m/s) for a nominal body (the Waltz walk's; kept for reference). */
 export function halfStride(v: number): number {
   return clamp(0.15 + 0.17 * v, 0.15, 0.46)
 }
@@ -276,17 +316,96 @@ export function createGaitParams(): GaitParams {
 
 /**
  * The gait at speed `v` (m/s, 0 when standing) for a body of size `scale`. Writes into `out` and returns it; allocates nothing.
- * For v <= 1.4 this is the original walk, number for number.
+ * Up to 1.4 m/s the walk (see WALK): cadence and step length both grow with speed, the step with the body's size; the feet are locked half a
+ * cycle apart (`gap`), as in the brisk walk.
  */
-export function gaitParams(v: number, scale: number, out: GaitParams): GaitParams {
-  const S0 = halfStride(v)
-  const dur0 = swingTime(v)
+export function gaitParams(v: number, scale: number, out: GaitParams, legacyWalk = false): GaitParams {
   const lift0 = 0.03 + 0.045 * clamp(v / 1.4, 0, 1.3)
   out.run = 0
   out.gate = 1
-  out.gap = 0
-  // the original walk: a foot lands S0 ahead and lifts S0 behind, so a cycle is 2 S0 / v + dur0
   const vv = v < 0.05 ? 0.05 : v
+  if (legacyWalk) return legacyGait(v, vv, scale, lift0, out)
+  if (v <= SPEEDS.walk) {
+    // a step of walkStep at cadence v / step; the stance (the cycle less the swing) covers the planted foot's travel, WALK.share of it ahead
+    const fw = vv / walkStep(vv, scale)
+    const cyclew = 2 / fw
+    const durw = clamp(walkSwing(vv) * cyclew, WALK.swingMin, WALK.swingMax)
+    const phiw = durw / cyclew
+    const travelw = vv * (cyclew - durw)
+    out.sl = WALK.share * travelw
+    let back = (1 - WALK.share) * travelw
+    out.dur = durw
+    out.cadence = fw
+    out.swingFrac = phiw
+    // standing, turning on the spot and the first shuffle keep the Waltz numbers (a re-homing step of 0.15 m in 0.36 s), blended into the walk
+    // between WALK.blendFrom and WALK.blendTo m/s
+    const kw = smoothstep(WALK.blendFrom, WALK.blendTo, v)
+    if (kw < 1) {
+      const S0 = halfStride(v) * scale
+      const dur0 = swingTime(v)
+      const f0 = 1 / (S0 / scale / vv + dur0 / 2)
+      out.sl = S0 + (out.sl - S0) * kw
+      back = S0 + (back - S0) * kw
+      out.dur = dur0 + (out.dur - dur0) * kw
+      out.cadence = f0 + (out.cadence - f0) * kw
+      out.swingFrac = (out.dur * out.cadence) / 2
+    }
+    out.sb = back
+    // the feet are locked half a cycle apart once walking (as in the brisk walk), so the cadence is the one asked for; a shuffle and turning on the
+    // spot keep the old free alternation
+    out.gap = kw >= 1 ? 1 / fw : 0
+    out.lift = lift0
+    return out
+  }
+  // (the brisk walk blends in from the nominal walk at 1.4 m/s; lengths are scaled with the body below)
+  const f0 = vv / walkStep(vv, 1)
+  const phi0 = clamp(walkSwing(vv) * (2 / f0), WALK.swingMin, WALK.swingMax) / (2 / f0)
+  const vc = v > 8 ? 8 : v
+  // the brisk walk, blended in from the old one
+  const kb = briskBlend(vc)
+  const f1 = Math.min(2.7, 2.05 + 0.68 * (vc - SPEEDS.walk))
+  const phi1 = Math.min(0.5, 0.43 + 0.1 * (vc - SPEEDS.walk))
+  const share1 = 0.5 - 0.05 * clamp((vc - SPEEDS.walk) / 0.6, 0, 1)
+  let f = f0 + (f1 - f0) * kb
+  let phi = phi0 + (phi1 - phi0) * kb
+  let share = WALK.share + (share1 - WALK.share) * kb
+  let lift = lift0 + 0.02 * smoothstep(1.8, 2.4, vc)
+  // the run
+  const w = runBlend(vc)
+  if (w > 0) {
+    // a run is specified by its cadence and by the share of each step the body spends in the air (the flight): the stance then takes the rest of
+    // the step, and the foot's swing (in the air for `phi` of its cycle) is the stance's complement: phi = (1 + flight share) / 2
+    const f2 = Math.min(3.7, 2 + 0.333 * vc)
+    const flight2 = 0.16 + 0.17 * (1 - Math.exp(-Math.max(vc - 2.6, 0) / 0.9))
+    const phi2 = (1 + flight2) / 2
+    f += (f2 - f) * w
+    phi += (phi2 - phi) * w
+    share += (0.31 - share) * w
+    lift += (0.16 + 0.06 * clamp(vc - 2.6, 0, 2) - lift) * w
+  }
+  const cycle = 2 / f
+  const travel = vc * cycle * (1 - phi)
+  out.sl = share * travel * scale
+  out.sb = (1 - share) * travel * scale
+  out.dur = phi * cycle
+  out.gate = phi <= 0.5 ? 1 : (0.92 * 0.5) / phi
+  out.gap = 1 / f
+  out.lift = lift
+  out.run = w
+  out.cadence = f
+  out.swingFrac = phi
+  return out
+}
+
+/**
+ * The gait of the driven body (you): the Waltz walk up to 1.4 m/s, number for number, and the brisk walk and the run blended in from it. Your
+ * walk is tuned for keys (tight A/D turns at 140 degrees a second, backing up, strafing; playerGait.test.ts); the NPCs walk by `WALK`.
+ */
+function legacyGait(v: number, vv: number, scale: number, lift0: number, out: GaitParams): GaitParams {
+  const S0 = halfStride(v)
+  const dur0 = swingTime(v)
+  out.gap = 0
+  // the Waltz walk: a foot lands S0 ahead and lifts S0 behind, so a cycle is 2 S0 / v + dur0
   const f0 = 1 / (S0 / vv + dur0 / 2)
   const phi0 = clamp((dur0 * f0) / 2, 0.15, 0.7)
   if (v <= SPEEDS.walk) {
@@ -298,6 +417,7 @@ export function gaitParams(v: number, scale: number, out: GaitParams): GaitParam
     out.swingFrac = phi0
     return out
   }
+  // the brisk walk blends in from the Waltz walk
   const vc = v > 8 ? 8 : v
   // the brisk walk, blended in from the old one
   const kb = briskBlend(vc)
@@ -691,7 +811,9 @@ export function updatePlanter(p: Planter, dt: number, x: number, z: number, head
     // the new gait does not let a foot trail more than a tenth past its limit for the sake of the other one's landing (the old one waited until
     // the leg could not reach at all, which is the lunge). A start from rest is the case: the body is away before the first swing is over.
     // (in the first two steps of a start to a run the foot is let go at its limit: the body is pulling away at full speed)
-    const overdue = gp.gap > 0 && worstRatio >= (gp.run > 0 && p.lifts - p.liftsAtMove < 2 ? 1 : 1.1)
+    // (the NPC walk, up to SPEEDS.walk, keeps the gate: a walker waits for the other foot to land rather than hop; only the brisk walk and the run
+    // scramble)
+    const overdue = gp.gap > 0 && v > SPEEDS.walk && worstRatio >= (gp.run > 0 && p.lifts - p.liftsAtMove < 2 ? 1 : 1.1)
     if (open || overdue || worstRatio > (p.fast && !moving ? 2.6 : 1.8)) {
       if (!open && other.stepping && other.t < 0.9) p.forced++
       // the foot's world travel in this swing is what the body does meanwhile plus the way the foot moves relative to it
@@ -780,7 +902,7 @@ function updateDriven(p: Planter, dt: number, x: number, z: number, heading: num
   if (p.kick && (!hasWish || f0Stepping(p))) p.kick = false
 
   const v = moving ? speed : 0
-  const gp = gaitParams(v, scale, p.params)
+  const gp = gaitParams(v, scale, p.params, true)
   // a stop closes the feet one at a time, never a hop: once the body is down to a walk the gate is shut (a runner's feet go on in the run's rhythm until then)
   if (stopping && speed < 2) gp.gate = 1
   const sl = gp.sl

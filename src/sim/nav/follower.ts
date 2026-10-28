@@ -34,6 +34,8 @@ const ARRIVE_EPS = 1e-4
 const SKIP_START = 0.05
 const TAU = Math.PI * 2
 const NO_LIMIT = 1e9
+/** On a rounded corner the path point runs at most 1 / this faster than the body's pace (the tangent is cos(turn / 2) long at the apex). */
+const CURVE_MIN_TANGENT = 0.5
 
 function wrapPi(a: number): number {
   return a - TAU * Math.round(a / TAU)
@@ -76,6 +78,12 @@ export class PathFollower {
   private cr = new Float64Array(32)
   private ckx = new Float64Array(32)
   private ckz = new Float64Array(32)
+  /** The unit direction into each rounded corner. */
+  private cax = new Float64Array(32)
+  private caz = new Float64Array(32)
+  /** On a rounded corner this step: the curve's tangent (a + u (b - a), not unit length). */
+  private tnx = 0
+  private tnz = 0
   private startX = 0
   private startZ = 0
 
@@ -146,6 +154,8 @@ export class PathFollower {
       this.cr = new Float64Array(cap)
       this.ckx = new Float64Array(cap)
       this.ckz = new Float64Array(cap)
+      this.cax = new Float64Array(cap)
+      this.caz = new Float64Array(cap)
     }
     this.startX = this.x
     this.startZ = this.z
@@ -231,6 +241,8 @@ export class PathFollower {
           this.cr[i] = r
           this.ckx[i] = kx
           this.ckz[i] = kz
+          this.cax[i] = ax / la
+          this.caz[i] = az / la
           break
         }
       }
@@ -273,6 +285,43 @@ export class PathFollower {
         }
       }
     }
+  }
+
+  /**
+   * Is the path point on a rounded corner (within its radius of the waypoint ahead or of the one just passed)? Then `tnx, tnz` is the curve's
+   * tangent there: the walker heads along it (no heading error to slow for, as there is at a sharp corner) and the path point runs 1 / |tangent|
+   * faster, so the body keeps its pace round the curve instead of slowing to cos(turn / 2) of it at the apex.
+   */
+  private onCurve(): boolean {
+    const i = this.idx
+    if (i >= this.n) return false
+    let r = this.cr[i]
+    if (r > 0) {
+      const dx = this.px[i] - this.x
+      const dz = this.pz[i] - this.z
+      const d = Math.sqrt(dx * dx + dz * dz)
+      if (d < r) {
+        const u = (r - d) / (2 * r)
+        this.tnx = this.cax[i] + u * this.ckx[i]
+        this.tnz = this.caz[i] + u * this.ckz[i]
+        return true
+      }
+    }
+    if (i > 0) {
+      r = this.cr[i - 1]
+      if (r > 0) {
+        const dx = this.x - this.px[i - 1]
+        const dz = this.z - this.pz[i - 1]
+        const d = Math.sqrt(dx * dx + dz * dz)
+        if (d < r) {
+          const u = (r + d) / (2 * r)
+          this.tnx = this.cax[i - 1] + u * this.ckx[i - 1]
+          this.tnz = this.caz[i - 1] + u * this.ckz[i - 1]
+          return true
+        }
+      }
+    }
+    return false
   }
 
   /** Where moving `len` metres along the path from the current position ends up (written to nx, nz, nIdx). */
@@ -329,8 +378,16 @@ export class PathFollower {
       return 'arrived'
     }
 
-    // 1. turn towards the next waypoint
-    let err = wrapPi(Math.atan2(dx, dz) - this.heading)
+    // 1. turn towards the next waypoint (on a rounded corner: along the curve, and the path point keeps the body at pace)
+    let hx = dx
+    let hz = dz
+    let stretch = 1
+    if (this.onCurve()) {
+      hx = this.tnx
+      hz = this.tnz
+      stretch = 1 / Math.max(CURVE_MIN_TANGENT, Math.sqrt(hx * hx + hz * hz))
+    }
+    let err = wrapPi(Math.atan2(hx, hz) - this.heading)
     if (dt !== this.kDt) {
       this.kDt = dt
       this.kTurn = 1 - Math.exp(-TURN_RATE * dt)
@@ -364,7 +421,7 @@ export class PathFollower {
     }
 
     // 3. the move
-    this.advance(v * dt)
+    this.advance(v * dt * stretch)
     this.x = this.nx
     this.z = this.nz
     this.idx = this.nIdx

@@ -99,9 +99,11 @@ const RELAX_EASE = 5
 const AVOID_ACC = 6
 /**
  * Corners are walked on a curve of up to this radius (m; follower.ts `roundCorners`), where the curve is walkable for the body: the path point
- * keeps to the polyline (progress, arrival and door logic are unchanged), the body bends round the corner. A pusher's vehicle takes them sharp.
+ * keeps to the polyline (progress, arrival and door logic are unchanged), the body bends round the corner, heading along the curve at its pace (no slow-down for the turn).
  */
-const CORNER_R = 0.6
+const CORNER_R = 0.9
+/** A pusher's curve (its vehicle's discs lie along the heading, which follows the curve's tangent, so the box swings round with it). */
+const CORNER_R_VEHICLE = 0.6
 const freeForBody = (x: number, z: number): boolean => isWalkable(x, z, BODY_MARGIN)
 /** The most a courtesy sidestep may add to the keep-right offset (m). */
 export const COURTESY_MAX = 0.6
@@ -532,7 +534,7 @@ export class CrowdWalker implements Walker {
     this.lvx = this.lvz = 0
     this.avx = this.avz = 0
     this.f.setPath(planRoute(this.here, to))
-    if (this.discAt === null) this.f.roundCorners(CORNER_R, freeForBody)
+    this.f.roundCorners(this.discAt === null ? CORNER_R : CORNER_R_VEHICLE, freeForBody)
     this.forcedStatic = false
     this.gate = -1
     this.countdown = 1
@@ -584,8 +586,8 @@ export class CrowdWalker implements Walker {
     }
     this.nb = new Int32Array(f === null ? MAX_NEIGHBOURS : MAX_NEIGHBOURS_VEHICLE)
     if (f === null) return
-    // (a vehicle takes the rest of its route's corners sharp, as its footprint is laid along the heading)
-    this.f.roundCorners(0, freeForBody)
+    // (a vehicle takes the rest of its route's corners on a tighter curve)
+    this.f.roundCorners(CORNER_R_VEHICLE, freeForBody)
     const r = f.halfWidth + DISC_EXTRA
     // (the end discs sit far enough in that the box's corners are inside them)
     const inset = Math.max(0, Math.sqrt(Math.max(0, r * r - f.halfWidth * f.halfWidth)) - 0.005)

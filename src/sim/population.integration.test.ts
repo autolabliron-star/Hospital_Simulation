@@ -143,6 +143,9 @@ describe('a whole morning with the full population (M3 gate)', () => {
 
 interface Track {
   p: ErPatient
+  /** The pathway state at the last sample, and the sim time it last changed (the arrival, at first). */
+  lastState: string
+  lastChange: number
   reason: string
   acuity: number
   critical: boolean
@@ -159,6 +162,16 @@ interface Track {
   bloodOrder: boolean
   booked: boolean
   outcome: string | null
+}
+
+/**
+ * A case is stuck when it arrived in good time (more than 2 h before the end) AND its pathway state has not changed for the last 60 sim-minutes.
+ * Why both: the ER doctor is really loaded late in the evening, so a patient who arrives at about 21:20 may still be waiting for a review or
+ * riding to the ward at 23:30 while moving along fine; the arrival rule alone was seed luck (at 6a82b12 it failed on seed 44, a patient at
+ * exam; after the 2026-10-26 walking changes on seed 11, two patients at review and on the stretcher). A case that is really stuck stops changing.
+ */
+export function isStuck(arrivedAt: number, lastChange: number, end: number): boolean {
+  return arrivedAt < end - 2 * 3600 && end - lastChange >= 60 * 60
 }
 
 /** Run a simulation to `endHour`, sampling every patient every half second. */
@@ -178,12 +191,16 @@ function watchEr(seed: number, endHour: number, options: ConstructorParameters<t
       let tr = tracks.get(c.id)
       if (!tr) {
         tr = {
-          p, reason: c.reason, acuity: c.acuity, critical: c.critical, ambulance: c.ambulance, arrivedAt: c.arrivedAt, states: new Set(), bayFrom: null, bayTo: null,
+          p, lastState: p.state, lastChange: sim.t, reason: c.reason, acuity: c.acuity, critical: c.critical, ambulance: c.ambulance, arrivedAt: c.arrivedAt, states: new Set(), bayFrom: null, bayTo: null,
           decidedAt: null, resultsAt: null, early: [], tests: false, bloodOrder: false, booked: false, outcome: null,
         }
         tracks.set(c.id, tr)
       }
       tr.states.add(p.state)
+      if (p.state !== tr.lastState) {
+        tr.lastState = p.state
+        tr.lastChange = sim.t
+      }
       const ctx = p.pathway.getSnapshot().context
       if (ctx.tests) tr.tests = true
       if (p.bloodOrder !== null) tr.bloodOrder = true
@@ -202,6 +219,32 @@ function watchEr(seed: number, endHour: number, options: ConstructorParameters<t
   void startHour
   return { sim, tracks: [...tracks.values()], maxWaiting, end }
 }
+
+describe('the stuck rule', () => {
+  it('catches a case frozen in one state, and lets a late arrival that is moving along finish after the end', () => {
+    const end = 16 * 3600
+    // arrived at 12:00 (sim hours since the start), frozen since 12:30: stuck
+    expect(isStuck(end - 4 * 3600, end - 3.5 * 3600, end)).toBe(true)
+    // arrived 2 h 6 min before the end, its last change 61 min ago: stuck
+    expect(isStuck(end - 2.1 * 3600, end - 61 * 60, end)).toBe(true)
+    // arrived 2 h 6 min before the end, changed state 20 min ago (waiting for the doctor's review): not stuck
+    expect(isStuck(end - 2.1 * 3600, end - 20 * 60, end)).toBe(false)
+    // arrived late (90 min before the end) and frozen: not judged
+    expect(isStuck(end - 1.5 * 3600, end - 1.5 * 3600, end)).toBe(false)
+  })
+
+  it('in a running day: the watcher sees each case change state, and a case frozen by hand is caught', { timeout: 300_000 }, () => {
+    const r = watchEr(5, 11)
+    const early = r.tracks.filter((x) => x.arrivedAt < r.end - 2 * 3600)
+    expect(early.length, 'cases that arrived in good time').toBeGreaterThan(3)
+    // the watcher tracks the changes: every one of them has moved on since it arrived
+    for (const t of early) expect(t.lastChange, t.p.c.name).toBeGreaterThan(t.arrivedAt)
+    // and one frozen by hand (its last change an hour and a half before the end) counts as stuck
+    const t = early[0]
+    t.lastChange = r.end - 1.5 * 3600
+    expect(isStuck(t.arrivedAt, t.lastChange, r.end)).toBe(true)
+  })
+})
 
 describe('the ER at real durations (Wave 1)', () => {
   const results: ReturnType<typeof watchEr>[] = []
@@ -223,8 +266,9 @@ describe('the ER at real durations (Wave 1)', () => {
       )
       // the waiting queue stays bounded
       expect(r.maxWaiting).toBeLessThanOrEqual(14)
-      // everyone who came in good time (at least two hours before the end) has an outcome: nobody is stuck in a state
-      const stuck = [...er.cases.values()].filter((c) => c.arrivedAt < r.end - 2 * 3600)
+      // everyone who came in good time (at least two hours before the end) is moving along: nobody is stuck in a state (see `isStuck`)
+      const lastChange = new Map(r.tracks.map((t) => [t.p.c.id, t.lastChange]))
+      const stuck = [...er.cases.values()].filter((c) => isStuck(c.arrivedAt, lastChange.get(c.id) ?? c.arrivedAt, r.end))
       expect(stuck.map((c) => `${c.name} ${c.state} since ${(c.arrivedAt / 60).toFixed(0)} min`)).toEqual([])
       expect(outcomes.lwbs / Math.max(1, er.finished.length)).toBeLessThanOrEqual(0.15)
       expect(er.maxCleanWait).toBeLessThanOrEqual(30 * 60)

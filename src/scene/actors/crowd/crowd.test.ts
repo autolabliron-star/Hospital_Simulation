@@ -970,7 +970,8 @@ describe('crowd model', () => {
     const steps = slot.rig.planter.steps
     for (let i = 0; i < 120; i++) m.update(world(es, { time: 3 + i / 60 })) // paused: the position does not change
     expect(slot.speed).toBe(0)
-    expect(slot.rig.planter.steps).toBeLessThanOrEqual(steps + 2)
+    // (a foot in the air lands, then the feet close up: with the real stride of the walk the last one may step back to the other)
+    expect(slot.rig.planter.steps).toBeLessThanOrEqual(steps + 3)
   })
 })
 

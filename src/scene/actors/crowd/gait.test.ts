@@ -1,7 +1,7 @@
 // W1 "walk": the speed-dependent gait (gait.ts), the run and brisk-walk poses (pose.ts, rig.ts) and the way a person turns, in node: no GL.
 //
 // What these tests pin down:
-//   - the NPCs (up to 1.4 m/s) walk exactly as they did before this change: the old planner is snapshotted below and compared frame by frame
+//   - the NPCs (up to 1.4 m/s) walk like people: step length and cadence from the walk ratio (WALK in gait.ts, 2026-10-26); you keep the Waltz walk
 //   - at every steady speed from 0.8 to 4.5 m/s the feet alternate, step lengths and cadences are human, no step is an emergency, planted feet never
 //     slide, and above about 2.6 m/s there is a flight phase
 //   - the pelvis stays within a few centimetres of where it should be (the old gait dropped it by 20 to 37 cm at 2 to 4 m/s)
@@ -10,179 +10,21 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '@/sim/config'
 import { LEG_LENGTH, P, PART_COUNT, STAND_PELVIS } from './constants'
-import { GAIT, SPEEDS, briskBlend, contactLift, createGaitParams, createPlanter, gaitParams, halfStride, runBlend, stancePitch, swingEase, swingTime, updatePlanter, type Planter } from './gait'
-import { clamp, damp, smoother01, smoothstep, wrapPi } from './math'
+import { GAIT, SPEEDS, WALK, briskBlend, createGaitParams, createPlanter, gaitParams, halfStride, runBlend, stancePitch, swingEase, swingTime, updatePlanter, walkStep, type Planter } from './gait'
+import { clamp, smoother01, smoothstep, wrapPi } from './math'
 import { lookFor } from './outfit'
 import { U } from './pose'
 import { createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
 import { drive as kitDrive, type DFrame } from './playerDrive.testkit'
 
 // ---------------------------------------------------------------------------------------------
-// The old planner, as it was before the speed-dependent gait. Do not edit: it is the reference the NPCs are held to.
+// The Waltz walk's foot roll (the NPC walk until the real gait of 2026-10-26; the roll itself is unchanged)
 // ---------------------------------------------------------------------------------------------
-interface OldFoot {
-  x: number
-  z: number
-  yaw: number
-  lift: number
-  pitch: number
-  stepping: boolean
-  t: number
-  dur: number
-  spitch: number
-  tx: number
-  tz: number
-  tyaw: number
-  steps: number
-}
-interface OldPlanter {
-  feet: [OldFoot, OldFoot]
-  moving: boolean
-  gait: number
-  stance: [number, number]
-  distance: number
-  steps: number
-  lastStepper: number
-  initialised: boolean
-  px: number
-  pz: number
-}
-const oldFoot = (): OldFoot => ({ x: 0, z: 0, yaw: 0, lift: 0, pitch: 0, stepping: false, t: 0, dur: GAIT.swingIdle, spitch: 0, tx: 0, tz: 0, tyaw: 0, steps: 0 })
-const createOldPlanter = (): OldPlanter => ({ feet: [oldFoot(), oldFoot()], moving: false, gait: 0, stance: [1, 1], distance: 0, steps: 0, lastStepper: -1, initialised: false, px: 0, pz: 0 })
 /** The walk's foot roll, with the push-off of the normal-walk fix (the heel rises from mid-stance to about 55 degrees at toe-off; it was 37). */
 function oldStancePitch(ps: number, motion: number): number {
   const heel = 0.18 * smoothstep(0.5, 1.0, ps)
   const toe = -0.95 * smoothstep(-0.1, -1.0, ps)
   return motion * (heel + toe)
-}
-function oldReset(p: OldPlanter, x: number, z: number, heading: number, scale = 1): void {
-  const lx = Math.cos(heading)
-  const lz = -Math.sin(heading)
-  for (let i = 0; i < 2; i++) {
-    const f = p.feet[i]
-    const side = i === 0 ? 1 : -1
-    const lat = side * GAIT.homeLat * scale
-    f.x = x + lx * lat
-    f.z = z + lz * lat
-    f.yaw = heading + side * GAIT.toeOut
-    f.lift = 0
-    f.pitch = 0
-    f.stepping = false
-    f.t = 0
-  }
-  p.moving = false
-  p.gait = 0
-  p.stance[0] = 1
-  p.stance[1] = 1
-  p.px = x
-  p.pz = z
-  p.initialised = true
-}
-function oldUpdate(p: OldPlanter, dt: number, x: number, z: number, heading: number, vx: number, vz: number, speed: number, scale: number): void {
-  if (!p.initialised) oldReset(p, x, z, heading, scale)
-  const moved = Math.sqrt((x - p.px) * (x - p.px) + (z - p.pz) * (z - p.pz))
-  if (moved > GAIT.teleport) oldReset(p, x, z, heading, scale)
-  else p.distance += moved
-  p.px = x
-  p.pz = z
-  if (p.moving) {
-    if (speed < GAIT.moveOff) p.moving = false
-  } else if (speed > GAIT.moveOn) {
-    p.moving = true
-  }
-  const moving = p.moving
-  const v = moving ? speed : 0
-  const sh = Math.sin(heading)
-  const ch = Math.cos(heading)
-  const fx = sh
-  const fz = ch
-  const lx = ch
-  const lz = -sh
-  const S = halfStride(v) * scale
-  const homeLat = GAIT.homeLat * scale
-  const motion = clamp(speed / 1.2, 0, 1)
-  for (let i = 0; i < 2; i++) {
-    const f = p.feet[i]
-    if (!f.stepping) continue
-    const side = i === 0 ? 1 : -1
-    const e0 = smoother01(f.t)
-    f.t = Math.min(1, f.t + dt / f.dur)
-    const e1 = smoother01(f.t)
-    const remaining = (1 - f.t) * f.dur
-    if (moving) {
-      f.tx = x + vx * remaining + fx * S + lx * side * homeLat
-      f.tz = z + vz * remaining + fz * S + lz * side * homeLat
-    } else {
-      f.tx = x + lx * side * homeLat
-      f.tz = z + lz * side * homeLat
-    }
-    f.tyaw = heading + side * GAIT.toeOut
-    const k = e1 >= 1 || e0 >= 1 ? 1 : (e1 - e0) / (1 - e0)
-    f.x += (f.tx - f.x) * k
-    f.z += (f.tz - f.z) * k
-    f.yaw += wrapPi(f.tyaw - f.yaw) * k
-    const liftH = moving ? 0.03 + 0.045 * clamp(speed / 1.4, 0, 1.3) : GAIT.liftIdle
-    const arc = liftH * Math.sin(Math.PI * f.t)
-    const landPitch = 0.18 * motion
-    f.pitch = f.spitch + (landPitch - f.spitch) * smoothstep(0, 0.85, f.t)
-    f.lift = arc + contactLift(f.pitch)
-    if (f.t >= 1) {
-      f.stepping = false
-      f.x = f.tx
-      f.z = f.tz
-      f.yaw = f.tyaw
-      f.steps++
-      p.steps++
-    }
-  }
-  let worst = -1
-  let worstRatio = 0
-  let aLeft = 0
-  let aRight = 0
-  for (let i = 0; i < 2; i++) {
-    const f = p.feet[i]
-    const side = i === 0 ? 1 : -1
-    const dx = f.x - x
-    const dz = f.z - z
-    const a = dx * fx + dz * fz
-    const lat = dx * lx + dz * lz
-    const b = lat - side * homeLat
-    if (i === 0) aLeft = a
-    else aRight = a
-    if (f.stepping) continue
-    const ps = a / Math.max(S, 0.15 * scale)
-    f.pitch = damp(f.pitch, oldStancePitch(ps, motion), 14, dt)
-    f.lift = contactLift(f.pitch)
-    const yawErr = Math.abs(wrapPi(f.yaw - (heading + side * GAIT.toeOut)))
-    let ratio: number
-    if (moving) ratio = Math.max(-a / S, Math.abs(b) / (0.16 * scale), yawErr / 0.8)
-    else ratio = Math.max(Math.sqrt(a * a + b * b) / (GAIT.idleStepDist * scale), yawErr / GAIT.idleStepYaw)
-    if (Math.sqrt(a * a + lat * lat) > GAIT.maxReach * scale) ratio = Math.max(ratio, 1.9)
-    if (ratio > worstRatio) {
-      worstRatio = ratio
-      worst = i
-    }
-  }
-  if (worst >= 0 && worstRatio >= 1) {
-    const other = p.feet[1 - worst]
-    if (!other.stepping || worstRatio > 1.8) {
-      const f = p.feet[worst]
-      f.stepping = true
-      f.t = 0
-      f.dur = moving ? swingTime(v) : GAIT.swingIdle
-      f.spitch = f.pitch
-      f.tx = f.x
-      f.tz = f.z
-      f.tyaw = f.yaw
-      p.lastStepper = worst
-    }
-  }
-  const ref = Math.max(S, 0.2 * scale)
-  p.gait = clamp((aLeft - aRight) / (2 * ref), -1, 1)
-  for (let i = 0; i < 2; i++) {
-    const f = p.feet[i]
-    p.stance[i] = f.stepping ? 0.5 + 0.5 * Math.cos(2 * Math.PI * f.t) : 1
-  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -445,12 +287,53 @@ const SPEEDS_TESTED = [0.8, 1.2, 1.5, 2.0, 2.6, 3.2, 4.2, 4.5]
 // The numbers behind the gait
 // ---------------------------------------------------------------------------------------------
 describe('gait parameters', () => {
-  it('are the old walk, number for number, up to 1.4 m/s (every NPC), at any size', () => {
+  it('walk like people (2026-10-26, approved by the owner): a step of sqrt(0.39 v) m, so 0.65-0.75 m and 100-115 steps/min at 1.1-1.3 m/s', () => {
+    // (the Waltz walk took 0.55-0.6 m steps at 2 steps/s, 120/min at 1.15 m/s: a quick shuffle. Gait studies give adults a nearly constant
+    // "walk ratio", step length over cadence, of about 0.0065 m per step/min; WALK in gait.ts.)
+    const gp = createGaitParams()
+    for (const v of [1.1, 1.2, 1.3]) {
+      gaitParams(v, 1, gp)
+      const step = v / gp.cadence
+      expect(step, `step at ${v}`).toBeGreaterThan(0.65)
+      expect(step, `step at ${v}`).toBeLessThan(0.75)
+      expect(gp.cadence * 60, `steps/min at ${v}`).toBeGreaterThan(100)
+      expect(gp.cadence * 60, `steps/min at ${v}`).toBeLessThan(115)
+      expect(step).toBeCloseTo(walkStep(v), 9)
+      // the stance and the swing make up the cycle, and the planted foot lands nearer than it leaves (WALK.share ahead)
+      expect((gp.sl + gp.sb) / v + gp.dur).toBeCloseTo(2 / gp.cadence, 9)
+      expect(gp.sl / (gp.sl + gp.sb)).toBeCloseTo(WALK.share, 9)
+      // the feet are locked half a cycle apart, as in the brisk walk
+      expect(gp.gap).toBeCloseTo(1 / gp.cadence, 9)
+    }
+  })
+
+  it('make a slower walker take shorter and slower steps, and a taller one longer and slower steps', () => {
+    const a = createGaitParams()
+    const b = createGaitParams()
+    let lastStep = 0
+    let lastCadence = 0
+    for (let i = 6; i <= 14; i++) {
+      const v = i / 10
+      gaitParams(v, 1, a)
+      expect(v / a.cadence).toBeGreaterThan(lastStep)
+      expect(a.cadence).toBeGreaterThan(lastCadence)
+      lastStep = v / a.cadence
+      lastCadence = a.cadence
+      gaitParams(v, 1.06, b)
+      expect(v / b.cadence).toBeGreaterThan(v / a.cadence)
+      expect(b.cadence).toBeLessThan(a.cadence)
+    }
+    // a shuffle: never slower than WALK.minCadence
+    gaitParams(0.35, 1, a)
+    expect(a.cadence).toBeGreaterThanOrEqual(WALK.minCadence - 1e-9)
+  })
+
+  it('keep the Waltz walk for the driven body (you), number for number, up to 1.4 m/s, at any size', () => {
     const gp = createGaitParams()
     for (let i = 0; i <= 70; i++) {
       const v = Math.min(i * 0.02, SPEEDS.walk)
       for (const scale of [0.94, 1, 1.06]) {
-        gaitParams(v, scale, gp)
+        gaitParams(v, scale, gp, true)
         expect(gp.sl).toBe(halfStride(v) * scale)
         expect(gp.sb).toBe(halfStride(v) * scale)
         expect(gp.dur).toBe(swingTime(v))
@@ -552,46 +435,29 @@ describe('swing easing', () => {
 })
 
 // ---------------------------------------------------------------------------------------------
-// The NPCs do not change
+// The NPC walk
 // ---------------------------------------------------------------------------------------------
-describe('NPC walking is unchanged', () => {
-  /** Drive both planners with the same body: stand, start, stroll, turn, slow, stop, start again, with every frame rate and size. */
-  function compare(dt: number, scale: number, peak: number): number {
-    const a = createPlanter()
-    const b = createOldPlanter()
-    let x = 0
-    let z = 0
-    let heading = 0.4
-    let v = 0
-    let worst = 0
-    for (let i = 0; i * dt < 40; i++) {
-      const t = i * dt
-      const target = t < 2 ? 0 : t < 12 ? peak : t < 18 ? peak * 0.45 : t < 22 ? 0 : t < 32 ? peak * 0.9 : peak * 0.6
-      v += (target - v) * Math.min(1, dt * 6)
-      if (v < 0.01) v = 0
-      if (t > 8 && t < 9) heading += 2.2 * dt
-      if (t > 25 && t < 25.5) heading -= 3.1 * dt
-      x += Math.sin(heading) * v * dt
-      z += Math.cos(heading) * v * dt
-      const vx = Math.sin(heading) * v
-      const vz = Math.cos(heading) * v
-      updatePlanter(a, dt, x, z, heading, vx, vz, v, scale)
-      oldUpdate(b, dt, x, z, heading, vx, vz, v, scale)
-      for (let k = 0; k < 2; k++) {
-        const f = a.feet[k]
-        const g = b.feet[k]
-        expect(f.stepping).toBe(g.stepping)
-        worst = Math.max(worst, Math.abs(f.x - g.x), Math.abs(f.z - g.z), Math.abs(f.yaw - g.yaw), Math.abs(f.lift - g.lift), Math.abs(f.pitch - g.pitch), Math.abs(f.t - g.t), Math.abs(f.dur - g.dur))
+describe('the NPC walk', () => {
+  it('steps as asked at 0.8 to 1.4 m/s: the step length and cadence of WALK, alternating, no slide and no emergency step, for small and tall people', () => {
+    for (const v of [0.8, 1.0, 1.2, 1.4]) {
+      for (const scale of [0.94, 1, 1.06]) {
+        const s = steady(v, { scale })
+        expect(s.alternates, `alternates at ${v}`).toBe(true)
+        expect(s.slide, `slide at ${v}`).toBe(0)
+        expect(s.forced, `forced at ${v} x ${scale}`).toBe(0)
+        expect(Math.abs(s.step - walkStep(v, scale)) / walkStep(v, scale), `step at ${v} x ${scale}`).toBeLessThan(0.04)
       }
-      worst = Math.max(worst, Math.abs(a.gait - b.gait), Math.abs(a.stance[0] - b.stance[0]), Math.abs(a.stance[1] - b.stance[1]))
-      expect(a.steps).toBe(b.steps)
-      expect(a.moving).toBe(b.moving)
     }
-    return worst
-  }
+  })
 
-  it('matches the old planner frame by frame at the NPC speeds (1.0 to 1.4 m/s), at 30, 60 and 144 fps, for small and tall people', () => {
-    for (const dt of [1 / 30, 1 / 60, 1 / 144]) for (const scale of [0.94, 1.06]) for (const peak of [1.0, 1.3, 1.4]) expect(compare(dt, scale, peak)).toBeLessThan(1e-9)
+  it('bobs the hips 2.5 to 5 cm a stride and never sinks them more than 8 cm below standing (a long stride with a straight leg would)', () => {
+    for (const v of [0.8, 1.0, 1.2, 1.4]) {
+      const ys = rigRun(v).frames.map((f) => f.pelvisY)
+      const r = range(ys)
+      expect(r.p2p, `bob at ${v}`).toBeGreaterThan(0.025)
+      expect(r.p2p, `bob at ${v}`).toBeLessThan(0.05)
+      expect(STAND_Y - Math.min(...ys), `sink at ${v}`).toBeLessThan(0.08)
+    }
   })
 
   it('leaves the rig in the NPC walk: no run, no brisk-walk pose, whatever the sim called the animation', () => {
@@ -627,17 +493,18 @@ describe('the footfalls at a steady speed', () => {
     }
   })
 
-  it('are human in step length and cadence: 0.65 to 0.9 m and 1.9 to 2.6 steps/s as a brisk walk, 0.9 to 1.6 m and 2.6 to 3.6 steps/s as a run', () => {
+  it('are human in step length and cadence: 0.5 to 0.75 m and 1.35 to 1.9 steps/s as a walk, 0.6 to 0.9 m and 1.9 to 2.6 steps/s as a brisk walk, 0.9 to 1.6 m and 2.6 to 3.6 steps/s as a run', () => {
     for (const v of SPEEDS_TESTED) {
       const s = byV.get(v)!
       // a step is the distance between two touchdowns: the speed is the step length times the cadence
       expect(s.step * s.cadence, `v = step x cadence at ${v}`).toBeGreaterThan(v * 0.97)
       expect(s.step * s.cadence).toBeLessThan(v * 1.03)
-      if (v < 1) {
-        expect(s.step).toBeGreaterThan(0.35)
-        expect(s.step).toBeLessThan(0.6)
-        expect(s.cadence).toBeGreaterThan(1.6)
-        expect(s.cadence).toBeLessThan(2.1)
+      if (v <= SPEEDS.walk) {
+        // the NPC walk (WALK): 0.56 m at 86 steps/min at 0.8 m/s, 0.68 m at 105 at 1.2 m/s
+        expect(s.step, `step at ${v}`).toBeGreaterThan(v < 1 ? 0.5 : 0.65)
+        expect(s.step, `step at ${v}`).toBeLessThan(v < 1 ? 0.62 : 0.75)
+        expect(s.cadence, `cadence at ${v}`).toBeGreaterThan(v < 1 ? 1.35 : 1.65)
+        expect(s.cadence, `cadence at ${v}`).toBeLessThan(v < 1 ? 1.55 : 1.92)
       } else if (v <= 2.2) {
         expect(s.step, `step at ${v}`).toBeGreaterThan(0.6)
         expect(s.step, `step at ${v}`).toBeLessThan(0.9)
