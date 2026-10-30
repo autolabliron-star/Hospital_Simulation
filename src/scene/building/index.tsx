@@ -1,10 +1,12 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react'
 import { useThree } from '@react-three/fiber'
+import { registerWarmGate } from '@/scene/warmup/registry'
 import { bindCellsUnder } from './model/cells'
 import { BUILDING_MODEL_ON } from './model/flags'
 import { BuildingModel } from './model/PilotModel'
 import { getBuildingSource, getManifest, startBuildingSource, subscribeBuildingSource } from './model/source'
 import { ZonesModel } from './model/ZonesModel'
+import { SPLAT_ZONE } from './splat/flags'
 import { BuildingMeshes } from './render/BuildingMeshes'
 import { Level2Building } from './render/Level2Building'
 import { RoofCap } from './render/RoofCapLayer'
@@ -12,6 +14,11 @@ import { WalkBuilding } from './render/walk/WalkBuilding'
 
 // the authored building (the default; `?building=procedural` opts out): decide at once between the zone manifest and the pilot
 if (BUILDING_MODEL_ON) void startBuildingSource(import.meta.env.BASE_URL)
+
+// the splat pilot (./splat, paused) is off by default: Spark (about 2.6 MB) loads only when `?splat=` asks for it, behind the warm-up
+const splatModule = SPLAT_ZONE === null ? null : import('./splat/SplatZone')
+if (splatModule !== null) registerWarmGate('splat-module', splatModule)
+const SplatZone = lazy(() => (splatModule ?? import('./splat/SplatZone')).then((m) => ({ default: m.SplatZone })))
 
 /** Finds the procedural building's per-zone cell meshes (`|cell=<id>`) once they are in the scene (an effect after its earlier siblings'). */
 function CellBinder() {
@@ -49,6 +56,11 @@ export function Building() {
       {source !== 'procedural' && <CellBinder />}
       {source === 'pilot' && <BuildingModel />}
       {manifest && <ZonesModel manifest={manifest} />}
+      {manifest && SPLAT_ZONE !== null && (
+        <Suspense fallback={null}>
+          <SplatZone zone={SPLAT_ZONE} />
+        </Suspense>
+      )}
     </>
   )
 }

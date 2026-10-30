@@ -19,6 +19,9 @@ Run headless (Blender 4.5; other agents use Blender too, so go through the singl
   --stills <dir>  the zone's review still zone-<id>-<draft|final>.jpg (1280x720, eye level, 24 mm, AgX Base Contrast) from the first pose;
                   --all-poses renders every pose of the design as zone-<id>-<quality>-<i>.jpg
   --no-bake       build (and render stills / save the .blend) without baking or exporting
+  --views <dir>   the Gaussian-splat pilot (splat_views.py): <dir>/<id>/ gets seeded eye-level Cycles views of the design's HERO rects
+                  (images/*.png), their cameras (transforms.json, Nerfstudio) and a starting point cloud (points.ply) for a splat trainer;
+                  --view-count, --view-res, --view-samples, --view-lens
   --bake-samples N, --bake-only A,B, --density, --max-lightmap, --lightmap-budget-mb, --no-denoise, --probe-samples, --exposure: see below.
 
 Lightmap sizes: a material's forced size (materials.json `lightmap`) or one by its area (--density texels per m2); then, while the zone's lightmaps
@@ -43,6 +46,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import bake as bk  # noqa: E402
+import splat_views  # noqa: E402
 import materials as mt  # noqa: E402
 import shell  # noqa: E402
 import zones as zn  # noqa: E402
@@ -74,6 +78,11 @@ ap.add_argument('--max-lightmap', type=int, default=2048)
 ap.add_argument('--lightmap-budget-mb', type=float, default=0.0, help='0 = zones.json budgets.perZone.lightmapMB')
 ap.add_argument('--no-denoise', action='store_true')
 ap.add_argument('--probe-samples', type=int, default=0, help='0 = 128 draft, 512 final')
+ap.add_argument('--views', default='', help='directory for the splat pilot views (splat_views.py)')
+ap.add_argument('--view-count', type=int, default=240)
+ap.add_argument('--view-res', type=int, default=960)
+ap.add_argument('--view-samples', type=int, default=64)
+ap.add_argument('--view-lens', type=float, default=18.0)
 args = ap.parse_args(argv)
 
 PLAN = json.load(open(args.plan))
@@ -368,6 +377,15 @@ def run_zone(zid):
             name = f'zone-{zid}-{QUALITY}.jpg' if not args.all_poses else f'zone-{zid}-{QUALITY}-{i}.jpg'
             render_still(scene, pose, ly, os.path.join(args.stills, name), samples)
         timings['stills'] = round(time.time() - ts)
+
+    if args.views:
+        rects = list(getattr(design, 'HERO', [])) or rects_of(zone)
+        info = splat_views.render_views(
+            scene, rects, ly, os.path.join(os.path.abspath(args.views), zid), count=args.view_count, res=args.view_res,
+            samples=args.view_samples, lens=args.view_lens,
+            # the points: everything the views can see (the zone, its neighbours, the lawn out through the glass), Blender frame
+            points_box=(-100.0, -36.0, -24.0, 24.0, ly - 0.2, ly + 6.0), objs=list(scene.objects))
+        timings['views'] = info['seconds']
 
     if args.blend:
         bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out_dir, f'{zid}.blend'))

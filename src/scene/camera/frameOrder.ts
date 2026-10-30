@@ -32,6 +32,7 @@
  *  -0.22  lab                 W4: pneumatic flights, pucks and tubes on the track, centrifuges    src/scene/lab
  *  -0.21  W4 status screens   repaint changed tiles (4 Hz check, 2 Hz upload)                    src/scene/w4kit
  *   -0.2  beds wall           the command wall's Beds panel (checks at 2 Hz, repaints on change) src/scene/building/render
+ *  -0.12  splat swap          the splat pilot: a zone's splat shown while walking, its baked model hidden (before the culling)  src/scene/building/splat
  *   -0.1  walk building       door leaves, walk-only walls/ceilings/signs shown by mode (W1)       src/scene/building/render/walk
  *      0  everything else     drei <Html> labels project here (their own useFrame), and so do
  *                             the instanced effects that read the camera
@@ -76,6 +77,8 @@ export const FRAME_PRIORITY = {
   bedsWall: -0.2,
   /** Realism step 2: the soft contact shadows follow their sources after every layer above has moved them (src/scene/lighting/contact). */
   contactShadows: -0.05,
+  /** The splat pilot (?splat=<zone>): before the building's culling (BUILDING_VISIBILITY_PRIORITY -0.1) reads splatSwap. */
+  splatSwap: -0.12,
   labels: 0,
 } as const
 

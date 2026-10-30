@@ -17,6 +17,8 @@
  * Pure over its dependencies (loaders, the skeleton parser), so node drives it with fakes; the GPU steps are behind `frame`'s renderer.
  */
 import { Group, type Camera, type Material, type Scene, type Texture, type WebGLRenderer } from 'three'
+import { splatDepthStandIn, type SplatDepth } from '../splat/depth'
+import { SPLAT_ZONE, splatSwap } from '../splat/flags'
 import { cellReplaced, setCellReplaced } from './cells'
 
 /**
@@ -62,6 +64,8 @@ export interface ZoneSlot {
   error: string | null
   /** The overview proxy, once mounted (null: none in the manifest, not loaded yet, failed, or dropped with a failed zone). */
   far: FarModel | null
+  /** The splat pilot's depth-only copy of the model (../splat/depth.ts), for the `?splat=` zone only; drawn while the splat stands in. */
+  splatDepth: SplatDepth | null
 }
 
 export interface RuntimeDeps {
@@ -140,7 +144,18 @@ export class ZoneRuntime {
     this.root.add(this.skeletons)
     this.slots = deps.manifest.zones.map((zone) => {
       const def = zoneDef(zone.id)!
-      return { zone, entry: cullEntry(def, zone.bounds), state: 'pending' as ZoneState, model: null, prefetched: null, proxies: [], job: null, error: null, far: null }
+      return {
+        zone,
+        entry: cullEntry(def, zone.bounds),
+        state: 'pending' as ZoneState,
+        model: null,
+        prefetched: null,
+        proxies: [],
+        job: null,
+        error: null,
+        far: null,
+        splatDepth: null,
+      }
     })
     this.entries = this.slots.map((s) => s.entry)
     setVisibilitySets(this.entries, (id) => this.slots.find((s) => s.zone.id === id)?.zone.visibleFrom ?? null)
@@ -157,6 +172,7 @@ export class ZoneRuntime {
       out.push(...s.proxies)
       if (s.model) out.push(...s.model.materials)
       if (s.far) out.push(s.far.material)
+      if (s.splatDepth) out.push(s.splatDepth.material)
     }
     return out
   }
@@ -281,6 +297,10 @@ export class ZoneRuntime {
     s.state = 'ready'
     s.entry.ready = true
     m.scene.visible = false // the next frame's culling decides
+    if (SPLAT_ZONE === s.zone.id) {
+      s.splatDepth = splatDepthStandIn(m.scene, clipOfLevel(s.zone.level))
+      this.root.add(s.splatDepth.group)
+    }
     this.root.add(m.scene)
     this.replaceCell(s.zone.id, true)
     this.settleIfIdle()
@@ -341,7 +361,10 @@ export class ZoneRuntime {
     for (let i = 0; i < this.slots.length; i++) {
       const s = this.slots[i]
       const m = s.model
-      if (m !== null && s.state === 'ready') m.scene.visible = this.entries[i].drawFull
+      // the splat pilot (../splat): while a zone's splat is shown, its baked model is not, and the model's depth-only copy is
+      const splat = splatSwap.shown && splatSwap.zone === s.zone.id
+      if (m !== null && s.state === 'ready') m.scene.visible = this.entries[i].drawFull && !splat
+      if (s.splatDepth !== null) s.splatDepth.group.visible = this.entries[i].drawFull && splat
       if (s.far !== null) s.far.scene.visible = this.entries[i].drawFar
     }
     return n
@@ -397,6 +420,8 @@ export class ZoneRuntime {
     for (const s of this.slots) {
       s.model?.dispose()
       s.model = null
+      s.splatDepth?.dispose()
+      s.splatDepth = null
       for (const m of s.proxies) m.dispose()
       s.proxies = []
       if (s.state === 'ready' || s.far) setCellReplaced(s.zone.id, false)
