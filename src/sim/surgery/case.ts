@@ -24,6 +24,7 @@ import type { Rng } from '../rng'
 import type { CasePhase, SeatSpec, SimEventType, SurgeryCaseView, Vec2 } from '../types'
 import { SurgicalPatient, SurgeryCompanion, type Staffer, type Title } from './actors'
 import { ROOM_PHASES, timelineOf, type PlannedCase, type RoomPhase, type Timeline } from './plan'
+import type { CaseScript } from './script'
 import type { SeatRef, SurgerySites } from './sites'
 import type { Team } from './team'
 
@@ -148,7 +149,14 @@ export class SurgeryCase {
   /** Sim time the current stage began, and (timed stages) when it ends. */
   stageAt = 0
   until = 0
-  readonly tl: Timeline
+  /** The plan laid out in time, moved by `shift` (R5: a watch case booked in front of this one). */
+  tl: Timeline
+  /** R5: seconds this case has been moved later since it was planned (a watch case booked in front of it); 0 for the day as planned. */
+  shift = 0
+  /** R5: the procedure script this case plays, or null (no script for its procedure yet: the R2 behaviour). Set by the suite. */
+  proc: CaseScript | null = null
+  /** How many of the bedside exchanges have been done (the plan's, or the script's): the suite's count. */
+  exDone = 0
   readonly view: SurgeryCaseView
   patient: SurgicalPatient | null = null
   companion: SurgeryCompanion | null = null
@@ -165,16 +173,16 @@ export class SurgeryCase {
   readonly patientName: string
   readonly companionName: string
   private trip: LiftTrip | null = null
-  private porter: Staffer | null = null
+  protected porter: Staffer | null = null
   /** Who has the stretcher: the porter, or (when he is away at the ward) the pre-op or recovery nurse. */
-  private moverTitle: Title = 'porter'
-  private sub = 0
+  protected moverTitle: Title = 'porter'
+  protected sub = 0
   private waitSeat: SeatSpec | null = null
-  private compSeat: SeatSpec | null = null
+  protected compSeat: SeatSpec | null = null
   private loungeSeat: SeatSpec | null = null
   private bedRef: SeatRef | null = null
   private pacuRef: SeatRef | null = null
-  private standIdx = 0
+  protected standIdx = 0
   private docked = false
   /** Going home by wheelchair (the family pushes) rather than on foot. */
   private chairOut = false
@@ -214,6 +222,29 @@ export class SurgeryCase {
     return this.plan.id
   }
 
+  /** When the room is free for this case (the plan's, moved by `shift`). */
+  get nominalIn(): number {
+    return this.plan.nominalIn + this.shift
+  }
+
+  /** When the patient arrives at the entrance (the plan's, moved by `shift`). */
+  get arriveAt(): number {
+    return this.plan.arriveAt + this.shift
+  }
+
+  /** R5: a "Watch step by step" case. */
+  get isWatch(): boolean {
+    return this.plan.watch === true
+  }
+
+  /** R5: move this case `s` seconds later (a watch case was booked in front of it): every planned time from now on follows. */
+  shiftBy(s: number): void {
+    if (s === 0) return
+    this.shift += s
+    this.tl = timelineOf(this.plan, this.shift)
+    this.host.touch()
+  }
+
   get inRoom(): boolean {
     return ROOM_SET.has(this.stage)
   }
@@ -231,7 +262,7 @@ export class SurgeryCase {
     return SURGERY_COPY.procedures[this.plan.procedure].short
   }
 
-  private enter(stage: Stage, t: number): void {
+  protected enter(stage: Stage, t: number): void {
     this.stage = stage
     this.stageAt = t
     this.sub = 0
@@ -245,7 +276,7 @@ export class SurgeryCase {
   // the people
   // ------------------------------------------------------------------------------------------------------------------
 
-  private newPeople(at: Vec2, heading: number, fade: boolean): { patient: SurgicalPatient; companion: SurgeryCompanion } {
+  protected newPeople(at: Vec2, heading: number, fade: boolean): { patient: SurgicalPatient; companion: SurgeryCompanion } {
     const w = this.host.world
     const patient = new SurgicalPatient(w, this.id, this.patientName, at, heading, w.walkerFor(`${this.id}-patient`), this.rng.fork('patient'))
     const companion = new SurgeryCompanion(w, this.id, this.companionName, { x: at.x - Math.sin(heading) * 0.2, z: at.z + 0.7 }, heading, w.walkerFor(`${this.id}-companion`), patient)
@@ -298,7 +329,7 @@ export class SurgeryCase {
   step(t: number, dt: number): void {
     switch (this.stage) {
       case 'scheduled':
-        if (t >= this.plan.arriveAt) this.spawnAtEntrance(t, true)
+        if (t >= this.arriveAt) this.spawnAtEntrance(t, true)
         break
       case 'arriving':
         this.stepArriving(t)
@@ -577,7 +608,7 @@ export class SurgeryCase {
   }
 
   /** Somebody to push the stretcher: the porter, or (when he is up at the ward) the pre-op nurse or the recovery nurse. */
-  private acquireMover(): Staffer | null {
+  protected acquireMover(): Staffer | null {
     for (const title of ['porter', 'preOp', 'pacu'] as const) {
       const s = this.host.team.acquire(title, this.id)
       if (s !== null) {
@@ -603,7 +634,7 @@ export class SurgeryCase {
 
   // --- the porter takes the patient to the theatre ---------------------------------------------------------------------
 
-  private tableApproach(): { at: Vec2; face: number } {
+  protected tableApproach(): { at: Vec2; face: number } {
     const seat = this.host.sites.table.seat
     return { at: seat.approach, face: headingTo(seat.approach, seat) }
   }
@@ -670,7 +701,7 @@ export class SurgeryCase {
       }
       return
     }
-    if (t < this.plan.nominalIn - 1 || !h.roomFree(this)) return
+    if (t < this.nominalIn - 1 || !h.roomFree(this)) return
     // wheels in: onto the table
     const table = h.sites.table
     h.sites.claim(table, p.entity.id)
@@ -683,11 +714,12 @@ export class SurgeryCase {
 
   // --- the theatre phases ---------------------------------------------------------------------------------------------
 
-  private enterRoom(phase: RoomPhase, t: number): void {
+  protected enterRoom(phase: RoomPhase, t: number): void {
     this.enter(phase, t)
     this.until = t + this.plan.phases[phase]
     this.starts[phase] = t
-    const who = WHO_AT[phase]
+    // (a scripted case says the checklist where its script puts the pauses: the suite logs it as the step begins)
+    const who = this.proc === null ? WHO_AT[phase] : undefined
     if (who !== undefined && this.patient !== null) {
       this.host.say(who.type, `${this.patientName}: ${SURGERY_COPY.checklist[who.line]}`, { subjectId: this.patient.entity.id })
     }
@@ -1162,14 +1194,14 @@ export class SurgeryCase {
     const tl = this.tl
     const plan = this.plan
     const h = this.host
-    if (t < plan.arriveAt) {
+    if (t < this.arriveAt) {
       this.stage = 'scheduled'
       return
     }
     // history: every time the case has passed
     const past = (x: number) => x <= t
     if (past(tl.outAt)) {
-      this.view.wheelsIn = plan.nominalIn
+      this.view.wheelsIn = this.nominalIn
       this.view.dockedAt = tl.phaseEnd.docking
       this.view.consoleStart = tl.phaseStart.console
       this.view.consoleEnd = tl.phaseEnd.console
@@ -1177,8 +1209,8 @@ export class SurgeryCase {
       this.leftRoomAt = tl.outAt
     }
     for (const ph of ROOM_PHASES) if (past(tl.phaseStart[ph])) this.starts[ph] = tl.phaseStart[ph]
-    if (past(plan.nominalIn)) {
-      this.view.wheelsIn = plan.nominalIn
+    if (past(this.nominalIn)) {
+      this.view.wheelsIn = this.nominalIn
       if (past(tl.phaseEnd.docking)) {
         this.view.dockedAt = tl.phaseEnd.docking
         this.docked = true
@@ -1210,7 +1242,7 @@ export class SurgeryCase {
       this.enter('ready', t)
       return
     }
-    if (t < plan.nominalIn) {
+    if (t < this.nominalIn) {
       this.warmToTheatre(t)
       return
     }
@@ -1325,7 +1357,7 @@ export class SurgeryCase {
     this.enter('toTheatre', t)
   }
 
-  private placeInLounge(c: SurgeryCompanion): void {
+  protected placeInLounge(c: SurgeryCompanion): void {
     const h = this.host
     const seat = h.sites.claimLounge(c.entity.id, c.pos)
     if (seat !== null) {

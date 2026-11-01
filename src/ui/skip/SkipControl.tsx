@@ -8,13 +8,14 @@ import { SKIP, fillSkip } from '@/content/skip'
 import { useFocus } from '@/scene/camera/focus.store'
 import { useOverviewLevel } from '@/scene/levels/levelView'
 import { useWalk } from '@/scene/player/state'
+import { useWatch, watchingNow } from '@/scene/watch/watch.store'
 import { sim, skipLimit } from '@/sim'
 import { areaAt } from '@/sim/places'
 import { MODALITIES } from '@/sim/types'
 import { usePoll } from '../usePoll'
 import { useJump } from '../jump.store'
 import { caseTimes, keyTarget, requestFor, rowModel, skipTargets, type SkipRowModel, type SkipView } from './skipModel'
-import type { SkipTarget } from './types'
+import type { SkipRequest, SkipTarget } from './types'
 import './skip.css'
 
 /** The snapshot of the sim and the screen the targets are built from. Allocates; call it from a poll or an event, never from a frame. */
@@ -35,6 +36,9 @@ export function readSkipView(): SkipView {
     panelArea: useFocus.getState().area,
     cases: sim.surgery.runs.map((c) => caseTimes(c.tl, c.starts, c.pacuInAt, nowT)),
     scanners,
+    // R5: while you watch step by step only live skips, and the booked watch case's start
+    watching: watchingNow(useWatch.getState()),
+    watchStartsAt: sim.surgery.watchStartsAt ?? null,
   }
 }
 
@@ -54,6 +58,21 @@ function start(target: SkipTarget | null | undefined): boolean {
 /** A press of `]` (plain: +15 min) or Shift+`]` (the context milestone, else +1 h). */
 export function skipByKey(shift: boolean): boolean {
   return start(keyTarget(currentTargets(), shift))
+}
+
+/**
+ * R5: skip to the start of the booked watch case (the watch overlay's "Skip to the start"). `before` hears the request just before it runs (the watch flow
+ * marks a rebuilding skip as its own, so the watch survives the new generation). Returns the request, or null when there is nothing to skip to or the
+ * flow refuses (a jump or a lift ride is under way).
+ */
+export function skipToWatchStart(before?: (req: SkipRequest) => void): SkipRequest | null {
+  const target = currentTargets().find((t) => t.kind === 'watch')
+  if (!target) return null
+  const { phase, skip } = useJump.getState()
+  if (phase !== 'idle') return null
+  const req = requestFor(target, sim.t)
+  before?.(req)
+  return skip(req) ? req : null
 }
 
 /** A click on a button: the target is found again by its label, so it is the clock of now, not of the last poll. */

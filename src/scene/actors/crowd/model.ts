@@ -9,6 +9,11 @@
 // the BADGE_FRAME slot. Until then, or if the assets never load, everybody keeps the procedural body exactly as before.
 // R2: a realistic person in theatre scrubs (hair style `theatreCap`) wears the crowd's surgical cap: its frame rides the CAP_FRAME slot (the head, binds
 // applied, moved and scaled onto the avatar's skull: avatars.ts CapFit) and the cap mesh draws the rows in `capRows`.
+// R5: `Entity.act` (a procedure action: the pose, the tools in both hands, the work point, the progress) and `Entity.attire` (mask, gown, gloves, lead) go
+// to the rig; the attire is written into the row when it changes (attire.ts writeAttire); the instruments of the people within INSTRUMENT_NEAR, the masks
+// (MASK_FRAME, fitted on each avatar's face) and the gown skirts are listed for their meshes; a `?probe=1` hook can force an act (`forced`, forceAct).
+// R5 wave 2: a lying person on the OR table with an `Entity.patientPose` (or a probe-forced one: `forcePatient`) is given to the rig as the table pose (tilt, roll, lithotomy,
+// tucked arms, the level's drawn offsets); the rig carries the body with the table (tablePatient.ts), and the pick capsule follows it.
 /**
  * The crowd model: every person that is drawn, their state and the pose texture data, with no GL in it.
  *
@@ -30,18 +35,23 @@
  */
 import { presentationOf, type Presentation } from '@/content/roster'
 import { LEVEL_Y, levelDx, levelOf, type LevelId } from '@/sim/levels'
-import type { Entity, Outfit, PropKind, Role, VehicleKind } from '@/sim/types'
+import { ATTIRE, type Airway, type Entity, type Outfit, type PatientPoseView, type PropKind, type Role, type StaffAct, type VehicleKind } from '@/sim/types'
+import { PELVIS_ON_TABLE } from '@/sim/procedure/body'
 import { shownAt } from '@/scene/levels/levelView'
-import { BADGE_FRAME, CAP_FRAME, MAX_PEOPLE, NOMINAL_BODY, P, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
-import { inBlanketBed, levelsOf, type Levels } from './head'
+import { BADGE_FRAME, CAP_FRAME, INSTRUMENT_HAND, MASK_FRAME, MAX_PEOPLE, NOMINAL_BODY, P, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
+import { inBlanketBed, levelsOf, onOrTable, type Levels } from './head'
 import { AVATAR_LOD, LOD, lodBounds, lodWeights, type LodWeights } from './lod'
 import { clamp, damp } from './math'
 import { modeFor, type Mode, type Posture } from './blend'
 import { clothesOf, lookFor, type Look } from './outfit'
 import { BADGE, GEAR_BIT } from './staff'
-import { applyBinds, avatarBuild, avatarFor, defaultCapFit, type AvatarChoice, type AvatarEntry, type CapFit } from './avatars'
+import { BIND_FLOATS_MIN, applyBinds, avatarBuild, avatarFor, defaultCapFit, defaultFaceFit, headLocal, type AvatarChoice, type AvatarEntry, type CapFit, type FaceFit } from './avatars'
+import { PROCEDURAL_GRIP } from './rig'
+import { INSTRUMENT, TABLET_TOOLS, instrumentKindOf } from './instrumentTable'
+import { writeAttire } from './attire'
+import { tableMovePoint } from './tablePatient'
 import { facingTarget, turnFacing } from './facing'
-import { aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
+import { PROCEDURAL_MOUTH, aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
 import { pickRadius, rayVsSegment } from './picking'
 import { VEHICLE_FOOTPRINT } from './gear'
 import { reclineAngle, reclineOfEntity } from '@/scene/rooms/bedPose'
@@ -65,6 +75,16 @@ export const MAX_BADGES = 4
 export const MAX_CAPS = 24
 /** Blankets the blanket mesh can hold: one per patient lying in a ward bed, an ER trolley or on a stretcher. */
 export const MAX_BLANKETS = 64
+/** R5: instruments the instruments mesh can hold (a hand each: the theatre team and a patient's breathing tube). */
+export const MAX_INSTRUMENTS = 32
+/** R5: surgical masks and gown skirts the realistic people's meshes can hold (the theatre team is 9, the cryo suite's few). */
+export const MAX_MASKS = 24
+export const MAX_GOWNS = 24
+/**
+ * R5: an instrument is listed (drawn) only for somebody this close to the camera (metres): a scalpel is a few pixels beyond it, and the overview lists none,
+ * so the mesh is hidden there. Masks and gown skirts are drawn while the person is on their near or mid body.
+ */
+export const INSTRUMENT_NEAR = 14
 /** One blob for each person and each vehicle. */
 export const MAX_BLOBS = MAX_PEOPLE + MAX_VEHICLES
 /** A rider within this distance of the place a vehicle would be is the one on it. */
@@ -110,6 +130,8 @@ export interface PersonSlot {
   /** R2: the screen shows this person's level (levelView.ts `shownAt`). A person it does not show is tracked but not drawn. */
   shown: boolean
   seen: number
+  /** R5: the sterile attire bits written into the person's row (writeAttire), -1 until they are. */
+  attire: number
   /** Fade-in ramp 0..1 (and the fade-out of a person the sim removed). */
   ramp: number
   /** The sim's own fade, 0..1. */
@@ -142,6 +164,8 @@ export interface PersonSlot {
   faceOk: boolean
   /** The body jumped this frame (a teleport, not a walk): `trackMotion` says so. */
   jumped: boolean
+  /** R5 wave 2: the entity object under this slot is a different one from last frame (a Jump swaps the world): a patient on the table is placed at once, with no swing. */
+  swapped: boolean
   dist: number
   rim: number
   rimKind: 0 | 1 | 2 | 3
@@ -214,7 +238,22 @@ export interface FrameInput {
    * units (metres per sim second) and the gait cycle runs at `min(timeScale, GAIT_RATE_MAX)` times real time. At 1 nothing changes.
    */
   timeScale?: number
+  /** R5: the sim clock, seconds (the bag-mask's breaths run at a clinical rate of sim time). Absent: the frame time. */
+  simTime?: number
 }
+
+/**
+ * R5, `?probe=1` only (CrowdRenderer.tsx `window.__hospitalCrowd.forceAct`): what a person is made to do and wear whatever the sim says, for screenshots of
+ * the poses before the sim fills `Entity.act`. A field left undefined keeps the sim's own.
+ */
+export interface ForcedAct {
+  act?: StaffAct | null
+  attire?: number
+  airway?: Airway
+}
+
+/** A plain, level, supine patient with the arms out: what a probe-forced pose starts from (tilt 0, roll 0 is the identity table). */
+const LEVEL_PATIENT: Readonly<PatientPoseView> = Object.freeze({ position: 'supine', headTiltDeg: 0, rollDeg: 0, arms: 'out', airway: 'none', awareness: 'asleep', prep: 0, drape: 0, marks: 'none', catheter: false, manipulator: false })
 
 export interface CrowdStats {
   people: number
@@ -240,6 +279,10 @@ export interface CrowdStats {
   caps: number
   /** Blankets drawn over patients lying in a bed or on a stretcher. */
   blankets: number
+  /** R5: instruments in hands (and breathing tubes) drawn near the camera, surgical masks and gown skirts drawn on realistic people. */
+  instruments: number
+  masks: number
+  gowns: number
 }
 
 /** W3 wave B: per-avatar instance lists (rows of the pose texture): rows[lod][avatar] holds counts[lod][avatar] rows (lod 0 near, 1 mid, 2 far). */
@@ -264,6 +307,8 @@ const RIM_KIND_COLOR = [RIM_COLORS.hovered, RIM_COLORS.hovered, RIM_COLORS.selec
 const RIM_KIND_STRENGTH = [0, 0.5, 0.9, 1.0] as const
 
 const rowsHigh = () => new Float32Array(MAX_PEOPLE)
+/** R5 wave 2: scratch for a point carried with the table (the pick capsule). */
+const TBL3 = new Float64Array(3)
 
 export class CrowdModel {
   /** The pose texture's pixels: MAX_PEOPLE rows of ROW_FLOATS floats. */
@@ -284,7 +329,7 @@ export class CrowdModel {
   readonly blobFade = new Float32Array(MAX_BLOBS)
   /** Their shapes: footprint half x, half z, corner radius, penumbra (metres). */
   readonly blobShape = new Float32Array(MAX_BLOBS * 4)
-  readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0, avatars: 0, avatarHigh: 0, avatarMid: 0, avatarFar: 0, badges: 0, caps: 0, blankets: 0 }
+  readonly stats: CrowdStats = { people: 0, high: 0, mid: 0, far: 0, solved: 0, ghosts: 0, props: 0, vehicles: 0, blobs: 0, riders: 0, overflow: 0, avatars: 0, avatarHigh: 0, avatarMid: 0, avatarFar: 0, badges: 0, caps: 0, blankets: 0, instruments: 0, masks: 0, gowns: 0 }
   /** Blankets draw: the row of each covered lying patient (the blanket is in its prop frame), and the kind (always PROP.blanket). */
   readonly blanketRows = new Float32Array(MAX_BLANKETS)
   readonly blanketKinds = new Float32Array(MAX_BLANKETS).fill(PROP.blanket)
@@ -292,6 +337,19 @@ export class CrowdModel {
   readonly badgeRows = new Float32Array(MAX_BADGES)
   /** R2: the rows of the realistic people in theatre scrubs whose cap the cap mesh draws (CAP_FRAME of their row). */
   readonly capRows = new Float32Array(MAX_CAPS)
+  /**
+   * R5: the instruments draw: the holder's row, the kind with the hand packed in (kind + INSTRUMENT_HAND x hand: 1 right, 2 left) and the moving part's
+   * parameter, per instance; the rows of the realistic people whose surgical mask (MASK_FRAME) and gown skirt (P.skirt) the attire meshes draw.
+   */
+  readonly instRows = new Float32Array(MAX_INSTRUMENTS)
+  readonly instKinds = new Float32Array(MAX_INSTRUMENTS)
+  readonly instParams = new Float32Array(MAX_INSTRUMENTS)
+  readonly maskRows = new Float32Array(MAX_MASKS)
+  readonly gownRows = new Float32Array(MAX_GOWNS)
+  /** R5, `?probe=1`: people made to act and dress by the probe (forceAct), whatever the sim says. */
+  readonly forced = new Map<string, ForcedAct>()
+  /** R5 wave 2, `?probe=1`: patients made to lie as a pose says (forcePatient), whatever the sim says (the table paths still need the person to lie on the OR table). */
+  readonly forcedPatients = new Map<string, PatientPoseView>()
   /** One set of lists per loaded avatar (empty until setAvatars). */
   readonly avatarLists: AvatarLists = { rows: [[], [], []], counts: [new Int32Array(0), new Int32Array(0), new Int32Array(0)] }
   frame = 0
@@ -299,6 +357,13 @@ export class CrowdModel {
   private avatarList: AvatarEntry[] = []
   private binds: Float64Array[] = []
   private caps: CapFit[] = []
+  /** R5: each avatar's face fit (the mask's frame) and the middle of its mouth in its head part's frame (a breathing tube's place). */
+  private faces: FaceFit[] = []
+  private mouths: [number, number, number][] = []
+  /** R5: each avatar's hand middle (Dims.grip: towards the palm, down the hand), where its instruments are held. */
+  private grips: (readonly [number, number])[] = []
+  /** R5: the sim clock of this frame (seconds). */
+  private simT = 0
   private readonly choice: AvatarChoice = { index: -1, tint: 0 }
 
   private readonly free: number[] = []
@@ -359,10 +424,16 @@ export class CrowdModel {
    * bodies. Everybody already drawn is re-dressed at once. R2: `caps` are the theatre caps measured on the avatars' meshes (avatars.ts measureCapFit), in
    * the same order; an avatar without one wears a cap over its skeleton's crown (defaultCapFit).
    */
-  setAvatars(avatars: readonly AvatarEntry[], caps: readonly (CapFit | null)[] = []): void {
+  setAvatars(avatars: readonly AvatarEntry[], caps: readonly (CapFit | null)[] = [], faces: readonly (FaceFit | null)[] = [], grips: readonly ([number, number] | null)[] = []): void {
+    // the binds of an index older than the widest pose row (PART_COUNT parts) still cover every skinned part; anything shorter is refused
+    for (const a of avatars) if (a.bindInverse.length < BIND_FLOATS_MIN) throw new Error(`avatar ${a.id}: bindInverse has ${a.bindInverse.length} floats, fewer than its skinned parts need (${BIND_FLOATS_MIN})`)
     this.avatarList = [...avatars]
     this.binds = this.avatarList.map((a) => Float64Array.from(a.bindInverse))
     this.caps = this.avatarList.map((a, i) => caps[i] ?? defaultCapFit(a.body, a.bindInverse.slice(P.head * 12, P.head * 12 + 12)))
+    // R5: the mask on each face, and the mouth in the head part's own frame (where the rig puts a patient's breathing tube)
+    this.faces = this.avatarList.map((a, i) => faces[i] ?? defaultFaceFit(a.body, a.bindInverse.slice(P.head * 12, P.head * 12 + 12)))
+    this.mouths = this.avatarList.map((a, i) => headLocal(a.bindInverse, this.faces[i].mouth, [0, 0, 0]))
+    this.grips = this.avatarList.map((a, i) => grips[i] ?? [PROCEDURAL_GRIP[0], a.body.hand])
     const L = this.avatarLists
     L.rows = [0, 1, 2].map(() => this.avatarList.map(() => new Float32Array(MAX_PEOPLE))) as AvatarLists['rows']
     L.counts = [0, 1, 2].map(() => new Int32Array(this.avatarList.length)) as AvatarLists['counts']
@@ -384,9 +455,20 @@ export class CrowdModel {
     if (p.avatar >= 0) {
       d.b = this.avatarList[p.avatar].body
       d.w = avatarBuild(look.seed)
+      const m = this.mouths[p.avatar]
+      d.mouth[0] = m[0]
+      d.mouth[1] = m[1]
+      d.mouth[2] = m[2]
+      d.grip[0] = this.grips[p.avatar][0]
+      d.grip[1] = this.grips[p.avatar][1]
     } else {
       d.b = NOMINAL_BODY
       d.w = look.build
+      d.mouth[0] = PROCEDURAL_MOUTH[0]
+      d.mouth[1] = PROCEDURAL_MOUTH[1]
+      d.mouth[2] = PROCEDURAL_MOUTH[2]
+      d.grip[0] = PROCEDURAL_GRIP[0]
+      d.grip[1] = PROCEDURAL_GRIP[1]
     }
     d.tl = 1 + (d.w - 1) * 0.6
     const o = p.row * ROW_FLOATS
@@ -418,6 +500,7 @@ export class CrowdModel {
       tint: 0,
       presentation,
       entity: null,
+      attire: -1,
       level: levelOf(e.position.x),
       simX: e.position.x,
       simZ: e.position.z,
@@ -442,6 +525,7 @@ export class CrowdModel {
       face: e.heading,
       faceOk: false,
       jumped: false,
+      swapped: false,
       dist: 0,
       rim: 0,
       rimKind: 1,
@@ -481,6 +565,8 @@ export class CrowdModel {
     p.look = lookFor({ id: e.id, role: e.role, outfit: e.outfit, variant: e.variant, presentation: p.presentation })
     p.rig.look = p.look
     this.writeLook(p.row, p.look)
+    // (the look's colours are back: the attire is written again)
+    p.attire = -1
     if (this.avatarList.length) this.dress(p)
   }
 
@@ -494,6 +580,7 @@ export class CrowdModel {
         return
       }
     }
+    p.swapped = p.entity !== null && p.entity !== e
     p.entity = e
     p.ghost = false
     p.seen = this.frame
@@ -591,6 +678,10 @@ export class CrowdModel {
     st.badges = 0
     st.caps = 0
     st.blankets = 0
+    st.instruments = 0
+    st.masks = 0
+    st.gowns = 0
+    this.simT = f.simTime ?? f.time
     const counts = this.avatarLists.counts
     for (let l = 0; l < 3; l++) counts[l].fill(0)
     this.nPushers = 0
@@ -737,6 +828,11 @@ export class CrowdModel {
       if (p.look.badgeKind === BADGE.you && st.badges < MAX_BADGES) this.badgeRows[st.badges++] = p.row
       // R2: the surgical cap over theatre scrubs
       if (p.look.hairStyle === 'theatreCap' && st.caps < MAX_CAPS) this.capRows[st.caps++] = p.row
+      // R5: the surgical mask and the gown's skirt, while the person is on a near or mid body
+      if (p.attire > 0 && w.far < 1 && p.posture !== 'lie') {
+        if ((p.attire & ATTIRE.mask) !== 0 && st.masks < MAX_MASKS) this.maskRows[st.masks++] = p.row
+        if ((p.attire & ATTIRE.gown) !== 0 && st.gowns < MAX_GOWNS) this.gownRows[st.gowns++] = p.row
+      }
     } else {
       if (w.high > 0) this.rowsHigh[st.high++] = p.row
       if (w.mid > 0) this.rowsMid[st.mid++] = p.row
@@ -749,6 +845,8 @@ export class CrowdModel {
       this.propRows[st.props] = p.row
       this.propKinds[st.props++] = p.rig.propDraw
     }
+    // R5: the instruments in the hands (and a patient's breathing tube) of somebody near the camera
+    if (e && p.dist < INSTRUMENT_NEAR) this.instruments(p)
     if (p.vKind !== 0 && st.vehicles < MAX_VEHICLES) {
       this.vehRows[st.vehicles] = p.row
       this.vehKinds[st.vehicles] = p.vKind
@@ -771,17 +869,54 @@ export class CrowdModel {
     if (driven) this.takeDriven(p, dv)
     else this.trackMotion(p, dt)
     this.steerFacing(p, driven, dt)
-    // what is in the right hand
+    // R5: the procedure action and the sterile attire (the probe's forced ones first), written into the row when they change
+    const forced = this.forced.size > 0 ? this.forced.get(p.key) : undefined
+    const act = forced && forced.act !== undefined ? forced.act : (e.act ?? null)
+    const attire = forced && forced.attire !== undefined ? forced.attire : (e.attire ?? 0)
+    if (attire !== p.attire) {
+      writeAttire(this.data, p.row, p.look, attire)
+      p.attire = attire
+    }
+    const acting = act !== null && posture !== 'lie'
+    // what is in the right hand (an act's tools replace it: the tablet and the count board are the props mesh's tablet, an instrument the instruments mesh's)
     let prop = e.prop ? PROP_OF[e.prop] : PROP.none
     if (posture === 'lie') prop = PROP.none
+    else if (acting) prop = TABLET_TOOLS.includes(act.right) ? PROP.tablet : PROP.none
     else if (prop === PROP.none && posture === 'stand') {
       if (e.anim === 'tablet') prop = PROP.tablet
       else if (e.anim === 'carry') prop = PROP.folder
     }
     p.prop = prop
     // whoever has a vehicle in front of them and is not riding it is pushing it, whatever the sim called the animation
-    p.mode = p.rideKind !== 0 && !e.riding && posture === 'stand' ? 'push' : modeFor(e.anim, posture, prop === PROP.tablet ? 'tablet' : 'none')
+    p.mode = p.rideKind !== 0 && !e.riding && posture === 'stand' ? 'push' : modeFor(e.anim, posture, prop === PROP.tablet ? 'tablet' : 'none', acting ? act.action : null, (attire & ATTIRE.gloves) !== 0)
     const inp = this.inp
+    inp.actOn = acting
+    inp.attire = attire
+    inp.simT = this.simT
+    // R5 wave 2: the patient's pose (the probe's forced one first): the airway, and on the OR table the table pose (below)
+    const fp = this.forcedPatients.size > 0 ? this.forcedPatients.get(p.key) : undefined
+    const pose = fp !== undefined ? fp : e.patientPose ? e.patientPose : null
+    const airway = forced && forced.airway !== undefined ? forced.airway : pose ? pose.airway : 'none'
+    inp.tube = posture === 'lie' && airway === 'tube'
+    if (acting) {
+      inp.actProg = act.progress
+      inp.toolL = instrumentKindOf(act.left)
+      inp.toolR = instrumentKindOf(act.right)
+      const wk = act.work
+      inp.hasWork = !!wk
+      if (wk) {
+        // a sim point, drawn where it is drawn (its own level), in the planner's frame (as the look-at)
+        const wl = levelOf(wk.x)
+        inp.workX = wk.x + levelDx(wl) - p.gox
+        inp.workY = wk.y + LEVEL_Y[wl]
+        inp.workZ = wk.z - p.goz
+      }
+    } else {
+      inp.actProg = 0
+      inp.toolL = 0
+      inp.toolR = 0
+      inp.hasWork = false
+    }
     inp.dt = dt
     inp.time = f.time
     // (the planner's frame: the person's own at 1x to 4x; see `PersonSlot.gox`. The look-at target moves with it)
@@ -805,6 +940,20 @@ export class CrowdModel {
     inp.prop = prop
     // a patient in a ward bed, an ER trolley or on a stretcher is under a blanket (the rig carries it as the prop of the lying body)
     inp.covered = posture === 'lie' && inBlanketBed(e)
+    // R5 wave 2: lying on the OR table, the patient lies as the pose says: the table's tilt and roll carry the body, the position puts the legs in the boots (and slides the
+    // pelvis), the arms tuck. The drawn offsets are the level's (the table is built in the sim frame inside the level's group). No pose: the rig settles the legs and arms back
+    inp.tableSeat = posture === 'lie' && onOrTable(e)
+    if (inp.tableSeat) {
+      inp.tablePose = pose !== null
+      inp.tableLith = pose !== null && pose.position === 'lithotomy'
+      inp.tableTuck = pose !== null && pose.arms === 'tucked'
+      inp.tableTilt = pose !== null ? pose.headTiltDeg : 0
+      inp.tableRoll = pose !== null ? pose.rollDeg : 0
+      inp.tableOffX = levelDx(p.level)
+      inp.tableOffY = LEVEL_Y[p.level]
+      inp.tableOffZ = 0
+      inp.tableSnap = this.warm || p.swapped
+    }
     const target = e.lookAt
     inp.hasLook = !!target
     if (target) {
@@ -827,6 +976,50 @@ export class CrowdModel {
     }
   }
 
+  /** R5: list the instruments the person's rig drew this frame (right hand, left hand, or a patient's breathing tube) for the instruments mesh. */
+  private instruments(p: PersonSlot): void {
+    const r = p.rig
+    const st = this.stats
+    if (r.instR > 0 && r.instVisR > 0.01 && st.instruments < MAX_INSTRUMENTS) {
+      this.instRows[st.instruments] = p.row
+      this.instKinds[st.instruments] = r.instR + INSTRUMENT_HAND
+      this.instParams[st.instruments++] = r.toolR
+    }
+    if (r.instL > 0 && r.instVisL > 0.01 && st.instruments < MAX_INSTRUMENTS) {
+      this.instRows[st.instruments] = p.row
+      this.instKinds[st.instruments] = r.instL + 2 * INSTRUMENT_HAND
+      this.instParams[st.instruments++] = r.toolL
+    } else if (r.tube && st.instruments < MAX_INSTRUMENTS) {
+      this.instRows[st.instruments] = p.row
+      this.instKinds[st.instruments] = INSTRUMENT.breathingTube + 2 * INSTRUMENT_HAND
+      this.instParams[st.instruments++] = 0
+    }
+  }
+
+  /**
+   * R5, `?probe=1`: make a person act and dress as given, whatever the sim says (null clears it). `act` null with an attire keeps the sim's act; undefined
+   * fields keep the sim's own. Takes effect on the next frame.
+   */
+  forceAct(id: string, f: ForcedAct | null): void {
+    if (f) this.forced.set(id, f)
+    else this.forced.delete(id)
+  }
+
+  /**
+   * R5 wave 2, `?probe=1`: make a patient who lies on the OR table lie as `pose` says (position, headTiltDeg, rollDeg, arms, airway: a field left out is the plain
+   * level, supine, arms-out patient's), whatever the sim says; null gives the patient back to the sim. Takes effect on the next frame. (`clearForced` clears these too.)
+   */
+  forcePatient(id: string, pose: Partial<PatientPoseView> | null): void {
+    if (pose === null) this.forcedPatients.delete(id)
+    else this.forcedPatients.set(id, { ...LEVEL_PATIENT, ...pose })
+  }
+
+  /** Give everybody back to the sim: the forced acts and the forced patient poses. */
+  clearForced(): void {
+    this.forced.clear()
+    this.forcedPatients.clear()
+  }
+
   /**
    * A realistic person's skinned parts become M_p * B_p^-1, and the player's badge frame is the chest's (binds applied) moved to the avatar's badge
    * anchor: a point of its bind pose, so the badge stays on the cloth however the chest turns. R2: in theatre scrubs the cap frame is the head's (binds
@@ -840,6 +1033,22 @@ export class CrowdModel {
       const f = this.caps[p.avatar]
       const h = parts + P.head * 12
       const c = parts + CAP_FRAME * 12
+      for (let r = 0; r < 3; r++) {
+        const i = r * 4
+        const a = d[h + i]
+        const b = d[h + i + 1]
+        const e = d[h + i + 2]
+        d[c + i] = a * f.rx
+        d[c + i + 1] = b * f.ry
+        d[c + i + 2] = e * f.rz
+        d[c + i + 3] = a * f.cx + b * f.cy + e * f.cz + d[h + i + 3]
+      }
+    }
+    // R5: the surgical mask: the head (binds applied) times T(centre) S(radii) of the avatar's face fit, as the cap
+    if ((p.attire & ATTIRE.mask) > 0) {
+      const f = this.faces[p.avatar]
+      const h = parts + P.head * 12
+      const c = parts + MASK_FRAME * 12
       for (let r = 0; r < 3; r++) {
         const i = r * 4
         const a = d[h + i]
@@ -1025,6 +1234,19 @@ export class CrowdModel {
       p.bx = p.x + sx * 0.8 * k
       p.by = y
       p.bz = p.z + cz * 0.8 * k
+      // R5 wave 2: a patient on the OR table moves with it (slid toward the feet in lithotomy, then tipped and rolled): the capsule follows
+      const tb = p.rig.tbl
+      if (tb.on) {
+        const slide = PELVIS_ON_TABLE.lithotomy * tb.st[0]
+        tableMovePoint(tb.m, p.ax + sx * slide, p.ay, p.az + cz * slide, TBL3)
+        p.ax = TBL3[0]
+        p.ay = TBL3[1]
+        p.az = TBL3[2]
+        tableMovePoint(tb.m, p.bx + sx * slide, p.by, p.bz + cz * slide, TBL3)
+        p.bx = TBL3[0]
+        p.by = TBL3[1]
+        p.bz = TBL3[2]
+      }
     }
   }
 

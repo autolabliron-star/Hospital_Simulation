@@ -533,6 +533,29 @@ export const CONFIG = {
       pacuLeftMinutes: [15, 25] as readonly [number, number],
       nextBayHour: 7.3,
     },
+    /**
+     * R5 "Watch step by step" cases (src/sim/surgery/watch.ts): the room phases take the script's watch seconds (10-15 min in all); the robot
+     * is draped this long before wheels-in if it is not already; the patient is wheeled in this long after the button; recovery, the day
+     * lounge and the turnover after it are scaled so the day's list resumes soon.
+     */
+    watch: {
+      drapeSeconds: 45,
+      leadSeconds: 30,
+      pacuScale: 0.25,
+      phase2Scale: 0.25,
+      turnoverScale: 1,
+    },
+  },
+
+  /**
+   * R5: the step-by-step procedure scripts (src/sim/procedure, src/content/procedures). In the living day each step's weight is the middle
+   * of its real-minute band, jittered by up to this fraction (seeded); a watch case's steps take the script's watch seconds, which add up to
+   * a watchable total, each step at least this long.
+   */
+  procedure: {
+    liveJitter: 0.15,
+    watchTotalSeconds: [600, 900] as readonly [number, number],
+    minWatchStepSeconds: 8,
   },
 
   /** R2: the lifts, now real for level 2 (level 3+ is still "upstairs": the ER and ward fades are unchanged). */

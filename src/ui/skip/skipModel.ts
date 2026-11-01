@@ -8,6 +8,10 @@
  *   scanner room   "skip to scan end", only when the scan is short enough to run live (a longer one would rebuild the hospital and lose
  *                  the picture you are watching)
  *
+ * R5, while you watch a procedure step by step: no skip that would rebuild the hospital (longer than CONFIG.skip.liveMaxSeconds: a rebuild re-plans the day
+ * and drops the watch case) and no day milestones; instead, while the booked watch case is still to come, "Skip to the start", landing a lead before it
+ * (the watch flow books the case again if a long one rebuilt the hospital).
+ *
  * `requestFor` turns a target into the flow's SkipRequest (live up to CONFIG.skip.liveMaxSeconds, a rebuild beyond). The HUD builds the
  * `SkipView` snapshot from the sim and the UI stores (SkipControl.tsx); everything here is tested in node.
  */
@@ -15,6 +19,7 @@ import { CONFIG } from '@/sim/config'
 import { clockText } from '@/sim/events'
 import { hourAt } from '@/sim/population/schedule'
 import { fillSkip, MILESTONE_KINDS, SKIP, type MilestoneKind } from '@/content/skip'
+import { fillWatch, WATCH } from '@/content/watch'
 import type { SkipRequest, SkipTarget } from './types'
 
 export { MILESTONE_KINDS, type MilestoneKind }
@@ -37,6 +42,10 @@ export interface SkipView {
   cases: readonly CaseTimes[]
   /** The four scanners, by modality. */
   scanners: Partial<Record<'mri' | 'ct' | 'xray' | 'us', { phase: string; remaining: number }>>
+  /** R5: a step-by-step watch is on (src/scene/watch): only live skips, and the watch case's start. */
+  watching?: boolean
+  /** R5: when the booked watch case is wheeled in (sim seconds), or null. */
+  watchStartsAt?: number | null
 }
 
 export interface SkipCtx {
@@ -161,16 +170,33 @@ export function stepLabel(seconds: number): string {
   return seconds % 3600 === 0 ? fillSkip(SKIP.stepHours, { n: seconds / 3600 }) : fillSkip(SKIP.stepMinutes, { n: Math.round(seconds / 60) })
 }
 
+/** R5: the start of the booked watch case, landing the milestone lead before it (null: none booked, or too close to skip to). */
+export function watchTarget(view: SkipView, ctx: SkipCtx = DEFAULT_SKIP_CTX): SkipTarget | null {
+  const at = view.watchStartsAt
+  if (at === null || at === undefined) return null
+  const toT = Math.min(at - ctx.leadSeconds, view.limitT)
+  if (toT - view.nowT < MIN_SKIP_SECONDS) return null
+  return { kind: 'watch', toT, label: fillWatch(WATCH.overlay.skipLabel, { time: ctx.clock(at) }), caption: WATCH.overlay.skipCaption }
+}
+
 /** The skip buttons right now: the plain steps first, then the context target(s). */
 export function skipTargets(view: SkipView, ctx: SkipCtx = DEFAULT_SKIP_CTX): SkipTarget[] {
   const out: SkipTarget[] = []
+  const watching = view.watching === true
   let last = -Infinity
   for (const s of ctx.steps) {
+    // while you watch, a skip that would rebuild the hospital (and drop the watch case) is not offered
+    if (watching && s > ctx.liveMaxSeconds) continue
     const toT = Math.min(view.nowT + s, view.limitT)
     // past the end of the day, or a second step that clamps to the same place as the one before it
     if (toT - view.nowT < MIN_SKIP_SECONDS || toT <= last) continue
     last = toT
     out.push({ kind: 'step', toT, label: stepLabel(s), caption: '' })
+  }
+  if (watching) {
+    const w = watchTarget(view, ctx)
+    if (w) out.push(w)
+    return out
   }
   if (orContext(view)) {
     const m = nextMilestone(view, ctx)
@@ -224,7 +250,7 @@ export function requestFor(target: SkipTarget, nowT: number, ctx: SkipCtx = DEFA
 /** What the row shows, without the times (so it only changes when a label does, and the poll costs no re-render). */
 export interface SkipRowModel {
   steps: readonly { label: string }[]
-  context: { label: string; kind: 'surgery' | 'scan' } | null
+  context: { label: string; kind: 'surgery' | 'scan' | 'watch' } | null
 }
 
 export function rowModel(targets: readonly SkipTarget[]): SkipRowModel {

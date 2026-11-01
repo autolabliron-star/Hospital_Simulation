@@ -1,0 +1,602 @@
+{
+  "id": "or-cholecystectomy",
+  "machine": "daVinci",
+  "key": "cholecystectomy",
+  "name": "Robotic gallbladder removal",
+  "short": "Gallbladder",
+  "refs": ["procedures:1", "procedures:2", "procedures:3", "procedures:4", "procedures:5", "procedures:6", "procedures:7", "procedures:8", "procedures:9", "procedures:14", "procedures:40"],
+  "anaesthesia": "general",
+  "start": {
+    "position": "supine",
+    "headTiltDeg": 0,
+    "rollDeg": 0,
+    "arms": "out",
+    "airway": "none",
+    "awareness": "awake",
+    "prep": 0,
+    "drape": 0,
+    "marks": "none",
+    "catheter": false,
+    "manipulator": false
+  },
+  "robotArms": ["Fenestrated bipolar forceps", "Endoscope 30°", "Hook electrode", "Prograsp forceps"],
+  "steps": [
+    {
+      "id": "wheelsIn",
+      "unit": "in",
+      "caption": "Wheels in; team says hello",
+      "why": "The team meets the patient and checks the room is ready.",
+      "realMinutes": [3, 5],
+      "watchSeconds": 18,
+      "focus": "room",
+      "roles": {
+        "surgeon": { "do": "scrubHands", "at": "sink0", "look": "sink", "work": "sink", "left": "scrubBrush", "right": "scrubBrush" },
+        "assistant": { "do": "scrubHands", "at": "sink1", "look": "sink", "work": "sink", "left": "scrubBrush", "right": "scrubBrush" },
+        "scrub": { "do": "idle", "at": "scrubBackTable", "look": "backTable", "work": "backTable" },
+        "circulator": { "do": "talkPatient", "at": "assistant", "look": "patientFace" },
+        "anaesthetist": { "do": "talkPatient", "at": "anaesHead", "look": "patientFace" }
+      }
+    },
+    {
+      "id": "moveAcross",
+      "unit": "in",
+      "caption": "Move across to the operating table",
+      "why": "A slide sheet moves the patient across without lifting.",
+      "realMinutes": [2, 3],
+      "watchSeconds": 14,
+      "focus": "room",
+      "roles": {
+        "surgeon": { "do": "scrubHands", "at": "sink0", "look": "sink", "work": "sink", "left": "scrubBrush", "right": "scrubBrush" },
+        "assistant": { "do": "scrubHands", "at": "sink1", "look": "sink", "work": "sink", "left": "scrubBrush", "right": "scrubBrush" },
+        "scrub": { "do": "idle", "at": "scrubBackTable", "look": "backTable", "work": "backTable" },
+        "circulator": { "do": "transferPatient", "at": "assistant", "look": "patient", "work": "patient" },
+        "anaesthetist": { "do": "transferPatient", "at": "anaesHead", "look": "patientFace", "work": "patientFace" }
+      }
+    },
+    {
+      "id": "monitorsOn",
+      "unit": "induction",
+      "caption": "Monitors and drip connected",
+      "why": "Heart trace, oxygen level and pressure are watched from here on.",
+      "realMinutes": [3, 5],
+      "watchSeconds": 12,
+      "focus": "head",
+      "roles": {
+        "scrub": { "do": "idle", "at": "scrubBackTable", "look": "backTable", "work": "backTable" },
+        "circulator": { "do": "attachMonitors", "at": "assistant", "look": "pelvis", "work": "pelvis" },
+        "anaesthetist": { "do": "attachMonitors", "at": "anaesLeft", "look": "patientChest", "work": "patientChest", "right": "ecgLeads" }
+      }
+    },
+    {
+      "id": "signIn",
+      "unit": "induction",
+      "caption": "Sign In: name, operation, allergies",
+      "why": "WHO check before any medicine: right patient, right operation, allergies known.",
+      "realMinutes": [1, 2],
+      "watchSeconds": 20,
+      "focus": "head",
+      "roles": {
+        "scrub": { "do": "idle", "at": "scrubBackTable", "look": "backTable", "work": "backTable" },
+        "circulator": { "do": "checklist", "at": "tableWestHead", "look": "patientFace", "left": "tablet" },
+        "anaesthetist": { "do": "talkPatient", "at": "anaesHead", "look": "patientFace" }
+      },
+      "event": "Sign In: the patient has confirmed their name, the operation and their allergies.",
+      "checklist": "signIn"
+    },
+    {
+      "id": "anaesthetic",
+      "unit": "induction",
+      "caption": "Anaesthetic given; patient falls asleep",
+      "why": "Sleep medicine and a muscle relaxant let the gas lift the belly wall later.",
+      "realMinutes": [3, 5],
+      "watchSeconds": 15,
+      "focus": "head",
+      "roles": {
+        "scrub": { "do": "idle", "at": "scrubBackTable", "look": "backTable", "work": "backTable" },
+        "circulator": { "do": "watchMonitor", "at": "assistant", "look": "patientFace" },
+        "anaesthetist": { "do": "injectIv", "at": "anaesLeft", "look": "patientFace", "work": "patientChest", "left": "oxygenMask", "right": "syringe" }
+      },
+      "patient": {
+        "airway": "oxygenMask",
+        "awareness": "asleep"
+      }
+    },
+    {
+      "id": "tubeIn",
+      "unit": "induction",
+      "caption": "Breathing tube placed; eyes protected",
+      "why": "The tube lets the ventilator breathe for the patient while the abdomen holds gas.",
+      "realMinutes": [3, 5],
+      "watchSeconds": 28,
+      "focus": "head",
+      "roles": {
+        "scrub": { "do": "idle", "at": "scrubBackTable", "look": "backTable", "work": "backTable" },
+        "circulator": { "do": "passInstrument", "at": "tableWestHead", "look": "patientFace", "right": "breathingTube" },
+        "anaesthetist": { "do": "intubate", "at": "anaesHead", "look": "patientFace", "work": "patientFace", "left": "laryngoscope", "right": "breathingTube" }
+      },
+      "patient": {
+        "airway": "tube"
+      }
+    },
+    {
+      "id": "padAndWarm",
+      "unit": "positioning",
+      "caption": "Arranged, padded and warmed",
+      "why": "Padding and a strap keep the patient from slipping when the table tilts. The dye for the green glow goes into the drip.",
+      "realMinutes": [3, 6],
+      "watchSeconds": 14,
+      "focus": "abdomen",
+      "roles": {
+        "surgeon": { "do": "gownGlove", "at": "assistantWait", "look": "backTable", "left": "gown" },
+        "assistant": { "do": "tuckArms", "at": "tableWest", "look": "patientChest", "work": "patientChest", "left": "gelPad" },
+        "scrub": { "do": "idle", "at": "scrubBackTable", "look": "backTable", "work": "backTable" },
+        "circulator": { "do": "tuckArms", "at": "assistant", "look": "patientChest", "work": "patientChest", "left": "gelPad" },
+        "anaesthetist": { "do": "injectIv", "at": "anaesLeft", "look": "patientFace", "work": "patientChest", "right": "syringe" }
+      },
+      "patient": {
+        "arms": "tucked"
+      }
+    },
+    {
+      "id": "prepAndDrape",
+      "unit": "positioning",
+      "caption": "Skin cleaned; sterile drapes on",
+      "why": "Clean skin and sterile drapes keep germs out of the port sites.",
+      "realMinutes": [4, 6],
+      "watchSeconds": 16,
+      "focus": "abdomen",
+      "roles": {
+        "surgeon": { "do": "skinPrep", "at": "tableSurgeon", "look": "abdomen", "work": "abdomen", "right": "prepStick" },
+        "assistant": { "do": "drapePatient", "at": "assistant", "look": "abdomen", "work": "abdomen", "left": "drapeSheet", "right": "drapeSheet" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "abdomen", "right": "drapeSheet" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "patient": {
+        "prep": 1,
+        "drape": 1
+      }
+    },
+    {
+      "id": "timeOut",
+      "unit": "positioning",
+      "caption": "Time Out: everyone agrees the plan",
+      "why": "WHO check before the first small cut: names, roles, the operation, antibiotic given, what could go wrong.",
+      "realMinutes": [1, 1],
+      "watchSeconds": 16,
+      "focus": "room",
+      "roles": {
+        "surgeon": { "do": "talkPatient", "at": "tableSurgeon", "look": "abdomen" },
+        "assistant": { "do": "watchField", "at": "assistant", "look": "abdomen" },
+        "scrub": { "do": "watchField", "at": "scrub", "look": "abdomen" },
+        "circulator": { "do": "checklist", "at": "tableWestHead", "look": "abdomen", "left": "tablet" },
+        "anaesthetist": { "do": "talkPatient", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "patient": {
+        "marks": "marked"
+      },
+      "event": "Time Out: the team has paused to agree the plan.",
+      "checklist": "timeOut"
+    },
+    {
+      "id": "firstPort",
+      "unit": "ports",
+      "caption": "First port in; gas fills the abdomen",
+      "why": "Gas lifts the belly wall off the organs so there is room to see.",
+      "realMinutes": [3, 5],
+      "watchSeconds": 25,
+      "focus": "ports",
+      "roles": {
+        "surgeon": { "do": "insertTrocar", "at": "tableWest", "look": "port1", "work": "port1", "left": "forceps", "right": "trocar8" },
+        "assistant": { "do": "insufflate", "at": "assistant", "look": "visionMonitor", "work": "port1", "left": "gasLine" },
+        "scrub": { "do": "watchField", "at": "scrub", "look": "port1" },
+        "circulator": { "do": "watchMonitor", "at": "circulator", "look": "visionMonitor" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "patient": {
+        "marks": "ports"
+      },
+      "scope": "survey"
+    },
+    {
+      "id": "robotPorts",
+      "unit": "ports",
+      "caption": "Robot ports and assistant port placed",
+      "why": "Each robot arm needs its own 8 mm port, spaced so the arms do not collide.",
+      "realMinutes": [4, 8],
+      "watchSeconds": 40,
+      "focus": "ports",
+      "roles": {
+        "surgeon": { "do": "insertTrocar", "at": "tableWest", "look": "visionMonitor", "work": "port2", "right": "trocar8" },
+        "assistant": { "do": "insertTrocar", "at": "assistant", "look": "visionMonitor", "work": "assistantPort", "right": "trocar12" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "port2", "right": "trocar8" },
+        "circulator": { "do": "watchMonitor", "at": "circulator", "look": "visionMonitor" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "scope": "survey"
+    },
+    {
+      "id": "tiltTable",
+      "unit": "ports",
+      "caption": "Table tilts: head up, right side up",
+      "why": "Tilting lets the bowel slide away from the gallbladder.",
+      "realMinutes": [1, 2],
+      "watchSeconds": 10,
+      "focus": "room",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableWest", "look": "abdomen" },
+        "assistant": { "do": "watchField", "at": "assistant", "look": "patient" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "tiltTable", "at": "tableWestHead", "look": "patient", "right": "tableRemote" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "patient": {
+        "headTiltDeg": 15,
+        "rollDeg": 12
+      }
+    },
+    {
+      "id": "deployCart",
+      "unit": "docking",
+      "slot": "deploying",
+      "caption": "Deploy for docking: boom up, arms folded",
+      "why": "The boom raises and the four arms fold up, ready to be wheeled to the table.",
+      "realMinutes": [0.5, 0.8],
+      "watchSeconds": 8,
+      "focus": "robotCart",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableSurgeon", "look": "robotCart" },
+        "assistant": { "do": "deployCart", "at": "drive", "look": "robotCart", "work": "robotCart" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "idle", "at": "circulator", "look": "robotCart" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      }
+    },
+    {
+      "id": "driveCart",
+      "unit": "docking",
+      "slot": "driving",
+      "caption": "Cart wheeled in with the laser guide",
+      "why": "The laser cross-hairs show the driver where to stop.",
+      "realMinutes": [1.5, 2.2],
+      "watchSeconds": 20,
+      "focus": "robotCart",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableSurgeon", "look": "robotCart" },
+        "assistant": { "do": "driveCart", "at": "driveEnd", "look": "robotCart", "work": "robotCart" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "robotCart" },
+        "circulator": { "do": "idle", "at": "circulator", "look": "robotCart" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      }
+    },
+    {
+      "id": "dockCamera",
+      "unit": "docking",
+      "slot": "docking",
+      "caption": "Camera arm docked onto its port",
+      "why": "The camera goes first so the robot can aim at the target.",
+      "realMinutes": [1.5, 2.5],
+      "watchSeconds": 16,
+      "focus": "ports",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableSurgeon", "look": "port1" },
+        "assistant": { "do": "dockArm", "at": "assistant", "look": "port1", "work": "port1" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "port1", "right": "laparoscope" },
+        "circulator": { "do": "idle", "at": "circulator", "look": "robotCart" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "scope": "survey"
+    },
+    {
+      "id": "targetArms",
+      "unit": "docking",
+      "slot": "targeting",
+      "caption": "Targeting: the other arms swing onto their ports",
+      "why": "Holding the targeting button turns the boom, and the other three arms swing onto their ports.",
+      "realMinutes": [1.5, 2.5],
+      "watchSeconds": 12,
+      "focus": "robotCart",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableSurgeon", "look": "robotCart" },
+        "assistant": { "do": "dockArm", "at": "assistant", "look": "port2", "work": "port2" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "idle", "at": "circulator", "look": "robotCart" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      }
+    },
+    {
+      "id": "instrumentsIn",
+      "unit": "docking",
+      "slot": "targeting",
+      "caption": "Instruments in; surgeon takes the console",
+      "why": "The instruments go in while the camera is watched; then the surgeon sits down.",
+      "realMinutes": [1, 2],
+      "watchSeconds": 12,
+      "focus": "console",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "fitInstrument", "at": "assistant", "look": "port2", "work": "port2", "right": "robotInstrument" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "port2", "right": "robotInstrument" },
+        "circulator": { "do": "idle", "at": "circulator", "look": "robotCart" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "liverEdge"
+    },
+    {
+      "id": "fireflyCheck",
+      "unit": "console",
+      "caption": "Dye glow check of the bile ducts",
+      "why": "A green glow outlines the ducts so none is mistaken for another.",
+      "realMinutes": [1, 3],
+      "watchSeconds": 20,
+      "focus": "endoscope",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "watchField", "at": "assistant", "look": "visionMonitor" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "firefly"
+    },
+    {
+      "id": "liftGallbladder",
+      "unit": "console",
+      "caption": "Gallbladder lifted over the liver",
+      "why": "Lifting shows the neck and the triangle where the duct and artery lie.",
+      "realMinutes": [1, 2],
+      "watchSeconds": 16,
+      "focus": "endoscope",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "suction", "at": "assistant", "look": "visionMonitor", "work": "assistantPort", "right": "lapSuction" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "retract"
+    },
+    {
+      "id": "clearCalot",
+      "unit": "console",
+      "caption": "Calot's triangle cleared",
+      "why": "Clearing the fat shows the duct and artery clearly before anything is cut.",
+      "realMinutes": [8, 20],
+      "watchSeconds": 55,
+      "focus": "console",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "suction", "at": "assistant", "look": "visionMonitor", "work": "assistantPort", "right": "lapSuction" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "calotDissection"
+    },
+    {
+      "id": "criticalView",
+      "unit": "console",
+      "caption": "Critical View of Safety confirmed",
+      "why": "A pause to prove that two, and only two, structures enter the gallbladder before any clip.",
+      "realMinutes": [1, 3],
+      "watchSeconds": 28,
+      "focus": "endoscope",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "watchField", "at": "assistant", "look": "visionMonitor" },
+        "scrub": { "do": "watchField", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "watchField", "at": "circulator", "look": "visionMonitor" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "criticalView",
+      "event": "The surgeon has called the pause and shown the Critical View of Safety."
+    },
+    {
+      "id": "placeClips",
+      "unit": "console",
+      "caption": "Clips placed on duct and artery",
+      "why": "Clips seal the duct and artery before they are cut.",
+      "realMinutes": [2, 4],
+      "watchSeconds": 35,
+      "focus": "endoscope",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "clipLap", "at": "assistant", "look": "visionMonitor", "work": "assistantPort", "right": "lapClipApplier" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "assistantPort", "right": "lapClipApplier" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "clipping",
+      "event": "Clips are on the cystic duct and the cystic artery."
+    },
+    {
+      "id": "divideDuct",
+      "unit": "console",
+      "caption": "Duct and artery divided",
+      "why": "Cutting between the clips frees the gallbladder neck.",
+      "realMinutes": [1, 2],
+      "watchSeconds": 18,
+      "focus": "endoscope",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "exchangeInstrument", "at": "assistant", "look": "port2", "work": "port2", "right": "robotInstrument" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "port2", "right": "robotInstrument" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "arms": {
+        "2": "Monopolar curved scissors"
+      },
+      "scope": "dividing"
+    },
+    {
+      "id": "freeFromLiver",
+      "unit": "console",
+      "caption": "Gallbladder freed from the liver",
+      "why": "It is peeled off the liver surface with gentle heat.",
+      "realMinutes": [5, 15],
+      "watchSeconds": 50,
+      "focus": "console",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "suction", "at": "assistant", "look": "visionMonitor", "work": "assistantPort", "right": "lapSuction" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "port2", "right": "robotInstrument" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "arms": {
+        "2": "Hook electrode"
+      },
+      "scope": "liverBed"
+    },
+    {
+      "id": "bagGallbladder",
+      "unit": "console",
+      "caption": "Gallbladder placed in a bag",
+      "why": "The bag keeps the gallbladder and any stones contained.",
+      "realMinutes": [1, 2],
+      "watchSeconds": 25,
+      "focus": "endoscope",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "bagSpecimen", "at": "assistant", "look": "visionMonitor", "work": "assistantPort", "right": "retrievalBag" },
+        "scrub": { "do": "passInstrument", "at": "scrub", "look": "assistantPort", "right": "retrievalBag" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "bagging"
+    },
+    {
+      "id": "finalCheck",
+      "unit": "console",
+      "caption": "Final check and rinse",
+      "why": "One last look that the area is clean and tidy before leaving.",
+      "realMinutes": [2, 4],
+      "watchSeconds": 14,
+      "focus": "endoscope",
+      "roles": {
+        "surgeon": { "do": "operateConsole", "at": "surgeonConsole", "look": "consoleViewer" },
+        "assistant": { "do": "suction", "at": "assistant", "look": "visionMonitor", "work": "assistantPort", "right": "lapSuction" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "countItems", "at": "circulatorCount", "look": "backTable", "left": "countBoard" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesStool", "look": "anaesMonitor" }
+      },
+      "scope": "finalCheck"
+    },
+    {
+      "id": "releaseArms",
+      "unit": "undocking",
+      "slot": "undocking",
+      "caption": "Arms released from their ports",
+      "why": "Each arm is detached from its port and the boom is raised, so the team can reach the patient.",
+      "realMinutes": [1, 1.5],
+      "watchSeconds": 10,
+      "focus": "ports",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableSurgeon", "look": "abdomen" },
+        "assistant": { "do": "dockArm", "at": "assistant", "look": "port2", "work": "port2" },
+        "scrub": { "do": "receiveInstrument", "at": "scrub", "look": "backTable", "right": "robotInstrument" },
+        "circulator": { "do": "idle", "at": "circulator", "look": "robotCart" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      }
+    },
+    {
+      "id": "cartAway",
+      "unit": "undocking",
+      "slot": "returning",
+      "caption": "Cart wheeled away",
+      "why": "The robot is moved out, and the table goes flat again, so the team can reach the patient.",
+      "realMinutes": [1, 1.5],
+      "watchSeconds": 8,
+      "focus": "robotCart",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableSurgeon", "look": "robotCart" },
+        "assistant": { "do": "driveCart", "at": "drive", "look": "robotCart", "work": "robotCart" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "idle", "at": "circulator", "look": "robotCart" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "patient": {
+        "headTiltDeg": 0,
+        "rollDeg": 0
+      }
+    },
+    {
+      "id": "closePorts",
+      "unit": "closing",
+      "caption": "Gallbladder out; port sites closed",
+      "why": "The bag leaves through the navel port site, and small stitches close the layers.",
+      "realMinutes": [6, 12],
+      "watchSeconds": 35,
+      "focus": "abdomen",
+      "roles": {
+        "surgeon": { "do": "closeFascia", "at": "tableSurgeon", "look": "port1", "work": "port1", "left": "forceps", "right": "needleHolder" },
+        "assistant": { "do": "insufflate", "at": "assistant", "look": "visionMonitor", "work": "port1", "left": "gasLine" },
+        "scrub": { "do": "receiveInstrument", "at": "scrub", "look": "backTable", "right": "specimenPot" },
+        "circulator": { "do": "chart", "at": "circulator", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      }
+    },
+    {
+      "id": "signOut",
+      "unit": "closing",
+      "caption": "Sign Out: counts and specimen label",
+      "why": "WHO check before leaving: counts right, specimen labelled, recovery plan agreed.",
+      "realMinutes": [1, 2],
+      "watchSeconds": 20,
+      "focus": "backTable",
+      "roles": {
+        "surgeon": { "do": "watchField", "at": "tableSurgeon", "look": "backTable" },
+        "assistant": { "do": "watchField", "at": "assistant", "look": "backTable" },
+        "scrub": { "do": "countItems", "at": "scrubBackTable", "look": "backTable", "left": "countBoard" },
+        "circulator": { "do": "checklist", "at": "circulatorCount", "look": "backTable", "left": "tablet" },
+        "anaesthetist": { "do": "watchMonitor", "at": "anaesHead", "look": "anaesMonitor" }
+      },
+      "patient": {
+        "marks": "closed"
+      },
+      "event": "Sign Out: the counts are correct and the specimen is labelled.",
+      "checklist": "signOut"
+    },
+    {
+      "id": "wakeUp",
+      "unit": "emergence",
+      "caption": "Patient wakes; tube removed",
+      "why": "The anaesthetist reverses the medicines and takes the tube out once breathing well.",
+      "realMinutes": [6, 10],
+      "watchSeconds": 18,
+      "focus": "head",
+      "roles": {
+        "surgeon": { "do": "talkPatient", "at": "tableSurgeon", "look": "patientFace" },
+        "assistant": { "do": "removeDrapes", "at": "assistant", "look": "abdomen", "work": "abdomen" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "applyDressing", "at": "tableWest", "look": "port0", "work": "port0", "right": "dressing" },
+        "anaesthetist": { "do": "extubate", "at": "anaesHead", "look": "patientFace", "work": "patientFace", "left": "oxygenMask", "right": "breathingTube" }
+      },
+      "patient": {
+        "drape": 0,
+        "marks": "dressed",
+        "awareness": "sedated"
+      }
+    },
+    {
+      "id": "wheelsOut",
+      "unit": "out",
+      "caption": "Wheels out to recovery",
+      "why": "A handover to the recovery nurse keeps care continuous.",
+      "realMinutes": [3, 5],
+      "watchSeconds": 14,
+      "focus": "stretcher",
+      "roles": {
+        "surgeon": { "do": "talkPatient", "at": "tableSurgeon", "look": "patientFace" },
+        "assistant": { "do": "transferPatient", "at": "assistant", "look": "patient", "work": "patient" },
+        "scrub": { "do": "idle", "at": "scrub", "look": "visionMonitor" },
+        "circulator": { "do": "transferPatient", "at": "tableWest", "look": "patient", "work": "patient" },
+        "anaesthetist": { "do": "preoxygenate", "at": "anaesHead", "look": "patientFace", "work": "patientFace", "right": "oxygenMask" }
+      },
+      "patient": {
+        "airway": "oxygenMask"
+      }
+    }
+  ]
+}

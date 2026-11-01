@@ -17,7 +17,9 @@ import type { CasePhase, RobotPhase, SimEvent, SurgeryCaseView } from '../types'
 import type { Staffer } from './actors'
 import { cartPath, cartPose, DOCK_SPLIT } from './robot'
 import { ROOM_PHASES, type PlannedCase } from './plan'
+import { compiledFor } from '../procedure'
 import { SurgerySites } from './sites'
+import { newTablePose, setTablePose, tablePointInto } from './tablePose'
 import { DT, MiniHospital, runToHour, seatsFor, suite, testPerson } from './testkit'
 import { traceDay, type Trace } from './trace'
 
@@ -182,7 +184,9 @@ describe('the robotic day, 50 seeds', () => {
       })
       // the first case's arrival was before the day began (nothing logged); the others arrive upstairs by themselves
       expect(d.events.filter((e) => e.type === 'turnoverDone')).toHaveLength(d.plan.length)
-      expect(d.events.filter((e) => e.type === 'instrumentExchange').length).toBe(d.plan.reduce((n, c) => n + c.exchanges.length, 0))
+      // (R5: a case with a procedure script makes the script's bedside exchanges; one without, the plan's)
+      const exchangesOf = (c: PlannedCase) => compiledFor(`or-${c.procedure}`)?.armChanges.length ?? c.exchanges.length
+      expect(d.events.filter((e) => e.type === 'instrumentExchange').length).toBe(d.plan.reduce((n, c) => n + exchangesOf(c), 0))
       // texts come from the copy and every placeholder is filled
       for (const e of d.events) expect(e.text, `seed ${d.seed} ${e.type}`).not.toMatch(/[{}]/)
     }
@@ -208,7 +212,9 @@ describe('the robotic day, 50 seeds', () => {
         const wheelsOut = one('theatreOut')
         const pacuOut = one('pacuOut')
         const where = `seed ${d.seed} ${c.id}`
-        // sign-in as the induction begins (after the wheels in), the time-out before the robot docks, the sign-out before the patient leaves theatre
+        // sign-in in the induction (after the wheels in), the time-out before the robot docks, the sign-out before the patient leaves theatre.
+        // (R5: a case without a script says them at the phase boundaries, as in R2; a scripted one as its Sign In, Time Out and Sign Out steps
+        // begin: the second induction step, the last positioning step, the last closing step. The order is the same either way.)
         expect(signIn.t, where).toBeGreaterThanOrEqual(wheelsIn.t)
         expect(timeOut.t, where).toBeGreaterThan(signIn.t)
         expect(timeOut.t, where).toBeLessThanOrEqual(docked.t)
@@ -338,31 +344,48 @@ describe('the robot and the cart', () => {
     expect(eng[0]).toBeLessThan(0.2)
     expect(eng[eng.length - 1]).toBeGreaterThan(2.5)
     expect(Math.max(...(seen.get('docking')!.engage))).toBeLessThan(1e-6)
-    // the arms' ports are the layout's
+    // the arms' ports are the layout's, carried by the table's published pose (R5 wave 2: a level table gives the contract's own, to the last bit)
     const ports = SURGERY.ports[c.layout]
-    s.state.robot.arms.forEach((a, i) => expect(a.port).toEqual(ports[i]))
+    const tp = newTablePose()
+    setTablePose(tp, s.state.procedure.patient.headTiltDeg, s.state.procedure.patient.rollDeg)
+    s.state.robot.arms.forEach((a, i) => {
+      const want = tablePointInto(tp, ports[i].x, ports[i].y, ports[i].z, { x: 0, y: 0, z: 0 })
+      expect(a.port, `arm ${i}`).toEqual(want)
+    })
     expect(c.layout).toBe(SURGERY_COPY.procedures[c.procedure].portLayout)
     // instruments are the procedure's copy (arm 1 holds the endoscope)
     expect(s.state.robot.arms[1].instrument).toBe('Endoscope 30°')
   })
 
-  it('shows the instruments of the procedure and changes them at the bedside, with the arm withdrawing for a few seconds', () => {
-    const h = suite(2026, { crowd: false })
-    const s = h.surgery!
-    const c = s.plan[0]
-    const copy = SURGERY_COPY.procedures[c.procedure]
-    while (s.cases[0].consoleStart === null) h.step(0.25)
-    const start = s.cases[0].consoleStart!
-    runToTime(h, start + 1)
+  // (R5: every procedure has a script now: its arms and exchanges are the script's, and the plan's own random exchanges are dropped at runtime. The R2
+  // behaviour of a case without a script (the procedure's copy and the plan's exchanges) has no case left in the day to be shown on.)
+  it.each(['cholecystectomy', 'hysterectomy', 'prostatectomy'] as const)('shows the instruments of the %s and changes them at the bedside, with the arm withdrawing for a few seconds', (procedure) => {
+    let h: MiniHospital | null = null
+    for (const seed of [2026, 31, 9100, 9137, 9174, 9211, 9248, 9285, 9322]) {
+      const x = suite(seed, { crowd: false })
+      if (x.surgery!.plan.some((c) => c.procedure === procedure)) {
+        h = x
+        break
+      }
+    }
+    expect(h, `a day with a ${procedure}`).not.toBeNull()
+    const hh = h as MiniHospital
+    const s = hh.surgery!
+    const k = s.runs.findIndex((c) => c.plan.procedure === procedure)
+    const run = s.runs[k]
+    expect(run.proc, 'a script').not.toBeNull()
+    while (s.cases[k].consoleStart === null) hh.step(0.25)
+    const start = s.cases[k].consoleStart!
+    runToTime(hh, start + 1)
     const arms = s.state.robot.arms
-    expect(arms.map((a) => a.instrument)).toEqual(copy.instruments)
-    const ex = c.exchanges[0]
+    expect(arms.map((a) => a.instrument)).toEqual(run.proc!.arms0)
+    const ex = run.proc!.exchanges[0]
     // just before the exchange the arm is engaged, in the middle it is withdrawn, then it holds the new instrument
-    runToTime(h, start + ex.at - 3)
+    runToTime(hh, start + ex.at - 3)
     expect(arms[ex.arm].engage).toBeCloseTo(1, 5)
-    runToTime(h, start + ex.at + 6)
+    runToTime(hh, start + ex.at + 6)
     expect(arms[ex.arm].engage).toBeLessThan(0.7)
-    runToTime(h, start + ex.at + 20)
+    runToTime(hh, start + ex.at + 20)
     expect(arms[ex.arm].instrument).toBe(ex.instrument)
     expect(arms[ex.arm].exchanges).toBe(1)
     expect(arms[ex.arm].engage).toBeCloseTo(1, 5)
@@ -672,7 +695,8 @@ describe('the suite in the level-2 world', () => {
       expect(tr.surgery.runs.every((c) => c.stage === 'done')).toBe(true)
       expect(tr.peak).toBeGreaterThanOrEqual(10)
       expect(tr.peak).toBeLessThanOrEqual(20)
-      expect(tr.h.crowd!.blockedFallbacks).toBeLessThan(40)
+      // (R5: the scripted cases' choreography brushes a few more bodies than the plain day did: about 13-18 a case, 51 for these three, 39 before the pelvic scripts)
+      expect(tr.h.crowd!.blockedFallbacks).toBeLessThan(20 * tr.surgery.plan.length)
     }
   }, 300_000)
 

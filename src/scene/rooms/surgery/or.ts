@@ -2,9 +2,9 @@
  * R2 (agent O): the robotic OR's static furniture, in sim coordinates (places.ts SURGERY), written in DRAWN x through one frame at sim x = drawn + LEVEL2_DX like
  * the shell next door (shell.ts). The OR is drawn x -53..-44, z 2..10 (72 m^2): the table in the middle with its head north, the patient cart docking from the
  * west, the two surgeon consoles on the east side south of the viewing window, the vision cart in the north-west corner, the anaesthesia machine at the head
- * end, the back table and the Mayo stand at the foot, the circulator's standing desk by the door, and over it all the ceiling's lights, pendant and boom.
+ * end, the back table, the Mayo stand against the south wall, the circulator's standing desk by the door, and over it all the ceiling's lights, pendant and boom.
  *
- *   orTable:0                  the table (seat kind 'orTable', pose 'lie', head north), top at SURGERY.table.height
+ *   orTable:0                  the table (seat kind 'orTable', pose 'lie', head north), top at SURGERY.table.height (the top itself is live: surgery/table.ts)
  *   console:or:surgeon / teach the two consoles' chairs (kind 'console', pose 'sit', facing west to the viewer); the hand controllers stand at
  *                              armIn.ts CONSOLE_HANDS above the seat and the viewer's hood in front of the face
  *   console:or:anaes           the anaesthetist's stool (kind 'console', pose 'sit')
@@ -68,16 +68,18 @@ function bezelBehind(f: Frame, qx: number, qy: number, qz: number, w: number, h:
 // The table
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The table's static part: the base, the column and a collar at its head. R5 wave 2: everything that rides on the column (the tilting head block over the collar,
+ * the platform, the four pad sections at the contract's 0.88 m, the rails, the lithotomy boots and the shoulder braces) is LIVE: src/scene/surgery/table.ts, in
+ * the robot rig's pools, tipped every frame with the patient's pose about the pivot (places.ts SURGERY.tablePivot: y 0.8, 0.2 m toward the feet). The collar is
+ * low (top 0.68, 0.32 m long about the pivot) so the tilting block never lifts a corner out of the table's pad.
+ */
 function buildTable(D: Frame): void {
   const t = SURGERY.table
   const c = D.sub(drawn(t.at.x), t.at.z, t.heading) // +z runs from the head (north) to the feet
-  // the base, the column and its housing, the platform and the pad (top at the contract's 0.88 m), a rail down each side
   rb(c, -0.3, 0.3, 0, 0.07, -0.28, 0.68, 'metalDark', 0.03)
   cy(c, 0, 0.2, 0.22, 0.07, 0.62, 'frame')
-  rb(c, -0.18, 0.18, 0.62, 0.8, -0.05, 0.45, 'whitePlastic', 0.04)
-  rb(c, -0.25, 0.25, 0.8, 0.84, -1.0, 1.0, 'frame', 0.012)
-  rb(c, -0.25, 0.25, 0.83, t.height, -0.98, 0.98, 'fabricTeal', 0.02)
-  for (const s of [-1, 1]) rb(c, s * 0.265 - 0.01, s * 0.265 + 0.01, 0.79, 0.84, -0.95, 0.95, 'frame', 0.008)
+  rb(c, -0.18, 0.18, 0.62, 0.68, 0.04, 0.36, 'whitePlastic', 0.02)
   c.rect('l2:or:table', 0, 0, 0.62, 2.08)
   // the head end is north (heading 0: the seat's heading runs from the head toward the feet, +z)
   D.seat('orTable:0', 'orTable', drawn(t.at.x), t.at.z, t.height, { pose: 'lie', ry: t.heading, approach: t.approach })
@@ -202,16 +204,19 @@ function buildBackTable(D: Frame): void {
   c.rect('l2:or:backtable', -0.0375, 0, b.w - 0.075, b.l)
 }
 
-/** The Mayo stand: a tray on a column over a small base, under a sterile cover, a few instruments on it. */
+/**
+ * The Mayo stand: a tray on a column over a small base, under a sterile cover, a few instruments on it. R5 wave 2: parked against the south wall (places.ts
+ * SURGERY.mayo), its base next to the wall and its tray reaching NORTH toward the table's foot, like the baked stand that replaces this one (theatres.py).
+ */
 function buildMayo(D: Frame): void {
   const m = SURGERY.mayo.at
   const c = D.sub(drawn(m.x), m.z, 0)
   rb(c, -0.25, 0.25, 0, 0.04, -0.3, 0.3, 'frame', 0.012)
   cy(c, 0, 0, 0.05, 0.04, 0.94, 'frame')
-  rb(c, -0.25, 0.25, 0.94, 0.955, -0.15, 0.23, 'frame', 0.006)
-  rb(c, -0.23, 0.23, 0.955, 0.962, -0.13, 0.21, 'fabricTeal', 0.003)
-  rb(c, -0.16, 0.0, 0.962, 0.972, -0.08, 0.14, 'metalDark', 0.004)
-  rb(c, 0.04, 0.2, 0.962, 0.97, -0.1, 0.12, 'frame', 0.004)
+  rb(c, -0.25, 0.25, 0.94, 0.955, -0.23, 0.15, 'frame', 0.006)
+  rb(c, -0.23, 0.23, 0.955, 0.962, -0.21, 0.13, 'fabricTeal', 0.003)
+  rb(c, -0.16, 0.0, 0.962, 0.972, -0.14, 0.08, 'metalDark', 0.004)
+  rb(c, 0.04, 0.2, 0.962, 0.97, -0.12, 0.1, 'frame', 0.004)
   c.rect('l2:or:mayo', 0, 0, 0.52, 0.62)
 }
 

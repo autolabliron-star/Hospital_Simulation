@@ -1,0 +1,75 @@
+/**
+ * R5: what the crowd does when its renderer does not know a procedure action: every `ProcAction` has an `AnimState` the plain crowd poses
+ * can draw (hands forward to work, a tablet to read, a wipe to scrub, hands on a cart to push). The renderer's own surgical poses
+ * (src/scene/actors/crowd/surgicalPoses.ts) replace these for the actions it knows; this table is the fallback and the sim's `anim`.
+ */
+import type { AnimState, ProcAction } from '../types'
+
+export const ACTION_ANIM: Record<ProcAction, AnimState> = {
+  idle: 'idle',
+  watchField: 'idle',
+  watchMonitor: 'idle',
+  talkPatient: 'talk',
+  checklist: 'tablet',
+  chart: 'tablet',
+  transferPatient: 'give',
+  attachMonitors: 'give',
+  preoxygenate: 'give',
+  injectIv: 'give',
+  bagMask: 'give',
+  intubate: 'give',
+  secureTube: 'give',
+  extubate: 'give',
+  holdBreath: 'talk',
+  tuckArms: 'give',
+  positionPatient: 'give',
+  legsInStirrups: 'give',
+  tiltTable: 'tablet',
+  scrubHands: 'clean',
+  gownGlove: 'give',
+  skinPrep: 'clean',
+  drapePatient: 'give',
+  removeDrapes: 'give',
+  drapeRobot: 'give',
+  markSkin: 'give',
+  injectLocal: 'give',
+  skinNick: 'give',
+  insertTrocar: 'give',
+  holdScope: 'give',
+  insufflate: 'give',
+  fitCatheter: 'give',
+  fitManipulator: 'give',
+  deployCart: 'push',
+  driveCart: 'push',
+  dockArm: 'give',
+  fitInstrument: 'give',
+  operateConsole: 'console',
+  exchangeInstrument: 'give',
+  passInstrument: 'give',
+  receiveInstrument: 'give',
+  suction: 'give',
+  retractLap: 'give',
+  clipLap: 'give',
+  bagSpecimen: 'give',
+  removeSpecimen: 'give',
+  closeFascia: 'give',
+  closeSkin: 'give',
+  applyDressing: 'give',
+  countItems: 'tablet',
+  operateCt: 'tablet',
+  planPaths: 'tablet',
+  insertNeedle: 'give',
+  removeNeedle: 'give',
+  injectSaline: 'give',
+  warmSkin: 'give',
+  runCryoConsole: 'tablet',
+  scanProbe: 'give',
+  insertProbe: 'give',
+  pressSite: 'give',
+  cleanRoom: 'clean',
+}
+
+/** The `AnimState` for an action (the fallback pose). */
+export function animOf(action: ProcAction): AnimState {
+  return ACTION_ANIM[action]
+}

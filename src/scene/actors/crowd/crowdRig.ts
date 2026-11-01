@@ -8,6 +8,10 @@
  *
  * R2: the people bring one more mesh, the theatre cap of the realistic people in theatre scrubs (the props material, so no program of its own; hidden while
  * nobody on screen wears one). Each avatar's cap is fitted on its LOD 0 mesh once, at attach (avatars.ts measureCapFit).
+ *
+ * R5: the instruments in the theatre team's hands (crowd/instruments.ts: one merged mesh of every kind, an instance per hand, the props material) are one more
+ * crowd object, hidden while nobody near the camera holds one (so the overview pays nothing); the people bring two more, the surgical masks (fitted on each
+ * avatar's face at attach, avatars.ts measureFaceFit) and the gowns' skirts, both on the props material and hidden while nobody near enough wears one.
  */
 import {
   Color,
@@ -31,13 +35,15 @@ import {
 import type { Entity } from '@/sim/types'
 import { glContext } from '@/scene/glContext'
 import { walkBody } from '@/scene/player/state'
-import { BADGE_KIND, CAP_KIND, MAX_PEOPLE, RING_COLORS, TEX } from './constants'
+import { BADGE_KIND, CAP_KIND, GOWN_KIND, MASK_KIND, MAX_PEOPLE, RING_COLORS, TEX } from './constants'
 import { buildBadgeGeometry, buildBlanketGeometry, buildCapGeometry, buildPropGeometry, buildVehicleGeometry } from './gear'
 import { buildBodyGeometries } from './geometry'
-import { CrowdModel, MAX_BADGES, MAX_BLANKETS, MAX_BLOBS, MAX_CAPS, MAX_PROPS, type FrameInput, type PersonSlot } from './model'
+import { CrowdModel, MAX_BADGES, MAX_BLANKETS, MAX_BLOBS, MAX_CAPS, MAX_GOWNS, MAX_MASKS, MAX_PROPS, type FrameInput, type PersonSlot } from './model'
 import { highlight } from './runtime'
 import { createAvatarMaterials, createCrowdMaterials } from './shaders'
-import { measureCapFit, type CapFit } from './avatars'
+import { measureCapFit, measureFaceFit, measureHandGrip, type CapFit, type FaceFit } from './avatars'
+import { buildInstrumentGeometry } from './instruments'
+import { buildGownGeometry, buildMaskGeometry } from './attire'
 import type { LoadedPeople } from './avatarLoader'
 
 /** The realistic people's draws: meshes[avatar][lod], in the order of the model's avatars. */
@@ -47,6 +53,9 @@ export interface PeopleMeshes {
   badge: Mesh
   /** R2: the theatre caps of the realistic people in theatre scrubs: the props material, its own one-kind geometry, hidden while nobody wears one. */
   cap: Mesh
+  /** R5: the surgical masks and the gown skirts of the realistic people in sterile attire: the props material, hidden while nobody near wears one. */
+  mask: Mesh
+  gown: Mesh
   geometries: InstancedBufferGeometry[]
   materials: MeshStandardMaterial[]
   /** Bytes the avatars took to download (for the probe). */
@@ -82,6 +91,9 @@ export interface CrowdRig {
   /** The blankets of the patients lying in a bed or on a stretcher: the props material, its own one-kind geometry, hidden while nobody is covered. */
   blankets: Mesh
   blanketGeometry: InstancedBufferGeometry
+  /** R5: the instruments in the hands of the people near the camera (and the procedure patients' breathing tubes): the props material, hidden while none. */
+  instruments: Mesh
+  instrumentGeometry: InstancedBufferGeometry
   blobs: InstancedMesh
   blobFade: InstancedBufferAttribute
   blobShape: InstancedBufferAttribute
@@ -166,6 +178,18 @@ export function createCrowdRig(): CrowdRig {
   blankets.receiveShadow = true
   blankets.visible = false
 
+  // R5: the instruments, a row, a packed kind (the hand) and the moving part's parameter per instance
+  const ig = buildInstrumentGeometry().geometry
+  ig.setAttribute('aRow', instancedAttr(model.instRows, 1))
+  ig.setAttribute('aKind', instancedAttr(model.instKinds, 1))
+  ig.setAttribute('aOff', instancedAttr(model.instParams, 1))
+  const instruments = new Mesh(ig, mats.props)
+  instruments.name = 'crowd-instruments'
+  instruments.frustumCulled = false
+  instruments.castShadow = false
+  instruments.receiveShadow = true
+  instruments.visible = false
+
   // contact shadows (realism step 2): a unit quad on the floor, a matrix, a fade and a shape per instance written by the model
   const quad = new PlaneGeometry(1, 1)
   quad.rotateX(-Math.PI / 2)
@@ -209,13 +233,15 @@ export function createCrowdRig(): CrowdRig {
     vehicleGeometry: vg,
     blankets,
     blanketGeometry: bg,
+    instruments,
+    instrumentGeometry: ig,
     blobs,
     blobFade,
     blobShape,
     ring,
     ringMaterial: mats.ring,
     ringColors: [new Color(RING_COLORS.selected), new Color(RING_COLORS.followed)],
-    objects: [...bodies, props, vehicles, blankets, blobs, ring],
+    objects: [...bodies, props, vehicles, blankets, instruments, blobs, ring],
     people,
     avatars: null,
     propsMaterial,
@@ -228,6 +254,7 @@ export function createCrowdRig(): CrowdRig {
       pg.dispose()
       vg.dispose()
       bg.dispose()
+      ig.dispose()
       quad.dispose()
       ringGeometry.dispose()
     },
@@ -236,6 +263,24 @@ export function createCrowdRig(): CrowdRig {
 
 /** R2: an avatar's theatre cap, fitted on its near (LOD 0) body: the vertex buffers as plain numbers (dequantised), then avatars.ts measureCapFit. */
 export function capFitOfBody(g: InstancedBufferGeometry): CapFit | null {
+  const b = bodyArrays(g)
+  return measureCapFit(b.p, b.j, b.w, b.n)
+}
+
+/** R5: an avatar's surgical mask, fitted on its near (LOD 0) face (avatars.ts measureFaceFit). */
+export function faceFitOfBody(g: InstancedBufferGeometry): FaceFit | null {
+  const b = bodyArrays(g)
+  return measureFaceFit(b.p, b.j, b.w, b.n)
+}
+
+/** R5: an avatar's hand middle, measured on its near (LOD 0) body (avatars.ts measureHandGrip). */
+export function handGripOfBody(g: InstancedBufferGeometry, bindInverse: ArrayLike<number>): [number, number] | null {
+  const b = bodyArrays(g)
+  return measureHandGrip(b.p, b.j, b.w, b.n, bindInverse)
+}
+
+/** A body's positions, joints and weights as plain numbers (dequantised). */
+function bodyArrays(g: InstancedBufferGeometry): { p: Float32Array; j: Float32Array; w: Float32Array; n: number } {
   const pos = g.getAttribute('position') as BufferAttribute
   const joints = g.getAttribute('aJoints') as BufferAttribute
   const weights = g.getAttribute('aWeights') as BufferAttribute
@@ -250,7 +295,7 @@ export function capFitOfBody(g: InstancedBufferGeometry): CapFit | null {
       w[i * 4 + c] = weights.getComponent(i, c)
     }
   }
-  return measureCapFit(p, j, w, n)
+  return { p, j, w, n }
 }
 
 /**
@@ -262,6 +307,8 @@ export function attachPeople(r: CrowdRig, loaded: LoadedPeople): PeopleMeshes {
   r.model.setAvatars(
     loaded.avatars.map((a) => a.entry),
     loaded.avatars.map((a) => capFitOfBody(a.lods[0])),
+    loaded.avatars.map((a) => faceFitOfBody(a.lods[0])),
+    loaded.avatars.map((a) => handGripOfBody(a.lods[0], a.entry.bindInverse)),
   )
   const L = r.model.avatarLists
   const geometries: InstancedBufferGeometry[] = []
@@ -312,7 +359,24 @@ export function attachPeople(r: CrowdRig, loaded: LoadedPeople): PeopleMeshes {
   cap.receiveShadow = true
   cap.visible = false
   r.people.add(cap)
-  r.avatars = { meshes, badge, cap, geometries, materials, bytes: loaded.bytes }
+  // R5: the surgical masks (MASK_FRAME of their row) and the gowns' skirts (the skirt frame)
+  const attireMesh = (geo: InstancedBufferGeometry, rows: Float32Array, kind: number, cap: number, name: string): Mesh => {
+    geo.setAttribute('aRow', instancedAttr(rows, 1))
+    geo.setAttribute('aKind', instancedAttr(new Float32Array(cap).fill(kind), 1))
+    geo.setAttribute('aOff', instancedAttr(new Float32Array(cap), 1))
+    geometries.push(geo)
+    const m = new Mesh(geo, r.propsMaterial)
+    m.name = name
+    m.frustumCulled = false
+    m.castShadow = false
+    m.receiveShadow = true
+    m.visible = false
+    r.people.add(m)
+    return m
+  }
+  const mask = attireMesh(buildMaskGeometry().geometry, r.model.maskRows, MASK_KIND, MAX_MASKS, 'crowd-masks')
+  const gown = attireMesh(buildGownGeometry().geometry, r.model.gownRows, GOWN_KIND, MAX_GOWNS, 'crowd-gowns')
+  r.avatars = { meshes, badge, cap, mask, gown, geometries, materials, bytes: loaded.bytes }
   return r.avatars
 }
 
@@ -323,6 +387,8 @@ export function detachPeople(r: CrowdRig): void {
   for (const row of pm.meshes) for (const m of row) r.people.remove(m)
   r.people.remove(pm.badge)
   r.people.remove(pm.cap)
+  r.people.remove(pm.mask)
+  r.people.remove(pm.gown)
   for (const m of pm.materials) m.dispose()
   for (const g of pm.geometries) g.dispose()
   r.avatars = null
@@ -387,11 +453,12 @@ function setInstances(geo: InstancedBufferGeometry, n: number, a: string, b?: st
 }
 
 /** One frame of the crowd. Everything it touches is preallocated. */
-export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, camX: number, camY: number, camZ: number, delta: number, time: number, timeScale = 1): void {
+export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, camX: number, camY: number, camZ: number, delta: number, time: number, timeScale = 1, simTime?: number): void {
   const f = r.frame
   f.dt = delta
   f.time = time
   f.timeScale = timeScale
+  f.simTime = simTime
   f.camX = camX
   f.camY = camY
   f.camZ = camZ
@@ -413,6 +480,10 @@ export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, c
   setInstances(r.vehicleGeometry, st.vehicles, 'aRow', 'aKind', 'aOff')
   r.blankets.visible = st.blankets > 0
   setInstances(r.blanketGeometry, st.blankets, 'aRow')
+  // R5: hidden (no cost) while nobody near the camera holds an instrument
+  r.instruments.visible = st.instruments > 0
+  if (st.instruments > 0) setInstances(r.instrumentGeometry, st.instruments, 'aRow', 'aKind', 'aOff')
+  else r.instrumentGeometry.instanceCount = 0
   r.blobs.count = st.blobs
   if (st.blobs > 0) {
     uploadFirst(r.blobs.instanceMatrix, st.blobs * 16)
@@ -430,6 +501,8 @@ export function driveCrowd(r: CrowdRig, entities: ReadonlyMap<string, Entity>, c
     }
     setAvatarInstances(pm.badge, st.badges)
     setAvatarInstances(pm.cap, st.caps)
+    setAvatarInstances(pm.mask, st.masks)
+    setAvatarInstances(pm.gown, st.gowns)
   }
   const rows = poseRows(r.upload, model)
   r.upload.rows = rows

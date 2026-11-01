@@ -46,3 +46,20 @@ export function presentCut(i: number): void {
 export function presentState(): { presenting: boolean; gliding: boolean; shot: number } | null {
   return current ? current.presentState : null
 }
+
+// R5: the camera lease (src/scene/watch: "Watch step by step"). The lessee moves you with `placePlayer`; these are the rest of what it needs.
+
+/** Fly down into walk mode if you are in the overview (the watch begins with your own flight). */
+export function requestWalk(): void {
+  current?.requestWalk()
+}
+
+/** The view's pitch now (what `afterLease` takes back), or null when the player is not mounted. */
+export function playerViewPitch(): number | null {
+  return current ? current.viewPitch : null
+}
+
+/** The lease is over: adopt the DRAWN look target the lessee left (the next flight starts from it) and, with `look`, put the view back at once. */
+export function afterLease(target: { x: number; y: number; z: number } | null, look: { yaw: number; pitch: number } | null): void {
+  current?.afterLease(target, look)
+}

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Mesh } from 'three'
-import type { AnimState, Entity, PropKind, Role, VehicleKind } from '@/sim/types'
+import { ATTIRE, type AnimState, type Entity, type PatientPoseView, type PropKind, type Role, type StaffAct, type VehicleKind } from '@/sim/types'
 import { BUILDING, VIEW } from '@/sim/places'
 import { attachPeople, createCrowdRig, driveCrowd, type CrowdRig } from './crowdRig'
 import { loadPeopleFromDisk } from './avatars.testkit'
@@ -105,7 +105,9 @@ describe('crowd budget', () => {
     const es = crowd(200)
     frames(rig, es, OVERVIEW, 10)
     const a = submitted(rig)
-    expect(rig.objects.length).toBeLessThanOrEqual(8)
+    // (R5: the instruments are a ninth object, hidden while nobody near the camera holds one: never a draw at the overview)
+    expect(rig.objects.length).toBeLessThanOrEqual(9)
+    expect(rig.instruments.visible).toBe(false)
     expect(a.calls).toBeLessThanOrEqual(8)
     highlight.selectedId = 'pusher-0'
     frames(rig, es, OVERVIEW, 2)
@@ -245,7 +247,8 @@ describe('crowd budget with the realistic people', () => {
     expect(close.calls).toBeLessThanOrEqual(46)
     expect(close.triangles).toBeLessThanOrEqual(450_000)
     // the absolute ceiling: one avatar body per draw, the meshes the people bring (3 per avatar, the badge and R2's theatre caps)
-    expect(rig.people.children.length).toBe(loaded.avatars.length * 3 + 2)
+    // (R5: and the surgical masks and the gowns' skirts)
+    expect(rig.people.children.length).toBe(loaded.avatars.length * 3 + 4)
     expect(LOD_TRIANGLES[2] * 200).toBeLessThanOrEqual(120_000)
     highlight.selectedId = 'pusher-0'
     frames(rig, es, OVERVIEW, 2)
@@ -289,4 +292,115 @@ describe('crowd budget with the realistic people', () => {
     plain.dispose()
     real.dispose()
   }, 60_000)
+})
+
+// ---------------------------------------------------------------------------------------------
+// R5: a theatre team at work, close up (instruments in both hands, masks, gowns, the patient's breathing tube)
+// ---------------------------------------------------------------------------------------------
+
+/** The theatre: a team of seven in sterile attire acting at the table around (x, z), a patient on it with a tube; the rest of the crowd as above. */
+function theatre(acting: boolean): Map<string, Entity> {
+  const es = crowd(200)
+  const x0 = -11
+  const z0 = 10.5
+  const work = { x: x0, y: 1.08, z: z0 }
+  const team: [string, number, number, number, StaffAct][] = [
+    ['surgeon', x0 + 0.55, z0, -Math.PI / 2, { action: 'closeSkin', progress: 0.3, left: 'forceps', right: 'needleHolder', work }],
+    ['assistant', x0 - 0.55, z0 + 0.2, Math.PI / 2, { action: 'suction', progress: 0.5, left: 'none', right: 'lapSuction', work }],
+    ['scrub', x0 - 0.5, z0 - 0.6, Math.PI / 2, { action: 'passInstrument', progress: 0.2, left: 'none', right: 'scissors', work: { x: x0, y: 1.15, z: z0 - 0.5 } }],
+    ['anaesthetist', x0, z0 - 1.25, 0, { action: 'bagMask', progress: 0.4, left: 'bagValveMask', right: 'none', work: { x: x0, y: 1.05, z: z0 - 0.85 } }],
+    ['circulator', x0 + 1.4, z0 - 1.2, -Math.PI / 2, { action: 'countItems', progress: 0.6, left: 'none', right: 'countBoard', work: { x: x0 + 0.9, y: 0.95, z: z0 - 1.2 } }],
+    ['scrub2', x0 + 0.6, z0 + 0.9, -Math.PI / 2, { action: 'clipLap', progress: 0.3, left: 'none', right: 'lapClipApplier', work }],
+    ['fellow', x0 - 0.5, z0 + 1, Math.PI / 2, { action: 'holdScope', progress: 0.3, left: 'none', right: 'laparoscope', work }],
+  ]
+  for (const [id, x, z, h, act] of team) {
+    const e: Entity = { id: `r5-${id}`, role: id === 'anaesthetist' ? 'doctor' : 'nurse', name: id, outfit: 'theatre', position: { x, y: 0, z }, heading: h, speed: 0, anim: 'idle', emote: 'none', mood: 'neutral', tier: 'near', variant: id.length * 7 }
+    if (acting) {
+      e.act = act
+      e.attire = id === 'circulator' || id === 'anaesthetist' ? ATTIRE.mask : ATTIRE.mask | ATTIRE.gown | ATTIRE.gloves
+    }
+    es.set(e.id, e)
+  }
+  const pose: PatientPoseView = { position: 'supine', headTiltDeg: 0, rollDeg: 0, arms: 'tucked', airway: acting ? 'tube' : 'none', awareness: 'asleep', prep: 1, drape: 1, marks: 'ports', catheter: false, manipulator: false }
+  es.set('r5-patient', { id: 'r5-patient', role: 'patient', name: 'patient', outfit: 'gown', position: { x: x0, y: 0, z: z0 }, heading: 0, speed: 0, anim: 'lie', emote: 'none', mood: 'neutral', tier: 'near', variant: 4, patientPose: pose })
+  return es
+}
+
+describe('R5: the theatre team close up', () => {
+  const CAM: [number, number, number] = [-11, 1.75, 7.6]
+  it('costs at most 3 more draw calls (instruments, masks, gown skirts) and about 33k more triangles; the overview pays nothing', async () => {
+    const loaded = await loadPeopleFromDisk()
+    const base = createCrowdRig()
+    attachPeople(base, loaded)
+    const r5 = createCrowdRig()
+    attachPeople(r5, loaded)
+    const esA = theatre(false)
+    const esB = theatre(true)
+    frames(base, esA, CAM, 40)
+    frames(r5, esB, CAM, 40)
+    const a = submittedAll(base)
+    const b = submittedAll(r5)
+    const st = r5.model.stats
+    const added = (b.perMesh['crowd-instruments'] ?? 0) + (b.perMesh['crowd-masks'] ?? 0) + (b.perMesh['crowd-gowns'] ?? 0)
+    console.log(`theatre close-up: draw calls ${a.calls} -> ${b.calls}; instruments ${st.instruments}, masks ${st.masks}, gowns ${st.gowns}; added triangles ${Math.round(added)} (instruments ${b.perMesh['crowd-instruments']}, masks ${b.perMesh['crowd-masks']}, gowns ${b.perMesh['crowd-gowns']})`)
+    expect(st.instruments).toBeGreaterThanOrEqual(7)
+    expect(st.masks).toBe(7)
+    expect(st.gowns).toBe(5)
+    expect(b.calls - a.calls).toBeLessThanOrEqual(3)
+    expect(added).toBeLessThanOrEqual(33_000)
+    // the overview: no instrument is listed, and the masks and gowns are gone with the near bodies
+    frames(r5, esB, OVERVIEW, 10)
+    expect(r5.instruments.visible).toBe(false)
+    expect(r5.model.stats.instruments).toBe(0)
+    const over = submittedAll(r5)
+    expect(over.perMesh['crowd-instruments']).toBeUndefined()
+    base.dispose()
+    r5.dispose()
+  }, 60_000)
+
+  it('R5 wave 2: a patient in lithotomy with the arms tucked on a table tipped -25 degrees draws exactly what one lying flat does: no draw call and no triangle more (realistic and procedural)', async () => {
+    const loaded = await loadPeopleFromDisk()
+    const lithotomy: PatientPoseView = { position: 'lithotomy', headTiltDeg: -25, rollDeg: 8, arms: 'tucked', airway: 'tube', awareness: 'asleep', prep: 1, drape: 1, marks: 'ports', catheter: false, manipulator: false }
+    const flat: PatientPoseView = { ...lithotomy, position: 'supine', headTiltDeg: 0, rollDeg: 0, arms: 'out' }
+    const onTable = (pose: PatientPoseView): Map<string, Entity> => {
+      const es = theatre(true)
+      const pat = es.get('r5-patient')!
+      pat.seated = { seatId: 'orTable:0', pose: 'lie' }
+      pat.patientPose = pose
+      return es
+    }
+    for (const realistic of [true, false]) {
+      const a = createCrowdRig()
+      const b = createCrowdRig()
+      if (realistic) {
+        attachPeople(a, loaded)
+        attachPeople(b, loaded)
+      }
+      frames(a, onTable(flat), CAM, 240)
+      frames(b, onTable(lithotomy), CAM, 240)
+      expect(b.model.get('r5-patient')!.rig.tbl.on, 'the table paths ran').toBe(true)
+      const x = submittedAll(a)
+      const y = submittedAll(b)
+      expect(y.calls, realistic ? 'realistic' : 'procedural').toBe(x.calls)
+      expect(y.triangles, realistic ? 'realistic' : 'procedural').toBe(x.triangles)
+      a.dispose()
+      b.dispose()
+    }
+  }, 60_000)
+
+  it('the procedural crowd draws the instruments too (one draw), and hides the mesh when nobody near holds one', () => {
+    const rig = createCrowdRig()
+    const es = theatre(true)
+    frames(rig, es, CAM, 30)
+    expect(rig.instruments.visible).toBe(true)
+    expect(rig.model.stats.instruments).toBeGreaterThanOrEqual(7)
+    for (const e of es.values()) {
+      e.act = null
+      if (e.patientPose) e.patientPose = null
+    }
+    frames(rig, es, CAM, 30)
+    expect(rig.instruments.visible).toBe(false)
+    expect(rig.instrumentGeometry.instanceCount).toBe(0)
+    rig.dispose()
+  })
 })

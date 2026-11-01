@@ -47,6 +47,10 @@ export const T = {
   muscle: 12,
   duct: 13,
   vein: 14,
+  /** R5 (the stages): a small artery, pinker than the duct beside it. */
+  artery: 15,
+  /** R5: tissue that has been cleared of fat and fascia: a smooth, pale, warm bed. */
+  bed: 16,
 } as const
 export type Tissue = (typeof T)[keyof typeof T]
 export const TISSUE_NAMES = Object.keys(T) as (keyof typeof T)[]
@@ -254,6 +258,19 @@ function material(tissue: number, x: number, y: number, dir: number, m: Mat): vo
       shade(m, 0.92 + 0.12 * n)
       return
     }
+    case T.bed: {
+      const n = fibres(x, y, dir, 5, 8)
+      set(m, 0.95, 0.79, 0.68, 0.85, 0.35, 0.0015 * n)
+      shade(m, 0.9 + 0.14 * n)
+      tint(m, 0.78, 0.52, 0.56, vessels(x + 3, y + 8, 8, 0.5) * 0.3)
+      return
+    }
+    case T.artery: {
+      const n = fbm(L2, x * 10 + 4, y * 10 + 6, 2)
+      set(m, 0.94, 0.7, 0.65, 0.9, 0.25, 0.0015 * n)
+      shade(m, 0.92 + 0.12 * n)
+      return
+    }
     default:
       serosaMat(x, y, m)
   }
@@ -379,7 +396,7 @@ function mirror(p: Part): Part {
 // The three layouts
 // ---------------------------------------------------------------------------------------------
 
-interface Layout {
+export interface Layout {
   /** The deep background: tissue, albedo and a low height. */
   background(x: number, y: number, m: Mat, out: TissueSample): void
   parts: readonly Part[]
@@ -400,24 +417,37 @@ function deepBackground(fatShare: number, low: number): Layout['background'] {
   }
 }
 
+// The parts of the cholecystectomy a stage changes (the patches below drop or replace them): Calot's triangle's fat, its veil and the strands over the
+// duct; the gallbladder.
+const C_FAT_TRIANGLE = ellipse(T.fat, 0.66, 0.7, 0.25, 0.14, 0.55, { base: 0.42, dome: 0.07, depth: 0.1, wobble: 0.025, edge: 0.02 })
+const C_VEIL = ellipse(T.fascia, 0.7, 0.66, 0.21, 0.1, 0.6, { film: 0.42, wobble: 0.03, edge: 0.03 })
+const C_STRAND_A = tube(T.fascia, [0.83, 0.49, 0.66, 0.6, 0.52, 0.64], 0.02, 0.016, { film: 0.5, wobble: 0.01, edge: 0.012 })
+const C_STRAND_B = tube(T.fascia, [0.9, 0.6, 0.76, 0.74, 0.66, 0.84], 0.016, 0.012, { film: 0.45, wobble: 0.01, edge: 0.012 })
+const C_GALLBLADDER = tube(T.gallbladder, [1.4, 0.09, 1.2, 0.25, 1.0, 0.39, 0.86, 0.52], 0.175, 0.075, { base: 0.66, dome: 0.12, depth: 1.3, wobble: 0.012 })
+const C_GB_NECK = ellipse(T.gallbladder, 0.93, 0.46, 0.105, 0.078, 0.6, { base: 0.66, dome: 0.08, wobble: 0.01 })
+const C_DUODENUM = ellipse(T.bowel, 1.45, 0.99, 0.46, 0.24, -0.25, { base: 0.3, dome: 0.16, depth: 0.2, wobble: 0.02 })
+const C_OMENTUM = ellipse(T.fat, 0.3, 0.99, 0.64, 0.28, 0.15, { base: 0.36, dome: 0.1, depth: 0.22, wobble: 0.03, edge: 0.02 })
+const C_LIVER = part(T.liver, { kind: ABOVE, e0: 0.43, e1: -0.11 / A, amp: 0.022, freq: 3.1, ph: 0.7, base: 0.55, dome: 0.22, depth: 0.35, edge: 0.008, wobble: 0.012 })
+const C_DUCT = tube(T.duct, [0.86, 0.54, 0.71, 0.64, 0.57, 0.74, 0.42, 0.87], 0.036, 0.029, { base: 0.46, dome: 0.03, depth: 1.4, wobble: 0.006 })
+
 const CHOLE: Layout = {
   background: deepBackground(0.5, 0.24),
   parts: [
     // duodenum lower right, omental fat lower left
-    ellipse(T.bowel, 1.45, 0.99, 0.46, 0.24, -0.25, { base: 0.3, dome: 0.16, depth: 0.2, wobble: 0.02 }),
-    ellipse(T.fat, 0.3, 0.99, 0.64, 0.28, 0.15, { base: 0.36, dome: 0.1, depth: 0.22, wobble: 0.03, edge: 0.02 }),
+    C_DUODENUM,
+    C_OMENTUM,
     // fat in Calot's triangle, under a thin peritoneal veil
-    ellipse(T.fat, 0.66, 0.7, 0.25, 0.14, 0.55, { base: 0.42, dome: 0.07, depth: 0.1, wobble: 0.025, edge: 0.02 }),
-    ellipse(T.fascia, 0.7, 0.66, 0.21, 0.1, 0.6, { film: 0.42, wobble: 0.03, edge: 0.03 }),
+    C_FAT_TRIANGLE,
+    C_VEIL,
     // the underside of the liver across the top, its edge running down to the left
-    part(T.liver, { kind: ABOVE, e0: 0.43, e1: -0.11 / A, amp: 0.022, freq: 3.1, ph: 0.7, base: 0.55, dome: 0.22, depth: 0.35, edge: 0.008, wobble: 0.012 }),
+    C_LIVER,
     // the cystic duct down into the fat, with peritoneal strands over it
-    tube(T.duct, [0.86, 0.54, 0.71, 0.64, 0.57, 0.74, 0.42, 0.87], 0.036, 0.029, { base: 0.46, dome: 0.03, depth: 1.4, wobble: 0.006 }),
-    tube(T.fascia, [0.83, 0.49, 0.66, 0.6, 0.52, 0.64], 0.02, 0.016, { film: 0.5, wobble: 0.01, edge: 0.012 }),
-    tube(T.fascia, [0.9, 0.6, 0.76, 0.74, 0.66, 0.84], 0.016, 0.012, { film: 0.45, wobble: 0.01, edge: 0.012 }),
+    C_DUCT,
+    C_STRAND_A,
+    C_STRAND_B,
     // the gallbladder on the liver: the fundus retracted to the upper right, the neck and Hartmann's pouch in the middle
-    tube(T.gallbladder, [1.4, 0.09, 1.2, 0.25, 1.0, 0.39, 0.86, 0.52], 0.175, 0.075, { base: 0.66, dome: 0.12, depth: 1.3, wobble: 0.012 }),
-    ellipse(T.gallbladder, 0.93, 0.46, 0.105, 0.078, 0.6, { base: 0.66, dome: 0.08, wobble: 0.01 }),
+    C_GALLBLADDER,
+    C_GB_NECK,
   ],
 }
 
@@ -429,6 +459,9 @@ const HYST_LEFT: Part[] = [
   tube(T.tube, [0.64, 0.43, 0.52, 0.47, 0.4, 0.52, 0.31, 0.6, 0.25, 0.7], 0.028, 0.046, { base: 0.4, dome: 0.03, depth: 1.5, wobble: 0.014 }),
   tube(T.ligament, [0.64, 0.5, 0.53, 0.6, 0.45, 0.66], 0.018, 0.015, { base: 0.38, dome: 0.012, depth: 2 }),
 ]
+
+const H_UTERUS = ellipse(T.uterus, A / 2, 0.5, 0.3, 0.27, 0, { base: 0.46, dome: 0.3, depth: 0.32, wobble: 0.012, edge: 0.016 })
+const H_FOLD = ellipse(T.peritoneum, A / 2, 1.02, 0.6, 0.17, 0, { base: 0.4, dome: 0.06, depth: 0.12 })
 
 const HYST: Layout = {
   background: deepBackground(0.55, 0.14),
@@ -445,8 +478,8 @@ const HYST: Layout = {
     ...HYST_LEFT,
     ...HYST_LEFT.map(mirror),
     // the uterus, and the bladder's peritoneal fold in front of it
-    ellipse(T.uterus, A / 2, 0.5, 0.3, 0.27, 0, { base: 0.46, dome: 0.3, depth: 0.32, wobble: 0.012, edge: 0.016 }),
-    ellipse(T.peritoneum, A / 2, 1.02, 0.6, 0.17, 0, { base: 0.4, dome: 0.06, depth: 0.12 }),
+    H_UTERUS,
+    H_FOLD,
   ],
 }
 
@@ -457,24 +490,151 @@ const PROST_LEFT: Part[] = [
   tube(T.fascia, [0.78, 0.9, 0.68, 1.03], 0.022, 0.03, { base: 0.6, dome: 0.03, dir: 2.2 }),
 ]
 
+const P_BLADDER = ellipse(T.bladder, A / 2, 0.16, 0.66, 0.36, 0, { base: 0.42, dome: 0.24, depth: 0.34, dir: 0.2, edge: 0.016 })
+const P_NECK = ellipse(T.bladder, A / 2, 0.47, 0.22, 0.1, 0, { base: 0.46, dome: 0.05, dir: 1.5, edge: 0.016 })
+const P_PROSTATE = ellipse(T.prostate, A / 2, 0.74, 0.3, 0.22, 0, { base: 0.44, dome: 0.2, depth: 0.24, edge: 0.016 })
+const P_FAT_PAD = ellipse(T.fat, A / 2, 0.6, 0.16, 0.075, 0, { base: 0.56, dome: 0.04, wobble: 0.025 })
+const P_VEINS = [
+  tube(T.vein, [A / 2, 0.99, A / 2 - 0.014, 0.88, A / 2 - 0.03, 0.8], 0.011, 0.008, { base: 0.62, dome: 0.008, depth: 1.6, wobble: 0.006 }),
+  tube(T.vein, [0.8, 0.97, 0.82, 0.87, 0.83, 0.79], 0.009, 0.007, { base: 0.62, dome: 0.006, depth: 1.6, wobble: 0.006 }),
+  tube(T.vein, [0.98, 0.97, 0.955, 0.87, 0.945, 0.79], 0.009, 0.007, { base: 0.62, dome: 0.006, depth: 1.6, wobble: 0.006 }),
+]
+const P_FASCIA = ellipse(T.fascia, A / 2, 0.9, 0.2, 0.12, 0, { film: 0.45, dir: 1.57, wobble: 0.03, edge: 0.03 })
+
 const PROST: Layout = {
   background: deepBackground(0.45, 0.12),
   parts: [
     ...PROST_LEFT,
     ...PROST_LEFT.map(mirror),
     // the bladder's dome, its neck, the prostate under a small fat pad, the dorsal veins on it
-    ellipse(T.bladder, A / 2, 0.16, 0.66, 0.36, 0, { base: 0.42, dome: 0.24, depth: 0.34, dir: 0.2, edge: 0.016 }),
-    ellipse(T.bladder, A / 2, 0.47, 0.22, 0.1, 0, { base: 0.46, dome: 0.05, dir: 1.5, edge: 0.016 }),
-    ellipse(T.prostate, A / 2, 0.74, 0.3, 0.22, 0, { base: 0.44, dome: 0.2, depth: 0.24, edge: 0.016 }),
-    ellipse(T.fat, A / 2, 0.6, 0.16, 0.075, 0, { base: 0.56, dome: 0.04, wobble: 0.025 }),
-    tube(T.vein, [A / 2, 0.99, A / 2 - 0.014, 0.88, A / 2 - 0.03, 0.8], 0.011, 0.008, { base: 0.62, dome: 0.008, depth: 1.6, wobble: 0.006 }),
-    tube(T.vein, [0.8, 0.97, 0.82, 0.87, 0.83, 0.79], 0.009, 0.007, { base: 0.62, dome: 0.006, depth: 1.6, wobble: 0.006 }),
-    tube(T.vein, [0.98, 0.97, 0.955, 0.87, 0.945, 0.79], 0.009, 0.007, { base: 0.62, dome: 0.006, depth: 1.6, wobble: 0.006 }),
-    ellipse(T.fascia, A / 2, 0.9, 0.2, 0.12, 0, { film: 0.45, dir: 1.57, wobble: 0.03, edge: 0.03 }),
+    P_BLADDER,
+    P_NECK,
+    P_PROSTATE,
+    P_FAT_PAD,
+    ...P_VEINS,
+    P_FASCIA,
   ],
 }
 
 const LAYOUTS: readonly Layout[] = [CHOLE, HYST, PROST]
+
+// ---------------------------------------------------------------------------------------------
+// R5: the patches. The step-by-step operations change what the camera sees: Calot's triangle is cleared, the gallbladder leaves its bed, the uterus is out, the
+// prostate is out. A patch is a small piece of plate, baked from a changed copy of the layout (plates.ts `PlateBaker` with a patch) and laid over the plate with
+// a soft edge while the step runs (stages.ts). The changed layouts share the base layout's parts: they drop some, put in others.
+// ---------------------------------------------------------------------------------------------
+
+/** The opaque part of a patch (an ellipse) and how far past it the edge fades out. Everything the patch replaces lies inside the ellipse. */
+export interface PatchMask {
+  cx: number
+  cy: number
+  rx: number
+  ry: number
+  rot: number
+  feather: number
+}
+
+export interface PatchSpec {
+  id: number
+  proc: ProcIndex
+  /** Plate units: the box that is baked (the mask, its feather and a margin for the blur's edge, cut at the plate's own edge). */
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+  mask: PatchMask
+  layout: Layout
+  /** What it shows, for the tests and the docs. */
+  what: string
+}
+
+/** The margin past the mask's feather that the bake keeps, so the blur's edge never reaches the visible part (two box blurs of 4.5 % of the plate). */
+const PATCH_MARGIN = 0.06
+
+function patch(id: number, proc: ProcIndex, mask: PatchMask, layout: Layout, what: string): PatchSpec {
+  const c = Math.cos(mask.rot)
+  const s = Math.sin(mask.rot)
+  const hx = Math.sqrt((mask.rx * c) ** 2 + (mask.ry * s) ** 2) + mask.feather + PATCH_MARGIN
+  const hy = Math.sqrt((mask.rx * s) ** 2 + (mask.ry * c) ** 2) + mask.feather + PATCH_MARGIN
+  return {
+    id,
+    proc,
+    x0: Math.max(0, mask.cx - hx),
+    y0: Math.max(0, mask.cy - hy),
+    x1: Math.min(A, mask.cx + hx),
+    y1: Math.min(1, mask.cy + hy),
+    mask,
+    layout,
+    what,
+  }
+}
+
+const without = (lay: Layout, drop: readonly Part[]): Part[] => lay.parts.filter((p) => !drop.includes(p))
+
+// cholecystectomy: Calot's triangle cleared (the fat and the veil gone: the cystic duct and the cystic artery, two and only two, each on a pale bed)
+const C_BED = ellipse(T.bed, 0.66, 0.7, 0.34, 0.2, -0.6, { base: 0.44, dome: 0.03, depth: 0.2, edge: 0.02, wobble: 0.03, dir: 0.7 })
+/** The cystic artery: from the gallbladder neck, a little above the duct. */
+export const CYSTIC_ARTERY: readonly number[] = [0.9, 0.5, 0.76, 0.53, 0.62, 0.58, 0.46, 0.6]
+const C_ARTERY = tube(T.artery, CYSTIC_ARTERY, 0.021, 0.017, { base: 0.47, dome: 0.03, depth: 1.4, wobble: 0.006 })
+const CHOLE_CLEARED: Layout = {
+  background: CHOLE.background,
+  parts: [C_DUODENUM, C_OMENTUM, C_BED, C_LIVER, C_DUCT, C_ARTERY, C_GALLBLADDER, C_GB_NECK],
+}
+// ... and the gallbladder gone from its bed: the liver's own surface, a thin pale film over where it lay
+const C_BED_FILM = ellipse(T.bed, 1.13, 0.3, 0.5, 0.2, -0.67, { film: 0.25, wobble: 0.03, edge: 0.03, dir: -0.67 })
+const CHOLE_BED: Layout = {
+  background: CHOLE.background,
+  parts: [C_DUODENUM, C_OMENTUM, C_BED, C_LIVER, C_BED_FILM, C_DUCT, C_ARTERY],
+}
+
+// hysterectomy: the uterus out (the pelvic floor where it lay, the closed top of the vagina across the bottom of the space; the tubes, ovaries and ligaments stay)
+const H_FLOOR = ellipse(T.peritoneum, A / 2, 0.52, 0.36, 0.3, 0, { base: 0.22, dome: 0.04, depth: 0.2, wobble: 0.02 })
+const H_VAULT = ellipse(T.ligament, A / 2, 0.8, 0.22, 0.04, 0, { base: 0.42, dome: 0.06, depth: 0.04, edge: 0.012, wobble: 0.008 })
+const HYST_AFTER: Layout = {
+  background: HYST.background,
+  parts: (() => {
+    const base = without(HYST, [H_UTERUS, H_FOLD])
+    // the pelvic floor goes in behind the ligaments and tubes (after the walls, the bowel and the fat tags), the vault and the fold in front
+    const at = base.findIndex((p) => p.tissue === T.ligament)
+    return [...base.slice(0, at), H_FLOOR, ...base.slice(at), H_VAULT, H_FOLD]
+  })(),
+}
+
+// prostatectomy: the prostate out (the bladder neck above, the urethral stump below, the pelvic floor between and round them)
+const P_FLOOR = ellipse(T.bed, A / 2, 0.8, 0.34, 0.26, 0, { base: 0.4, dome: 0.05, depth: 0.2, dir: 1.57, edge: 0.02, wobble: 0.025 })
+const P_URETHRA = ellipse(T.duct, A / 2, 0.76, 0.05, 0.045, 0, { base: 0.5, dome: 0.07, depth: 0.05, edge: 0.012, wobble: 0.006 })
+const PROST_AFTER: Layout = {
+  background: PROST.background,
+  parts: (() => {
+    const base = without(PROST, [P_PROSTATE, P_FAT_PAD, ...P_VEINS, P_FASCIA])
+    const at = base.indexOf(P_NECK)
+    return [...base.slice(0, at), P_FLOOR, ...base.slice(at), P_URETHRA]
+  })(),
+}
+
+/** Every patch, by id (the id is its index). */
+export const PATCHES: readonly PatchSpec[] = [
+  patch(0, 0, { cx: 0.66, cy: 0.68, rx: 0.3, ry: 0.2, rot: -0.6, feather: 0.06 }, CHOLE_CLEARED, 'Calot\'s triangle cleared: the cystic duct and the cystic artery'),
+  patch(1, 0, { cx: 1.13, cy: 0.3, rx: 0.54, ry: 0.22, rot: -0.67, feather: 0.07 }, CHOLE_BED, 'the gallbladder gone from its bed'),
+  patch(2, 1, { cx: A / 2, cy: 0.52, rx: 0.36, ry: 0.32, rot: 0, feather: 0.06 }, HYST_AFTER, 'the uterus out, the top of the vagina across the space'),
+  patch(3, 2, { cx: A / 2, cy: 0.74, rx: 0.36, ry: 0.27, rot: 0, feather: 0.06 }, PROST_AFTER, 'the prostate out: the bladder neck and the urethral stump'),
+]
+
+/** The ids of a procedure's patches. */
+export function patchesOf(proc: number): readonly number[] {
+  return PATCH_IDS[proc] ?? []
+}
+const PATCH_IDS: readonly (readonly number[])[] = [
+  PATCHES.filter((p) => p.proc === 0).map((p) => p.id),
+  PATCHES.filter((p) => p.proc === 1).map((p) => p.id),
+  PATCHES.filter((p) => p.proc === 2).map((p) => p.id),
+]
+
+/** The mask's opacity (0..1) at a plate point: 1 inside the ellipse, fading to 0 over the feather outside it. */
+export function patchAlpha(p: PatchSpec, x: number, y: number): number {
+  const m = p.mask
+  return smooth(m.feather, 0, sdEllipse(x, y, m.cx, m.cy, m.rx, m.ry, m.rot))
+}
 
 /** Points every plate must show its organ at (the tests sample them). */
 export const LANDMARKS: readonly (readonly { name: string; x: number; y: number; tissue: number }[])[] = [
@@ -530,7 +690,11 @@ function rawDistance(p: Part, x: number, y: number): number {
 
 /** Sample procedure `proc`'s field at plate point (x, y). Writes into `out`. */
 export function sampleAnatomy(proc: ProcIndex, x: number, y: number, out: TissueSample): TissueSample {
-  const lay = LAYOUTS[proc]
+  return sampleLayout(LAYOUTS[proc], x, y, out)
+}
+
+/** Sample a layout's field (a procedure's own, or a patch's changed copy of it) at plate point (x, y). Writes into `out`. */
+export function sampleLayout(lay: Layout, x: number, y: number, out: TissueSample): TissueSample {
   const m = _m
   const parts = lay.parts
   // front to back: the distances, and the last solid part that covers this point completely (nothing under it can show)

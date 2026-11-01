@@ -3,15 +3,18 @@
  *
  *   window.__hospitalEndo.stats()                  the plates baked, the bake's slices and its longest slice, the live texture's paints
  *   window.__hospitalEndo.bloodStats()             the no-blood measures (noBlood.ts) of the live picture as it is now, and of each plate
- *   window.__hospitalEndo.endoPreview(p, t?)       a 768 x 432 picture of procedure p ('cholecystectomy' | 'hysterectomy' | 'prostatectomy' or 0..2) at
- *                                                  sim second t, docked with that procedure's own instruments, as a JPEG data URL
- *   window.__hospitalEndo.showEndoPreview(p, t?)   the same picture laid over the page (top left) for a screenshot; hideEndoPreview() takes it away
+ *   window.__hospitalEndo.endoPreview(p, t?, stage?, progress?)       a 768 x 432 picture of procedure p ('cholecystectomy' | 'hysterectomy' | 'prostatectomy' or
+ *                                                  0..2) at sim second t, docked with that procedure's own instruments, as a JPEG data URL. R5: at the
+ *                                                  stage (a scope key of the procedure's script: 'colpotomy', 'clipping' ...) `stage`, `progress` (0..1,
+ *                                                  default 1) of the way through its step, the camera settled on it
+ *   window.__hospitalEndo.showEndoPreview(p, t?, stage?, progress?)   the same picture laid over the page (top left) for a screenshot; hideEndoPreview() takes it away
  */
 import type { Env } from '@/scene/imaging/images/ctx'
 import { procIndex } from './anatomy'
 import { bloodStats, type BloodStats } from './noBlood'
 import { EndoPainter } from './paint'
 import { bakeEndoPlatesNow, endoPlates } from './plates'
+import { stageIndex } from './stages'
 import { newEndoView, setProcedureLooks, type EndoView } from './view'
 import type { SurgeryProcedure } from '@/sim/types'
 
@@ -32,9 +35,13 @@ function measure(canvas: unknown): BloodStats | null {
 }
 
 /** A docked view of procedure `p` at sim second `t`, with its own instruments and the first energy tool's pedal down. */
-export function previewView(p: number, t: number): EndoView {
+export function previewView(p: number, t: number, stage: string | null = null, progress = 1): EndoView {
   const v = setProcedureLooks(newEndoView({ seed: 7, t, gain: 1 }), p)
   v.energy[0] = 1
+  // (a stage the camera has settled on: no easing from the one before)
+  v.stage = stageIndex(p, stage)
+  v.stageMix = 1
+  v.stageP = progress
   return v
 }
 
@@ -44,22 +51,22 @@ export function installEndoDebug(env: Env, live: { canvas: unknown; paints: numb
   let overlay: HTMLCanvasElement | null = null
   const painter = new EndoPainter(PREVIEW_W, PREVIEW_H)
   const toIndex = (p: SurgeryProcedure | number): number => (typeof p === 'number' ? p : procIndex(p))
-  const paint = (p: SurgeryProcedure | number, t: number): HTMLCanvasElement => {
+  const paint = (p: SurgeryProcedure | number, t: number, stage: string | null, progress: number): HTMLCanvasElement => {
     bakeEndoPlatesNow(env)
     const canvas = document.createElement('canvas')
     canvas.width = PREVIEW_W
     canvas.height = PREVIEW_H
     const ctx = canvas.getContext('2d')
-    if (ctx) painter.paint(ctx, previewView(toIndex(p), t))
+    if (ctx) painter.paint(ctx, previewView(toIndex(p), t, stage, progress))
     return canvas
   }
   w.__hospitalEndo = {
     stats: () => ({ plates: endoPlates.plates.map((p) => p !== null), failed: endoPlates.failed, slices: endoPlates.slices, longestMs: endoPlates.longestMs, livePaints: live.paints }),
     bloodStats: () => ({ live: measure(live.canvas), plates: endoPlates.plates.map((p) => (p ? measure(p.plate.canvas) : null)) }),
-    endoPreview: (p: SurgeryProcedure | number, t = 60) => paint(p, t).toDataURL('image/jpeg', 0.9),
-    showEndoPreview: (p: SurgeryProcedure | number, t = 60) => {
+    endoPreview: (p: SurgeryProcedure | number, t = 60, stage: string | null = null, progress = 1) => paint(p, t, stage, progress).toDataURL('image/jpeg', 0.9),
+    showEndoPreview: (p: SurgeryProcedure | number, t = 60, stage: string | null = null, progress = 1) => {
       overlay?.remove()
-      overlay = paint(p, t)
+      overlay = paint(p, t, stage, progress)
       overlay.style.cssText = 'position:fixed;left:8px;top:8px;z-index:2147483647;width:768px;height:432px;box-shadow:0 4px 24px rgba(0,0,0,0.5)'
       document.body.appendChild(overlay)
       return true

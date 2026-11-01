@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3, type Mesh } from 'three'
 import { useOverviewLevel } from '@/scene/levels/levelView'
 import type { Area } from '@/sim/places'
-import { cancelFlight, isWalkMode, tickFlight } from './cameraApi'
+import { cameraLeased, cancelFlight, isWalkMode as walkingNow, tickFlight } from './cameraApi'
 import { FRAME_PRIORITY } from './frameOrder'
 import { useFocus } from './focus.store'
 import { classifyPress, pickArea, tintBox, type LevelHit, type TintBox } from './pick'
@@ -21,6 +21,9 @@ const _hit: LevelHit = { x: 0, z: 0, level: 1 }
 const _tint: TintBox = { x: 0, y: 0, z: 0, w: 1, d: 1 }
 
 const noRaycast = () => {}
+
+/** The view is not the overview's to pick in: you are walking (W1), or the watch camera holds the lens (R5, `cameraLeased`). */
+const isWalkMode = (): boolean => walkingNow() || cameraLeased()
 
 interface Press {
   id: number

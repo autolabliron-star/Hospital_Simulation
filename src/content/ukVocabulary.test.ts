@@ -42,6 +42,20 @@ describe('UK vocabulary in content (F-33)', () => {
     expect(offenders).toEqual([])
   })
 
+  it('has no US word in any procedure script (R5: src/content/procedures/*.json)', () => {
+    const dir = `${fileURLToPath(new URL('.', import.meta.url))}procedures/`
+    const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
+    expect(files.length).toBeGreaterThanOrEqual(1)
+    const offenders: string[] = []
+    for (const f of files) {
+      for (const [path, text] of strings(JSON.parse(readFileSync(`${dir}${f}`, 'utf8')))) {
+        const hit = usWord(text)
+        if (hit) offenders.push(`procedures/${f} ${path}: "${text}"`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
   it('says "centre" and "theatre" in the words this change moved into content', () => {
     for (const source of [ER_EVENTS, GO_TO_COPY, POST_LABEL_COPY, SURGERY_COPY.checklist]) {
       for (const [path, text] of strings(source)) expect(usWord(text), `${path}: ${text}`).toBeNull()

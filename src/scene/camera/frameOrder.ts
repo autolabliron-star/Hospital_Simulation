@@ -15,6 +15,8 @@
  *    -10  Player             you move, the avatar is placed, then THE CHASE CAMERA (W1 walk-in)   src/scene/player/index.tsx
  *   -9.5  levels              R2: which level is shown (your level, the overview switch), set     src/scene/levels
  *                             once you have moved and before anything draws or picks by level
+ *   -9.4  watch camera        R5: "Watch step by step" holds the lens under a camera lease (in      src/scene/watch
+ *                             walk mode; the player skips its chase camera while it is leased)
  *     -9  tour director       scripted camera shots; the room-focus flights (tickFlight)         src/scene/tour/index.tsx
  *     -8  interaction         pick what you face, the E prompt, the objective, the seated pose    src/scene/interact/index.tsx
  *     -5  celebration         closing-day effects                                                src/scene/celebration/index.tsx
@@ -54,6 +56,8 @@ export const FRAME_PRIORITY = {
   player: -10,
   /** R2: the shown level (docs/R2-SURGERY.md), after you move and before anything is drawn or picked by level. */
   levels: -9.5,
+  /** R5: the watch camera (src/scene/watch): writes the lens while it holds the camera lease, after you (stood still) and the shown level. */
+  watchCamera: -9.4,
   tour: -9,
   interact: -8,
   celebration: -5,
@@ -83,7 +87,7 @@ export const FRAME_PRIORITY = {
 } as const
 
 /** The callbacks that write the camera, by name. */
-export const CAMERA_WRITERS = ['player', 'tour', 'cameraRig'] as const
+export const CAMERA_WRITERS = ['player', 'watchCamera', 'tour', 'cameraRig'] as const
 
 /** The priority of the last camera write of a frame. */
 export function lastCameraWrite(): number {

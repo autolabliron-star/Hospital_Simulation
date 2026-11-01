@@ -11,3 +11,6 @@ coverage
 # W3 wave B: the Rocketbox source originals (FBX, TGA) are conversion inputs, never served or committed; the gate's quarantine
 assets-src/
 public/assets/_downloads/
+
+# Blender tool caches
+__pycache__/

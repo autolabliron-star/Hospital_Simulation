@@ -2,17 +2,19 @@
  * R3 (endoscope): one picture, start to end. An `EndoPainter` belongs to one picture size (the shared 384 x 216 live texture, the console card's 768 x 432)
  * and keeps everything a frame needs (the tips, the camera, the HUD's fonts and widths), so `paint` allocates nothing:
  *
- *   tissue -> tents -> shadows -> instruments (arm 4, the farthest, first) -> the light's falloff -> the HUD
+ *   tissue -> the stage's decals -> tents -> shadows -> instruments (arm 4, the farthest, first) -> the near-infrared view -> the light's falloff -> the HUD
  *
+ * R5: after the tissue come the stage's patches, clips, stitches and bag (stages.ts); after the instruments, the near-infrared view when the stage has one.
  * Before the plates are baked it paints a plain warm field under the same instruments, light and HUD. `paintStandby` is the dim screen before the camera is
  * docked (painted once per robot phase: it builds a gradient and that is fine there).
  */
 import type { Ctx2D } from '@/scene/imaging/images/ctx'
-import { drawInstrument, drawLight, drawPlainField, drawShadows, drawTent, drawTissue, flickerAt, newTip, tipOnScreen, type TipOnScreen } from './frame'
+import { drawInstrument, drawLight, drawPlainField, drawShadows, drawTent, drawTissue, flickerAt, newTip, tipOnScreen, windowInto, type TipOnScreen } from './frame'
 import { EndoHud } from './hud'
 import { LOOKS } from './looks'
 import { plateOf } from './plates'
-import { cameraPose, REST_HALF, SLOTS, type CameraPose, type EndoView } from './view'
+import { drawGlow, drawStage, newWindow, type PlateWindow } from './stages'
+import { cameraPose, newCameraPose, SLOTS, type CameraPose, type EndoView } from './view'
 
 /** The order the tools are drawn in: arm 4 (slot 2, coming from above, the farthest) first, then arms 1 and 3. */
 const DRAW_ORDER = [2, 0, 1] as const
@@ -22,7 +24,8 @@ export class EndoPainter {
   /** Paints so far (the probe reads it). */
   paints = 0
   private readonly tips: TipOnScreen[] = [newTip(), newTip(), newTip()]
-  private readonly cam: CameraPose = { cx: 0, cy: 0, hh: REST_HALF, breath: 0 }
+  private readonly cam: CameraPose = newCameraPose()
+  private readonly win: PlateWindow = newWindow()
 
   constructor(
     readonly w: number,
@@ -37,8 +40,12 @@ export class EndoPainter {
     c.imageSmoothingEnabled = true
     c.imageSmoothingQuality = 'medium'
     const plate = plateOf(v.proc)
-    if (plate) drawTissue(c, w, h, plate, cameraPose(v, this.cam))
-    else drawPlainField(c, w, h)
+    cameraPose(v, this.cam)
+    if (plate) {
+      drawTissue(c, w, h, plate, this.cam)
+      // R5: what the step has done to the tissue (patches, cleared patches, clips, stitches, the bag), through the same window as the plate
+      drawStage(c, w, h, v, windowInto(this.cam, this.win))
+    } else drawPlainField(c, w, h)
     for (let k = 0; k < SLOTS; k++) tipOnScreen(k, v, this.tips[k])
     // tissue pulled up under the graspers that have closed
     for (let k = 0; k < SLOTS; k++) {
@@ -54,6 +61,8 @@ export class EndoPainter {
       if (look < 0 || !LOOKS[look].drawn || v.withdraw[k] > 0.995) continue
       drawInstrument(c, w, h, this.tips[k], LOOKS[look], v.energy[k], flickerAt(k, v.seed, v.t))
     }
+    // R5: the near-infrared view (Firefly) darkens the whole picture, the instruments with it, and lights the ducts
+    if (plate) drawGlow(c, w, h, v, this.win)
     drawLight(c, w, h)
     this.hud.draw(c, v)
     c.setTransform(1, 0, 0, 1, 0, 0)

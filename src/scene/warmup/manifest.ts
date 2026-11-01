@@ -54,6 +54,12 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
   'src/scene/meals/traysRig.ts': { count: 1, via: 'mounted', where: 'tray and cloche meshes (hidden instances)' },
   'src/scene/meals/ward/wardParts.ts': { count: 2, via: 'mounted', where: 'ward rig: bedside screens and door tiles' },
   'src/scene/drawCentre/liveTexture.ts': { count: 1, via: 'mounted', where: 'DrawCentreLayer: the three robot screens (draw-screens), made at mount by createDrawRig; imaging-monitor settings, shared program' },
+  'src/scene/surgery/stage/material.ts': {
+    count: 1,
+    via: 'mounted',
+    where:
+      'SurgeryLayer (R5 wave 2): the stage\'s matte cloth (drapes, prepped skin, marks: stage/runtime.ts), `MACHINE_BODY` with roughness 0.9 and metalness 0, light-volume patched the same way, so the SAME shader program (stage.test.ts compares the program keys); the mesh is mounted at load in the level-2 group, hidden while empty',
+  },
   'src/scene/surgery/liveEndoscope.ts': { count: 1, via: 'mounted', where: 'SurgeryLayer: the four endoscope screens (surgery-live-screens: vision cart, wall monitor, console viewers), made at mount by createLiveResources; imaging-monitor settings, shared program' },
   'src/scene/cryoSuite/screens.ts': {
     count: 1,
@@ -61,6 +67,11 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
     where: 'CryoSuiteLayer (R4): the five cryo suite screens on one atlas (cryo-screens), made at mount by createCryoScreens and mounted hidden in the level-2 group; imaging-monitor settings (map, toneMapped false, vertex colours of item size 3), shared program. The CT and the arm reuse MACHINE_BODY, MACHINE_GLOW and MAT.tinted',
   },
   'src/scene/robots/faceMaterial.ts': { count: 1, via: 'mounted', where: 'PodsLayer: the pod face screens' },
+  'src/scene/building/splat/depth.ts': {
+    count: 1,
+    via: 'mounted',
+    where: "ZonesModel (splat pilot, ?splat=<zone> only): the zone model's depth-only copy, built when the zone loads behind the building-zones gate and added hidden next to it",
+  },
   'src/scene/building/model/farModel.ts': {
     count: 1,
     via: 'mounted',

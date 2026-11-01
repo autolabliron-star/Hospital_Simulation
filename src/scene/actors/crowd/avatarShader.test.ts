@@ -39,7 +39,8 @@ describe('the avatar material', () => {
     const keys = new Set<string>()
     for (const mats of all) for (const m of mats) keys.add(m.customProgramCacheKey())
     expect([...keys]).toEqual([AVATAR_PROGRAM_KEY])
-    expect(AVATAR_PROGRAM_KEY).toBe(`hospital-crowd-avatar-v1+${LIGHT_VOLUME_KEY}`)
+    // (R5: v2, the sterile gown's sleeves and the gloves)
+    expect(AVATAR_PROGRAM_KEY).toBe(`hospital-crowd-avatar-v2+${LIGHT_VOLUME_KEY}`)
     // nothing that would split the program: the same map / side / alpha state everywhere, no alpha test as a material, no defines
     for (const mats of all) {
       for (const m of mats) {
@@ -146,7 +147,10 @@ describe('the avatar material', () => {
   it("the props shader draws the player's badge and the theatre caps from their own frames", () => {
     const crowd = createCrowdMaterials(tex)
     const s = patched(crowd.props as never)
-    expect(s.vertexShader).toContain(`(aKind > ${CAP_KIND - 0.5} ? ${CAP_FRAME} : aKind > ${BADGE_KIND - 0.5} ? ${BADGE_FRAME} : ${P.prop}) * 3`)
+    // R5: the kind is unpacked first (an instrument packs its hand into it), then the mask's and the gown's frames come before the cap's and the badge's
+    expect(s.vertexShader).toContain(`gKind > ${CAP_KIND - 0.5} ? ${CAP_FRAME} : gKind > ${BADGE_KIND - 0.5} ? ${BADGE_FRAME} : ${P.prop}));`)
+    expect(s.vertexShader).toContain(`int gPart = gSel > 1.5 ? ${P.propL} : (gSel > 0.5 ? ${P.prop} :`)
+    expect(s.vertexShader).toContain('int gCol = ' + TEX.parts + ' + gPart * 3;')
     expect(CAP_FRAME).not.toBe(BADGE_FRAME)
   })
 })

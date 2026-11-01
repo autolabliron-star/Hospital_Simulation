@@ -8,19 +8,25 @@
  *   robot.ts    the robot's FSM and the cart's drive path, as pure functions of (segment, time)
  *   sites.ts    seats and standing spots (the building's, or made from the contract anchors when the layout lacks them)
  *   actors.ts   the patient, the companion and the staff as Actors
+ *   script.ts   R5: a case's procedure script (src/sim/procedure): its steps, the bedside exchanges, who wears what
+ *   watch.ts    R5: "Watch step by step": a compressed case booked in front of the day's list
+ *
+ * R5: while a case with a script is in the room, `state.procedure` is its step-by-step view (the step under the clock, who does what, the
+ * patient's pose), the team stands and works where each step says, the patient's entity carries the table pose, and the robot's arms hold
+ * the script's instruments. A case whose procedure has no script yet runs exactly as in R2.
  *
  * `step` advances the cases, then derives the theatre state, the robot, the bays and the KPIs the scene reads (mutated in place, `version`
  * bumped on change), then re-reads the team's routine a few times a second. The people change level only by riding the lifts (src/sim/lifts).
  * Nothing here decides anything clinical: every duration and outcome is a seeded draw.
  */
-import { staffName } from '@/content/staff'
+import { staffName, THEATRE_STAFF } from '@/content/staff'
 import { surgeryLine, SURGERY_COPY } from '@/content/surgery'
 import { syntheticNameOf } from '@/content/roster'
 import { CONFIG } from '../config'
 import type { World } from '../er/world'
 import type { LiftBank } from '../lifts'
 import { hourAt, timeAtHour } from '../population/schedule'
-import { LIFTS, PACU, PREOP, SURGERY } from '../places'
+import { LIFTS, PACU, PREOP, SURGERY, type PortLayout } from '../places'
 import type { Rng } from '../rng'
 import type {
   CasePhase,
@@ -32,15 +38,22 @@ import type {
   SurgeryProcedure,
   SurgeryState,
   TheatreKpis,
+  Vec3,
+  WatchResult,
 } from '../types'
 import type { Walker } from '../walker'
-import type { Staffer } from './actors'
+import type { Staffer, SurgicalPatient } from './actors'
 import { SurgeryCase, type CaseHost } from './case'
 import { planDay, ROOM_PHASES, timelineOf, type PlannedCase, type RoomPhase } from './plan'
 import type { SurgeryPort } from './ports'
-import { applyRobot, EXCHANGE_SECONDS, segmentAt, UNDOCK_SPLIT, type RobotCaseTimes } from './robot'
+import { applyRobot, EXCHANGE_SECONDS, segmentAt, UNDOCK_SPLIT, type RobotCaseTimes, type RobotSegment } from './robot'
+import { caseScriptFor, scriptedArmsInto, WHO_EVENT } from './script'
 import { SurgerySites } from './sites'
+import { newTablePose, setTablePose, tablePointInto, type TablePose } from './tablePose'
 import { newOrContext, SCRUB_NURSE_LEAD, Team, type OrContext } from './team'
+import { WatchDesk, type WatchHost } from './watch'
+import { clearView, davinciSlots, fillView, focusPointInto, setTable, stepAt, type ViewCtx } from '../procedure'
+import { emptyProcedureView } from '../procedure/empty'
 
 export { planDay, timelineOf, ROOM_PHASES, type PlannedCase, type Timeline, type RoomPhase } from './plan'
 export { cartPose, cartPath, applyRobot, segmentAt, forceAt, DOCK_SPLIT, UNDOCK_SPLIT, type CartPose, type RobotSegment } from './robot'
@@ -57,6 +70,15 @@ const SEX_OF_PROCEDURE: Readonly<Record<SurgeryProcedure, 'female' | 'male' | nu
   prostatectomy: 'male',
 }
 
+/** R5: the staff member who fills each scripted role (THEATRE_STAFF by title). */
+const ROLE_STAFF = {
+  surgeon: THEATRE_STAFF.find((m) => m.title === 'surgeon')?.id ?? null,
+  assistant: THEATRE_STAFF.find((m) => m.title === 'assistant')?.id ?? null,
+  scrub: THEATRE_STAFF.find((m) => m.title === 'scrub')?.id ?? null,
+  circulator: THEATRE_STAFF.find((m) => m.title === 'circulator')?.id ?? null,
+  anaesthetist: THEATRE_STAFF.find((m) => m.title === 'anaesthetist')?.id ?? null,
+} as const
+
 /** A porter who went up with a ward patient comes back this way. */
 interface Away {
   porter: Staffer
@@ -64,7 +86,7 @@ interface Away {
   state: 'away' | 'back'
 }
 
-export class Surgery implements SurgeryPort, CaseHost {
+export class Surgery implements SurgeryPort, CaseHost, WatchHost {
   readonly state: SurgeryState
   readonly sites: SurgerySites
   readonly team: Team
@@ -88,11 +110,24 @@ export class Surgery implements SurgeryPort, CaseHost {
   private kpiAcc = 0
   private readonly away: Away[] = []
   private readonly nameRng: Rng
+  /** Today's names, by plan index (drawn once per day; the cases hold their own). */
   private readonly names: { patient: string; companion: string }[] = []
-  /** Per case: how many planned exchanges have been done. */
-  private exDone: number[] = []
   private lastPhaseKey = ''
   private kpis: TheatreKpis
+  /** R5: "Watch step by step" bookings. */
+  readonly watch: WatchDesk = new WatchDesk(this)
+  /** R5: the step view's context (one object: the role entity ids are refreshed in it) and the patient wearing the table pose. */
+  private readonly viewCtx: ViewCtx
+  private posed: SurgicalPatient | null = null
+  private assignedVersion = -1
+  /**
+   * R5 wave 2: the robot's ports on the tilted table. Four preallocated points the arms carry by reference (applyRobot's `ports`), rewritten in place from the
+   * published patient pose; the layout and the case they were last placed for.
+   */
+  private readonly portsNow: Vec3[] = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, z: 0 }))
+  private readonly portPose: TablePose = newTablePose()
+  private portsLayout: PortLayout = 'oblique'
+  private portsCase: string | null = null
 
   constructor(
     readonly world: World,
@@ -135,8 +170,13 @@ export class Surgery implements SurgeryPort, CaseHost {
         version: 0,
       },
       bays,
+      procedure: emptyProcedureView(),
       version: 0,
     }
+    this.ctx.view = this.state.procedure
+    this.ctx.targets.cart = this.state.robot.cart
+    this.ctx.cart = this.state.robot.cart
+    this.viewCtx = { caseId: null, watch: false, entityIds: {}, targets: this.ctx.targets }
   }
 
   // --- the frozen port ------------------------------------------------------------------------------------------------
@@ -150,6 +190,51 @@ export class Surgery implements SurgeryPort, CaseHost {
     if (this.state.theatre.teachingInUse === on) return
     this.state.theatre.teachingInUse = on
     this.touch()
+  }
+
+  /** R5: "Watch step by step" (ports.ts; src/sim/surgery/watch.ts). */
+  startWatch(procedure: SurgeryProcedure, opts?: { fromStart?: boolean }): WatchResult {
+    return this.watch.start(procedure, opts?.fromStart === true)
+  }
+
+  get watchStartsAt(): number | null {
+    return this.watch.startsAt(this.t)
+  }
+
+  // --- WatchHost --------------------------------------------------------------------------------------------------------
+
+  get isStarted(): boolean {
+    return this.started
+  }
+
+  get now(): number {
+    return this.t
+  }
+
+  robotSegmentAt(t: number): RobotSegment {
+    return segmentAt(t, this.robotTimes(t))
+  }
+
+  watchNames(procedure: SurgeryProcedure, rng: Rng): { patient: string; companion: string } {
+    return { patient: this.patientNameFor(procedure, rng), companion: this.world.uniqueName(rng) }
+  }
+
+  insertCase(c: SurgeryCase, index: number): void {
+    c.proc = caseScriptFor(c.plan, c.rng)
+    this.runs.splice(index, 0, c)
+    this.state.theatre.cases.splice(index, 0, c.view)
+    this.touch()
+  }
+
+  /** A case's wheels-out: realised, or projected from the phases that have begun and the plan's lengths of the rest. */
+  projectOut(c: SurgeryCase, t: number): number {
+    if (c.leftRoomAt !== null) return c.leftRoomAt
+    let from = -1
+    for (let i = 0; i < ROOM_PHASES.length; i++) if (c.starts[ROOM_PHASES[i]] !== undefined) from = i
+    if (from < 0) return Math.max(c.nominalIn, t) + c.plan.roomSeconds
+    let at = c.starts[ROOM_PHASES[from]]!
+    for (let i = from; i < ROOM_PHASES.length; i++) at += c.plan.phases[ROOM_PHASES[i]]
+    return Math.max(at, t)
   }
 
   /** Plan today's list from the start time (a fresh day or a warm start) and put everything where the plan has it at `t0`. */
@@ -166,7 +251,7 @@ export class Surgery implements SurgeryPort, CaseHost {
     this.teamFrom = Number.isFinite(firstDrape) ? Math.min(CONFIG.surgery.teamFromHour, hourAt(firstDrape - SCRUB_NURSE_LEAD - TEAM_EARLY_SECONDS)) : CONFIG.surgery.teamFromHour
     // names are drawn once for the day and held until their owners leave
     this.names.length = 0
-    for (let i = 0; i < this.plan.length; i++) this.names.push({ patient: this.patientNameFor(this.plan[i].procedure), companion: this.world.uniqueName(this.nameRng) })
+    for (let i = 0; i < this.plan.length; i++) this.names.push({ patient: this.patientNameFor(this.plan[i].procedure, this.nameRng), companion: this.world.uniqueName(this.nameRng) })
     this.settle(t0)
   }
 
@@ -174,12 +259,12 @@ export class Surgery implements SurgeryPort, CaseHost {
    * F-21: the patient's name follows the procedure (a hysterectomy is a woman, a prostatectomy a man: the avatar's sex follows the first
    * name). A procedure that is not sex-specific keeps the plain draw. Names already held by today's list are not reused.
    */
-  private patientNameFor(procedure: SurgeryProcedure): string {
+  private patientNameFor(procedure: SurgeryProcedure, rng: Rng): string {
     const sex = SEX_OF_PROCEDURE[procedure]
-    if (!sex) return this.world.uniqueName(this.nameRng)
-    const held = (n: string): boolean => this.names.some((x) => x.patient === n || x.companion === n)
-    let name = syntheticNameOf(this.nameRng, sex)
-    for (let i = 0; i < 12 && held(name); i++) name = syntheticNameOf(this.nameRng, sex)
+    if (!sex) return this.world.uniqueName(rng)
+    const held = (n: string): boolean => this.names.some((x) => x.patient === n || x.companion === n) || this.runs.some((c) => c.patientName === n || c.companionName === n)
+    let name = syntheticNameOf(rng, sex)
+    for (let i = 0; i < 12 && held(name); i++) name = syntheticNameOf(rng, sex)
     this.world.claimName(name)
     return name
   }
@@ -199,11 +284,14 @@ export class Surgery implements SurgeryPort, CaseHost {
     this.t = t
     this.teamLife(t)
     this.stepAway(t)
-    for (const c of this.runs) c.step(t, dt)
+    // (a case may be inserted while stepping: a pending watch is booked in derive, after the loop)
+    for (let i = 0; i < this.runs.length; i++) this.runs[i].step(t, dt)
     this.derive(t, dt)
     this.assignAcc += dt
-    if (this.assignAcc >= 0.25) {
+    // (R5: a new step re-places the team at once, so the pose overlay changes with the caption)
+    if (this.assignAcc >= 0.25 || this.state.procedure.version !== this.assignedVersion) {
       this.assignAcc = 0
+      this.assignedVersion = this.state.procedure.version
       this.team.assign(this.ctx)
     }
   }
@@ -216,6 +304,17 @@ export class Surgery implements SurgeryPort, CaseHost {
     this.team.clear()
     this.away.length = 0
     this.runs = []
+    // (the arms start the day clean: a warm start must not keep a count or an instrument from the run it replaces)
+    for (const a of this.state.robot.arms) {
+      a.instrument = ''
+      a.exchanges = 0
+    }
+    // (R5: a warm start drops the watch; the step view starts again from the plan)
+    this.watch.reset()
+    this.posed = null
+    clearView(this.state.procedure)
+    this.ctx.script = null
+    setTable(this.ctx.targets, 0, 0, 'supine')
   }
 
   private settle(t: number): void {
@@ -242,27 +341,33 @@ export class Surgery implements SurgeryPort, CaseHost {
       this.world.claimName(n.patient)
       this.world.claimName(n.companion)
     }
-    this.runs = this.plan.map((p, i) => new SurgeryCase(p, this, this.rng.fork(p.id), this.names[i]))
+    this.runs = this.plan.map((p, i) => {
+      const c = new SurgeryCase(p, this, this.rng.fork(p.id), this.names[i])
+      c.proc = caseScriptFor(p, c.rng)
+      return c
+    })
     this.state.theatre.cases.length = 0
     for (const c of this.runs) this.state.theatre.cases.push(c.view)
-    this.exDone = this.runs.map(() => 0)
     const hour = hourAt(t)
     const teamOn = hour >= this.teamFrom && hour < CONFIG.surgery.teamToHour
     this.ctx.now = t
     if (teamOn) this.team.spawn(this.ctx, true)
     for (const c of this.runs) c.warm(t)
     // finished cases have nobody left in the building: free their names, and keep their numbers
-    this.runs.forEach((c, i) => {
+    for (const c of this.runs) {
       if (c.stage === 'done') {
-        this.world.releaseName(this.names[i].patient)
-        this.world.releaseName(this.names[i].companion)
+        this.world.releaseName(c.patientName)
+        this.world.releaseName(c.companionName)
         this.recordFinished(c)
       }
-    })
-    // the robot first (the team's routine reads its phase), then the situation, then everybody to their place
+    }
+    // the robot first (the team's routine reads its phase), then the situation and the step, then everybody to their place
     this.lastPhaseKey = ''
     this.deriveRobot(t, true)
     this.updateContext(t)
+    this.deriveProcedure(t, true)
+    this.placePorts()
+    this.assignedVersion = this.state.procedure.version
     this.ctx.dayOver = hour >= CONFIG.surgery.teamToHour
     if (teamOn) this.team.settleAll(this.ctx)
     this.deriveTheatre(t)
@@ -279,7 +384,7 @@ export class Surgery implements SurgeryPort, CaseHost {
     this.kpis.consoleMin = p.consoleSeconds / 60
     this.kpis.turnoverMin = p.turnoverSeconds / 60
     this.kpis.pacuMin = p.pacuSeconds / 60
-    if (c.plan.index === 0) this.kpis.firstCaseOnTime = c.plan.nominalIn - c.plan.plannedIn <= 300
+    if (c.plan.index === 0) this.kpis.firstCaseOnTime = c.nominalIn - c.plan.plannedIn <= 300
     c.turnoverReported = true
   }
 
@@ -348,11 +453,8 @@ export class Surgery implements SurgeryPort, CaseHost {
   }
 
   caseFinished(c: SurgeryCase, _t: number): void {
-    const i = this.runs.indexOf(c)
-    if (i >= 0) {
-      this.world.releaseName(this.names[i].patient)
-      this.world.releaseName(this.names[i].companion)
-    }
+    this.world.releaseName(c.patientName)
+    this.world.releaseName(c.companionName)
   }
 
   touch(): void {
@@ -398,8 +500,12 @@ export class Surgery implements SurgeryPort, CaseHost {
   // --- derived state ----------------------------------------------------------------------------------------------------------
 
   private derive(t: number, dt: number): void {
+    this.watch.step(t)
     this.updateContext(t)
     this.deriveRobot(t, false)
+    this.deriveProcedure(t, false)
+    // (the robot is derived first: its ports follow the step's table pose of THIS tick once the step is known)
+    this.placePorts()
     this.deriveTheatre(t)
     this.kpiAcc += dt
     if (this.kpiAcc >= 1) {
@@ -409,7 +515,7 @@ export class Surgery implements SurgeryPort, CaseHost {
     for (const c of this.runs) {
       if (c.leftRoomAt !== null && !c.turnoverReported && t >= c.leftRoomAt + c.plan.turnoverSeconds) {
         c.turnoverReported = true
-        this.kpis.turnoverMin = c.plan.turnoverSeconds / 60
+        if (!c.isWatch) this.kpis.turnoverMin = c.plan.turnoverSeconds / 60
         this.say('turnoverDone', surgeryLine('turnoverDone', { minutes: Math.round(c.plan.turnoverSeconds / 60) }))
         this.touch()
       }
@@ -440,7 +546,7 @@ export class Surgery implements SurgeryPort, CaseHost {
     ctx.untilNext = Infinity
     for (const c of this.runs) {
       if (c.stage === 'done' || c.inRoom || c.starts.in !== undefined) continue
-      ctx.untilNext = c.stage === 'toTheatre' ? 0 : Math.max(0, c.plan.nominalIn - t)
+      ctx.untilNext = c.stage === 'toTheatre' ? 0 : Math.max(0, c.nominalIn - t)
       break
     }
     // the recovery bed whose patient has been there longest
@@ -456,14 +562,97 @@ export class Surgery implements SurgeryPort, CaseHost {
     ctx.robot = this.state.robot.phase
     ctx.robotSince = this.state.robot.phaseSince
     ctx.exchanging = this.exchangeActive(t)
+    ctx.consoleDue = active !== null && active.stage === 'docking' && t >= active.until
+  }
+
+  /** The bedside exchanges a case makes at runtime: its script's, or (no script) the plan's. */
+  private exchangesOf(c: SurgeryCase): readonly { at: number; arm: 0 | 2 | 3; instrument: string }[] {
+    return c.proc !== null ? c.proc.exchanges : c.plan.exchanges
   }
 
   private exchangeActive(t: number): boolean {
     const c = this.activeCase()
     if (c === null || c.stage !== 'console' || c.view.consoleStart === null) return false
     const since = t - c.view.consoleStart
-    for (const e of c.plan.exchanges) if (since >= e.at && since < e.at + EXCHANGE_SECONDS) return true
+    for (const e of this.exchangesOf(c)) if (since >= e.at && since < e.at + EXCHANGE_SECONDS) return true
     return false
+  }
+
+  // --- R5: the step-by-step view ---------------------------------------------------------------------------------------------
+
+  /**
+   * The step under the clock of the scripted case in the room (src/sim/procedure): the published view, the team's step context, the patient's
+   * table pose, and the step's event and checklist lines (said once each, as the step begins; a warm start says nothing). No scripted case
+   * in the room: the empty view. Allocation-free except at a step change (a log line, the view's first fill).
+   */
+  private deriveProcedure(t: number, settling: boolean): void {
+    const ctx = this.ctx
+    const view = this.state.procedure
+    const active = this.activeCase()
+    const c = active !== null && active.inRoom && active.proc !== null ? active : null
+    const sc = c !== null ? c.proc : null
+    let on = false
+    if (c !== null && sc !== null) {
+      const unit = c.stage as RoomPhase
+      const since = c.starts[unit] ?? c.stageAt
+      const until = since + c.plan.phases[unit]
+      on = stepAt(sc.steps, unit, since, until, t, unit === 'docking' || unit === 'undocking' ? davinciSlots : null, ctx.cur)
+    }
+    if (c === null || sc === null || !on) {
+      ctx.script = null
+      if (clearView(view)) this.state.version++
+      if (this.posed !== null) {
+        this.posed.entity.patientPose = null
+        this.posed = null
+      }
+      return
+    }
+    const vc = this.viewCtx
+    vc.caseId = c.id
+    vc.watch = c.isWatch
+    const ids = vc.entityIds
+    const present = this.team.present
+    ids.surgeon = present ? ROLE_STAFF.surgeon : null
+    ids.assistant = present ? ROLE_STAFF.assistant : null
+    ids.scrub = present ? ROLE_STAFF.scrub : null
+    ids.circulator = present ? ROLE_STAFF.circulator : null
+    ids.anaesthetist = present ? ROLE_STAFF.anaesthetist : null
+    ctx.targets.layout = c.plan.layout
+    ctx.targets.cart = this.state.robot.cart
+    const changed = fillView(view, sc.steps, ctx.cur, vc)
+    // (the table's tilt now, then the focus point again with it: the view framed the step with the tilt of the tick before)
+    setTable(ctx.targets, view.patient.headTiltDeg, view.patient.rollDeg, view.patient.position)
+    focusPointInto(view.focus, ctx.targets, view.focusAt)
+    ctx.script = sc
+    // the patient carries the table pose (the view's own object)
+    const p = c.patient
+    if (this.posed !== p) {
+      if (this.posed !== null) this.posed.entity.patientPose = null
+      this.posed = p
+    }
+    if (p !== null && p.entity.patientPose !== view.patient) p.entity.patientPose = view.patient
+    if (changed) {
+      this.state.version++
+      this.sayStepLines(c, settling)
+    }
+    this.team.updatePoints(ctx)
+  }
+
+  /** The event and WHO checklist lines of the steps the case has just entered (in order), once each. */
+  private sayStepLines(c: SurgeryCase, settling: boolean): void {
+    const sc = c.proc!
+    const flat = this.ctx.cur.flat
+    if (flat <= sc.saidFlat) return
+    const from = sc.saidFlat + 1
+    sc.saidFlat = flat
+    if (settling || this.quiet || c.patient === null) return
+    const steps = sc.steps.cs.script.steps
+    const subject = { subjectId: c.patient.entity.id }
+    for (let f = from; f <= flat; f++) {
+      const step = steps[sc.steps.stepOf[f]]
+      if (step.checklist !== undefined) this.say(WHO_EVENT[step.checklist], `${c.patientName}: ${SURGERY_COPY.checklist[step.checklist]}`, subject)
+      if (step.event !== undefined) this.say('procedureStep', `${c.patientName}: ${step.event}`, subject)
+    }
   }
 
   // --- the theatre -----------------------------------------------------------------------------------------------------------
@@ -512,15 +701,16 @@ export class Surgery implements SurgeryPort, CaseHost {
     for (let i = 0; i < idx; i++) if (c.starts[ROOM_PHASES[i]] !== undefined) from = i
     if (from < 0) {
       // not wheeled in yet: the schedule, but never in the past
-      const base = Math.max(c.plan.nominalIn, t)
-      return base + (c.tl.phaseStart[p] - c.plan.nominalIn)
+      const base = Math.max(c.nominalIn, t)
+      return base + (c.tl.phaseStart[p] - c.nominalIn)
     }
     let at = c.starts[ROOM_PHASES[from]]!
     for (let i = from; i < idx; i++) at += c.plan.phases[ROOM_PHASES[i]]
     return at
   }
 
-  private robotTimes(t: number): RobotCaseTimes[] {
+  /** The robot's day: every case's drape, docking, undocking and cleaning times (realised once known, projected otherwise). */
+  robotTimes(t: number): RobotCaseTimes[] {
     return this.runs.map((c, i) => {
       const dockStart = this.projectStart(c, 'docking', t)
       const dockEnd = dockStart + c.plan.phases.docking
@@ -544,12 +734,26 @@ export class Surgery implements SurgeryPort, CaseHost {
     })
   }
 
+  /**
+   * R5 wave 2: the layout's four ports moved with the table's pose (the published `procedure.patient` of the case in the room: level and supine between
+   * cases, so a case without a script keeps the level ports), written into the arms' shared objects in place with the transform the targets and the scene
+   * use (tablePose.ts). The table is tipped before docking and level again only after undocking: the script says when, the arms follow.
+   */
+  private placePorts(): void {
+    const v = this.state.procedure
+    const on = this.portsCase !== null && v.procedureId !== null && v.caseId === this.portsCase
+    setTablePose(this.portPose, on ? v.patient.headTiltDeg : 0, on ? v.patient.rollDeg : 0)
+    const level = SURGERY.ports[this.portsLayout]
+    for (let i = 0; i < 4; i++) tablePointInto(this.portPose, level[i].x, level[i].y, level[i].z, this.portsNow[i])
+  }
+
   private deriveRobot(t: number, settling: boolean): void {
     if (this.runs.length === 0) return
     const r = this.state.robot
     const seg = segmentAt(t, this.robotTimes(t))
     const c = this.runs[seg.caseIndex]
-    const key = `${seg.kind}:${seg.caseIndex}`
+    // (by case id: a watch case inserted in front of the list moves the indexes, not the phase)
+    const key = `${seg.kind}:${c.id}`
     if (key !== this.lastPhaseKey) {
       if (seg.kind === 'draping') for (const a of r.arms) a.exchanges = 0
       this.lastPhaseKey = key
@@ -558,31 +762,44 @@ export class Surgery implements SurgeryPort, CaseHost {
       r.version++
       this.state.version++
     }
-    const copy = SURGERY_COPY.procedures[c.plan.procedure]
+    const sc = c.proc
+    this.portsLayout = c.plan.layout
+    this.portsCase = c.id
+    this.placePorts()
     applyRobot(r, seg, {
       t,
       layout: c.plan.layout,
-      instruments: copy.instruments,
+      ports: this.portsNow,
+      instruments: sc !== null ? sc.arms0 : SURGERY_COPY.procedures[c.plan.procedure].instruments,
       boomYaw: c.plan.boomYaw,
       motionSeed: c.plan.motionSeed,
       consoleStart: c.view.consoleStart,
-      exchanges: c.plan.exchanges,
+      exchanges: this.exchangesOf(c),
     })
-    if (seg.kind === 'docked' || seg.kind === 'undocking') this.stepExchanges(c, seg.caseIndex, t, settling)
+    // R5: a scripted case's arms hold the script's instruments, and count its exchanges, at every moment (a pure function of the clock, so a
+    // warm start is exact; the FSM still decides which arms hold anything)
+    if (sc !== null) scriptedArmsInto(r.arms, sc, c.view.consoleStart, c.plan.phases.console, t)
+    if (seg.kind === 'docked' || seg.kind === 'undocking') this.stepExchanges(c, t, settling)
   }
 
-  /** The bedside assistant's instrument swaps: at the middle of an arm's withdrawal the instrument changes and the event is logged. */
-  private stepExchanges(c: SurgeryCase, index: number, t: number, settling: boolean): void {
+  /**
+   * The bedside assistant's instrument swaps: at the middle of an arm's withdrawal the instrument changes and the event is logged. (A scripted
+   * case's arms are written by `scriptedArmsInto`; here only the count and the log line.)
+   */
+  private stepExchanges(c: SurgeryCase, t: number, settling: boolean): void {
     const start = c.view.consoleStart
     if (start === null) return
     const arms = this.state.robot.arms
-    const ex = c.plan.exchanges
+    const ex = this.exchangesOf(c)
+    const scripted = c.proc !== null
     // (the replayed ones of a warm start must keep the instruments they swapped in)
-    while (this.exDone[index] < ex.length && t >= start + ex[this.exDone[index]].at + EXCHANGE_SECONDS / 2) {
-      const e = ex[this.exDone[index]++]
+    while (c.exDone < ex.length && t >= start + ex[c.exDone].at + EXCHANGE_SECONDS / 2) {
+      const e = ex[c.exDone++]
       const arm = arms[e.arm]
-      arm.instrument = e.instrument
-      arm.exchanges++
+      if (!scripted) {
+        arm.instrument = e.instrument
+        arm.exchanges++
+      }
       if (!settling && !this.quiet) {
         this.say('instrumentExchange', surgeryLine('instrumentExchange', { surgeon: staffName('or-surgeon'), arm: e.arm + 1, instrument: e.instrument }), { actorId: 'or-surgeon' })
       }
@@ -600,6 +817,8 @@ export class Surgery implements SurgeryPort, CaseHost {
     let firstIn = Infinity
     let end = -Infinity
     for (const c of this.runs) {
+      // (R5: a watch case is not part of the list's numbers)
+      if (c.isWatch) continue
       const v = c.view
       if (v.wheelsOut !== null) done++
       if (v.wheelsIn !== null) {
@@ -614,7 +833,7 @@ export class Surgery implements SurgeryPort, CaseHost {
     }
     k.casesToday = done
     if (Number.isFinite(firstIn) && t > firstIn) {
-      const stop = this.runs.every((c) => c.leftRoomAt !== null) && Number.isFinite(end) ? Math.min(t, end) : t
+      const stop = this.runs.every((c) => c.isWatch || c.leftRoomAt !== null) && Number.isFinite(end) ? Math.min(t, end) : t
       k.utilisation = Math.min(1, Math.max(0, occupied / Math.max(1, stop - firstIn)))
     } else k.utilisation = null
   }

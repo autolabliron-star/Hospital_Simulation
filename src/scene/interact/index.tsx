@@ -11,6 +11,7 @@
  */
 import { useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { cameraLeased } from '@/scene/camera/cameraApi'
 import { FRAME_PRIORITY } from '@/scene/camera/frameOrder'
 import { useInteract } from '@/scene/interact.store'
 import { placePlayer } from '@/scene/player/api'
@@ -25,12 +26,15 @@ import { InteractionSystem, type SystemEnv } from './system'
 /** After the player (-10) and the tour/camera flight (-9), before everything that reads the camera (see camera/frameOrder.ts). */
 export const INTERACT_FRAME_PRIORITY = FRAME_PRIORITY.interact
 
+/** R5: while the watch camera holds the lens (`cameraLeased`) the interaction stands aside like under an overlay: no picks, no E, and you stand still. */
+const overlayOrLease = (): boolean => overlayOpen() || cameraLeased()
+
 const env: SystemEnv = {
   sim: () => sim,
   generation: () => simGeneration,
   now: () => performance.now(),
   items: () => useInteract.getState().items,
-  overlayOpen,
+  overlayOpen: overlayOrLease,
   closeOverlays,
   placePlayer,
 }
@@ -44,7 +48,7 @@ export function Interaction(): null {
     const unkeys = installKeys({
       walking: () => sim.player?.mode === 'walk',
       seated: () => interaction.seat.active !== null,
-      overlayOpen,
+      overlayOpen: overlayOrLease,
       closable: closableOverlayOpen,
       typing: isTyping,
       interact: () => interaction.press(),

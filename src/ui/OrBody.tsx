@@ -1,7 +1,8 @@
 /**
  * The robotic OR panel (the room panel's body for `l2Or`, R2): a "Simulated" tag, today's list, the case in the room with its phase timeline, the
  * robot and its four arms, the theatre team, the day's numbers, and the "Watch the endoscope view" button that opens the teaching-console card inside
- * the panel. Reads the sim at 4 Hz through `usePoll` (the view model is src/ui/orView.ts); nothing here runs per frame or touches the 3D world.
+ * the panel; R5: under it, "Watch step by step" (src/ui/watch/WatchPicker.tsx), which hands the camera to the watch director. Reads the sim at 4 Hz through
+ * `usePoll` (the view model is src/ui/orView.ts); nothing here runs per frame or touches the 3D world.
  * All the words come from src/content/surgeryUi.json and src/content/surgery.json.
  */
 import { useCallback, type ReactNode } from 'react'
@@ -11,6 +12,7 @@ import { ConsoleCardInline } from '@/ui/walk/ConsoleCard'
 import { useConsoleCard, type ConsoleCardState } from '@/ui/walk/consoleCard.store'
 import { orView, teamOf, type ArmRow, type CaseRow, type CurrentCase, type OrView, type TimelineStep } from './orView'
 import { usePoll } from './usePoll'
+import { WatchPicker } from './watch/WatchPicker'
 import './orBody.css'
 
 function Section({ title, children }: { title?: string; children: ReactNode }) {
@@ -79,8 +81,11 @@ function Arm({ a }: { a: ArmRow }) {
   )
 }
 
-/** The panel's markup from a view; `watching` is the endoscope card being open from this panel. Pure, so the render test can feed it hand-made state. */
-export function OrPanel({ v, watching, onWatch }: { v: OrView; watching: boolean; onWatch: () => void }) {
+/**
+ * The panel's markup from a view; `watching` is the endoscope card being open from this panel. Pure, so the render test can feed it hand-made state.
+ * `extra` goes under the endoscope button (R5: the "Watch step by step" picker, `WatchPicker`).
+ */
+export function OrPanel({ v, watching, onWatch, extra }: { v: OrView; watching: boolean; onWatch: () => void; extra?: ReactNode }) {
   return (
     <div className="or">
       <div className="or-head">
@@ -144,6 +149,7 @@ export function OrPanel({ v, watching, onWatch }: { v: OrView; watching: boolean
           {SURGERY_UI.panel.watch}
         </button>
         {watching && <ConsoleCardInline />}
+        {extra}
       </Section>
     </div>
   )
@@ -161,5 +167,5 @@ export function OrBody() {
   const read = useCallback(() => orView(sim.surgery.state, sim.t, teamOf(sim.entities)), [])
   const v = usePoll(read)
   const watching = useConsoleCard(watchingPanel)
-  return <OrPanel v={v} watching={watching} onWatch={toggleWatch} />
+  return <OrPanel v={v} watching={watching} onWatch={toggleWatch} extra={<WatchPicker room="or" />} />
 }

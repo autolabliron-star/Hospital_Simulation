@@ -3,8 +3,8 @@
  * (jumpFlow.ts `skip`). Pure types, no sim import.
  */
 
-/** What a skip button offers: a plain step or the next milestone of what you are looking at. */
-export type SkipKind = 'step' | 'surgery' | 'scan'
+/** What a skip button offers: a plain step, the next milestone of what you are looking at, or (R5, while you watch) the start of the booked watch case. */
+export type SkipKind = 'step' | 'surgery' | 'scan' | 'watch'
 
 export interface SkipTarget {
   kind: SkipKind

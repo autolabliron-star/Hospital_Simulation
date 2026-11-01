@@ -34,6 +34,7 @@ import {
   ventilatorBreath,
 } from './surgeryPatterns'
 import { registerDevicePattern, devicePatterns as registered, type DeviceEvent, type DevicePattern, type DroneSpec, type PatternSink, type PlanWindow } from './registry'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 
 // importing the pattern must not build the hospital: the live sim is loaded on the first plan, in the browser
 vi.mock('@/sim', () => {
@@ -64,6 +65,7 @@ function surgery(o: { theatre?: TheatrePhase; robot?: RobotPhase; engage?: [numb
       version: 0,
     },
     bays: [],
+    procedure: emptyProcedureView(),
     version: 0,
   }
 }

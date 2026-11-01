@@ -32,7 +32,8 @@ import {
   type Texture,
   type WebGLProgramParametersWithUniforms,
 } from 'three'
-import { BADGE_FRAME, BADGE_KIND, CAP_FRAME, CAP_KIND, FIXED_COLORS, FEATURE_FIRST, FX, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
+import { BADGE_FRAME, BADGE_KIND, CAP_FRAME, CAP_KIND, FIXED_COLORS, FEATURE_FIRST, FX, GOWN_KIND, INSTRUMENT_HAND, MASK_FRAME, MASK_KIND, P, PALETTE_SLOTS, RING_COLORS, SLOT, TEX, fixedSlot } from './constants'
+import { MOVING_TAG, SLIDE_TRAVEL } from './instrumentTable'
 import { GOWN_BARE_AT, GOWN_BARE_PARTS, GOWN_KEEP_PARTS, GOWN_PRINT, GOWN_SOCK_AT, GOWN_SOCK_PARTS, GOWN_SOCKS, SKIN_LIKE, TINT_MAX_GAIN, tintContrast, type AvatarEntry } from './avatars'
 import { LIGHT_VOLUME_KEY, applyLightVolume } from '@/scene/lighting/volumeChunk'
 import { createContactShadowMaterial } from '@/scene/lighting/contact/material'
@@ -244,15 +245,29 @@ float gSn = sin(gRoot.w);
 float gCs = cos(gRoot.w);
 #ifdef GEAR_PROP
   // W3 wave B: the player's "You" badge rides its own frame (pinned on the realistic coat), every held item the prop frame. R2: an avatar's theatre cap
-  // rides the cap frame (fitted on the skull)
-  int gCol = ${TEX.parts} + (aKind > ${g(CAP_KIND - 0.5)} ? ${CAP_FRAME} : aKind > ${g(BADGE_KIND - 0.5)} ? ${BADGE_FRAME} : ${P.prop}) * 3;
+  // rides the cap frame (fitted on the skull). R5: an avatar's surgical mask rides the mask frame (fitted on the face), its gown skirt the skirt frame, and an
+  // instrument packs the hand it is in into its kind (kind + ${INSTRUMENT_HAND} x hand: 1 the right hand's prop frame, 2 the left's)
+  float gSel = floor((aKind + 0.5) / ${g(INSTRUMENT_HAND)});
+  float gKind = aKind - ${g(INSTRUMENT_HAND)} * gSel;
+  int gPart = gSel > 1.5 ? ${P.propL} : (gSel > 0.5 ? ${P.prop} : (gKind > ${g(GOWN_KIND - 0.5)} ? ${P.skirt} : gKind > ${g(MASK_KIND - 0.5)} ? ${MASK_FRAME} : gKind > ${g(CAP_KIND - 0.5)} ? ${CAP_FRAME} : gKind > ${g(BADGE_KIND - 0.5)} ? ${BADGE_FRAME} : ${P.prop}));
+  int gCol = ${TEX.parts} + gPart * 3;
   vec4 gM0 = texelFetch(uPose, ivec2(gCol, gRow), 0);
   vec4 gM1 = texelFetch(uPose, ivec2(gCol + 1, gRow), 0);
   vec4 gM2 = texelFetch(uPose, ivec2(gCol + 2, gRow), 0);
-  vec3 gPos = vec3(dot(gM0.xyz, position) + gM0.w, dot(gM1.xyz, position) + gM1.w, dot(gM2.xyz, position) + gM2.w);
+  // R5: the moving parts of an instrument (aPart.x = kind + a tag) follow the instance's parameter aOff 0..1: a plunger slides home along -Y, jaws and a bag
+  // squeeze towards the axis, scissors spread from their pivot
+  vec3 gP = position;
+  float gTag = aPart.x - floor(aPart.x + 0.05);
+  if (gTag > 0.1) {
+    if (gTag < ${g((MOVING_TAG.slide + MOVING_TAG.squeeze) / 2)}) gP.y -= ${g(SLIDE_TRAVEL)} * aOff;
+    else if (gTag < ${g((MOVING_TAG.squeeze + MOVING_TAG.spread) / 2)}) gP.x *= 1.0 - 0.55 * aOff;
+    else gP.x += sign(gP.x) * aOff * 0.3 * max(0.0, -gP.y);
+  }
+  vec3 gPos = vec3(dot(gM0.xyz, gP) + gM0.w, dot(gM1.xyz, gP) + gM1.w, dot(gM2.xyz, gP) + gM2.w);
   vec3 gNrm = vec3(dot(cross(gM1.xyz, gM2.xyz), normal), dot(cross(gM2.xyz, gM0.xyz), normal), dot(cross(gM0.xyz, gM1.xyz), normal));
   gNrm = gNrm / (length(gNrm) + 1e-9);
 #else
+  float gKind = aKind;
   vec3 gPos = position + vec3(0.0, 0.0, aOff);
   vec3 gNrm = normal;
 #endif
@@ -286,7 +301,7 @@ function patchGear(shader: WebGLProgramParametersWithUniforms, pose: DataTexture
     .replace('#include <beginnormal_vertex>', `${GEAR_VERT}\nvec3 objectNormal = normalize(gWorldNrm + vec3(0.0, 1e-8, 0.0));`)
     .replace('#include <begin_vertex>', 'vec3 transformed = gWorldPos;')
     // every kind of one draw shares the vertex buffer: collapse the vertices of the kinds this instance is not
-    .replace('#include <project_vertex>', '#include <project_vertex>\nif (abs(aPart.x - aKind) > 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);')
+    .replace('#include <project_vertex>', '#include <project_vertex>\nif (abs(aPart.x - gKind) > 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);')
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', `#include <common>\n${PARS_FRAG}`)
     .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${DITHER_FRAG}`)
@@ -297,6 +312,11 @@ function patchGear(shader: WebGLProgramParametersWithUniforms, pose: DataTexture
 // Realistic people (W3 wave B): linear-blend skinning from the same pose rows, a textured atlas, garment tints
 // ---------------------------------------------------------------------------------------------
 
+/** R5: the parts a sterile gown's sleeves cover (upper arms and forearms; the gloves take the hands). */
+export const SLEEVE_PARTS: readonly number[] = [P.armL, P.foreL, P.armR, P.foreR]
+/** R5: the gloves' cream latex (linear). */
+const GLOVE = new Color(FIXED_COLORS[FX.glove])
+
 const anyOf = (k: string, parts: readonly number[]): string => parts.map((p) => `${k} == ${p}`).join(' || ')
 
 /** The gown's zones of one influence (avatars.ts gownZone): x bare (forearm, shin), y socks (foot), z the head, w the hands (z and w: GOWN_KEEP_PARTS). */
@@ -304,6 +324,10 @@ const CROWD_BARE_FN = /* glsl */ `
 vec4 crowdBare(float j) {
   int k = int(j + 0.5);
   return vec4(${anyOf('k', GOWN_BARE_PARTS)} ? 1.0 : 0.0, ${anyOf('k', GOWN_SOCK_PARTS)} ? 1.0 : 0.0, k == ${GOWN_KEEP_PARTS[0]} ? 1.0 : 0.0, ${anyOf('k', GOWN_KEEP_PARTS.slice(1))} ? 1.0 : 0.0);
+}
+float crowdSleeve(float j) {
+  int k = int(j + 0.5);
+  return ${anyOf('k', SLEEVE_PARTS)} ? 1.0 : 0.0;
 }`
 
 const AVATAR_PARS_VERT = /* glsl */ `
@@ -318,6 +342,8 @@ flat varying vec3 vCrowdTint;
 flat varying vec3 vCrowdTop;
 flat varying vec3 vCrowdBottom;
 varying vec4 vCrowdBare;
+flat varying vec2 vCrowdAttire;
+varying float vCrowdSleeve;
 ${CROWD_BARE_FN}
 `
 
@@ -347,6 +373,10 @@ vCrowdTint = vec3(float(cTintBits & 1), float((cTintBits >> 1) & 1), float((cTin
 vCrowdBare = aWeights.x * crowdBare(aJoints.x) + aWeights.y * crowdBare(aJoints.y) + aWeights.z * crowdBare(aJoints.z) + aWeights.w * crowdBare(aJoints.w);
 vCrowdTop = texelFetch(uPose, ivec2(${TEX.palette + SLOT.top}, cRow), 0).rgb;
 vCrowdBottom = texelFetch(uPose, ivec2(${TEX.palette + SLOT.pants}, cRow), 0).rgb;
+// R5: the sterile attire bits (gear texel z: mask 1, gown 2, gloves 4): x the gloves, y the gown; and how much of the vertex is a sleeve
+int cAttire = int(texelFetch(uPose, ivec2(${TEX.gear}, cRow), 0).z + 0.5);
+vCrowdAttire = vec2(float((cAttire >> 2) & 1), float((cAttire >> 1) & 1));
+vCrowdSleeve = aWeights.x * crowdSleeve(aJoints.x) + aWeights.y * crowdSleeve(aJoints.y) + aWeights.z * crowdSleeve(aJoints.z) + aWeights.w * crowdSleeve(aJoints.w);
 vec4 cR0 = vec4(0.0);
 vec4 cR1 = vec4(0.0);
 vec4 cR2 = vec4(0.0);
@@ -374,6 +404,8 @@ flat varying vec3 vCrowdTint;
 flat varying vec3 vCrowdTop;
 flat varying vec3 vCrowdBottom;
 varying vec4 vCrowdBare;
+flat varying vec2 vCrowdAttire;
+varying float vCrowdSleeve;
 `
 
 const SOCKS = new Color(GOWN_SOCKS)
@@ -407,6 +439,23 @@ const AVATAR_GOWN_FRAG = /* glsl */ `
 `
 
 /**
+ * R5 sterile attire on a realistic avatar (attire.ts; inside the non-hair branch, after the garment tint): a gown repaints the top garment and the arms down
+ * to the wrists in the gown colour (the palette's top slot, writeAttire) with a little of the cloth's own shading; gloves turn the hands cream latex at the
+ * skin's own shading (luminance against the avatar's skin, ^0.6).
+ */
+const AVATAR_ATTIRE_FRAG = /* glsl */ `
+    if (vCrowdAttire.y > 0.5) {
+      float cFoldG = clamp(pow(cLum / max(uTintRef.x, 1e-3), 0.3), 0.75, 1.15);
+      float cCover = max(cTopMask, smoothstep(0.35, 0.6, vCrowdSleeve));
+      diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdTop * cFoldG, cCover);
+    }
+    if (vCrowdAttire.x > 0.5) {
+      float cGl = clamp(pow(cLum / max(dot(uSkin, vec3(0.2126, 0.7152, 0.0722)), 1e-3), 0.6), 0.6, 1.2);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${g(GLOVE.r)}, ${g(GLOVE.g)}, ${g(GLOVE.b)}) * cGl, smoothstep(0.4, 0.6, vCrowdBare.w));
+    }
+`
+
+/**
  * The atlas alpha (tools/people-lib.ts MASK): in the hair region (uHair: u0, v0, u1, v1) it is the opacity of the hair cards, cut at 0.5 (the only
  * alpha test); everywhere else it is the garment mask, 255 untinted, 170 the top garment, 85 the bottom one. A tinted garment takes the person's
  * colour at its own shading: colour x (luminance / the avatar's reference luminance) ^ contrast, at most ${TINT_MAX_GAIN}x the colour. A person in a
@@ -429,6 +478,7 @@ ${AVATAR_GOWN_FRAG}
       if (cTop > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdTop * min(pow(cLum / uTintRef.x, uTintExp.x), ${g(TINT_MAX_GAIN)}), cTop);
       if (cBottom > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdBottom * min(pow(cLum / uTintRef.y, uTintExp.y), ${g(TINT_MAX_GAIN)}), cBottom);
     }
+${AVATAR_ATTIRE_FRAG}
   }
   diffuseColor.a = 1.0;
 }
@@ -471,7 +521,7 @@ function patchAvatarBody(shader: WebGLProgramParametersWithUniforms, pose: DataT
 }
 
 /** The one program every avatar body of every LOD shares (the light volume's key composed in). */
-export const AVATAR_PROGRAM_KEY = `hospital-crowd-avatar-v1+${LIGHT_VOLUME_KEY}`
+export const AVATAR_PROGRAM_KEY = `hospital-crowd-avatar-v2+${LIGHT_VOLUME_KEY}`
 
 /** The uniform values of an avatar: its hair rectangle as (u0, v0, u1, v1) (nothing when it has no hair cards), its tint references, its skin (linear). */
 export function avatarUniformValues(entry: Pick<AvatarEntry, 'atlas' | 'tintRef' | 'palette'>): {
@@ -556,7 +606,8 @@ export function createCrowdMaterials(pose: DataTexture): CrowdMaterials {
     patchGear(s, pose, fixed)
     applyLightVolume(s)
   }
-  props.customProgramCacheKey = () => `hospital-crowd-props-v1+${LIGHT_VOLUME_KEY}`
+  // R5: v2, the mask, gown and instrument frames and the instruments' moving parts
+  props.customProgramCacheKey = () => `hospital-crowd-props-v2+${LIGHT_VOLUME_KEY}`
 
   const vehicles = new MeshStandardMaterial({ roughness: 0.55, metalness: 0.05 })
   vehicles.onBeforeCompile = (s) => {

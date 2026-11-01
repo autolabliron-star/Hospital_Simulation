@@ -1,0 +1,155 @@
+/**
+ * R5: the "Watch step by step" button of a room panel (the robotic theatre's today; the CT cryo suite's and the ultrasound room's later). It opens a short
+ * list of the room's procedures that have a script; a pick asks the room for a watch case (watchFlow.ts) and the watch begins at once, or after the
+ * turnover with a countdown. With a case already in the room it offers to watch that one from its current step, or the whole operation from the start
+ * after it; when the team is not in, or a watch case is already booked, it says so. All the words are in src/content/watch.json.
+ */
+import { useCallback, useMemo, useState } from 'react'
+import { scriptFor } from '@/content/procedures'
+import { fillWatch, WATCH } from '@/content/watch'
+import { proceduresOfRoom, type WatchRoomId } from '@/scene/watch/rooms'
+import { CONFIG } from '@/sim/config'
+import { compiledFor, watchTotalSeconds } from '@/sim/procedure'
+import type { ProcedureId } from '@/sim/types'
+import { watchActions } from './actions'
+import type { PickResult } from './watchFlow'
+import './watch.css'
+
+export interface PickerItem {
+  id: ProcedureId
+  title: string
+  detail: string
+  /** "about 11 min" */
+  minutes: string
+}
+
+/** The room's procedures that can be watched (they have a script), with their length as watched. */
+export function pickerItems(room: WatchRoomId): PickerItem[] {
+  const out: PickerItem[] = []
+  for (const id of proceduresOfRoom(room)) {
+    const cs = compiledFor(id)
+    if (scriptFor(id) === undefined || cs === undefined) continue
+    const copy = WATCH.procedures[id]
+    out.push({ id, title: copy.title, detail: copy.detail, minutes: fillWatch(WATCH.panel.minutes, { n: Math.round(watchTotalSeconds(cs) / 60) }) })
+  }
+  return out
+}
+
+/** "07:00" for an hour of the day. */
+export function hourText(h: number): string {
+  const m = Math.round(h * 60)
+  const hh = Math.floor(m / 60)
+  const mm = m % 60
+  return `${hh < 10 ? '0' : ''}${hh}:${mm < 10 ? '0' : ''}${mm}`
+}
+
+/** The line a refused pick shows (null: nothing to say). */
+export function answerText(result: PickResult | null): string | null {
+  switch (result) {
+    case 'busy':
+    case 'noCamera':
+      return WATCH.panel.busy
+    case 'noTeam':
+      return fillWatch(WATCH.panel.noTeam, { from: hourText(CONFIG.surgery.teamFromHour), to: hourText(CONFIG.surgery.teamToHour) })
+    case 'noScript':
+      return WATCH.panel.noScript
+    default:
+      return null
+  }
+}
+
+export interface WatchPickerViewProps {
+  room: WatchRoomId
+  open: boolean
+  items: readonly PickerItem[]
+  /** The last answer and the procedure it was for. */
+  answer: { id: ProcedureId; result: PickResult } | null
+  onToggle(): void
+  onPick(id: ProcedureId): void
+  onFollow(): void
+  onFromStart(id: ProcedureId): void
+  onBack(): void
+}
+
+/** The markup, with its state as props (so it renders in node). */
+export function WatchPickerView(p: WatchPickerViewProps) {
+  const w = WATCH.panel
+  const message = answerText(p.answer?.result ?? null)
+  return (
+    <div className="watch-pick" data-room={p.room}>
+      <button type="button" className="hud-send watch-pick__open" aria-expanded={p.open} title={w.buttonTitle} onClick={p.onToggle}>
+        {w.button}
+      </button>
+      {p.open && p.answer?.result === 'following' ? (
+        <div className="watch-pick__choice" role="group" aria-label={w.following}>
+          <p className="rp-muted watch-pick__note">{w.following}</p>
+          <button type="button" className="watch-pick__item" onClick={p.onFollow}>
+            <span className="rp-strong">{w.watchCurrent}</span>
+            <span className="rp-muted">{w.watchCurrentNote}</span>
+          </button>
+          <button type="button" className="watch-pick__item" onClick={() => p.onFromStart(p.answer!.id)}>
+            <span className="rp-strong">{w.fromStart}</span>
+            <span className="rp-muted">{w.fromStartNote}</span>
+          </button>
+          <button type="button" className="watch-pick__back" onClick={p.onBack}>
+            {w.cancel}
+          </button>
+        </div>
+      ) : (
+        p.open && (
+          <div className="watch-pick__list" role="group" aria-label={w.pick}>
+            <p className="rp-muted watch-pick__note">{w.pick}</p>
+            {p.items.map((it) => (
+              <button key={it.id} type="button" className="watch-pick__item" onClick={() => p.onPick(it.id)}>
+                <span className="rp-strong">{it.title}</span>
+                <span className="rp-muted">{fillWatch(w.itemLine, { detail: it.detail, minutes: it.minutes })}</span>
+              </button>
+            ))}
+            {message !== null && (
+              <p className="watch-pick__message" role="status">
+                {message}
+              </p>
+            )}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
+export function WatchPicker({ room }: { room: WatchRoomId }) {
+  const items = useMemo(() => pickerItems(room), [room])
+  const [open, setOpen] = useState(false)
+  const [answer, setAnswer] = useState<{ id: ProcedureId; result: PickResult } | null>(null)
+  const done = useCallback(() => {
+    setOpen(false)
+    setAnswer(null)
+  }, [])
+  const act = useCallback(
+    (id: ProcedureId, result: PickResult) => {
+      if (result === 'started' || result === 'queued') done()
+      else setAnswer({ id, result })
+    },
+    [done],
+  )
+  if (items.length === 0) return null
+  return (
+    <WatchPickerView
+      room={room}
+      open={open}
+      items={items}
+      answer={answer}
+      onToggle={() => {
+        setOpen((v) => !v)
+        setAnswer(null)
+      }}
+      onPick={(id) => act(id, watchActions.pick(id))}
+      onFollow={() => {
+        if (watchActions.follow(room)) done()
+        else setAnswer((a) => (a ? { ...a, result: 'noCamera' } : a))
+      }}
+      onFromStart={(id) => act(id, watchActions.pick(id, { fromStart: true }))}
+      onBack={() => setAnswer(null)}
+    />
+  )
+}

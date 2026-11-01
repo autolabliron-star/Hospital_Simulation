@@ -19,6 +19,7 @@ import { RigControls } from '@/scene/player/rigControls'
 import { Quality } from '@/scene/quality/Quality'
 import { SimDriver } from '@/scene/SimDriver'
 import { Warmup, useEntered, useLoadingUp } from '@/scene/warmup'
+import { WatchCamera } from '@/scene/watch/WatchCamera'
 import { World } from '@/scene/World'
 import { GoToMenu } from '@/ui/GoToMenu'
 import { Hud } from '@/ui/Hud'
@@ -34,6 +35,7 @@ import { DevProbe, ProbeOverlay, probeEnabled } from './DevProbe'
 import { ErrorBoundary, ReloadCard } from './ErrorBoundary'
 import { PowerLoop } from './PowerLoop'
 import { useDayEnd } from '@/ui/dayEnd'
+import { WatchOverlay } from '@/ui/watch/WatchOverlay'
 
 const FOV = 35
 /** Camera elevation above the horizon (the plan's Sims-style 50° look-in). */
@@ -174,6 +176,8 @@ export function App() {
         <RoomPicker />
         {/* you, the doctor: starts walking at the entrance (W1). Steps at FRAME_PRIORITY.player (-10), before the rig (-1). */}
         <Player />
+        {/* R5 "Watch step by step": holds the lens under a camera lease while you watch a procedure (FRAME_PRIORITY.watchCamera, -9.4) */}
+        <WatchCamera />
         <Interaction />
         <CameraRig />
         {/* M5: LAST in the Canvas, so every layer's effects (the environment map) have run. Compiles both modes, uploads every texture. */}
@@ -183,6 +187,10 @@ export function App() {
       {/* presentation mode (C, ?view=present): no HUD and none of the game's overlays; the Hud hides itself, the rest go through these gates */}
       <ErrorBoundary name="hud">
         <Hud />
+      </ErrorBoundary>
+      {/* R5: the caption bar, the steps, the controls and the endoscope inset while you watch (the HUD hides itself then) */}
+      <ErrorBoundary name="watch-overlay">
+        <WatchOverlay />
       </ErrorBoundary>
       <Hidden>
         <ErrorBoundary name="go-to-menu">

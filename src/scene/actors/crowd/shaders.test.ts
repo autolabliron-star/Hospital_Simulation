@@ -116,7 +116,8 @@ describe('crowd shaders', () => {
       [mats.vehicles, 'vehicles'],
     ] as const) {
       const s = patched(m as never, std.v, std.f)
-      expect(s.vertexShader, label).toContain('abs(aPart.x - aKind) > 0.5')
+      // (R5: the props unpack the hand an instrument packs into its kind first: gKind; the vehicles' gKind is their aKind)
+      expect(s.vertexShader, label).toContain('abs(aPart.x - gKind) > 0.5')
       expect(s.vertexShader, label).toContain('vec3 transformed = gWorldPos;')
       for (const a of ['attribute float aRow;', 'attribute float aKind;', 'attribute float aOff;', 'attribute vec2 aPart;']) expect(s.vertexShader.split(a).length - 1, `${label} ${a}`).toBe(1)
       expect(balanced(s.vertexShader, '{', '}')).toBe(true)

@@ -7,6 +7,7 @@ import { timeAtHour } from '@/sim/population/schedule'
 import { areaById } from '@/sim/places'
 import type { CasePhase, RobotArmState, SurgeryBayState, SurgeryCaseView, SurgeryState, TheatreKpis } from '@/sim/types'
 import { caseOfBay, insideRect, minutesSince, minutesText, NO_VALUE, OR_RECT, orView, percentText, teamOf, timelineSteps, TIMELINE_PHASES, type TeamInput } from './orView'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 
 function arm(i: 0 | 1 | 2 | 3, o: Partial<RobotArmState> = {}): RobotArmState {
   return { index: i, instrument: '', port: null, drape: 0, engage: 0, force: 0, exchanges: 0, ...o }
@@ -47,6 +48,7 @@ function surgeryState(o: { cases?: SurgeryCaseView[]; caseId?: string | null; ph
       version: 0,
     },
     bays,
+    procedure: emptyProcedureView(),
     version: 0,
   }
 }

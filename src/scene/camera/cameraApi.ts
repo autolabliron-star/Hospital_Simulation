@@ -377,8 +377,44 @@ function apply(pose: CameraPose): void {
   void controls.setLookAt(_look.px, _look.py, _look.pz, _look.tx, _look.ty, _look.tz, false)
 }
 
-/** Fly the camera to `pose` (smooth, eased, ending exactly at rest). With reduced motion on, it jumps. */
+// ---------------------------------------------------------------------------------------------
+// The camera lease (R5)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Who may hold the lens besides the player and the overview rig. R5 "Watch step by step" (src/scene/watch) takes it while you watch a procedure: it is hosted
+ * INSIDE walk mode (so the walls, the lights, the grade, the bubbles and the audio stay the walk look's), and while it is held the player system stands you
+ * still and unseen and skips its chase camera, the interaction layer and the room picker stand aside, and a room flight (`flyTo`) is refused.
+ */
+export type CameraLeaseId = 'watch'
+
+let lease: CameraLeaseId | null = null
+
+/** Take the lease. False when somebody else holds it (taking it again as its holder is fine). */
+export function leaseCamera(id: CameraLeaseId): boolean {
+  if (lease !== null && lease !== id) return false
+  lease = id
+  return true
+}
+
+/** Give the lease back (only its holder can). */
+export function releaseCamera(id: CameraLeaseId): void {
+  if (lease === id) lease = null
+}
+
+/** Is the camera leased? (Read every frame by the player system, the interaction layer and the room picker: a plain variable.) */
+export function cameraLeased(): boolean {
+  return lease !== null
+}
+
+/** The holder of the lease, or null. */
+export function cameraLease(): CameraLeaseId | null {
+  return lease
+}
+
+/** Fly the camera to `pose` (smooth, eased, ending exactly at rest). With reduced motion on, it jumps. Refused while the camera is leased. */
 export function flyTo(pose: CameraPose, opts: { seconds?: number } = {}): void {
+  if (lease !== null) return
   // walking: the player takes you out of walk mode first, flying straight to this pose (see WalkBridge)
   if (walkBridge?.walking()) {
     walkBridge.toOverview(pose)

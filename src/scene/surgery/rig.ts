@@ -16,21 +16,26 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { MACHINE_GLOW } from '@/scene/imaging/machines/machineMaterials'
 import { MAT } from '@/scene/materials'
 import { SURGERY } from '@/sim/places'
-import type { CasePhase, RobotState, TheatreState } from '@/sim/types'
-import { LIGHTS } from './dims'
+import { emptyPatientPose } from '@/sim/procedure/empty'
+import { setTablePose } from '@/sim/surgery/tablePose'
+import type { CasePhase, PatientPoseView, RobotState, TheatreState, Vec3 } from '@/sim/types'
+import { laserTargetInto, LIGHTS } from './dims'
 import { hideInstance, putSegment, putSegmentPart, putYawed } from './matrices'
 import { ARM_COUNT, CART, newRobotPose, poseRobot, type ArmPose, type RobotPose } from './robotPose'
+import { newTableMemory, TABLE_BOX_COUNT, TABLE_BOX_HEX, TABLE_CYL_COUNT, TABLE_CYL_HEX, writeTable, type TableMemory } from './table'
 
 // ---------------------------------------------------------------------------------------------
 // The pools: which instance is which
 // ---------------------------------------------------------------------------------------------
 
-/** Box pool: the cart, then the patient's drape, then four per arm (drop link is a cylinder: upper arm, forearm, carriage). */
-const B = { base: 0, trim: 1, turret: 2, beam: 3, head: 4, drape: 5, arm: 6, perArm: 3 } as const
-export const BOX_COUNT = B.arm + B.perArm * ARM_COUNT
-/** Cylinder pool: four wheels, the column's two sections, then per arm: the drop link, three joint caps, the spar, the shaft, three sleeves. */
-const C = { wheel: 0, lower: 4, upper: 5, arm: 6, perArm: 10 } as const
-export const CYL_COUNT = C.arm + C.perArm * ARM_COUNT
+/** Box pool: the cart, then the patient's drape, then three per arm (upper arm, forearm, carriage), then R5's live table top (table.ts). */
+const B = { base: 0, trim: 1, turret: 2, beam: 3, head: 4, drape: 5, arm: 6, perArm: 3, table: 6 + 3 * ARM_COUNT } as const
+export const BOX_COUNT = B.table + TABLE_BOX_COUNT
+/** Cylinder pool: four wheels, the column's two sections, then per arm: the drop link, three joint caps, the spar, the shaft, three sleeves; then the table's. */
+const C = { wheel: 0, lower: 4, upper: 5, arm: 6, perArm: 10, table: 6 + 10 * ARM_COUNT } as const
+export const CYL_COUNT = C.table + TABLE_CYL_COUNT
+/** Where the live table's instances start in each pool (the node tests read them). */
+export const TABLE_AT = { boxes: B.table, cyls: C.table } as const
 /** Glow pool: the laser (beam, two crosshair bars, a dot), the column's status band, the two lights, then per arm two LED rings. */
 const G = { beam: 0, barX: 1, barZ: 2, dot: 3, band: 4, light: 5, arm: 7, perArm: 2 } as const
 export const GLOW_COUNT = G.arm + G.perArm * ARM_COUNT
@@ -101,6 +106,11 @@ export interface SurgeryRigStep {
   dt: number
   /** The overview shows the storey from above: the surgical lights (a walk-mode ceiling) are not drawn. */
   overview: boolean
+  /**
+   * R5: the patient's pose on the table (the room's `procedure.patient`): the table top's tilt and roll, the position (lithotomy: the stirrups, the leg
+   * section off) and the head tilt (the shoulder braces). Absent: a level, supine table.
+   */
+  patient?: Readonly<PatientPoseView>
 }
 
 export interface SurgeryRig {
@@ -123,7 +133,13 @@ export interface RigMemory {
   lightsCode: number
   band: number
   ledMode: Int8Array
+  /** R5: the live table top's pose, matrix and followers (table.ts), and the laser's landing point on the tilted patient. */
+  table: TableMemory
+  laser: Vec3
 }
+
+/** A level, supine patient: the table when the step carries no pose. */
+const LEVEL_PATIENT: Readonly<PatientPoseView> = emptyPatientPose()
 
 /** Write the cart: base and trim, wheels, the column's two sections, the turret, the boom beam and its head. */
 export function writeCart(bm: Float32Array, cm: Float32Array, p: RobotPose): void {
@@ -263,6 +279,9 @@ export function createSurgeryRig(): SurgeryRig {
     for (let k = 6; k <= 8; k++) paint(cyls, c + k, COL.sleeve)
     paint(cyls, c + 9, COL.drop)
   }
+  // R5: the table's colours
+  for (let i = 0; i < TABLE_BOX_COUNT; i++) paint(boxes, B.table + i, new Color(TABLE_BOX_HEX[i]))
+  for (let i = 0; i < TABLE_CYL_COUNT; i++) paint(cyls, C.table + i, new Color(TABLE_CYL_HEX[i]))
   for (let i = 0; i < 4; i++) paint(cyls, C.wheel + i, COL.wheel)
   paint(cyls, C.lower, COL.column)
   paint(cyls, C.upper, COL.column)
@@ -279,7 +298,7 @@ export function createSurgeryRig(): SurgeryRig {
   const bm = boxes.instanceMatrix.array as Float32Array
   const cm = cyls.instanceMatrix.array as Float32Array
   const gm = glow.instanceMatrix.array as Float32Array
-  const mem: RigMemory = { drapeK: 0, lightsCode: -1, band: -1, ledMode: new Int8Array(ARM_COUNT * 2).fill(-1) }
+  const mem: RigMemory = { drapeK: 0, lightsCode: -1, band: -1, ledMode: new Int8Array(ARM_COUNT * 2).fill(-1), table: newTableMemory(), laser: { x: 0, y: 0, z: 0 } }
 
   return {
     root,
@@ -291,7 +310,10 @@ export function createSurgeryRig(): SurgeryRig {
     meshes: () => [boxes, cyls, glow],
     step(s: SurgeryRigStep): void {
       const r = s.robot
-      poseRobot(r, s.t, pose)
+      const patient = s.patient ?? LEVEL_PATIENT
+      // the laser crosshair lands on the tilted patient while the endoscope arm has no port yet
+      setTablePose(mem.table.pose, patient.headTiltDeg, patient.rollDeg)
+      poseRobot(r, s.t, pose, laserTargetInto(mem.table.pose, mem.laser))
       writeCart(bm, cm, pose)
       for (let i = 0; i < ARM_COUNT; i++) {
         const a = pose.arms[i]
@@ -321,6 +343,7 @@ export function createSurgeryRig(): SurgeryRig {
       mem.drapeK = mem.drapeK < want ? Math.min(want, mem.drapeK + stepK) : Math.max(want, mem.drapeK - stepK)
       writeDrape(bm, mem.drapeK)
       writeLights(gm, s.overview)
+      writeTable(bm, cm, B.table, C.table, patient, s.dt, mem.table)
       const code = s.overview ? 2 : s.theatre.lights ? 1 : 0
       if (code !== mem.lightsCode) {
         mem.lightsCode = code

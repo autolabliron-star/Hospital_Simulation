@@ -103,6 +103,37 @@ describe('the OR is furnished', () => {
   })
 })
 
+describe('the table and the Mayo stand (R5 wave 2)', () => {
+  it('draws only the table\'s base, column and collar statically (top at 0.68 m): the top, rails, boots and braces are live (src/scene/surgery/table.ts), and the seat and footprint stay', () => {
+    const t = SURGERY.table
+    const onTable = ownPrims.filter((p) => Math.abs(p.position[0] - t.at.x) < 0.5 && Math.abs(p.position[2] - t.at.z) < 1.2 && p.position[1] < 1.2)
+    expect(onTable.length).toBeGreaterThanOrEqual(3)
+    expect(onTable.length).toBeLessThanOrEqual(5)
+    for (const p of onTable) expect(primExtent(p).y1, `${p.mat} ${p.shape}`).toBeLessThanOrEqual(0.68 + 1e-6)
+    // (no pad, no platform, no rails: nothing of the table is at its working height)
+    expect(onTable.some((p) => p.mat === 'fabricTeal')).toBe(false)
+    expect(orSeats.some((s) => s.id === 'orTable:0')).toBe(true)
+    expect(orFootprints.some((f) => f.id === 'l2:or:table')).toBe(true)
+  })
+
+  it('parks the Mayo stand against the south wall straight south of the table, its tray reaching north', () => {
+    const m = SURGERY.mayo.at
+    const t = SURGERY.table
+    expect(m.x).toBeCloseTo(t.at.x, 9)
+    expect(m.z).toBeGreaterThan(t.at.z + 3)
+    const r = { z1: OR_ROOM.z1 }
+    const fp = orFootprints.find((f) => f.id === 'l2:or:mayo')!
+    expect(extent(fp).z1, 'next to the south wall').toBeGreaterThan(r.z1 - 0.3)
+    // the procedural stand (the fallback while the baked one is not in use): its tray cover (teal) is north of the column, the base south of it
+    const stand = ownPrims.filter((p) => Math.hypot(p.position[0] - m.x, p.position[2] - m.z) < 0.5 && p.position[1] < 1.0)
+    const cover = stand.find((p) => p.mat === 'fabricTeal')!
+    const column = stand.find((p) => p.shape === 'cylinder')!
+    expect(cover).toBeDefined()
+    expect(cover.position[2], 'the tray is north of the column').toBeLessThan(column.position[2] - 0.03)
+    expect(primExtent(cover).z0, 'and reaches toward the table').toBeLessThan(m.z - 0.15)
+  })
+})
+
 describe('the seats', () => {
   it('has the table (lying, head north, top at the contract height), the two consoles\' chairs and the anaesthetist\'s stool (sitting)', () => {
     expect(orSeats.map((s) => s.id).sort()).toEqual(['console:or:anaes', 'console:or:surgeon', 'console:or:teach', 'orTable:0'])

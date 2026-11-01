@@ -7,16 +7,21 @@
  * wet highlights go into a SECOND image, the specular layer (white, with the highlight as alpha), which the per-frame compositor (frame.ts) slides with a
  * little parallax as the camera and the breathing move, so the tissue glistens. `safeTissue` (noBlood.ts) runs on every plate pixel.
  *
+ * R5: a PATCH (anatomy.ts `PATCHES`) is a piece of plate baked from a changed copy of the layout (Calot's triangle cleared, the gallbladder gone from its bed,
+ * the uterus out, the prostate out), at the plate's own scale and with the same lighting; its alpha is the patch's soft mask, so it lays over the plate with no
+ * seam. The camera and the stage's progress decide how much of it shows (stages.ts).
+ *
  * The bake is pure arithmetic (node tests run it) in stages: sample rows, two separable box blurs of the height, shade rows. `PlateBaker.step` works for at
- * most a budget and returns; `ensureEndoPlates` runs the three plates in 8 ms slices with a frame between them and registers a warm gate
+ * most a budget and returns; `ensureEndoPlates` runs the three plates and the patches in 8 ms slices with a frame between them and registers a warm gate
  * ('endoscope-plates', src/scene/warmup/registry.ts), so the warm-up holds the Enter button until the plates are in their canvases (the pattern of
  * src/scene/lighting/volume/texture.ts). Nothing here runs again after that.
  */
 import type { Env, Surface } from '@/scene/imaging/images/ctx'
 import { registerWarmGate } from '@/scene/warmup/registry'
-import { newSample, PLATE_ASPECT, sampleAnatomy, type ProcIndex } from './anatomy'
+import { newSample, patchAlpha, PATCHES, patchesOf, PLATE_ASPECT, sampleAnatomy, sampleLayout, type PatchSpec, type ProcIndex } from './anatomy'
 import { clamp01, Lattice, smooth, vnoise } from './field'
 import { safeTissue, type Rgb } from './noBlood'
+import { ensureEndoDecals, resetEndoDecals } from './decals'
 import { ensureEndoSprites } from './sprites'
 
 /** The plate's size: 16:9, a little more than the console card's 768 x 432 picture shows, so there is room to pan. */
@@ -83,15 +88,25 @@ export class PlateBaker {
   private readonly sample = newSample()
   private readonly px: Rgb = { r: 0, g: 0, b: 0 }
 
+  /** The plate's pixels per plate unit (a patch is baked at the plate's own scale whatever its size). */
+  private readonly ppu: number
+
   constructor(
     readonly proc: ProcIndex,
     readonly w: number = PLATE_W,
     readonly h: number = PLATE_H,
+    readonly patch: PatchSpec | null = null,
   ) {
     this.rgba = new Uint8ClampedArray(w * h * 4)
     this.spec = new Uint8ClampedArray(w * h * 4)
     this.s = scratchFor(w, h)
-    this.radius = Math.max(2, Math.round(h * 0.045))
+    this.ppu = patch === null ? h : PLATE_H
+    this.radius = Math.max(2, Math.round(this.ppu * 0.045))
+  }
+
+  /** The baker of a patch (its box at the plate's scale). */
+  static forPatch(patch: PatchSpec): PlateBaker {
+    return new PlateBaker(patch.proc, Math.ceil((patch.x1 - patch.x0) * PLATE_H), Math.ceil((patch.y1 - patch.y0) * PLATE_H), patch)
   }
 
   get done(): boolean {
@@ -160,10 +175,12 @@ export class PlateBaker {
     const smp = this.sample
     // the plate's height is the unit: x runs 0..16/9
     const scale = 1 / h
-    const y = (j + 0.5) * scale
+    const patch = this.patch
+    const y = patch === null ? (j + 0.5) * scale : patch.y0 + (j + 0.5) / PLATE_H
     for (let i = 0; i < w; i++) {
-      const x = (i + 0.5) * scale * (PLATE_ASPECT / (w / h))
-      sampleAnatomy(this.proc, x, y, smp)
+      const x = patch === null ? (i + 0.5) * scale * (PLATE_ASPECT / (w / h)) : patch.x0 + (i + 0.5) / PLATE_H
+      if (patch === null) sampleAnatomy(this.proc, x, y, smp)
+      else sampleLayout(patch.layout, x, y, smp)
       const k = j * w + i
       s.alb[k * 3] = smp.r
       s.alb[k * 3 + 1] = smp.g
@@ -179,7 +196,8 @@ export class PlateBaker {
     const { w, h, s } = this
     const H = s.height
     const F = s.fine
-    const relief = RELIEF * h * 0.5
+    const relief = RELIEF * this.ppu * 0.5
+    const patch = this.patch
     const c = this.px
     for (let i = 0; i < w; i++) {
       const k = j * w + i
@@ -225,15 +243,17 @@ export class PlateBaker {
       c.b = Math.min(255, Math.sqrt(ab * ab * (light + sss * ab * ab) * (1 - 0.34 * warm) + sheen) * 255)
       safeTissue(c)
       const o = k * 4
+      // a patch fades out through its soft mask (the tissue's colour stays: a pixel at alpha 0 is still tissue, and measured as such)
+      const alpha = patch === null ? 1 : patchAlpha(patch, patch.x0 + (i + 0.5) / PLATE_H, patch.y0 + (j + 0.5) / PLATE_H)
       this.rgba[o] = c.r
       this.rgba[o + 1] = c.g
       this.rgba[o + 2] = c.b
-      this.rgba[o + 3] = 255
+      this.rgba[o + 3] = alpha * 255
       const sharp = gloss * Math.pow(nh, 60) * (0.35 + 0.9 * s.micro[k]) * fall * ao
       this.spec[o] = SPEC_RGB[0]
       this.spec[o + 1] = SPEC_RGB[1]
       this.spec[o + 2] = SPEC_RGB[2]
-      this.spec[o + 3] = clamp01(sharp * 1.4) * 255
+      this.spec[o + 3] = clamp01(sharp * 1.4) * alpha * 255
     }
   }
 }
@@ -279,9 +299,19 @@ export interface EndoPlate {
   h: number
 }
 
-/** What the page can read: which plates are in their canvases, and how the bake went. */
+/** A baked patch: its pieces of plate (the lit tissue with the soft mask in its alpha, and the wet highlights) and where they lie (the spec's box). */
+export interface EndoPatchImage {
+  patch: PatchSpec
+  plate: Surface
+  spec: Surface
+  w: number
+  h: number
+}
+
+/** What the page can read: which plates and patches are in their canvases, and how the bake went. */
 export const endoPlates = {
   plates: [null, null, null] as (EndoPlate | null)[],
+  patches: PATCHES.map(() => null) as (EndoPatchImage | null)[],
   failed: false,
   slices: 0,
   longestMs: 0,
@@ -297,7 +327,8 @@ export function surfaceOf(env: Env, w: number, h: number, data: Uint8ClampedArra
 }
 
 function install(env: Env, b: PlateBaker): void {
-  endoPlates.plates[b.proc] = { proc: b.proc, plate: surfaceOf(env, b.w, b.h, b.rgba), spec: surfaceOf(env, b.w, b.h, b.spec), w: b.w, h: b.h }
+  if (b.patch !== null) endoPlates.patches[b.patch.id] = { patch: b.patch, plate: surfaceOf(env, b.w, b.h, b.rgba), spec: surfaceOf(env, b.w, b.h, b.spec), w: b.w, h: b.h }
+  else endoPlates.plates[b.proc] = { proc: b.proc, plate: surfaceOf(env, b.w, b.h, b.rgba), spec: surfaceOf(env, b.w, b.h, b.spec), w: b.w, h: b.h }
 }
 
 export interface BakeClock {
@@ -332,10 +363,15 @@ let started: Promise<void> | null = null
 export function ensureEndoPlates(env: Env, clock: BakeClock = browserClock): Promise<void> {
   if (started) return started
   ensureEndoSprites(env)
+  ensureEndoDecals(env)
   started = (async () => {
-    for (let p = 0; p < 3; p++) {
-      if (endoPlates.plates[p]) continue
-      const b = new PlateBaker(p as ProcIndex)
+    // the three plates, then the patches
+    const jobs: (() => PlateBaker | null)[] = []
+    for (let p = 0; p < 3; p++) jobs.push(() => (endoPlates.plates[p] ? null : new PlateBaker(p as ProcIndex)))
+    for (const patch of PATCHES) jobs.push(() => (endoPlates.patches[patch.id] ? null : PlateBaker.forPatch(patch)))
+    for (const job of jobs) {
+      const b = job()
+      if (b === null) continue
       for (;;) {
         const t0 = clock.now()
         const done = b.step(SLICE_MS, clock.now)
@@ -354,10 +390,14 @@ export function ensureEndoPlates(env: Env, clock: BakeClock = browserClock): Pro
   return started
 }
 
-/** Bake (synchronously) and install the plates of `procs` that are missing, and the sprites: for node tests and the probe's previews. */
+/** Bake (synchronously) and install the plates of `procs` that are missing, with their patches, and the sprites: for node tests and the probe's previews. */
 export function bakeEndoPlatesNow(env: Env, procs: readonly ProcIndex[] = [0, 1, 2]): void {
   ensureEndoSprites(env)
-  for (const p of procs) if (!endoPlates.plates[p]) install(env, new PlateBaker(p).finish())
+  ensureEndoDecals(env)
+  for (const p of procs) {
+    if (!endoPlates.plates[p]) install(env, new PlateBaker(p).finish())
+    for (const id of patchesOf(p)) if (!endoPlates.patches[id]) install(env, PlateBaker.forPatch(PATCHES[id]).finish())
+  }
 }
 
 /** The plate of `proc`, or null while it is not baked. */
@@ -371,8 +411,10 @@ export function resetEndoPlates(): void {
   endoPlates.plates[0] = null
   endoPlates.plates[1] = null
   endoPlates.plates[2] = null
+  for (let i = 0; i < endoPlates.patches.length; i++) endoPlates.patches[i] = null
   endoPlates.failed = false
   endoPlates.slices = 0
   endoPlates.longestMs = 0
   scratch = null
+  resetEndoDecals()
 }

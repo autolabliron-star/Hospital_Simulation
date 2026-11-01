@@ -60,7 +60,7 @@ export const VIGNETTE_H = 216
 // ---------------------------------------------------------------------------------------------
 
 /** A pixel being shaded: colour 0..255, alpha 0..1. */
-interface Px {
+export interface Px {
   r: number
   g: number
   b: number
@@ -113,7 +113,7 @@ function dark(nx: number, ny: number, nz: number, gloss: number, out: Px): void 
 // ---------------------------------------------------------------------------------------------
 
 /** Fill `rect` of an RGBA buffer (atlas width `W`) pixel by pixel: `f(u, v, px, out)` with u, v in 0..1 over the rectangle less its 2 px margin. */
-function raster(buf: Uint8ClampedArray, W: number, rect: Rect, f: (u: number, v: number, px: number, out: Px) => void): void {
+export function raster(buf: Uint8ClampedArray, W: number, rect: Rect, f: (u: number, v: number, px: number, out: Px) => void): void {
   const out: Px = { r: 0, g: 0, b: 0, a: 0 }
   const iw = rect.w - 4
   const ih = rect.h - 4

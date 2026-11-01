@@ -223,7 +223,9 @@ describe('the close-up geometry', () => {
   })
 
   it('every feature slot is a fixed colour of the table, and the table has no unused hole before the features', () => {
-    expect(FIXED_COLORS.length).toBe(FX.youInk + 1)
+    // (R5 appended the instruments' and the sterile attire's colours after the features: the props material only, no body vertex uses them)
+    expect(FIXED_COLORS.length).toBe(FX.lead + 1)
+    expect(FX.steel).toBe(FX.youInk + 1)
     expect(FEATURE_FIRST).toBe(PALETTE_SLOTS + FX.sclera)
     for (let i = 0; i < g.high.getAttribute('aPart').count; i++) expect(g.high.getAttribute('aPart').getY(i)).toBeLessThan(PALETTE_SLOTS + FIXED_COLORS.length)
   })

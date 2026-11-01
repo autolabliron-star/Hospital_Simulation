@@ -5,6 +5,7 @@ import { timeAtHour } from '@/sim/population/schedule'
 import type { SurgeryBayState, SurgeryCaseView, SurgeryState } from '@/sim/types'
 import { NO_VALUE } from './orView'
 import { preOpView } from './preOpView'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 
 function caseView(id: string, o: Partial<SurgeryCaseView> = {}): SurgeryCaseView {
   return { id, patientId: null, name: `Patient ${id}`, procedure: 'cholecystectomy', phase: 'preOp', plannedIn: timeAtHour(9), wheelsIn: null, dockedAt: null, consoleStart: null, consoleEnd: null, wheelsOut: null, outcome: 'home', bay: null, ...o }
@@ -19,6 +20,7 @@ function stateOf(cases: SurgeryCaseView[], preOp: Partial<SurgeryBayState>[] = [
     theatre: { caseId: null, phase: 'idle', phaseSince: 0, phaseEnds: null, lights: false, surgeonAtConsole: false, teachingInUse: false, cases, kpis: { casesToday: 0, firstCaseOnTime: null, dockingMin: null, consoleMin: null, turnoverMin: null, pacuMin: null, utilisation: null }, version: 0 },
     robot: { phase: 'stowed', cart: { x: 0, z: 0, heading: 0 }, boomYaw: 0, boomHeight: 1.74, boomExtend: 0, laser: false, arms: [], motionSeed: 1, phaseSince: 0, version: 0 },
     bays,
+    procedure: emptyProcedureView(),
     version: 0,
   }
 }

@@ -33,7 +33,7 @@
  * `sim` is a live binding (a Jump swaps it and carries you over): every frame reads it through `deps.getSim()` and never caches.
  */
 import { PerspectiveCamera, Vector3 } from 'three'
-import { cancelFlight, getRig, overviewPose, poseToLookAt, registerWalkBridge, OVERVIEW_FOV_DEG, type CameraPose, type RigHandle, type WalkBridge } from '@/scene/camera/cameraApi'
+import { cameraLeased, cancelFlight, getRig, overviewPose, poseToLookAt, registerWalkBridge, OVERVIEW_FOV_DEG, type CameraPose, type RigHandle, type WalkBridge } from '@/scene/camera/cameraApi'
 import { useFocus } from '@/scene/camera/focus.store'
 import { useOverviewLevel } from '@/scene/levels/levelView'
 import { LEVEL_Y, levelDx, levelOf } from '@/sim/levels'
@@ -168,6 +168,9 @@ export class PlayerSystem {
   private readonly poseBefore: GlidePose = { x: 0, z: 0, yaw: 0, pitch: 0 }
   private readonly poseAfter: GlidePose = { x: 0, z: 0, yaw: 0, pitch: 0 }
 
+  /** R5: the camera is leased this frame (src/scene/watch; `cameraApi.leaseCamera`). */
+  private leased = false
+
   // slow state
   private wasBlocked = false
   private lastPublished: { mode: PlayerMode; view: PlayerViewKind; locked: boolean } = { mode: 'walk', view: 'third', locked: false }
@@ -260,7 +263,10 @@ export class PlayerSystem {
     this.ensurePlayer(sim)
     this.syncPresentation()
     const input = this.input
-    const blocked = walkCam.inputBlocked
+    // R5: under the camera lease (src/scene/watch) you stand still and the keys are not heard, as under an overlay
+    const leased = cameraLeased()
+    this.leased = leased
+    const blocked = walkCam.inputBlocked || leased
     if (blocked !== this.wasBlocked) {
       this.wasBlocked = blocked
       if (blocked) {
@@ -283,6 +289,15 @@ export class PlayerSystem {
     switch (this.phase) {
       case 'walk':
         this.glidedNow = false
+        if (leased) {
+          // R5: the watch camera holds the lens: no chase camera, no look, no glide, no lens writes; it writes `walkCam.camera` itself
+          this.glide.cancel()
+          this.stepWalk(dt, false, sim)
+          this.publishBody(dt)
+          walkCam.avatarFade = 0
+          this.finishBody(dt)
+          break
+        }
         if (this.glide.active) this.stepGlide(dt, !blocked, sim)
         else this.stepWalk(dt, !blocked, sim)
         // the body is published BEFORE the camera moves, so the camera (and everything after it this frame) reads this frame's body
@@ -768,8 +783,8 @@ export class PlayerSystem {
     const keep = e && speed <= 0.05 && e.anim !== 'idle' && e.anim !== 'walk' ? e.anim : null
     sim.movePlayer(this.x, this.z, this.heading, speed)
     if (e && keep) e.anim = keep
-    // the walkthrough has no avatar (not in a flight either: nobody sees a body, nor its blob shadow)
-    if (e) e.fade = this.presenting ? 0 : this.avatarFadeNow
+    // the walkthrough has no avatar (not in a flight either: nobody sees a body, nor its blob shadow); nor does the watch camera's lease (R5)
+    if (e) e.fade = this.presenting || (this.leased && this.phase === 'walk') ? 0 : this.avatarFadeNow
   }
 
   /** The body's numbers for the legs, the doors, the camera and the quality ladder: the shared `walkBody`, every frame, never reallocated. */
@@ -952,6 +967,36 @@ export class PlayerSystem {
 
   get mode(): PlayerMode {
     return this.phase
+  }
+
+  // ------------------------------------------------------------------------------------------
+  // R5: the camera lease (src/scene/watch). The lessee moves you with `placeAt`; these three are all it needs besides.
+  // ------------------------------------------------------------------------------------------
+
+  /** Fly down into walk mode from the overview (or turn a flight out back): the watch begins with your own flight down. */
+  requestWalk(): void {
+    if (this.phase === 'overview' || this.phase === 'toOverview') this.beginToWalk()
+  }
+
+  /** The view's pitch now (the elevation `snapView` takes), so a lessee can put the view back exactly. */
+  get viewPitch(): number {
+    return this.chase.viewPitch
+  }
+
+  /**
+   * The lease is over. The camera is wherever the lessee left it, looking at the DRAWN point `target` (null: keep the last one): that becomes the start of the
+   * next flight. With `look`, the view is put back along that compass yaw and pitch at once, at rest (the next chase frame draws exactly it).
+   */
+  afterLease(target: { x: number; y: number; z: number } | null, look: { yaw: number; pitch: number } | null): void {
+    if (target) {
+      this.lookTarget.x = target.x
+      this.lookTarget.y = target.y
+      this.lookTarget.z = target.z
+    }
+    if (look) {
+      this.chase.snapView(look.yaw, look.pitch)
+      this.chase.completeBlends()
+    }
   }
 
   snapshot(): PlayerSnapshot {

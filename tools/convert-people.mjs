@@ -557,6 +557,8 @@ export async function convertAvatar(spec, installed, tmp) {
   const { fit, mesh } = buildAvatarMesh(fbx, layout)
   const B = bindFrames(fit)
   const Binv = bindInverses(B)
+  // R5: the pose row grew to PART_COUNT parts (P.propL); the crowd needs binds for every skinned part (up to P.footR) and accepts older, shorter indexes
+  if (Binv.length < (P.footR + 1) * 12 || Binv.length !== PART_COUNT * 12) throw new Error(`${spec.id}: ${Binv.length} bind floats, expected ${PART_COUNT * 12}`)
   // seated: thighs on a 0.45 m chair; lying: the back 2.5 cm into a 0.62 m mattress, measured by posing the skinned mesh with the crowd's rig
   fit.body.seatedPelvis = fitSeatedPelvis(fit.body, Binv, mesh, fit.joints.hipL[1])
   Object.assign(fit.body, fitLying(fit.body, Binv, mesh))

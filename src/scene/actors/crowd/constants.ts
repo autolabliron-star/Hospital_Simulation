@@ -153,11 +153,16 @@ export const P = {
   skirt: 17,
   /** W1: the third hair piece (a fringe, a side sweep or a puff on the forehead); the close-up head only. */
   hairFront: 18,
-  /** Not in the body mesh: the matrix of the item held in the right hand, read by the props mesh. */
+  /** Not in the body mesh: the matrix of the item held in the right hand, read by the props mesh (and R5's instruments mesh). */
   prop: 19,
+  /**
+   * R5: not in the body mesh: the matrix of the instrument held in the LEFT hand (read by the instruments mesh, crowd/instruments.ts). A lying procedure
+   * patient holds nothing, so it carries their breathing tube (from the head, at the mouth) instead.
+   */
+  propL: 20,
 } as const
-export const PART_COUNT = 20
-/** Parts in the body meshes (everything but the prop frame). */
+export const PART_COUNT = 21
+/** Parts in the body meshes (everything but the two held-item frames). */
 export const BODY_PARTS = 19
 
 /**
@@ -244,6 +249,24 @@ export const FX = {
   bib: 31,
   /** The ink of the player's "You" badge: its band and its "Y" (the card is gold, the person's badge colour). */
   youInk: 32,
+  // ---- R5 instruments and sterile attire (props material only: the body meshes never use these slots, see FEATURE_FIRST)
+  /** Polished stainless steel (blades, shafts, jaws) and its darker, satin parts (ratchets, hinges, a laparoscope's body). */
+  steel: 33,
+  steelDark: 34,
+  /** The blue plastic of disposable handles, trocar caps and the ET tube's connector. */
+  plasticBlue: 35,
+  /** Clear plastic and PVC (syringe barrels, the breathing tube, the oxygen mask): a pale, cool grey that reads as clear. */
+  clear: 36,
+  /** The self-inflating bag of the bag-valve mask and the specimen retrieval bag. */
+  bagGreen: 37,
+  /** Sterile gloves (cream latex); the avatar shader tints the hands with it (shaders.ts AVATAR_ATTIRE_FRAG). */
+  glove: 38,
+  /** The pleated surgical mask. */
+  mask: 39,
+  /** The sterile surgical gown (writeAttire puts it in the top, sleeve, front and coat slots; the gown skirt mesh is drawn in it). */
+  gown: 40,
+  /** A lead apron (CT suite, Wave 3): the top garment takes it. */
+  lead: 41,
 } as const
 /** sRGB hex of the fixed colours, in the order of FX. Warm-white and grey tones come from the shared palette (materials.ts). */
 export const FIXED_COLORS: readonly string[] = [
@@ -280,6 +303,15 @@ export const FIXED_COLORS: readonly string[] = [
   '#e8a33a', // dosimeter
   '#f4ecd8', // bib (placeholder: the shader uses the person's coat colour, the apron)
   '#1d2b4a', // youInk
+  '#c3cbcf', // steel
+  '#6b757b', // steelDark
+  '#3f80c2', // plasticBlue
+  '#d9e4e7', // clear
+  '#a9cdb0', // bagGreen
+  '#efe3c8', // glove (cream latex)
+  '#a7cbe0', // mask (pale blue)
+  '#5b8cb8', // gown (sterile blue)
+  '#38475a', // lead apron
 ]
 export const fixedSlot = (i: number): number => PALETTE_SLOTS + i
 /** The first fixed slot the vertex stage treats as a feature (the sclera) and the iris, which sits earlier in the table. */
@@ -311,6 +343,25 @@ export const CAP_KIND = BADGE_KIND + 1
  * skinned to the hair cap slot, so it is free for it, and it is not the badge's slot: you wear both in theatre.
  */
 export const CAP_FRAME: number = P.hairCap
+/**
+ * R5: the props shader's kind for the surgical mask of a person drawn as a realistic avatar who wears one (`Entity.attire` ATTIRE.mask). Drawn by a mesh of
+ * its own (attire.ts buildMaskGeometry) with the props material; its frame is MASK_FRAME: the head (binds applied) moved and scaled onto the avatar's face
+ * (avatars.ts measureFaceFit), as the cap is onto the skull.
+ */
+export const MASK_KIND = CAP_KIND + 1
+/** R5: the part slot of the mask's frame. The avatar mesh is not skinned to the back hair piece, so it is free (the cap and the badge use the other two). */
+export const MASK_FRAME: number = P.hairBack
+/**
+ * R5: the props shader's kind for the skirt of a sterile gown over a realistic avatar (to mid-calf; the avatar shader repaints the top and the sleeves). Drawn
+ * by a mesh of its own (attire.ts buildGownGeometry) with the props material on the person's skirt frame (P.skirt, the rig's 'surgicalGown' overlay).
+ */
+export const GOWN_KIND = MASK_KIND + 1
+/**
+ * R5: the first kind of the instruments mesh (crowd/instruments.ts, instrumentTable.ts INSTRUMENT). An instance of that mesh packs which hand's frame it
+ * rides into its kind: `aKind = kind + INSTRUMENT_HAND * hand`, hand 1 the right (P.prop), 2 the left (P.propL). Every kind stays below INSTRUMENT_HAND.
+ */
+export const INSTRUMENT_FIRST = GOWN_KIND + 1
+export const INSTRUMENT_HAND = 64
 
 /** Wheeled things. A pusher pushes one, a rider sits or lies on it. */
 export const VEHICLE = { none: 0, wheelchair: 1, stretcher: 2, cleaningCart: 3, linenCart: 4 } as const
@@ -341,10 +392,11 @@ export const VEHICLE_AHEAD = [
  *                     c1 = p * (wHigh + wMid). So exactly one of the three is drawn at every pixel.
  *   texel 2           rim colour r, g, b and a spare
  *   texel 3           far figure size: height scale, width scale, spare, spare
- *   texels 4..63      20 parts x 3 texels, a 3x4 matrix row-major per part (relative to the root)
- *   texels 64..78     the 15 palette colours (linear sRGB)
- *   texel 79          face (W1): eye yaw, eye pitch (radians, in the head's frame), expression (-1 frown .. +1 smile), blink (0 open .. 1 shut)
- *   texel 80          staff details (W1): badge kind (0 none, 1 staff, 2 the player's "You"), flag bits (GEAR_BIT in staff.ts), mouth open (0..1), spare
+ *   texels 4..66      21 parts x 3 texels, a 3x4 matrix row-major per part (relative to the root); R5 added the left hand's held item (P.propL)
+ *   texels 67..81     the 15 palette colours (linear sRGB)
+ *   texel 82          face (W1): eye yaw, eye pitch (radians, in the head's frame), expression (-1 frown .. +1 smile), blink (0 open .. 1 shut)
+ *   texel 83          staff details (W1): badge kind (0 none, 1 staff, 2 the player's "You"), flag bits (GEAR_BIT in staff.ts), R5 attire bits (ATTIRE in
+ *                     sim/types.ts: mask 1, gown 2, gloves 4, lead 8), mouth open (0..1)
  */
 const PALETTE_AT = 4 + PART_COUNT * 3
 export const TEX = {

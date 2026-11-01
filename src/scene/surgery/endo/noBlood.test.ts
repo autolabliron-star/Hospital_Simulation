@@ -1,9 +1,17 @@
 /**
  * The "no blood" guard in node: the tiers, `safeTissue` (no colour that goes through it can be tier A or tier B), and `bloodStats` (it finds what it is
- * meant to find on synthetic images: tier-A pixels, tier-B blobs and their size, thin dark-red slits).
+ * meant to find on synthetic images: tier-A pixels, tier-B blobs and their size, thin dark-red slits). R5: and every STAGE of every procedure, measured on the
+ * composited picture (the plate, the patches, the clips, the stitches, the bag, the glow, the instruments), not only on the pieces it is made of.
  */
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { DECAL_COLOURS } from './decals'
 import { bloodStats, components, isRedSaturated, isTierA, isTierB, safeTissue, SAFE, type Rgb } from './noBlood'
+import { EndoPainter } from './paint'
+import { bakeEndoPlatesNow, resetEndoPlates } from './plates'
+import { resetEndoSprites } from './sprites'
+import { STAGE_COLOURS, STAGE_SETS, stageIndex } from './stages'
+import { makeSurface, rasterEnv, rgbaOf } from './testRaster'
+import { newEndoView, setProcedureLooks } from './view'
 
 describe('the tiers', () => {
   it('call a saturated red blood (tier A), a deep brick red tier B, and tissue colours neither', () => {
@@ -114,5 +122,78 @@ describe('bloodStats', () => {
   it('labels 4-connected components', () => {
     const m = new Uint8Array([1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1])
     expect(components(m, 4, 3)).toMatchObject({ count: 3, biggest: 3 })
+  })
+})
+
+describe('every stage of every procedure', () => {
+  const W = 288
+  const H = 162
+  beforeAll(() => {
+    bakeEndoPlatesNow(rasterEnv)
+  }, 60_000)
+  afterAll(() => {
+    resetEndoPlates()
+    resetEndoSprites()
+  })
+
+  const picture = (p: number, key: string, progress: number, seed: number) => {
+    const surface = makeSurface(W, H)
+    const v = setProcedureLooks(newEndoView({ seed, t: 30 + seed, gain: 1, proc: p }), p)
+    v.stage = stageIndex(p, key)
+    v.stageProc = p
+    v.prevStage = v.stage
+    v.stageMix = 1
+    v.stageP = progress
+    // (an energy tool's pedal down: its glint is the brightest thing in the picture)
+    v.energy[0] = 1
+    new EndoPainter(W, H).paint(surface.ctx, v)
+    return rgbaOf(surface.canvas)
+  }
+
+  it('has no blood in the picture: tier A none, tier B at most 0.2 % in blobs of at most 64 px, no dark-red slits, at two moments of every stage', () => {
+    let measured = 0
+    for (let p = 0; p < 3; p++) {
+      for (const stage of STAGE_SETS[p].stages) {
+        for (const [progress, seed] of [[0.5, 7], [1, 21]] as const) {
+          const px = picture(p, stage.key, progress, seed)
+          const s = bloodStats(px, W, H)
+          const where = `procedure ${p}, stage ${stage.key}, progress ${progress}`
+          expect(s.tierA, where).toBe(0)
+          expect(s.tierBShare, where).toBeLessThanOrEqual(0.002)
+          expect(s.biggestBlob, where).toBeLessThanOrEqual(64)
+          expect(s.slits, where).toBe(0)
+          measured++
+        }
+      }
+    }
+    // (11 + 9 + 14 stages, twice each)
+    expect(measured).toBe(2 * (STAGE_SETS[0].stages.length + STAGE_SETS[1].stages.length + STAGE_SETS[2].stages.length))
+  })
+
+  it('actually draws what the stages add: a stage\'s picture is not the picture at rest (the pixels differ), so the check above sees the clips, the glow and the bag', () => {
+    for (const [p, key] of [[0, 'firefly'], [0, 'clipping'], [0, 'bagging'], [1, 'cuffClosure'], [2, 'pedicles'], [2, 'anastomosis']] as const) {
+      const at = picture(p, key, 1, 7)
+      const rest = picture(p, 'survey', 1, 7)
+      let differ = 0
+      for (let i = 0; i < at.length; i += 4) if (Math.abs(at[i] - rest[i]) + Math.abs(at[i + 1] - rest[i + 1]) + Math.abs(at[i + 2] - rest[i + 2]) > 60) differ++
+      expect(differ, `${p} ${key}`).toBeGreaterThan(W * H * 0.05)
+    }
+  })
+
+  it('draws every colour of the stages from a palette with no blood in it: the clips, the stitches, the ring, the dark of the glow, the decals', () => {
+    const palette: string[] = [STAGE_COLOURS.clipShadow, STAGE_COLOURS.suture, STAGE_COLOURS.sutureLight, STAGE_COLOURS.mark, STAGE_COLOURS.markEdge, STAGE_COLOURS.dark]
+    for (const c of STAGE_COLOURS.clip) palette.push(c.body, c.light, c.dark)
+    for (const c of palette) {
+      const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c)
+      expect(hex, c).not.toBeNull()
+      const [r, g, b] = [parseInt(hex![1], 16), parseInt(hex![2], 16), parseInt(hex![3], 16)]
+      expect(isTierA(r, g, b) || isTierB(r, g, b) || isRedSaturated(r, g, b), c).toBe(false)
+    }
+    for (const c of Object.values(DECAL_COLOURS)) expect(isTierA(c[0], c[1], c[2]) || isTierB(c[0], c[1], c[2]), String(c)).toBe(false)
+  })
+
+  it('names its stages without a graphic word', () => {
+    const graphic = /blood|bleed|incision|wound|gore|cut\b/i
+    for (const set of STAGE_SETS) for (const s of set.stages) expect(s.key, s.key).not.toMatch(graphic)
   })
 })

@@ -18,6 +18,7 @@ import { PacuBody, PacuPanel } from './PacuBody'
 import { pacuView } from './pacuView'
 import { PreOpBody, PreOpPanel } from './PreOpBody'
 import { preOpView } from './preOpView'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 
 vi.mock('@/ui/walk/ConsoleCard', () => ({
   ConsoleCardInline: () => createElement('div', { 'data-marker': 'console-card' }),
@@ -57,6 +58,7 @@ function stateOf(cases: SurgeryCaseView[], o: { caseId?: string | null; phase?: 
       version: 0,
     },
     bays,
+    procedure: emptyProcedureView(),
     version: 0,
   }
 }

@@ -16,7 +16,7 @@ import type { World } from '../er/world'
 import { isWalkable } from '../nav/layout'
 import type { PeopleContext } from '../person'
 import type { Rng } from '../rng'
-import type { AnimState, Outfit, SeatSpec, Vec2 } from '../types'
+import type { AnimState, Outfit, ProcAction, SeatSpec, StaffAct, ToolKind, Vec2, Vec3 } from '../types'
 import type { Walker } from '../walker'
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -242,6 +242,19 @@ export interface Task {
   walkAnim?: AnimState
   speed?: number
   leader?: Actor | null
+  /**
+   * R5 (step-by-step procedures): what the person does at the spot, written on their entity as `act` while they stand there (never while they
+   * walk): the action (the crowd's pose overlay on `anim`), what is in each hand, the world point the hands work at and the point the eyes look
+   * at (sim frame, floor-relative y; the objects are read every tick, so a caller may keep moving them). `progress` drives the action's strokes
+   * (0..1): a getter read every tick (so compressed watch time and pauses stay in step), or a plain number. Setting the same `key` again
+   * updates these in place (the person does not walk again).
+   */
+  act?: ProcAction | null
+  left?: ToolKind
+  right?: ToolKind
+  work?: Vec3 | null
+  look?: Vec3 | null
+  progress?: (() => number) | number
 }
 
 export type Title = 'surgeon' | 'assistant' | 'anaesthetist' | 'scrub' | 'circulator' | 'preOp' | 'pacu' | 'porter' | 'cleaner'
@@ -258,6 +271,9 @@ export class Staffer extends Actor {
   private pending: Task | null = null
   private applied: AnimState | null = null
   private readonly baseCruise: number
+  /** R5: the pose overlay on this person's entity (one object for life), and the gaze point, written only when no glance has the eyes. */
+  private readonly actState: StaffAct = { action: 'idle', progress: 0, left: 'none', right: 'none', work: null }
+  private readonly gaze: Vec3 = { x: 0, y: 0, z: 0 }
 
   constructor(
     readonly world: World,
@@ -280,7 +296,10 @@ export class Staffer extends Actor {
 
   /** Doing something now (walking to a task, or at it). */
   setTask(t: Task): void {
-    if (this.task !== null && this.task.key === t.key) return
+    if (this.task !== null && this.task.key === t.key) {
+      this.refresh(t)
+      return
+    }
     this.task = t
     this.applied = null
     this.pending = null
@@ -300,6 +319,30 @@ export class Staffer extends Actor {
       return
     }
     this.begin(t)
+  }
+
+  /**
+   * The same task again: nobody walks anywhere, but the pose may change (the step moved on while they stay at their spot): take up the
+   * task's animation and its R5 overlay (action, tools, work and look points, progress) in place.
+   */
+  private refresh(t: Task): void {
+    const cur = this.task as Task
+    if (cur !== t) {
+      cur.anim = t.anim
+      cur.act = t.act
+      cur.left = t.left
+      cur.right = t.right
+      cur.work = t.work
+      cur.look = t.look
+      cur.progress = t.progress
+    }
+    const was = this.idleAnim
+    this.idleAnim = t.anim
+    // standing at the spot in the pose the task gave them: take the new pose now (a conversation or a seat's 'sit' is left alone)
+    if (this.done && this.mode === 'static' && this.pending === null && (this.entity.anim === was || this.entity.anim === this.applied)) {
+      this.entity.anim = t.anim
+      this.applied = t.anim
+    }
   }
 
   /** Put the person at the task's spot (or on its seat) at once: a warm start. */
@@ -324,6 +367,11 @@ export class Staffer extends Actor {
   }
 
   think(_dt: number, _ctx: PeopleContext): void {
+    this.thinkTask()
+    this.overlay()
+  }
+
+  private thinkTask(): void {
     if (this.pending !== null) {
       if (this.mode === 'static' && this.done) {
         const p = this.pending
@@ -344,5 +392,36 @@ export class Staffer extends Actor {
       e.anim = t.anim
       this.applied = t.anim
     }
+  }
+
+  /**
+   * R5: while the person stands (or sits) at the task's spot, the task's action, tools and work point are on the entity (`act`) and the eyes
+   * follow its look point (`lookAt`: only when it is free or ours, so a glance at the player, reactions.ts, wins). Walking, sliding and a task
+   * with no action clear them. Allocation-free: the overlay and the gaze are this person's own two objects.
+   */
+  private overlay(): void {
+    const e = this.entity
+    const t = this.task
+    const at = t !== null && this.pending === null && this.done && this.mode === 'static'
+    if (at && t.act != null) {
+      const a = this.actState
+      const p = t.progress
+      const k = p === undefined ? 0 : typeof p === 'number' ? p : p()
+      a.action = t.act
+      a.progress = k < 0 ? 0 : k > 1 ? 1 : k
+      a.left = t.left ?? 'none'
+      a.right = t.right ?? 'none'
+      a.work = t.work ?? null
+      e.act = a
+    } else if (e.act === this.actState) e.act = null
+    const look = at ? t.look : null
+    if (look != null) {
+      if (e.lookAt == null || e.lookAt === this.gaze) {
+        this.gaze.x = look.x
+        this.gaze.y = look.y
+        this.gaze.z = look.z
+        e.lookAt = this.gaze
+      }
+    } else if (e.lookAt === this.gaze) e.lookAt = null
   }
 }

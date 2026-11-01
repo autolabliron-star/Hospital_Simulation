@@ -114,6 +114,36 @@ describe('the live canvas', () => {
     expect(texts).toEqual(expect.arrayContaining(['Prograsp', 'Bipolar', 'Needle drv', '30°', 'Simulated']))
   })
 
+  it('R5: follows the step of a scripted operation (the room\'s scope key) with the same repaint rate: a stage change repaints nothing extra', () => {
+    const { env } = logEnv()
+    const live = new LiveEndoscope(env)
+    const scripted = (scope: string | null, progress: number): SurgeryState => {
+      const s = st(dockedRobot('transverse'), 'hysterectomy')
+      s.procedure.procedureId = 'or-hysterectomy'
+      s.procedure.scope = scope
+      s.procedure.progress = progress
+      return s
+    }
+    expect(live.update(scripted('roundLigament', 0.1), 100, 1000, true)).toBe(true)
+    expect(live.view.stage).toBeGreaterThanOrEqual(0)
+    const first = live.view.stage
+    // 4 Hz while somebody looks, whatever the stage does
+    let paints = 0
+    for (let f = 0; f < 600; f++) {
+      const scope = f < 200 ? 'roundLigament' : f < 400 ? 'colpotomy' : 'cuffClosure'
+      if (live.update(scripted(scope, (f % 200) / 200), 100 + f / 60, 1000 + 1000 + (f * 1000) / 60, true)) paints++
+    }
+    expect(paints).toBeGreaterThanOrEqual(10000 / HOT_MS - 3)
+    expect(paints).toBeLessThanOrEqual(10000 / HOT_MS + 3)
+    expect(live.view.stage).not.toBe(first)
+    expect(live.view.prevStage).toBeGreaterThanOrEqual(0)
+    // a scope this procedure does not know, or a case with no script: the picture of before the stages
+    live.update(scripted('nonsense', 0.5), 200, 50_000, true)
+    expect(live.view.stage).toBe(-1)
+    live.update(st(dockedRobot('transverse'), 'hysterectomy'), 201, 51_000, true)
+    expect(live.view.stage).toBe(-1)
+  })
+
   it('goes back to standby when the arms come off, once', () => {
     const { env, texts } = logEnv()
     const live = new LiveEndoscope(env)

@@ -3,6 +3,7 @@
  */
 import { SURGERY, type PortLayout } from '@/sim/places'
 import type { CasePhase, RobotArmState, RobotPhase, RobotState, SurgeryCaseView, SurgeryState, TheatreState } from '@/sim/types'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 
 export const LAYOUTS: readonly PortLayout[] = ['oblique', 'transverse']
 
@@ -17,7 +18,7 @@ export function dockedRobot(layout: PortLayout = 'transverse', over: Partial<Rob
     phase: 'docked',
     cart: { x: SURGERY.cart.dock.at.x, z: SURGERY.cart.dock.at.z, heading: SURGERY.cart.dock.heading },
     boomYaw: 0.1,
-    boomHeight: 2.3,
+    boomHeight: 2.38,
     boomExtend: 1,
     laser: false,
     arms: [0, 1, 2, 3].map((i) => arm(i, { instrument: `Tool ${i}`, port: ports[i], drape: 1, engage: 1, force: 0.4 })),
@@ -85,5 +86,5 @@ export function surgeryState(over: { theatre?: TheatreState; robot?: RobotState 
     ...[0, 1, 2, 3].map((i) => ({ seatId: `surgeryBed:preop:${i}`, kind: 'preOp' as const, patientId: null, since: 0, curtain: false })),
     ...[0, 1, 2].map((i) => ({ seatId: `surgeryBed:pacu:${i}`, kind: 'pacu' as const, patientId: null, since: 0, curtain: false })),
   ]
-  return { theatre: over.theatre ?? theatre(), robot: over.robot ?? stowedRobot(), bays, version: 1 }
+  return { theatre: over.theatre ?? theatre(), robot: over.robot ?? stowedRobot(), bays, procedure: emptyProcedureView(), version: 1 }
 }

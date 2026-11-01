@@ -11,7 +11,7 @@
  * undocking / returning by `UNDOCK_SPLIT`. Boundaries match: every number a segment ends with is the one the next begins with.
  */
 import { SURGERY, type PortLayout } from '../places'
-import type { RobotArmState, RobotPhase, RobotState } from '../types'
+import type { RobotArmState, RobotPhase, RobotState, Vec3 } from '../types'
 
 /** Fractions of the theatre's docking phase: deploying, driving, docking the endoscope arm, targeting. */
 export const DOCK_SPLIT = [0.12, 0.3, 0.23, 0.35] as const
@@ -24,7 +24,8 @@ const H_STOW = SURGERY.cart.size.stowedHeight
 const H_TOP = SURGERY.cart.size.maxHeight
 const H_UP = 2.2
 const H_DOCK = 2.4
-const H_TARGET = 2.3
+// R5 wave 2: 2.3 -> 2.38 with the ports (places.ts SURGERY.ports, y 1.06 -> 1.14): the boom docks at the same height over the patient's belly
+const H_TARGET = 2.38
 
 export interface CartPose {
   x: number
@@ -162,6 +163,12 @@ export function segmentAt(t: number, times: readonly RobotCaseTimes[]): RobotSeg
 export interface RobotContext {
   t: number
   layout: PortLayout
+  /**
+   * R5 wave 2: the four ports as they lie on the patient on the TILTED, rolled table (the level ports of `SURGERY.ports[layout]` moved by the table's pose,
+   * src/sim/surgery/tablePose.ts `tablePointInto`): preallocated objects the caller rewrites in place each tick; the arms carry them by reference, so a
+   * docked arm's remote centre follows the table. Absent: the level ports of the layout (a level table).
+   */
+  ports?: readonly Vec3[]
   /** The four instrument names by arm index (the procedure's copy). */
   instruments: readonly string[]
   /** The boom's final yaw for this case (rad). */
@@ -196,7 +203,7 @@ function stowBoom(r: RobotState): void {
 /** Write the robot's whole state for time `ctx.t` in segment `seg`. Allocation-free. */
 export function applyRobot(r: RobotState, seg: RobotSegment, ctx: RobotContext): void {
   const arms = r.arms
-  const ports = SURGERY.ports[ctx.layout]
+  const ports = ctx.ports ?? SURGERY.ports[ctx.layout]
   const u = seg.until > seg.since && Number.isFinite(seg.since) && Number.isFinite(seg.until) ? clamp01((ctx.t - seg.since) / (seg.until - seg.since)) : 0
   r.motionSeed = ctx.motionSeed
   switch (seg.kind) {

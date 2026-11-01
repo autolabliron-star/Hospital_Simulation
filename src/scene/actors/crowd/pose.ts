@@ -11,7 +11,10 @@
  *   arm twist   spin about the upper arm's own axis; with the elbow bent it sweeps the forearm sideways.
  *   elbow       flexion, 0 straight, PI/2 a right angle, the forearm swings forward and up.
  *   wrist       hand pitch relative to the forearm, positive bends the hand up.
- *   pronation   spin of the hand about the forearm: 0 = thumb forward ("handshake"), about 1.4 = palm down.
+ *   pronation   spin of the hand about the forearm: 0 = thumb forward ("handshake"). R5, measured on the avatars' hand meshes (their palm is the hand
+ *               frame's -side x): a positive value turns the palm towards the forearm's +Z, the inside of the elbow, so on a forearm held forward
+ *               +1.4 is palm UP and -1.4 palm down. (The older modes' "1.4 = palm down" reading holds only for the procedural mitten, which has no
+ *               palm side; surgicalPoses.ts uses the measured sign.)
  *   chest/head  pitch positive leans or nods forward, yaw positive turns to the character's left.
  *
  * HAND REACH (new). Some poses care where the hand IS (a wheelchair handle, a tablet, a mop), not which
@@ -23,6 +26,7 @@
  */
 import { noise1, TAU, clamp } from './math'
 import { MODES, type Mode } from './blend'
+import { evalActionMode } from './surgicalPoses'
 import { ARM_IN, CONSOLE_HANDS, FINGER, GRIP } from './armIn'
 import { BODY, STAND_PELVIS } from './constants'
 import { reclineAngle } from '@/scene/rooms/bedPose'
@@ -57,13 +61,37 @@ export const U = {
   rReachX: 24,
   rReachY: 25,
   rReachZ: 26,
+  // R5 (surgicalPoses.ts): how wide each elbow is held (0 down and out, the solve's old pole .. 1 winged out, a surgeon's elbows over a table)
+  lWing: 27,
+  rWing: 28,
+  // R5: where the held instrument's tip points (root frame, nominal size, premultiplied by its weight like the reach block): the rig turns the hand to it
+  lAimW: 29,
+  lAimX: 30,
+  lAimY: 31,
+  lAimZ: 32,
+  rAimW: 33,
+  rAimX: 34,
+  rAimY: 35,
+  rAimZ: 36,
+  /** R5: the moving part of the instrument in each hand, 0..1 (a syringe's plunger, a clip applier's jaws, the bag of a bag-valve mask). */
+  lTool: 37,
+  rTool: 38,
+  /**
+   * R5: the part of each hand's pronation its stroke drives (a suture throw's 0 -> 1.8, a trocar's +-0.4 twist), radians: the hand aim (rig.ts) adds it to
+   * the pronation it solves, so an aimed instrument still turns in the hand.
+   */
+  lSpin: 39,
+  rSpin: 40,
 } as const
-export const UP_COUNT = 27
+export const UP_COUNT = 41
 export const ARM_L = U.lPitch
 export const ARM_R = U.rPitch
 /** First index of each hand's reach block. */
 export const REACH_L = U.lReachW
 export const REACH_R = U.rReachW
+/** R5: first index of each hand's aim block. */
+export const AIM_L = U.lAimW
+export const AIM_R = U.rAimW
 
 /** Everything a mode may depend on. One object per person, updated each frame by the rig. */
 export interface PoseCtx {
@@ -95,6 +123,25 @@ export interface PoseCtx {
    */
   standPelvis: number
   seatedPelvis: number
+  // ---- R5 procedure actions (surgicalPoses.ts); the rig fills them, the action modes read them, so the modes stay pure functions of the context
+  /** The step's progress 0..1 (`Entity.act.progress`): every stroke's phase follows it, not real time, so a paused or compressed step stays in step. */
+  prog: number
+  /**
+   * The last progress each action mode was given (index MODE_INDEX): a mode that is blending out keeps the progress of its own step while the next step
+   * starts over at 0, so the crossfade moves the hands from where they were.
+   */
+  modeProg: Float32Array
+  /** Seconds of SIM time, for the few strokes that run at a clinical rate (the bag-mask's 12 breaths a minute). */
+  simT: number
+  /** 0..1: the strokes fade out when they would run faster than 2 per second (a high sim speed), so nothing flickers. */
+  strokeGain: number
+  /** Where the hands work (the act's world point, root frame, nominal size, standing), smoothed per hand (critically damped, at most 1.5 m/s). */
+  tL: Float64Array
+  tR: Float64Array
+  /** The entity has a look-at point (the head is already turned and pitched to it, up to the neck's 25 degrees down). */
+  hasLook: boolean
+  /** The shoulders' height (nominal, standing): sterile hands stay under it. */
+  shoulderY: number
   // personality
   armRoll: number
   armElbow: number
@@ -118,6 +165,14 @@ export function createPoseCtx(seed: number, hand: 1 | -1, rnd: (k: number) => nu
     recline: 0,
     standPelvis: STAND_PELVIS,
     seatedPelvis: BODY.seatedPelvis,
+    prog: 0,
+    modeProg: new Float32Array(MODES.length),
+    simT: 0,
+    strokeGain: 1,
+    tL: new Float64Array([0.06, 1.05, 0.42]),
+    tR: new Float64Array([-0.06, 1.05, 0.42]),
+    hasLook: false,
+    shoulderY: STAND_PELVIS + BODY.waist + BODY.shoulderUp,
     armRoll: 0.05 + rnd(61) * 0.09,
     armElbow: 0.14 + rnd(62) * 0.16,
     gestureRate: 0.8 + rnd(63) * 0.45,
@@ -543,6 +598,9 @@ export function evalMode(mode: Mode, c: PoseCtx, o: Out): void {
       return evalSitArmIn(c, o)
     case 'sitConsole':
       return evalSitConsole(c, o)
+    default:
+      // R5: the sterile rest and the procedure actions (surgicalPoses.ts)
+      return evalActionMode(mode, c, o)
   }
 }
 

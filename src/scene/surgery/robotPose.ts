@@ -18,7 +18,7 @@
  *               about the port (so it always passes through it), the wrist target moves, the IK follows.
  */
 import { SURGERY } from '@/sim/places'
-import type { RobotState } from '@/sim/types'
+import type { RobotState, Vec3 } from '@/sim/types'
 import { LASER_TARGET } from './dims'
 
 export const ARM_COUNT = 4
@@ -333,9 +333,11 @@ const WANT = 0.8 * (CART.L1 + CART.L2)
 
 /**
  * Write the whole skeleton of the cart for robot state `r` at sim time `t` into `out`. Allocation-free. The solved pose of an engaged arm uses its port
- * (`arms[i].port`, sim coordinates); an arm with `engage` > 0 and no port stays in its base pose.
+ * (`arms[i].port`, sim coordinates: R5 hands the arms the ports of the tilted table, wherever the sim put them); an arm with `engage` > 0 and no port stays
+ * in its base pose. `laserAt` is where the laser crosshair lands while the endoscope arm has no port yet (default: the level table's, dims.ts LASER_TARGET;
+ * the rig passes the tilted one).
  */
-export function poseRobot(r: Readonly<RobotState>, t: number, out: RobotPose): RobotPose {
+export function poseRobot(r: Readonly<RobotState>, t: number, out: RobotPose, laserAt: Readonly<Vec3> = LASER_TARGET): RobotPose {
   const h = r.cart.heading
   const sinH = Math.sin(h)
   const cosH = Math.cos(h)
@@ -354,9 +356,9 @@ export function poseRobot(r: Readonly<RobotState>, t: number, out: RobotPose): R
   out.deploy = smooth01((r.boomHeight - BOOM_STOWED) / (DEPLOY_AT - BOOM_STOWED))
   out.laser = r.laser
   const ep = r.arms[1].port
-  out.laserX = ep ? ep.x : LASER_TARGET.x
-  out.laserY = ep ? ep.y : LASER_TARGET.y
-  out.laserZ = ep ? ep.z : LASER_TARGET.z
+  out.laserX = ep ? ep.x : laserAt.x
+  out.laserY = ep ? ep.y : laserAt.y
+  out.laserZ = ep ? ep.z : laserAt.z
 
   const mountY = r.boomHeight - CART.boomThick
   const shoulderY = mountY - CART.drop

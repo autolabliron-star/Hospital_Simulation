@@ -493,6 +493,219 @@ export function defaultCapFit(body: Pick<BodyDims, 'crown'>, headBind: ArrayLike
   return { cx: -headBind[3], cy: top - CAP_RY, cz: -headBind[11] + 0.02, rx: 0.095 + CAP_PAD, ry: CAP_RY + CAP_PAD, rz: 0.115 + CAP_PAD }
 }
 
+// ---------------------------------------------------------------------------------------------
+// R5: the surgical mask on an avatar
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * (MASK_BAND: up to `phi` above the equator, down to `phiLow` under it: the lower edge wraps under the chin.)
+ * Where the surgical mask of a person wearing an avatar sits: an ellipsoid over the lower face in the avatar's bind space (as CapFit), and the middle of the
+ * mouth (bind space) where a procedure patient's breathing tube comes out. The mask geometry (attire.ts) is the band MASK_BAND of the unit sphere: the fit
+ * puts its top edge on the bridge of the nose, its bottom edge under the chin, its side edges on the cheeks, and it stands FACE_PAD clear of the nose.
+ */
+export interface FaceFit extends CapFit {
+  mouth: [number, number, number]
+}
+
+/**
+ * The mask's extent on the unit shell of the fit (radians round the front and up and down; attire.ts builds the shell over it). The shell is the unit sphere
+ * below its equator and `top` times as tall above it: over the nose a mask stands out from the face (its wire pressed on the bridge), it does not curve
+ * back as a sphere would.
+ */
+export const MASK_BAND = { theta: 1.2, phi: 0.9, phiLow: 1.05, top: 1.8 } as const
+/** The band's height on the unit shell (in units of the fit's ry): its taller upper half and its lower half. */
+const BAND_SPAN = MASK_BAND.top * Math.sin(MASK_BAND.phi) + Math.sin(MASK_BAND.phiLow)
+/** The mask's clearance over the nose and the chin, and how far above the nose tip its top edge (the bridge of the nose) is. */
+export const FACE_PAD = 0.006
+export const NOSE_BRIDGE = 0.028
+/** The mask grows (wider and deeper, its front fixed) by at most this much to cover a face that stands out of it. */
+export const FACE_GROW_MAX = 1.35
+/** The part of the band the face must be under (the rest, its rim, rests on the face): this share of its angles. */
+export const FACE_INNER = 0.55
+
+/** The unit-sphere coordinates of a bind point in a fit, its length, and whether the mask's band covers its direction (in front, inside the band). */
+export function faceUnit(f: CapFit, x: number, y: number, z: number, share = 1): { len: number; covered: boolean } {
+  const ux = (x - f.cx) / f.rx
+  const uy = (y - f.cy) / (f.ry * (y > f.cy ? MASK_BAND.top : 1))
+  const uz = (z - f.cz) / f.rz
+  const len = Math.sqrt(ux * ux + uy * uy + uz * uz)
+  if (len < 1e-9 || uz <= 0) return { len, covered: false }
+  const th = Math.atan2(ux, uz)
+  const ph = Math.asin(clamp(uy / len, -1, 1))
+  return { len, covered: Math.abs(th) <= MASK_BAND.theta * share && (ph >= 0 ? ph <= MASK_BAND.phi * share : -ph <= MASK_BAND.phiLow * share) }
+}
+
+/**
+ * The mask of an avatar measured from its own mesh (LOD 0 in bind space, as measureCapFit): the nose tip is the head's most forward point between 10 and 20
+ * cm under the crown, the chin the lowest head point in front under it, the cheeks the face's widest point between the two (and how far back they are
+ * there). Then the fit grows wider and deeper with its front kept over the nose (at most FACE_GROW_MAX) until every face point in the middle of the band
+ * (FACE_INNER of its angles) is under it. Null when the mesh has no head.
+ */
+export function measureFaceFit(pos: ArrayLike<number>, joints: ArrayLike<number>, weights: ArrayLike<number>, count: number): FaceFit | null {
+  const isHead = (v: number): boolean => {
+    let w = 0
+    for (let k = 0; k < 4; k++) if (Math.round(joints[v * 4 + k]) === P.head) w += weights[v * 4 + k]
+    return w >= HEAD_WEIGHT
+  }
+  let top = -Infinity
+  for (let v = 0; v < count; v++) if (isHead(v) && pos[v * 3 + 1] > top) top = pos[v * 3 + 1]
+  if (top === -Infinity) return null
+  let noseX = 0
+  let noseY = 0
+  let noseZ = -Infinity
+  for (let v = 0; v < count; v++) {
+    const y = pos[v * 3 + 1]
+    if (y < top - 0.2 || y > top - 0.1 || !isHead(v)) continue
+    if (pos[v * 3 + 2] > noseZ) {
+      noseZ = pos[v * 3 + 2]
+      noseX = pos[v * 3]
+      noseY = y
+    }
+  }
+  if (noseZ === -Infinity) return null
+  let chinX = noseX
+  let chinY = noseY
+  let chinZ = noseZ
+  for (let v = 0; v < count; v++) {
+    const y = pos[v * 3 + 1]
+    if (y >= chinY || pos[v * 3 + 2] < noseZ - 0.045 || Math.abs(pos[v * 3] - noseX) > 0.035 || !isHead(v)) continue
+    chinX = pos[v * 3]
+    chinY = y
+    chinZ = pos[v * 3 + 2]
+  }
+  const bridgeY = noseY + NOSE_BRIDGE
+  let halfW = 0.03
+  for (let v = 0; v < count; v++) {
+    const y = pos[v * 3 + 1]
+    if (y < chinY || y > noseY || pos[v * 3 + 2] < noseZ - 0.07 || !isHead(v)) continue
+    halfW = Math.max(halfW, Math.abs(pos[v * 3] - noseX))
+  }
+  let cheekZ = noseZ - 0.03
+  for (let v = 0; v < count; v++) {
+    const y = pos[v * 3 + 1]
+    const z = pos[v * 3 + 2]
+    if (y < chinY || y > noseY || z < noseZ - 0.09 || Math.abs(pos[v * 3] - noseX) < 0.85 * halfW || !isHead(v)) continue
+    cheekZ = Math.min(cheekZ, z)
+  }
+  const rz = Math.max(0.04, (noseZ - cheekZ + FACE_PAD) / (1 - Math.cos(MASK_BAND.theta)))
+  const fit: FaceFit = {
+    cx: noseX,
+    // the band from the bridge of the nose (the taller upper half) to FACE_PAD under the chin
+    cy: chinY - FACE_PAD + (Math.sin(MASK_BAND.phiLow) * (bridgeY - chinY + FACE_PAD)) / BAND_SPAN,
+    cz: 0,
+    rx: (halfW + FACE_PAD) / Math.sin(MASK_BAND.theta),
+    ry: (bridgeY - chinY + FACE_PAD) / BAND_SPAN,
+    rz,
+    mouth: [noseX, noseY - 0.028, noseZ - 0.012],
+  }
+  // the shell passes FACE_PAD in front of the nose tip (which is above the band's middle)
+  const anchor = (): void => {
+    const uy = (noseY - fit.cy) / (fit.ry * (noseY > fit.cy ? MASK_BAND.top : 1))
+    fit.cz = noseZ + FACE_PAD - fit.rz * Math.sqrt(Math.max(0.05, 1 - uy * uy))
+  }
+  anchor()
+  let total = 1
+  for (let round = 0; round < 12; round++) {
+    // the chin sets the band's lower half: taller or shorter (its top staying at the bridge of the nose) until the shell passes just in front of it
+    let chinOk = false
+    for (let it = 0; it < 24; it++) {
+      const uc = faceUnit(fit, chinX, chinY, chinZ)
+      chinOk = uc.covered && uc.len <= 0.995 && uc.len >= 0.982
+      if (chinOk) break
+      const top = fit.cy + fit.ry * MASK_BAND.top * Math.sin(MASK_BAND.phi)
+      // (a chin under the band's lower edge: taller; else towards a shell just in front of it)
+      fit.ry *= !uc.covered ? 1.03 : clamp(uc.len / 0.988, 0.96, 1.04)
+      fit.cy = top - fit.ry * MASK_BAND.top * Math.sin(MASK_BAND.phi)
+      anchor()
+    }
+    // wider and deeper (its front staying over the nose) until the face inside the band's middle is under it; the band's rim rests on the face (a
+    // mask's edge lies on the cheeks)
+    let worst = 1
+    for (let v = 0; v < count; v++) {
+      if (!isHead(v)) continue
+      const u = faceUnit(fit, pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2], FACE_INNER)
+      if (u.covered && u.len > worst) worst = u.len
+    }
+    if (worst <= 1.0005 || total >= FACE_GROW_MAX) {
+      if (chinOk) break
+      continue
+    }
+    const k = Math.min(worst * 1.002, FACE_GROW_MAX / total)
+    total *= k
+    fit.rx *= k
+    fit.rz *= k
+    anchor()
+  }
+  return fit
+}
+
+/** The mask of an avatar whose mesh was not measured (node tests from index.json alone): a typical face in front of the skeleton's head. */
+export function defaultFaceFit(body: Pick<BodyDims, 'headCentre'>, headBind: ArrayLike<number>): FaceFit {
+  const neckY = -headBind[7]
+  const noseY = neckY + body.headCentre - 0.035
+  const noseZ = -headBind[11] + 0.105
+  const chinY = noseY - 0.075
+  const rz = (0.05 + FACE_PAD) / (1 - Math.cos(MASK_BAND.theta))
+  const ry = (noseY + NOSE_BRIDGE - chinY + FACE_PAD) / BAND_SPAN
+  return {
+    cx: -headBind[3],
+    cy: chinY - FACE_PAD + ry * Math.sin(MASK_BAND.phiLow),
+    cz: noseZ + FACE_PAD - rz,
+    rx: (0.065 + FACE_PAD) / Math.sin(MASK_BAND.theta),
+    ry,
+    rz,
+    mouth: [-headBind[3], noseY - 0.028, noseZ - 0.012],
+  }
+}
+
+/**
+ * R5: where an avatar's hand is, in its hand part's own frame (nominal metres): how far its middle sits towards the palm (the palm faces -side x, so a left
+ * hand's middle is at -x) and down the hand (-y), averaged over both hands. Measured on LOD 0 (the vertices with at least 80 % of their weight on a hand):
+ * the grip point of an instrument (rig.ts) is this middle plus its grip's offset. Null when the mesh has no hands.
+ */
+export function measureHandGrip(pos: ArrayLike<number>, joints: ArrayLike<number>, weights: ArrayLike<number>, count: number, bindInverse: ArrayLike<number>): [number, number] | null {
+  let palm = 0
+  let down = 0
+  let hands = 0
+  for (const [part, side] of [
+    [P.handL, 1],
+    [P.handR, -1],
+  ] as const) {
+    const b = part * 12
+    let n = 0
+    let sx = 0
+    let sy = 0
+    for (let v = 0; v < count; v++) {
+      let w = 0
+      for (let k = 0; k < 4; k++) if (Math.round(joints[v * 4 + k]) === part) w += weights[v * 4 + k]
+      if (w < 0.8) continue
+      const x = pos[v * 3]
+      const y = pos[v * 3 + 1]
+      const z = pos[v * 3 + 2]
+      n++
+      sx += bindInverse[b] * x + bindInverse[b + 1] * y + bindInverse[b + 2] * z + bindInverse[b + 3]
+      sy += bindInverse[b + 4] * x + bindInverse[b + 5] * y + bindInverse[b + 6] * z + bindInverse[b + 7]
+    }
+    if (n === 0) continue
+    palm += (-side * sx) / n
+    down += -sy / n
+    hands++
+  }
+  return hands > 0 ? [palm / hands, down / hands] : null
+}
+
+/** A bind-space point in the head part's own frame (B_head^-1 applied: the head block of `bindInverse`), into `out`. */
+export function headLocal(bindInverse: ArrayLike<number>, p: readonly number[], out: [number, number, number]): [number, number, number] {
+  const b = P.head * 12
+  out[0] = bindInverse[b] * p[0] + bindInverse[b + 1] * p[1] + bindInverse[b + 2] * p[2] + bindInverse[b + 3]
+  out[1] = bindInverse[b + 4] * p[0] + bindInverse[b + 5] * p[1] + bindInverse[b + 6] * p[2] + bindInverse[b + 7]
+  out[2] = bindInverse[b + 8] * p[0] + bindInverse[b + 9] * p[1] + bindInverse[b + 10] * p[2] + bindInverse[b + 11]
+  return out
+}
+
+/** The fewest floats an avatar's bindInverse may have: every skinned part (SKINNED_PARTS reach P.footR). Older indexes stop at 20 parts, newer at PART_COUNT. */
+export const BIND_FLOATS_MIN = (P.footR + 1) * 12
+
 /** Width factor of a person wearing an avatar: the mesh has its own build, so only a little variety (0.97 to 1.03). */
 export function avatarBuild(seed: number): number {
   return 0.97 + rnd(seed, 84) * 0.06

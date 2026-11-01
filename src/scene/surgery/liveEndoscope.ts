@@ -1,6 +1,8 @@
 /**
  * R2 (agent O), R3: the shared endoscope live texture. ONE 384 x 216 (16:9) canvas shown on the vision cart's monitor, the wall monitor and both console
- * viewers (four quads, one material, one draw call). It repaints at 2 Hz normally and at 4 Hz while somebody is looking (F-42: not 10 Hz, to stay near CLAUDE.md's 2 Hz canvas limit): you standing in the OR (level 2
+ * viewers (four quads, one material, one draw call). R5: the picture follows the step of a scripted operation (the room's `procedure.scope` becomes the view's stage:
+ * camera, patches, clips, stitches, bag, glow; src/scene/surgery/endo/stages.ts) on this same canvas at the same rates. The same canvas is the watch overlay's endoscope picture-in-picture (registered by
+ * SurgeryLayer.tsx in the `insetSources` registry; the inset copies it on each repaint). It repaints at 2 Hz normally and at 4 Hz while somebody is looking (F-42: not 10 Hz, to stay near CLAUDE.md's 2 Hz canvas limit): you standing in the OR (level 2
  * shown, inside its walls) or the OR focused in the overview. Before the endoscope arm is docked (and whenever the camera is not live) it shows a dim standby
  * picture, painted once per robot phase and never again until the phase changes.
  *
@@ -42,6 +44,14 @@ export function playerInOr(p: Here | null): boolean {
 /** Is somebody in the OR: you on level 2 inside it, or the presenter's focus on it (the overview's room panel)? `shown` is `levelView.shown`. */
 export function inOr(focus: AreaId | null, player: Here | null, shown: 1 | 2): boolean {
   return focus === 'l2Or' || (shown === 2 && playerInOr(player))
+}
+
+/**
+ * R5: should the picture repaint at the hot rate? Somebody is in the OR (`inOr`), or the watch camera is on the OR, or its picture-in-picture is on screen
+ * (`watching`: src/scene/watch's `watchLive`, the `insetSources` registry's `insetWanted.endo`). Allocation-free.
+ */
+export function endoHot(focus: AreaId | null, player: Here | null, shown: 1 | 2, watching: boolean): boolean {
+  return watching || inOr(focus, player, shown)
 }
 
 /** Is the endoscope camera live: the endoscope arm (index 1) is docked far enough in, from docking through the end of the console phase. */

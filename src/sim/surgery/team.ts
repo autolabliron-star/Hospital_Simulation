@@ -7,6 +7,11 @@
  *   in the room   each at their place by the table, the surgeon at the console in the console phase and the anaesthetist on his stool
  *   turnover      the cleaner works the room, the scrub nurse takes the drapes off the cart, the circulator at her desk
  *
+ * R5: while a case with a procedure script is in the room, each of the five whose role has a line in the current unit stands where the step
+ * says (`ProcRoleView.anchor`), doing the step's action with its tools (the Task's R5 overlay: `act`, `left`, `right`, the work and look points,
+ * the step's progress), and wears what the step says (`attire`); a role with no line in the unit keeps its R2 routine. A case without a script
+ * keeps the R2 routine throughout.
+ *
  * The case (case.ts) borrows a person for a job (`acquire`: the pre-op nurse leading the patient, a porter with the stretcher, a doctor's pre-op
  * visit) and gives them back; while they are lent out their routine is suspended. Everything is deterministic: the same situation gives the same
  * places.
@@ -14,10 +19,12 @@
 import { THEATRE_STAFF } from '@/content/staff'
 import type { World } from '../er/world'
 import { SURGERY, type Spot } from '../places'
+import { ACTION_ANIM, emptyProcedureView, newCursor, newTargetCtx, resolveTarget, type StepCursor, type TargetCtx } from '../procedure'
 import type { Rng } from '../rng'
-import type { CasePhase, RobotPhase, SeatSpec } from '../types'
+import type { CasePhase, ProcAction, ProcedureView, RobotPhase, SeatSpec, ToolKind, Vec3 } from '../types'
 import { Staffer, type Task, type Title } from './actors'
 import { DRAPE_OFF_SECONDS } from './robot'
+import { OR_ROLES, placeRoles, roleIndexOf, workPointInto, type CartPoseLike, type CaseScript, type Placement } from './script'
 import type { SeatRef, SurgerySites } from './sites'
 
 /** Seconds before wheels-in at which each part of the routine begins. */
@@ -48,6 +55,18 @@ export interface OrContext {
   pacuFocus: number
   /** The working day is over: everybody goes to the staff room and leaves. */
   dayOver: boolean
+  /**
+   * R5: the script of the case in the room, when it has one and a step is under the clock (null otherwise: the R2 routine), the step
+   * (`cur.index` is the script step), the published view and the table's tilt and the cart for the work and look points.
+   */
+  script: CaseScript | null
+  cur: StepCursor
+  view: ProcedureView
+  targets: TargetCtx
+  /** The robot cart as it stands now (its handle is a work point while it is deployed and driven). */
+  cart: CartPoseLike
+  /** The docking phase is over and the console phase waits for the surgeon on the console seat. */
+  consoleDue: boolean
 }
 
 export function newOrContext(): OrContext {
@@ -63,6 +82,12 @@ export function newOrContext(): OrContext {
     turnoverSeconds: 0,
     pacuFocus: -1,
     dayOver: false,
+    script: null,
+    cur: newCursor(),
+    view: emptyProcedureView(),
+    targets: newTargetCtx(),
+    cart: { x: SURGERY.cart.park.at.x, z: SURGERY.cart.park.at.z, heading: SURGERY.cart.park.heading },
+    consoleDue: false,
   }
 }
 
@@ -73,6 +98,12 @@ interface Want {
   spot: Spot
   anim: Task['anim']
   seat?: SeatRef
+  /** R5: the step's overlay (absent: none). */
+  act?: ProcAction
+  left?: ToolKind
+  right?: ToolKind
+  work?: Vec3 | null
+  look?: Vec3 | null
 }
 
 export class Team {
@@ -82,6 +113,15 @@ export class Team {
   private readonly baseSpot = new Map<string, Spot>()
   private readonly held = new Map<string, SeatRef>()
   ctx: OrContext = newOrContext()
+  /** R5: each scripted role's work and look points (one object each, moved every tick by `updatePoints`) and the step's progress. */
+  private readonly work: Vec3[] = OR_ROLES.map(() => ({ x: 0, y: 0, z: 0 }))
+  private readonly look: Vec3[] = OR_ROLES.map(() => ({ x: 0, y: 0, z: 0 }))
+  private readonly progress = (): number => this.ctx.view.progress
+  /** R5: where each role stands at the current step (`placeRoles`), made once per step. */
+  private readonly placed: (Placement | null)[] = OR_ROLES.map(() => null)
+  private placedFor: CaseScript | null = null
+  private placedStep = -1
+  private placedLayout = ''
 
   constructor(
     readonly world: World,
@@ -122,6 +162,7 @@ export class Team {
   settleAll(ctx: OrContext): void {
     this.ctx = ctx
     for (const s of this.staffers) {
+      this.dress(s, ctx)
       if (s.engagedBy !== null) continue
       const task = this.taskFor(s, this.want(s, ctx))
       s.settleTask(task)
@@ -152,10 +193,65 @@ export class Team {
   assign(ctx: OrContext): void {
     this.ctx = ctx
     for (const s of this.staffers) {
+      this.dress(s, ctx)
       if (s.engagedBy !== null || s.gone || s.fadingOut) continue
       const w = this.want(s, ctx)
       s.setTask(this.taskFor(s, w))
+      // R5: at the spot already (the same place, the next step): turn to this step's work point
+      if (w.act !== undefined && w.work != null && w.seat === undefined && s.isAt(w.key)) {
+        const d = w.spot.heading - s.walker.heading
+        const turn = Math.atan2(Math.sin(d), Math.cos(d))
+        if (turn > 0.03 || turn < -0.03) s.faceTowards(w.work)
+      }
     }
+  }
+
+  /** R5: what the OR team wears at the step under the clock (the script's table); nothing special outside a scripted case. */
+  private dress(s: Staffer, ctx: OrContext): void {
+    const r = roleIndexOf(s.title)
+    if (r < 0) return
+    const sc = ctx.inRoom ? ctx.script : null
+    const bits = sc !== null && ctx.cur.index >= 0 ? sc.attire[ctx.cur.index * OR_ROLES.length + r] : 0
+    if ((s.entity.attire ?? 0) !== bits) s.entity.attire = bits
+  }
+
+  /**
+   * R5: move the scripted roles' work and look points to the step's targets (every tick: they follow the table's tilt and the cart). The eyes
+   * go to the work point for a hands-on line (the renderer's rule), to the script's look point otherwise. Allocation-free.
+   */
+  updatePoints(ctx: OrContext): void {
+    const sc = ctx.script
+    if (sc === null || ctx.cur.index < 0) return
+    this.place(ctx)
+    const lines = sc.steps.cs.roleAt[ctx.cur.index]
+    for (let r = 0; r < OR_ROLES.length; r++) {
+      const line = lines[r]
+      const p = this.placed[r]
+      if (line === null || p === null) continue
+      if (line.work !== null) {
+        workPointInto(line.work, p.at, p.heading, ctx.targets, ctx.cart, this.work[r])
+        const look = this.look[r]
+        look.x = this.work[r].x
+        look.y = this.work[r].y
+        look.z = this.work[r].z
+      } else if (line.look !== null) resolveTarget(line.look, ctx.targets, this.look[r])
+    }
+  }
+
+  /** The places of the roles at the current step (made once per step and case). */
+  private place(ctx: OrContext): void {
+    const sc = ctx.script!
+    const step = ctx.cur.index
+    if (this.placedFor === sc && this.placedStep === step && this.placedLayout === ctx.targets.layout) return
+    this.placedFor = sc
+    this.placedStep = step
+    this.placedLayout = ctx.targets.layout
+    placeRoles(sc.steps.cs, step, (a) => this.sites.anchor(a), ctx.targets.layout, this.placed)
+  }
+
+  /** R5 (tests): where role `r` (`OR_ROLES` order) stands at the current step, or null. */
+  placementOf(r: number): Placement | null {
+    return this.placedFor === null ? null : this.placed[r]
   }
 
   /** The working day is over and everyone is at their staff-room place: fade them out. Returns true once all are gone. */
@@ -199,13 +295,55 @@ export class Team {
       const bs = this.baseSeat.get(id)
       if (bs) seat = bs
     }
-    return {
+    const task: Task = {
       key: w.key,
       at: seat ? seat.approach : w.spot.at,
       face: w.spot.heading,
       anim: w.anim,
       seat,
     }
+    if (w.act !== undefined) {
+      task.act = w.act
+      task.left = w.left ?? 'none'
+      task.right = w.right ?? 'none'
+      task.work = w.work ?? null
+      task.look = w.look ?? null
+      task.progress = this.progress
+    } else if (s.task !== null && s.task.key === w.key && s.task.act != null) {
+      // (the same place, the step's overlay gone: clear it in place)
+      task.act = null
+      task.work = null
+      task.look = null
+    }
+    return task
+  }
+
+  /**
+   * R5: the place and overlay a role's line at the step under the clock gives (null: no line in this unit, or no scripted case: the routine).
+   * Keyed by the position (`title@anchor`), so the person walks only when the anchor changes and the pose follows the step in place; the
+   * surgeon's console keeps the R2 key `surgeon:console` (Surgery.surgeonSeated reads it).
+   */
+  private scriptWant(s: Staffer, c: OrContext): Want | null {
+    if (!c.inRoom || c.script === null || c.cur.index < 0) return null
+    const r = roleIndexOf(s.title)
+    if (r < 0) return null
+    const line = c.script.steps.cs.roleAt[c.cur.index][r]
+    if (line === null) return null
+    // (the docking is over and the console waits for the surgeon: whatever the script has them do, they go and sit at it)
+    if (s.title === 'surgeon' && c.consoleDue && line.anchor !== 'surgeonConsole') return this.consoleWant()
+    const overlay = { act: line.action, left: line.left, right: line.right, work: line.work !== null ? this.work[r] : null, look: line.work !== null || line.look !== null ? this.look[r] : null }
+    if (line.anchor === 'surgeonConsole' && s.title === 'surgeon') return { ...this.consoleWant(), ...overlay }
+    if (line.anchor === 'anaesStool') {
+      const st = this.sites.anaesStool
+      return { key: `${s.title}@anaesStool`, spot: { at: st.seat.approach, heading: st.seat.heading }, anim: 'sit', seat: st, ...overlay }
+    }
+    this.place(c)
+    const p = this.placed[r]
+    const at = p !== null ? p.at : this.sites.anchor(line.anchor).at
+    // facing the work point (the renderer reaches from the front), else the spot's own way
+    const w = this.work[r]
+    const heading = line.work !== null ? Math.atan2(w.x - at.x, w.z - at.z) : (p?.heading ?? this.sites.anchor(line.anchor).heading)
+    return { key: `${s.title}@${p !== null ? p.where : line.anchor}`, spot: { at, heading }, anim: ACTION_ANIM[line.action], ...overlay }
   }
 
   /** The surgeon at the console: on its seat, anim 'console'. */
@@ -222,6 +360,8 @@ export class Team {
   private want(s: Staffer, c: OrContext): Want {
     const sp = this.sites.spots
     if (c.dayOver) return this.base(s)
+    const scripted = this.scriptWant(s, c)
+    if (scripted !== null) return scripted
     const m = c.untilNext
     const room = c.inRoom
     switch (s.title) {

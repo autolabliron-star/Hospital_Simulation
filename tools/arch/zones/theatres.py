@@ -432,7 +432,7 @@ def screen_stand(k, x, z, y0, y1):
 
 def or_furniture(ctx):
     """The theatre's static furniture on the procedural room's own footprints and seats (src/scene/rooms/surgery/or.ts; places.ts SURGERY),
-    baked so it takes the room's light and contact shadows: the draped back table, the Mayo stand at the table's foot, the anaesthetist's
+    baked so it takes the room's light and contact shadows: the draped back table, the Mayo stand against the south wall, the anaesthetist's
     stool, the two console operators' chairs with the consoles' foot pedals (they stand in the chairs' footprints), the circulator's standing
     desk. The devices stay procedural and live: table, robot cart, consoles, vision cart, anaesthesia machine, lights, pendant, boom, every
     screen and bezel (the desk's monitor, its stand and the keyboard stay too: metalDark above 1 m)."""
@@ -443,7 +443,10 @@ def or_furniture(ctx):
     bt = fp.get('l2:or:backtable')
     if bt:
         theatre.instrument_table(geo, Frame(bt['x'] + 0.0375, bt['z'], math.pi / 2), w=1.5, d=0.72, h=0.9, draped=True)
-    # the Mayo stand: its column south of the tray, the tray cantilevered north over the table's foot (0.95 m)
+    # the Mayo stand (R5 wave 2: places.ts SURGERY.mayo, parked against the south wall at z 9.45, straight south of the table: the table's foot
+    # is the bedside assistant's and the legs' in a lithotomy case). Heading pi: the kit's patient side (local +z) is north, so the tray
+    # cantilevers north toward the table's foot (0.95 m), its column 5 cm south of the footprint's centre, the U base (z +-0.25 about the
+    # column, opening west) inside the footprint and 0.13 m off the wall panels (face at z 9.9)
     my = fp.get('l2:or:mayo')
     if my:
         theatre.mayo_stand(geo, Frame(my['x'], my['z'] + 0.05, math.pi), h=0.98)

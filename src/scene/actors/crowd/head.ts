@@ -112,6 +112,12 @@ export function inBlanketBed(e: Pick<Entity, 'seated' | 'riding' | 'vehicle'>): 
   return id !== undefined && (id.startsWith(WARD_BED_SEAT) || id.startsWith(ER_BED_SEAT) || id.startsWith(SURGERY_BED_SEAT))
 }
 
+/** R5 wave 2: a lying person is on the OR table (seat `orTable:*`): the crowd then carries their `Entity.patientPose` (tablePatient.ts). A trolley, bed or stretcher is not. */
+export function onOrTable(e: Pick<Entity, 'seated'>): boolean {
+  const id = e.seated?.seatId
+  return id !== undefined && id.startsWith(OR_TABLE_SEAT)
+}
+
 /** Size factor of a person relative to the nominal body. */
 export function sizeOf(e: Entity): number {
   return scaleFor(e.id, e.variant)

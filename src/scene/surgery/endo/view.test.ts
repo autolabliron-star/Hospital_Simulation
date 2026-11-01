@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { SURGERY_COPY } from '@/content/surgery'
 import { caseView, dockedRobot, surgeryState, theatre } from '../testkit'
 import { LOOKS } from './looks'
-import { cameraPose, CAMERA, energyAt, fillEndoView, INSTRUMENT_ARMS, newEndoView, REST_HALF, setProcedureLooks, withdrawOf, type CameraPose } from './view'
+import { cameraPose, CAMERA, energyAt, fillEndoView, INSTRUMENT_ARMS, newCameraPose, newEndoView, REST_HALF, setProcedureLooks, withdrawOf, type CameraPose } from './view'
 import { PLATE_ASPECT } from './anatomy'
 
 function docked(procedure: 'cholecystectomy' | 'hysterectomy' | 'prostatectomy' = 'hysterectomy') {
@@ -77,7 +77,7 @@ describe('the view model', () => {
 
 describe('the camera', () => {
   it('always looks inside the plate, pans and zooms with arm 2\'s tip motion, and breathes', () => {
-    const cam: CameraPose = { cx: 0, cy: 0, hh: 0, breath: 0 }
+    const cam: CameraPose = newCameraPose()
     const v = newEndoView({ seed: 11 })
     let minX = 9
     let maxX = -9

@@ -14,6 +14,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { SKIP, fillSkip } from '@/content/skip'
 import { useWarmup } from '@/scene/warmup/warmup.store'
 import { useWalk } from '@/scene/player/state'
+import { useWatch, watchingNow } from '@/scene/watch/watch.store'
 import { loop, sim } from '@/sim'
 import { DEFAULT_KEYMAP, ORDER_STAGES, SIM_SPEEDS, type OrderStage, type PlayerMode, type SimEvent } from '@/sim/types'
 import { useWorld } from '@/sim/world.store'
@@ -404,15 +405,19 @@ export function HudView({ mode, hidden, inert, rxOpen, rxRoom, rxRequest, onTogg
   )
 }
 
-/** Is the HUD hidden: by H, or because presentation mode (C) is on (which holds it hidden whatever else un-hides H). */
-export const hudIsHidden = (cleanScreen: boolean, presenting: boolean): boolean => cleanScreen || presenting
+/**
+ * Is the HUD hidden: by H, or because presentation mode (C) is on (which holds it hidden whatever else un-hides H), or (R5) while you watch a procedure step
+ * by step (the watch overlay has its own caption bar and controls).
+ */
+export const hudIsHidden = (cleanScreen: boolean, presenting: boolean, watching = false): boolean => cleanScreen || presenting || watching
 
 export function Hud() {
   const rx = useRx()
   const mode = useWalk((s) => s.mode)
   // presentation mode holds the whole HUD hidden, whatever H and the tablet say (`useRx.openFor` un-hides H)
   const presenting = usePresentation((s) => s.on)
-  const hidden = hudIsHidden(useHudPrefs((s) => s.hidden), presenting)
+  const watching = useWatch(watchingNow)
+  const hidden = hudIsHidden(useHudPrefs((s) => s.hidden), presenting, watching)
   const toggleRx = useCallback(() => useRx.getState().toggle(), [])
   const closeRx = useCallback(() => useRx.getState().close(), [])
   const entered = useWarmup((st) => st.entered)

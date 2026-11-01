@@ -14,7 +14,7 @@ import { isWalkable, nearestWalkable } from '../nav/layout'
 import { l2 } from '../levels'
 import { PACU, PREOP, SURGERY, THEATRE_BASE, type Spot } from '../places'
 import type { SeatRegistry } from '../seats'
-import type { SeatKind, SeatSpec, Vec2 } from '../types'
+import type { ProcAnchor, SeatKind, SeatSpec, Vec2 } from '../types'
 import { inDoorway, seatSpot } from '../er/spots'
 
 const CLEAR = 0.3
@@ -68,6 +68,14 @@ export interface TheatreSpots {
   driveEnd: Spot
   drape: Spot
   sink: [Spot, Spot]
+  /** R5 (the procedure scripts' anchors): the patient's right at the abdomen and at the shoulder, the table's foot, the back table, the
+   * patient's left shoulder (the anaesthetist), and the count at the back table's south end. */
+  tableWest: Spot
+  tableWestHead: Spot
+  tableFoot: Spot
+  scrubBackTable: Spot
+  anaesLeft: Spot
+  circulatorCount: Spot
   /** Where the cleaner works (one after the other) during a turnover. */
   clean: Spot[]
   /** Recovery. */
@@ -242,11 +250,18 @@ export class SurgerySites {
       scrub: spotNear(SURGERY.staff.scrub, [-48.0, 7.2], [-47.8, 7.6]),
       scrubWait: spotNear(SURGERY.staff.scrubWait, [-46.6, 8.4], [-47.4, 8.8], [-46.3, 7.6]),
       circulator: spotNear(SURGERY.staff.circulator, [-45.4, 2.9], [-46.0, 2.9]),
-      anaesHead: spotNear(SURGERY.anaesthesia.stand, [-49.2, 4.4], [-49.6, 4.3]),
-      drive: spotNear(SURGERY.staff.drive, [-52.4, 8.9], [-52.3, 8.7]),
+      anaesHead: spotNear(SURGERY.anaesthesia.stand, [-49.2, 4.45], [-49.2, 4.4], [-49.6, 4.3]),
+      drive: spotNear(SURGERY.staff.drive, [-52.3, 9.5], [-52.1, 9.55]),
       driveEnd: spotNear(SURGERY.staff.driveEnd, [-52.35, 5.5], [-52.4, 6.4]),
       drape: spotNear(SURGERY.staff.drape, [-51.8, 7.4], [-51.5, 7.5]),
       sink: [spotNear(sink0, [-50.0, 1.0]), spotNear(sink1, [-48.8, 1.0])],
+      tableWest: spotNear(SURGERY.staff.tableWest, [-50.05, 5.9], [-50.15, 5.9]),
+      tableWestHead: spotNear(SURGERY.staff.tableWestHead, [-50.05, 5.2], [-50.15, 5.2]),
+      // (the Mayo stand stands at the foot until wave 2 makes it movable: the nearest clear point south of it)
+      tableFoot: spotNear(SURGERY.staff.tableFoot, [-49.2, 7.3], [-49.2, 7.4], [-49.2, 7.5]),
+      scrubBackTable: spotNear(SURGERY.staff.scrubBackTable, [-47.9, 7.3], [-47.95, 7.3], [-48.0, 7.3]),
+      anaesLeft: spotNear(SURGERY.staff.anaesLeft, [-48.55, 4.95], [-48.5, 4.95], [-48.45, 4.9]),
+      circulatorCount: spotNear(SURGERY.staff.circulatorCount, [-47.2, 8.6], [-47.0, 8.6]),
       clean: [
         spotNear(SURGERY.staff.clean[0], [-47.9, 5.0], [-47.4, 5.4]),
         spotNear(SURGERY.staff.clean[1], [-47.8, 6.4], [-47.2, 6.8]),
@@ -257,6 +272,70 @@ export class SurgerySites {
       base: baseRing,
     }
   }
+
+  /**
+   * R5: the standing spot of a procedure script's anchor (`ProcAnchor`), resolved like the other OR spots (the contract's point, or the nearest
+   * clear one tried after it). The console and the anaesthetist's stool are seats: this is their approach; the team sits them on the seat.
+   */
+  anchor(a: ProcAnchor): Spot {
+    const s = this.spots
+    switch (a) {
+      case 'tableSurgeon':
+        return s.tableSurgeon
+      case 'assistant':
+        return s.assistant
+      case 'assistantWait':
+        return s.assistantWait
+      case 'scrub':
+        return s.scrub
+      case 'scrubWait':
+        return s.scrubWait
+      case 'circulator':
+        return s.circulator
+      case 'anaesHead':
+        return s.anaesHead
+      case 'drive':
+        return s.drive
+      case 'driveEnd':
+        return s.driveEnd
+      case 'drape':
+        return s.drape
+      case 'sink0':
+        return s.sink[0]
+      case 'sink1':
+        return s.sink[1]
+      case 'tableWest':
+        return s.tableWest
+      case 'tableWestHead':
+        return s.tableWestHead
+      case 'tableFoot':
+        return s.tableFoot
+      case 'scrubBackTable':
+        return s.scrubBackTable
+      case 'anaesLeft':
+        return s.anaesLeft
+      case 'circulatorCount':
+        return s.circulatorCount
+      case 'surgeonConsole':
+        return this.consoleSpot
+      case 'anaesStool':
+        return this.stoolSpot
+    }
+  }
+
+  /** The seats' approaches as spots (one object each, for `anchor`). */
+  private get consoleSpot(): Spot {
+    this._console ??= { at: this.surgeonConsole.seat.approach, heading: this.surgeonConsole.seat.heading }
+    return this._console
+  }
+
+  private get stoolSpot(): Spot {
+    this._stool ??= { at: this.anaesStool.seat.approach, heading: this.anaesStool.seat.heading }
+    return this._stool
+  }
+
+  private _console: Spot | null = null
+  private _stool: Spot | null = null
 
   /** Where the pre-op nurse stands beside bay `i`'s bed (her side), and the doctors' side. */
   nurseSide(ref: SeatRef): Spot {

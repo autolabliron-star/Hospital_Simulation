@@ -1,5 +1,6 @@
 /** The live facts `hotkeyAllowed` (hotkeys.ts) needs, read from the stores when a key is pressed (never per frame). */
 import { useWarmup } from '@/scene/warmup/warmup.store'
+import { useWatch, watchingNow } from '@/scene/watch/watch.store'
 import { useGoTo } from './goTo.store'
 import { useJump } from './jump.store'
 import { usePresentation } from './present/presentation.store'
@@ -13,5 +14,6 @@ export function hotkeyContext(target: EventTarget | null, ownMenu?: 'goTo'): Hot
     presenting: usePresentation.getState().on,
     menuOpen: useJump.getState().open || (ownMenu !== 'goTo' && useGoTo.getState().open),
     typing: isTyping(target),
+    watching: watchingNow(useWatch.getState()),
   }
 }

@@ -80,6 +80,13 @@ export interface PlannedCase {
   motionSeed: number
   /** Where the boom ends up when the arms have targeted (rad, relative to the cart). */
   boomYaw: number
+  /**
+   * R5: a "Watch step by step" case (src/sim/surgery/watch.ts), not one of the day's list. Absent on day plans (their JSON, and so the
+   * golden hashes, are unchanged).
+   */
+  watch?: true
+  /** R5 watch cases: when the robot's drape begins (the drape window is then `drapeAt` + `drapeSeconds`, not the usual lead). */
+  drapeAt?: number
 }
 
 /** Every nominal time of a case (sim seconds): the plan laid out in time. */
@@ -317,19 +324,25 @@ export function planDay(root: Rng, opening: OpeningKind = 'quiet'): PlannedCase[
   return cases
 }
 
-/** The plan laid out in time (nominal: the suite follows these times, a few seconds late for walking). */
-export function timelineOf(c: PlannedCase): Timeline {
+/**
+ * The plan laid out in time (nominal: the suite follows these times, a few seconds late for walking). R5: `shift` (seconds, default 0)
+ * moves the whole case later, as a "Watch step by step" case booked in front of it does (src/sim/surgery/watch.ts).
+ */
+export function timelineOf(c: PlannedCase, shift = 0): Timeline {
+  const nominalIn = c.nominalIn + shift
+  const arriveAt = c.arriveAt + shift
+  const earlyBayAt = c.earlyBayAt === null ? null : c.earlyBayAt + shift
   const preOpTotal = c.preOp.gown + c.preOp.nurse + c.preOp.anaes + c.preOp.surgeon
-  const readyAt = c.nominalIn - READY_MARGIN
-  const preOpStart = c.earlyBayAt === null ? readyAt - preOpTotal : Math.min(c.earlyBayAt, readyAt - preOpTotal)
+  const readyAt = nominalIn - READY_MARGIN
+  const preOpStart = earlyBayAt === null ? readyAt - preOpTotal : Math.min(earlyBayAt, readyAt - preOpTotal)
   const gownEnd = preOpStart + c.preOp.gown
   const nurseEnd = gownEnd + c.preOp.nurse
   // (an early patient lies in the bay after the nurse's check until the doctors' visits fit in front of wheels-in; for a usual case that is the same moment)
-  const visitsAt = c.earlyBayAt === null ? nurseEnd : Math.max(nurseEnd, readyAt - c.preOp.anaes - c.preOp.surgeon)
+  const visitsAt = earlyBayAt === null ? nurseEnd : Math.max(nurseEnd, readyAt - c.preOp.anaes - c.preOp.surgeon)
   const anaesEnd = visitsAt + c.preOp.anaes
   const phaseStart = {} as PhaseSeconds
   const phaseEnd = {} as PhaseSeconds
-  let t = c.nominalIn
+  let t = nominalIn
   for (const p of ROOM_PHASES) {
     phaseStart[p] = t
     t += c.phases[p]
@@ -339,18 +352,19 @@ export function timelineOf(c: PlannedCase): Timeline {
   const pacuIn = outAt + TO_PACU_SECONDS
   const pacuOut = pacuIn + c.pacuSeconds
   const phase2End = c.outcome === 'home' ? pacuOut + c.phase2Seconds : pacuOut
+  const drapeStart = c.drapeAt === undefined ? nominalIn - DRAPE_MARGIN - c.drapeSeconds : c.drapeAt + shift
   return {
-    arriveAt: c.arriveAt,
-    upstairsBy: c.arriveAt + ARRIVE_SECONDS,
+    arriveAt,
+    upstairsBy: arriveAt + ARRIVE_SECONDS,
     preOpStart,
     gownEnd,
     nurseEnd,
     visitsAt,
     anaesEnd,
     readyAt,
-    toTheatreAt: c.nominalIn - PORTER_LEAD,
-    drapeStart: c.nominalIn - DRAPE_MARGIN - c.drapeSeconds,
-    drapeEnd: c.nominalIn - DRAPE_MARGIN,
+    toTheatreAt: nominalIn - PORTER_LEAD,
+    drapeStart,
+    drapeEnd: c.drapeAt === undefined ? nominalIn - DRAPE_MARGIN : drapeStart + c.drapeSeconds,
     phaseStart,
     phaseEnd,
     outAt,
@@ -360,4 +374,54 @@ export function timelineOf(c: PlannedCase): Timeline {
     phase2End,
     leftAt: phase2End + (c.outcome === 'home' ? LEAVE_SECONDS : TO_WARD_SECONDS),
   }
+}
+
+/** R5: what a "Watch step by step" case is planned from (src/sim/surgery/watch.ts works these out). */
+export interface WatchPlanInput {
+  id: string
+  index: number
+  procedure: SurgeryProcedure
+  /** When the patient appears in the theatre hall on the porter's stretcher (sim seconds). */
+  t0: number
+  /** The room phases: the script's watch seconds of each unit. */
+  phases: PhaseSeconds
+  /** The robot's drape window for this case (it may have begun before `t0`: a drape already under way is taken over). */
+  drapeAt: number
+  drapeSeconds: number
+}
+
+/**
+ * R5: a "Watch step by step" case. The same draws as a day case (`drawCase`, on the caller's NEW fork, so no day plan moves), then: the room
+ * phases are the script's watch seconds, no delay and no pre-op (the patient is wheeled straight in from the hall), recovery, the day lounge
+ * and the turnover after it scaled by CONFIG.surgery.watch, and the wheels-in at the drape's end or `t0` + the lead, whichever is later. The
+ * bedside exchanges are the script's (at runtime), so none are planned here.
+ */
+export function planWatchCase(rng: Rng, w: WatchPlanInput): PlannedCase {
+  const W = CONFIG.surgery.watch
+  const d = drawCase(rng, w.procedure, false)
+  const phases = {} as PhaseSeconds
+  let room = 0
+  for (const p of ROOM_PHASES) {
+    phases[p] = w.phases[p]
+    room += w.phases[p]
+  }
+  const nominalIn = Math.max(w.drapeAt + w.drapeSeconds, w.t0 + W.leadSeconds)
+  const drawn: Drawn = {
+    ...d,
+    phases,
+    room,
+    console: phases.console,
+    delay: 0,
+    preOp: { gown: 0, nurse: 0, anaes: 0, surgeon: 0 },
+    pacuSeconds: d.pacuSeconds * W.pacuScale,
+    phase2Seconds: d.phase2Seconds * W.phase2Scale,
+    turnoverSeconds: d.turnoverSeconds * W.turnoverScale,
+    drapeSeconds: w.drapeSeconds,
+    exchanges: [],
+  }
+  const c = makeCase(w.id, w.index, w.procedure, drawn, nominalIn, 0, nominalIn)
+  c.arriveAt = w.t0
+  c.watch = true
+  c.drapeAt = w.drapeAt
+  return c
 }

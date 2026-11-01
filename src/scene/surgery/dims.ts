@@ -10,6 +10,8 @@
  */
 import { l2 } from '@/sim/levels'
 import { SURGERY, type Spot } from '@/sim/places'
+import { tablePointInto, type TablePose } from '@/sim/surgery/tablePose'
+import type { Vec3 } from '@/sim/types'
 
 export interface Pt2 {
   x: number
@@ -170,6 +172,14 @@ export const LASER_TARGET = {
   y: SURGERY.ports.transverse[1].y,
   z: (SURGERY.ports.transverse[1].z + SURGERY.ports.oblique[1].z) / 2,
 } as const
+
+/**
+ * R5: the same landing point on a patient on the tilted, rolled table (the cart drives in with the table already tipped): the level point moved by the table's
+ * pose, the transform the ports use (src/sim/surgery/tablePose.ts). Once the endoscope arm has its port, the robot state's own port (already tilted) is used.
+ */
+export function laserTargetInto(p: TablePose, out: Vec3): Vec3 {
+  return tablePointInto(p, LASER_TARGET.x, LASER_TARGET.y, LASER_TARGET.z, out)
+}
 
 /** Convenience for tests: every anchor spot a person stands at in the OR. */
 export const OR_SPOTS: readonly { id: string; spot: Spot }[] = [

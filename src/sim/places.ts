@@ -946,12 +946,21 @@ export type PortLayout = 'oblique' | 'transverse'
 export const SURGERY = {
   /** The OR table: centre, top height (m), the approach spot on its east side. Seat `orTable:0`, pose 'lie', head north. */
   table: { at: { x: l2(-49.2), z: 5.9 } as Vec2, heading: 0, height: 0.88, length: 2.05, width: 0.55, approach: { x: l2(-48.2), z: 5.9 } as Vec2 },
-  /** Ports as drawn on the patient (y is the abdominal wall above the floor): arm 1..4, west to east. */
+  /**
+   * R5: the table top tilts (Trendelenburg, head up) and rolls about a point on its column: `y` above the floor, `dz` toward the feet from the
+   * table's centre. One pure transform (src/sim/surgery/tablePose.ts) moves the top, the patient, the drapes, the marks and the ports together.
+   */
+  tablePivot: { y: 0.8, dz: 0.2 },
+  /**
+   * Ports as drawn on the patient (y is the abdominal wall above the floor, the gas-filled belly's: the navel of src/sim/procedure/body.ts),
+   * arm 1..4, west to east. R5 wave 2: y 1.0 -> 1.14, the skin of the realistic (gowned) avatars over the abdomen (0.26 m above the pad).
+   */
   ports: {
-    // a straight transverse line across the lower abdomen (hysterectomy, prostatectomy), about 8 cm apart
-    transverse: [-49.32, -49.24, -49.16, -49.08].map((x) => ({ x: l2(x), y: 1.0, z: 6.15 })) as Vec3[],
+    // a straight transverse line about 3 cm above the navel (hysterectomy, prostatectomy), about 8 cm apart. Those patients lie in lithotomy,
+    // slid 0.3 m toward the feet (src/sim/procedure/body.ts PELVIS_ON_TABLE), so the navel is at z 6.1
+    transverse: [-49.32, -49.24, -49.16, -49.08].map((x) => ({ x: l2(x), y: 1.14, z: 6.07 })) as Vec3[],
     // an oblique line toward the right upper abdomen (cholecystectomy)
-    oblique: [0, 1, 2, 3].map((i) => ({ x: l2(-49.32 + i * 0.07), y: 1.0, z: 5.75 + i * 0.05 })) as Vec3[],
+    oblique: [0, 1, 2, 3].map((i) => ({ x: l2(-49.32 + i * 0.07), y: 1.14, z: 5.75 + i * 0.05 })) as Vec3[],
   } as Record<PortLayout, Vec3[]>,
   /** The patient cart (da Vinci 5 / Xi style, about 0.98 x 1.49 m): parked and draped by the west wall, docked from the west. */
   cart: {
@@ -971,11 +980,17 @@ export const SURGERY = {
   anaesthesia: {
     // (facing south into the room, its monitor swivelled toward the anaesthetist's spot: the scene draws it so)
     machine: { at: { x: l2(-48.6), z: 3.1 }, heading: 0 } as Spot,
-    stand: { at: { x: l2(-49.2), z: 4.3 }, heading: 0 } as Spot,
+    // (R5 wave 2: 0.2 m nearer the head, 0.3 m behind the table's end, so the hands reach the mouth: src/sim/procedure/body.ts)
+    stand: { at: { x: l2(-49.2), z: 4.5 }, heading: 0 } as Spot,
     stool: { at: { x: l2(-48.5), z: 4.4 }, heading: -Math.PI / 4 } as Spot,
   },
   backTable: { at: { x: l2(-47.2), z: 7.3 }, heading: 0, w: 0.75, l: 1.5 },
-  mayo: { at: { x: l2(-49.2), z: 7.7 } as Vec2 },
+  /**
+   * The Mayo stand. R5 wave 2: parked against the south wall, straight south of the table: the table's foot is the bedside assistant's and the
+   * legs' in a lithotomy case, and the theatre's walking graph needs the line at z 8.6 between the cart bay and the consoles clear (a stand
+   * anywhere between the foot and that line cuts the west side off). Its tray reaches north. Baked with the theatre (theatres.py).
+   */
+  mayo: { at: { x: l2(-49.2), z: 9.45 } as Vec2 },
   circulatorDesk: { at: { x: l2(-45.0), z: 2.35 }, heading: Math.PI } as Spot,
   /** Where each of the team stands while scrubbed in (bedside assistant and scrub nurse face the table from the east). */
   staff: {
@@ -984,8 +999,11 @@ export const SURGERY = {
     scrub: { at: { x: l2(-48.45), z: 7.1 }, heading: -Math.PI / 2 } as Spot,
     /** Draping the arms of the parked cart. */
     drape: { at: { x: l2(-51.8), z: 7.6 }, heading: 0 } as Spot,
-    /** Behind the cart while it drives in (the bedside assistant steers it). */
-    drive: { at: { x: l2(-52.5), z: 8.7 }, heading: Math.PI / 2 } as Spot,
+    /**
+     * Beside the parked cart's back corner, where its driver takes the helm (R5 wave 2: the old point was inside the cart, which parks 0.45 m off
+     * the west wall); the bedside assistant then walks with it to `driveEnd`.
+     */
+    drive: { at: { x: l2(-52.25), z: 9.55 }, heading: Math.PI } as Spot,
     // R2 polish: the spots the surgery sim used to derive on its own (src/sim/surgery/sites.ts takes each as its first choice and falls back to nearby
     // walkable points when furniture covers it). The values are the ones it derived, so the day is unchanged.
     /** The operating surgeon at the table's east side, before going to the console. */
@@ -1002,7 +1020,28 @@ export const SURGERY = {
     ] as Spot[],
     /** Behind the docked cart, where its driver ends up. */
     driveEnd: { at: { x: l2(-52.4), z: 5.9 }, heading: Math.PI / 2 } as Spot,
+    // R5 (step-by-step procedures, docs/R5-PROCEDURES.md): more of the table, for the scripts' steps. Provisional points: sites.ts falls back
+    // to nearby walkable ones, and the R5 tests prove each is reachable. The west side is the patient's right, where the cart docks: free
+    // only before docking and after undocking.
+    /** The patient's right at the abdomen (prep, drapes, port placement before docking). */
+    tableWest: { at: { x: l2(-49.95), z: 5.9 }, heading: Math.PI / 2 } as Spot,
+    /** The patient's right at the shoulder (tucking the right arm, helping the anaesthetist). */
+    tableWestHead: { at: { x: l2(-49.95), z: 5.2 }, heading: Math.PI / 2 } as Spot,
+    /**
+     * Between the legs at the table's foot, facing the perineum (lithotomy: catheter, uterine manipulator, the uterus out). R5 wave 2: the nearest
+     * walkable point to the table's footprint (it ends at z 6.94; a walker keeps 0.3 m), so the contract and sites.ts agree; the boots hold the
+     * ankles 0.36 m either side (src/sim/procedure/body.ts LITHOTOMY_LEG), and the work point leans toward the worker (src/sim/surgery/script.ts).
+     */
+    tableFoot: { at: { x: l2(-49.2), z: 7.3 }, heading: Math.PI } as Spot,
+    /** The scrub nurse at the back table (laying out, the count). */
+    scrubBackTable: { at: { x: l2(-47.85), z: 7.3 }, heading: Math.PI / 2 } as Spot,
+    /** The anaesthetist at the patient's left shoulder (the drip, the left arm). */
+    anaesLeft: { at: { x: l2(-48.6), z: 4.95 }, heading: -Math.PI / 2 } as Spot,
+    /** The circulating nurse at the back table's south end for the count. */
+    circulatorCount: { at: { x: l2(-47.2), z: 8.5 }, heading: Math.PI } as Spot,
   },
+  /** R5 watch cases: where the porter brings the patient's stretcher in the theatre hall before wheeling it into the OR (provisional). */
+  watch: { stretcherAt: { at: { x: l2(-46.0), z: -0.7 }, heading: 0 } as Spot },
   /** The scrub sinks in the theatre hall, against the OR's north wall: two scrubbing spots facing the sink. */
   scrubSink: { at: { x: l2(-49.4), z: 1.6 } as Vec2, w: 2.0, d: 0.6, spots: [{ at: { x: l2(-50.0), z: 0.9 }, heading: 0 }, { at: { x: l2(-48.8), z: 0.9 }, heading: 0 }] as Spot[] },
   /** In the theatre corridor, looking west through the viewing window at the table. */

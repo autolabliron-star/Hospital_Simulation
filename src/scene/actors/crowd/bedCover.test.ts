@@ -223,7 +223,8 @@ describe('the blanket mesh of the crowd', () => {
     expect(rig.blankets.visible).toBe(true)
     expect(rig.blanketGeometry.instanceCount).toBe(6)
     expect(rig.objects).toContain(rig.blankets)
-    expect(rig.objects.length).toBeLessThanOrEqual(8)
+    // (R5: the instruments are the ninth object, hidden while nobody near holds one)
+    expect(rig.objects.length).toBeLessThanOrEqual(9)
     const visible = rig.objects.filter((o) => o.visible)
     expect(visible.filter((o) => o.name === 'crowd-blankets')).toHaveLength(1)
     // they get up: the mesh is hidden again

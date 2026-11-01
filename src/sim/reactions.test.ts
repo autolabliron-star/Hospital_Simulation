@@ -32,6 +32,15 @@ const TAU = Math.PI * 2
 const wrapPi = (a: number) => a - TAU * Math.round(a / TAU)
 
 /** A Simulation with a fully wired Reactions (see the file comment). */
+/**
+ * A glance at you: someone's `lookAt` unless it is their own work gaze (R5: a theatre team member at a scripted step looks at the work, the console's
+ * viewer or the patient; src/sim/surgery/actors.ts keeps that point in its private `gaze`, and a glance at you always wins over it).
+ */
+function glanceOf(q: { entity: { lookAt?: unknown } }): unknown {
+  const look = q.entity.lookAt ?? null
+  return look !== null && look === (q as unknown as { gaze?: unknown }).gaze ? null : look
+}
+
 function rig(seed: number, startHour?: number): { sim: Simulation; r: Reactions } {
   const sim = new Simulation(seed, startHour === undefined ? {} : { startHour })
   if (sim.director) sim.director.occupantName = (room) => sim.beds.occupantName(room)
@@ -152,7 +161,7 @@ describe('W1 Life reacts: noticing', () => {
     run(sim, 60, () => {
       for (const q of sim.people) {
         const e = q.entity
-        if (!e.lookAt) continue
+        if (!glanceOf(q)) continue
         expect(Math.hypot(e.position.x - p.x, e.position.z - p.z) <= rr + 0.5 || Math.hypot(q.walker.x - p.x, q.walker.z - p.z) <= rr, `${e.name} looks from too far`).toBe(true)
         expect(e.riding, `${e.name} is riding`).toBeFalsy()
         expect(e.seated?.pose === 'lie' || e.seated?.pose === 'recline', `${e.name} is lying`).toBe(false)
@@ -174,15 +183,15 @@ describe('W1 Life reacts: noticing', () => {
     // you leave: nobody anywhere keeps looking
     stand(sim, 0, -14)
     run(sim, 2)
-    for (const q of sim.people) if (Math.hypot(q.walker.x - 0, q.walker.z + 14) > CONFIG.player.noticeRadius * 1.5) expect(q.entity.lookAt ?? null).toBeNull()
+    for (const q of sim.people) if (Math.hypot(q.walker.x - 0, q.walker.z + 14) > CONFIG.player.noticeRadius * 1.5) expect(glanceOf(q)).toBeNull()
     // back among them, then taken out: every look ends at once
     // (somebody who has just looked away waits out a cooldown before looking again)
     stand(sim, seat.approach.x, seat.approach.z, 0)
-    for (let i = 0; i < 30 / DT && !sim.people.some((q) => q.entity.lookAt); i++) sim.step(DT)
-    expect(sim.people.some((q) => q.entity.lookAt)).toBe(true)
+    for (let i = 0; i < 30 / DT && !sim.people.some((q) => glanceOf(q)); i++) sim.step(DT)
+    expect(sim.people.some((q) => glanceOf(q))).toBe(true)
     sim.removePlayer()
     run(sim, 0.1)
-    expect(sim.people.filter((q) => q.entity.lookAt)).toEqual([])
+    expect(sim.people.filter((q) => glanceOf(q))).toEqual([])
   })
 
   it('does not look while hurrying, riding, lying or being scanned', () => {
@@ -299,7 +308,7 @@ describe('W1 Life reacts: greetings', () => {
     sim.player!.mode = 'overview'
     run(sim, 120)
     expect(heard).toEqual([])
-    expect(sim.people.filter((q) => q.entity.lookAt)).toEqual([])
+    expect(sim.people.filter((q) => glanceOf(q))).toEqual([])
   })
 })
 

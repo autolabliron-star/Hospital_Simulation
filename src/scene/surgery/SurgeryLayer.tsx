@@ -5,6 +5,8 @@
  * R3: its tissue plates and instrument sprites are baked here at mount, behind the loading screen, under a warm gate: endo/plates.ts);
  * plus YOUR session at the teaching console (src/scene/interact/surgery/teaching.ts), ticked here after the interaction system has seated or stood you.
  * The patient cart is solid: its footprint is a moving blocker for your body (cartBlocker.ts), written at FRAME_PRIORITY.doors, before you move.
+ * R5 wave 2: the OR table's top, rails, boots and shoulder braces are live instances of the rig's pools (table.ts), tipped every frame by the room's
+ * `procedure.patient`: no extra draw call. R5 wave 2 (agent H): the prepped skin, the sterile drapes and the skin marks are one more mesh, one draw call, mounted below (stage/).
  *
  * It is mounted once, hidden from the start inside a `<LevelGroup level={2}>` (so the warm-up compiles its programs before the Enter button; the cylinders'
  * glow material and the instance-colour variant of the palette's tinted material are warmed by the rest of the hospital), at the level-2 group's offset, so
@@ -32,10 +34,13 @@ import { LEVEL2_DX, LEVEL_Y } from '@/sim/levels'
 import { useConsoleCard } from '@/ui/walk/consoleCard.store'
 import { installEndoDebug } from './endo/debug'
 import { ensureEndoPlates } from './endoscope'
-import { inOr, createLiveResources } from './liveEndoscope'
+import { endoHot, createLiveResources, LIVE_H, LIVE_W } from './liveEndoscope'
+import { insetWanted, registerInsetSource } from '@/scene/registries/insetSources'
+import { watchLive } from '@/scene/watch/watch.store'
 import { createLiveScreens } from './liveScreens'
-import { createSurgeryRig, type SurgeryRigStep } from './rig'
+import { createSurgeryRig, writeDrape, type SurgeryRigStep } from './rig'
 import { registerSurgeryTiles, surgeryTiles } from './tiles'
+import { StageLayer } from './stage/StageLayer'
 import { createCartBlockers, writeCartBlocker } from './cartBlocker'
 
 /** The real environment of your teaching session: the live sim, the interaction system's seat and the card's store. */
@@ -119,8 +124,17 @@ export function SurgeryLayer() {
     }
   }, [rig, live, kit, teaching])
 
+  // R5: the endoscope picture is the watch overlay's picture-in-picture (the inset copies the canvas each time it repaints)
+  useEffect(
+    () => registerInsetSource({ id: 'endo', canvas: live.live.canvas, width: LIVE_W, height: LIVE_H, paints: () => live.live.paints }),
+    [live],
+  )
+
   // the step inputs are objects filled in each frame, so the callbacks allocate nothing
-  const rigIn = useMemo<SurgeryRigStep>(() => ({ robot: sim.surgery.state.robot, theatre: sim.surgery.state.theatre, t: 0, dt: 0, overview: true }), [])
+  const rigIn = useMemo<SurgeryRigStep>(
+    () => ({ robot: sim.surgery.state.robot, theatre: sim.surgery.state.theatre, t: 0, dt: 0, overview: true, patient: sim.surgery.state.procedure.patient }),
+    [],
+  )
   const kitIn = useMemo<StatusStep>(() => ({ generation: 0, now: 0 }), [])
 
   useFrame((_, dt) => {
@@ -129,10 +143,14 @@ export function SurgeryLayer() {
     const s = sim.surgery.state
     rigIn.robot = s.robot
     rigIn.theatre = s.theatre
+    // R5: the table top follows the patient's pose (tilt, roll, position): the room's step-by-step view
+    rigIn.patient = s.procedure.patient
     rigIn.t = sim.t
     rigIn.dt = visualDt(dt)
     rigIn.overview = levelView.overview
     rig.step(rigIn)
+    // R5 wave 2: while the room runs a case's script, the new sterile drapes (stage/) replace the old level blue box over the patient's lower body
+    if (s.procedure.procedureId !== null) writeDrape(rig.boxes.instanceMatrix.array as Float32Array, 0)
   }, FRAME_PRIORITY.surgeryRig)
 
   useFrame((state) => {
@@ -140,13 +158,16 @@ export function SurgeryLayer() {
     kitIn.generation = simGeneration
     kitIn.now = state.clock.elapsedTime
     kit.step(kitIn)
-    live.live.update(sim.surgery.state, sim.t, performance.now(), inOr(useFocus.getState().area, sim.player, levelView.shown))
+    // hot (4 Hz) while somebody is in the OR, or the watch camera is on it or shows its picture (R5)
+    live.live.update(sim.surgery.state, sim.t, performance.now(), endoHot(useFocus.getState().area, sim.player, levelView.shown, watchLive.room === 'or' || insetWanted.endo))
   }, FRAME_PRIORITY.surgeryScreens)
 
   return (
     <LevelGroup level={2} name="level-2-surgery">
       <group name="surgery" position={[-LEVEL2_DX, LEVEL_Y[2], 0]}>
         <primitive object={rig.root} />
+        {/* R5: the patient's prepped skin, sterile drapes and skin marks (stage/): one hidden mesh until the case has some */}
+        <StageLayer />
         <primitive object={kit.group} />
         <primitive object={screens} />
       </group>

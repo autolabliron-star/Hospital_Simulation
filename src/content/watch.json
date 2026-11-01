@@ -1,0 +1,96 @@
+{
+  "panel": {
+    "button": "Watch step by step",
+    "buttonTitle": "Watch a whole operation step by step, from up close",
+    "pick": "Choose an operation",
+    "minutes": "about {n} min",
+    "itemLine": "{detail} · {minutes}",
+    "following": "A case is in the theatre now.",
+    "watchCurrent": "Watch the current case",
+    "watchCurrentNote": "From its current step, at a speed you choose",
+    "fromStart": "Full case from the start",
+    "fromStartNote": "Skips to the end of this case, then the operation starts",
+    "busy": "A step-by-step case is already booked.",
+    "noTeam": "The theatre team is not in now: try between {from} and {to}.",
+    "noScript": "This one cannot be watched step by step yet.",
+    "cancel": "Back"
+  },
+  "overlay": {
+    "region": "Watching step by step",
+    "simulated": "Simulated",
+    "step": "Step {k} of {n}: {caption}",
+    "stepRepeat": "Step {k} of {n}: {caption} ({r} of {m})",
+    "stepRow": "{caption} ({k} of {n})",
+    "waiting": "Waiting for the patient",
+    "startsIn": "The operation starts in {time}",
+    "startingNow": "The operation is starting",
+    "ended": "The operation is over",
+    "endedWhy": "The patient goes to recovery. The camera hands back to you in a moment.",
+    "live": "Live case",
+    "watchCase": "Step-by-step case",
+    "skip": "Skip to the start",
+    "skipBusy": "Skipping…",
+    "skipLabel": "Skip to the start · {time}",
+    "skipCaption": "The theatre gets ready",
+    "steps": "Steps",
+    "stepsShow": "Show the steps",
+    "stepsHide": "Hide the steps",
+    "pause": "Pause",
+    "play": "Play",
+    "pauseTitle": "Pause the hospital (Space)",
+    "speed": "Speed",
+    "speedTitle": "Speed {n}×",
+    "speedLabel": "{n}×",
+    "freeLook": "Free look",
+    "freeLookTitle": "Hold the camera still and drag to look round; the director takes over again when you press it again",
+    "dragHint": "Drag to look round · the camera takes over again after a few seconds",
+    "exit": "Exit",
+    "exitTitle": "Stop watching (Esc)",
+    "exitKey": "Esc"
+  },
+  "insets": {
+    "endo": "Endoscope",
+    "us": "Ultrasound",
+    "ctPlan": "CT plan",
+    "ctLive": "CT"
+  },
+  "rooms": {
+    "or": "Robotic theatre",
+    "cryo": "CT cryoablation suite",
+    "us": "Ultrasound room"
+  },
+  "procedures": {
+    "or-cholecystectomy": {
+      "title": "Gallbladder removal",
+      "detail": "Robotic, four small ports"
+    },
+    "or-hysterectomy": {
+      "title": "Hysterectomy",
+      "detail": "Robotic, the womb removed"
+    },
+    "or-prostatectomy": {
+      "title": "Prostatectomy",
+      "detail": "Robotic, the prostate removed"
+    },
+    "cryo-kidney": {
+      "title": "Kidney cryoablation",
+      "detail": "CT-guided needles freeze a small kidney tumour"
+    },
+    "cryo-lung": {
+      "title": "Lung cryoablation",
+      "detail": "CT-guided needles, general anaesthetic"
+    },
+    "cryo-liver": {
+      "title": "Liver cryoablation",
+      "detail": "CT-guided needles, deep sedation"
+    },
+    "us-breastCancer": {
+      "title": "Breast cryoablation",
+      "detail": "Ultrasound-guided, a small breast cancer"
+    },
+    "us-fibroadenoma": {
+      "title": "Fibroadenoma cryoablation",
+      "detail": "Ultrasound-guided, a benign lump"
+    }
+  }
+}

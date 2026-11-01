@@ -9,7 +9,7 @@
  *
  * Standing, seated and lying people use the same blender; the seated and lying modes are just more entries.
  */
-import type { AnimState, PropKind, SeatPose } from '@/sim/types'
+import type { AnimState, ProcAction, PropKind, SeatPose } from '@/sim/types'
 import { smoothstep } from './math'
 
 export const MODES = [
@@ -32,6 +32,53 @@ export const MODES = [
   'sitArmIn', // seated, the left arm forward in a cuff or robot tunnel (armIn.ts)
   // R2 robotic surgery (level 2)
   'sitConsole', // seated at a surgeon console: head in the viewer, both forearms forward and level on the hand controllers (armIn.ts CONSOLE_HANDS)
+  // R5 step-by-step procedures (surgicalPoses.ts ACTION_DEFS): the sterile rest of a gloved person, then one pose per kind of action (ACTION_MODE below)
+  'sterile', // gloved, no action: both hands clasped in front of the chest, above the waist, also while walking (no arm swing)
+  'aWatchField',
+  'aWatchMonitor',
+  'aTalk',
+  'aChart',
+  'aCount',
+  'aTransfer',
+  'aPosition',
+  'aAttach',
+  'aPreox',
+  'aInject',
+  'aBagMask',
+  'aIntubate',
+  'aSecure',
+  'aExtubate',
+  'aTilt',
+  'aScrub',
+  'aGown',
+  'aPrep',
+  'aDrape',
+  'aUndrape',
+  'aDrapeRobot',
+  'aMark',
+  'aLocal',
+  'aNick',
+  'aTrocar',
+  'aScope',
+  'aInsufflate',
+  'aCart',
+  'aDock',
+  'aFit',
+  'aExchange',
+  'aPass',
+  'aReceive',
+  'aSuction',
+  'aRetract',
+  'aClip',
+  'aBag',
+  'aRemove',
+  'aSuture',
+  'aDress',
+  'aNeedle',
+  'aUnneedle',
+  'aScan',
+  'aKeyboard',
+  'aWipe',
 ] as const
 export type Mode = (typeof MODES)[number]
 export const MODE_COUNT = MODES.length
@@ -119,9 +166,104 @@ export function postureOf(anim: AnimState, seatedPose: SeatPose | undefined, rid
   return 'stand'
 }
 
-/** The mode of a person from the posture and the animation state. Walking itself is not a mode: it comes from real motion. */
-export function modeFor(anim: AnimState, posture: Posture, prop: PropKind): Mode {
+/**
+ * R5: the pose of each procedure action (the sim's `Entity.act.action`) for a person on their feet. Several actions share a pose (the three drapes, the two
+ * closures, the cryo and ultrasound steps that look alike). 'idle' is the sterile rest for a gloved person and the plain stand for anybody else (modeFor).
+ */
+export const ACTION_MODE: Readonly<Record<ProcAction, Mode>> = Object.freeze({
+  idle: 'sterile',
+  watchField: 'aWatchField',
+  watchMonitor: 'aWatchMonitor',
+  talkPatient: 'aTalk',
+  checklist: 'aChart',
+  chart: 'aChart',
+  transferPatient: 'aTransfer',
+  attachMonitors: 'aAttach',
+  preoxygenate: 'aPreox',
+  injectIv: 'aInject',
+  bagMask: 'aBagMask',
+  intubate: 'aIntubate',
+  secureTube: 'aSecure',
+  extubate: 'aExtubate',
+  holdBreath: 'aWatchField',
+  tuckArms: 'aPosition',
+  positionPatient: 'aPosition',
+  legsInStirrups: 'aPosition',
+  tiltTable: 'aTilt',
+  scrubHands: 'aScrub',
+  gownGlove: 'aGown',
+  skinPrep: 'aPrep',
+  drapePatient: 'aDrape',
+  removeDrapes: 'aUndrape',
+  drapeRobot: 'aDrapeRobot',
+  markSkin: 'aMark',
+  injectLocal: 'aLocal',
+  skinNick: 'aNick',
+  insertTrocar: 'aTrocar',
+  holdScope: 'aScope',
+  insufflate: 'aInsufflate',
+  fitCatheter: 'aAttach',
+  fitManipulator: 'aAttach',
+  deployCart: 'aCart',
+  driveCart: 'aCart',
+  dockArm: 'aDock',
+  fitInstrument: 'aFit',
+  operateConsole: 'aKeyboard',
+  exchangeInstrument: 'aExchange',
+  passInstrument: 'aPass',
+  receiveInstrument: 'aReceive',
+  suction: 'aSuction',
+  retractLap: 'aRetract',
+  clipLap: 'aClip',
+  bagSpecimen: 'aBag',
+  removeSpecimen: 'aRemove',
+  closeFascia: 'aSuture',
+  closeSkin: 'aSuture',
+  applyDressing: 'aDress',
+  countItems: 'aCount',
+  operateCt: 'aKeyboard',
+  planPaths: 'aKeyboard',
+  insertNeedle: 'aNeedle',
+  removeNeedle: 'aUnneedle',
+  injectSaline: 'aInject',
+  warmSkin: 'aDress',
+  runCryoConsole: 'aKeyboard',
+  scanProbe: 'aScan',
+  insertProbe: 'aNeedle',
+  pressSite: 'aDress',
+  cleanRoom: 'aWipe',
+})
+
+/** R5: the seated actions that have a seated pose of their own (the console surgeon, a radiographer at a desk, a checklist read in a chair). */
+const SEATED_ACTION: Partial<Record<ProcAction, Mode>> = {
+  operateConsole: 'sitConsole',
+  operateCt: 'typing',
+  planPaths: 'typing',
+  runCryoConsole: 'typing',
+  chart: 'sitTablet',
+  checklist: 'sitTablet',
+  countItems: 'sitTablet',
+  watchMonitor: 'sitListen',
+  watchField: 'sitListen',
+}
+
+/** R5: the modes of the procedure actions (and the sterile rest): a person in one of them is at their step spot, working. */
+export const isActionMode = (m: Mode): boolean => MODE_INDEX[m] >= MODE_INDEX.sterile
+
+/**
+ * The mode of a person from the posture and the animation state. Walking itself is not a mode: it comes from real motion.
+ * R5: a procedure action (`act`) wins over the anim on the feet, and a few actions have a seated pose; `sterile` (gloved) holds the hands clasped above the
+ * waist whenever the person stands with nothing to do, walking included.
+ */
+export function modeFor(anim: AnimState, posture: Posture, prop: PropKind, act: ProcAction | null = null, sterile = false): Mode {
   if (posture === 'lie') return 'lie'
+  if (act !== null) {
+    if (posture === 'sit') {
+      const m = SEATED_ACTION[act]
+      if (m) return m
+    } else if (act !== 'idle') return ACTION_MODE[act]
+  }
+  if (sterile && posture === 'stand') return 'sterile'
   if (posture === 'sit') {
     switch (anim) {
       case 'talk':

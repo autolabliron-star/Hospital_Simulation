@@ -11,13 +11,19 @@
  *               tool at a time.
  *   camera      arm 2 (the endoscope) moves with the same seeded `tipMotion` as the 3D arm: its yaw and pitch pan the picture, its insertion zooms; the
  *               ventilator's breathing lifts and swells the field slowly.
+ *   stage       R5: the step of a scripted operation the room is at (`ProcedureView.scope`, src/scene/surgery/endo/stages.ts): where the camera looks
+ *               and how close, and what has been done on the tissue so far. -1 (no script, no scope, a scope this procedure's pictures do not know) is
+ *               today's picture. The view remembers the stage before this one and when this one began, so the camera eases from one to the next.
  */
 import type { SurgeryState } from '@/sim/types'
 import { h01, motionGain, TIP, tipMotion, type TipMotion } from '../robotPose'
 import { PLATE_ASPECT, procIndex } from './anatomy'
+
+const A_HALF = PLATE_ASPECT / 2
 import { clamp01, smooth } from './field'
 import { ENERGY, LOOKS, lookIndexOf } from './looks'
 import { SURGERY_COPY } from '@/content/surgery'
+import { procOfId, STAGE_EASE, stageCamInto, stageIndex, type StageCam } from './stages'
 
 /** The instrument arms, by slot: arm 1 (index 0), arm 3 (index 2), arm 4 (index 3). Arm 2 (index 1) is the camera, never in its own picture. */
 export const INSTRUMENT_ARMS: readonly number[] = [0, 2, 3]
@@ -38,11 +44,36 @@ export interface EndoView {
   energy: number[]
   /** The slot being exchanged, or -1. */
   exchanging: number
+  /** R5: the stage of `proc`'s picture (index into its stage list, stages.ts), or -1; the stage before it (-1: none, or another procedure's); the sim time this stage began. */
+  stage: number
+  prevStage: number
+  stageSince: number
+  /** The procedure the stage indexes belong to. */
+  stageProc: number
+  /** 0..1: how far the camera has come from the previous stage's place to this one's (eased), and the step's progress. */
+  stageMix: number
+  stageP: number
 }
 
 /** A view of the cholecystectomy's instruments, docked and still: a starting point the painters and tests fill in. */
 export function newEndoView(over: Partial<Pick<EndoView, 'seed' | 't' | 'gain' | 'proc'>> = {}): EndoView {
-  const v: EndoView = { seed: 7, t: 0, gain: 1, proc: 0, look: [-1, -1, -1], withdraw: [0, 0, 0], energy: [0, 0, 0], exchanging: -1, ...over }
+  const v: EndoView = {
+    seed: 7,
+    t: 0,
+    gain: 1,
+    proc: 0,
+    look: [-1, -1, -1],
+    withdraw: [0, 0, 0],
+    energy: [0, 0, 0],
+    exchanging: -1,
+    stage: -1,
+    prevStage: -1,
+    stageSince: 0,
+    stageProc: 0,
+    stageMix: 1,
+    stageP: 0,
+    ...over,
+  }
   setProcedureLooks(v, v.proc)
   return v
 }
@@ -86,6 +117,7 @@ export function fillEndoView(s: Readonly<SurgeryState>, t: number, out: EndoView
       }
     }
   }
+  fillStage(s, t, out)
   out.exchanging = -1
   let pedal = false
   for (let k = 0; k < SLOTS; k++) {
@@ -103,6 +135,29 @@ export function fillEndoView(s: Readonly<SurgeryState>, t: number, out: EndoView
   return out
 }
 
+/**
+ * R5: the stage of the room's step. The scope key counts only when the published script is the case's own procedure's. A change of stage keeps the one
+ * before it (and the sim time) in the view, so the camera can ease between them; a stage of another procedure is not an "earlier" one. Allocation-free.
+ */
+function fillStage(s: Readonly<SurgeryState>, t: number, out: EndoView): void {
+  const pv = s.procedure
+  const st = procOfId(pv.procedureId) === out.proc ? stageIndex(out.proc, pv.scope) : -1
+  if (out.stageProc !== out.proc) {
+    out.stageProc = out.proc
+    out.prevStage = -1
+    out.stage = -1
+    out.stageSince = t
+  }
+  if (st !== out.stage) {
+    out.prevStage = out.stage
+    out.stage = st
+    out.stageSince = t
+  }
+  const u = (t - out.stageSince) / STAGE_EASE
+  out.stageMix = u <= 0 ? 0 : u >= 1 ? 1 : smooth(0, 1, u)
+  out.stageP = pv.progress < 0 ? 0 : pv.progress > 1 ? 1 : pv.progress
+}
+
 // ---------------------------------------------------------------------------------------------
 // The camera
 // ---------------------------------------------------------------------------------------------
@@ -112,17 +167,28 @@ export const CAMERA = { visible: 0.86, pan: 0.85, zoom: 0.05, breathHz: 0.23, br
 /** The window's half-height at rest (plate units): one frame unit. */
 export const REST_HALF = CAMERA.visible / 2
 
-/** Where the camera looks on the plate: the window's centre and half-height in plate units (the plate is 1 high and 16/9 wide), and the breathing phase. */
+/**
+ * Where the camera looks on the plate: the window's centre and half-height in plate units (the plate is 1 high and 16/9 wide), and the breathing phase.
+ * R5: `bx`, `by` and `zs` are the stage's place for the camera (its centre and its zoom, eased from the stage before), which the seeded pan and zoom move
+ * about; the instruments and the wet highlights follow the movement about it (`cx - bx`), not the stage's own place.
+ */
 export interface CameraPose {
   cx: number
   cy: number
   hh: number
   breath: number
+  bx: number
+  by: number
+  zs: number
 }
 
-const _cm: TipMotion = { insert: 0, pitch: 0, yaw: 0, jaw: 0, roll: 0 }
+export const newCameraPose = (): CameraPose => ({ cx: A_HALF, cy: 0.5, hh: REST_HALF, breath: 0, bx: A_HALF, by: 0.5, zs: 1 })
 
-/** The camera of `v` (arm 2's tip motion, and the breathing). Writes into `out`. */
+const _cm: TipMotion = { insert: 0, pitch: 0, yaw: 0, jaw: 0, roll: 0 }
+const _sa: StageCam = { cx: 0, cy: 0, zoom: 1 }
+const _sb: StageCam = { cx: 0, cy: 0, zoom: 1 }
+
+/** The camera of `v` (the stage's place, arm 2's tip motion about it, and the breathing). Writes into `out`. */
 export function cameraPose(v: EndoView, out: CameraPose): CameraPose {
   tipMotion(1, v.t, v.seed, _cm)
   const g = v.gain
@@ -131,12 +197,30 @@ export function cameraPose(v: EndoView, out: CameraPose): CameraPose {
   const pitch = _cm.pitch / (TIP.pitch * 0.35)
   const ins = _cm.insert / (TIP.insert * 0.35)
   const breath = Math.sin(2 * Math.PI * CAMERA.breathHz * v.t)
-  const zoom = (1 + ins * CAMERA.zoom * g) * (1 + CAMERA.breathZoom * breath)
+  // the stage's place, eased from the stage before it (the picture at rest when there is none)
+  stageCamInto(v.proc, v.prevStage, _sa)
+  stageCamInto(v.proc, v.stage, _sb)
+  const m = v.stageMix
+  const zs = _sa.zoom + (_sb.zoom - _sa.zoom) * m
+  const zoom = zs * (1 + ins * CAMERA.zoom * g) * (1 + CAMERA.breathZoom * breath)
   const hh = REST_HALF / zoom
   const hw = hh * PLATE_ASPECT
+  // the stage's centre, kept so the window stays inside the plate; the seeded pan uses what room is left round it
+  const bx = clampTo(_sa.cx + (_sb.cx - _sa.cx) * m, hw, PLATE_ASPECT - hw)
+  const by = clampTo(_sa.cy + (_sb.cy - _sa.cy) * m, hh, 1 - hh)
+  // (and no more, in picture units, than the pan has at rest: a stage's zoom does not make the instruments swing farther across the picture)
+  const mx = Math.min(bx - hw, PLATE_ASPECT - hw - bx, (A_HALF - hw * zs) / zs)
+  const my = Math.min(by - hh, 1 - hh - by, (0.5 - hh * zs) / zs)
   out.hh = hh
-  out.cx = PLATE_ASPECT / 2 + yaw * g * (PLATE_ASPECT / 2 - hw) * CAMERA.pan
-  out.cy = 0.5 + pitch * g * (0.5 - hh) * CAMERA.pan + CAMERA.breathLift * breath
+  out.bx = bx
+  out.by = by
+  out.zs = zs
+  out.cx = clampTo(bx + yaw * g * mx * CAMERA.pan, hw, PLATE_ASPECT - hw)
+  out.cy = clampTo(by + pitch * g * my * CAMERA.pan + CAMERA.breathLift * breath, hh, 1 - hh)
   out.breath = breath
   return out
+}
+
+function clampTo(x: number, lo: number, hi: number): number {
+  return x < lo ? lo : x > hi ? hi : x
 }

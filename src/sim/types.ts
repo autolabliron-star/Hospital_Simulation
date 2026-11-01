@@ -149,6 +149,12 @@ export interface Entity {
   riding?: boolean
   /** 0..1 visibility: people fade in where they arrive and fade out where they leave (never pop). Default 1. */
   fade?: number
+  /** R5: the procedure action a staff member is performing at their task spot (null while walking). A pose overlay over `anim`. */
+  act?: StaffAct | null
+  /** R5: sterile attire bits (`ATTIRE`): mask, gown, gloves, lead apron. 0 or absent: none. */
+  attire?: number
+  /** R5: a procedure patient's pose on the table (the same object as the room's `ProcedureView.patient`); null or absent otherwise. */
+  patientPose?: PatientPoseView | null
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -361,6 +367,7 @@ export type SimEventType =
   | 'whoSignOut'
   | 'pacuDischarge'
   // the CT-guided cryoablation suite on level 2 (R4)
+  | 'procedureStep' // R5: a highlighted step of a procedure script (sparse: a few per case)
   | 'cryoArrived'
   | 'cryoPlanned'
   | 'cryoNeedle'
@@ -965,6 +972,8 @@ export interface SurgeryCaseView {
   outcome: 'home' | 'ward'
   /** The pre-op or recovery bay seat they are in, if any. */
   bay: string | null
+  /** R5: a "Watch step by step" case (compressed to the script's watch seconds), not one of the day's list. */
+  watch?: boolean
 }
 
 export type RobotPhase =
@@ -1053,6 +1062,8 @@ export interface SurgeryState {
   theatre: TheatreState
   robot: RobotState
   bays: SurgeryBayState[]
+  /** R5: the step-by-step view of the case in the room (an empty view with `procedureId` null between cases). */
+  procedure: ProcedureView
   version: number
 }
 
@@ -1164,3 +1175,316 @@ export interface CryoSuiteState {
   cases: CryoCaseView[]
   version: number
 }
+
+// ---------------------------------------------------------------------------------------------
+// R5: step-by-step procedures you can watch (src/sim/procedure, src/content/procedures; docs/R5-PROCEDURES.md)
+// ---------------------------------------------------------------------------------------------
+
+/** The machine a procedure runs on: the da Vinci 5 theatre, the CT-guided robot cryo suite, ProSense in the ultrasound room. */
+export type ProcMachine = 'daVinci' | 'cryoCt' | 'prosense'
+
+/** The eight scripted procedures (one script file each in src/content/procedures). */
+export type ProcedureId =
+  | 'or-cholecystectomy'
+  | 'or-hysterectomy'
+  | 'or-prostatectomy'
+  | 'cryo-kidney'
+  | 'cryo-lung'
+  | 'cryo-liver'
+  | 'us-breastCancer'
+  | 'us-fibroadenoma'
+
+export type CryoTarget = 'kidney' | 'lung' | 'liver'
+
+/** The patient's position on the table. Head tilt and roll (`PatientPoseView`) come on top: Trendelenburg is supine/lithotomy + a negative tilt. */
+export type PatientPosition = 'supine' | 'prone' | 'obliqueLeftUp' | 'lithotomy'
+/** Where the patient's arms are: by the sides, tucked in for robotic surgery, both above the head (prone CT), one up (breast). */
+export type PatientArms = 'out' | 'tucked' | 'aboveHead' | 'oneUp'
+export type Airway = 'none' | 'nasalCannula' | 'oxygenMask' | 'bagMask' | 'tube'
+export type Awareness = 'awake' | 'sedated' | 'asleep'
+/** The skin marks the scene draws in the prepped window (never red, never a wound): pen marks, port sites, needle sites, closed, dressed. */
+export type PatientMarks = 'none' | 'marked' | 'ports' | 'needles' | 'closed' | 'dressed'
+
+/** The patient's state on the table, derived from the script at every step (numbers eased over the step, enums switch at its start). */
+export interface PatientPoseView {
+  position: PatientPosition
+  /** Head end up (+, reverse Trendelenburg) or down (-, Trendelenburg), degrees. */
+  headTiltDeg: number
+  /** Roll about the long axis, degrees: + lifts the patient's right side (a table tilt to the patient's left). */
+  rollDeg: number
+  arms: PatientArms
+  airway: Airway
+  awareness: Awareness
+  /** 0..1 antiseptic painted, 0..1 sterile drapes on. */
+  prep: number
+  drape: number
+  marks: PatientMarks
+  /** A urinary catheter and (hysterectomy) a uterine manipulator in place: drawn small, under the drapes. */
+  catheter: boolean
+  manipulator: boolean
+}
+
+/** Who does what in a script: the theatre team, the cryo suite team, the ProSense pair. Porters and cleaners are moved by case code. */
+export type ProcRole =
+  | 'surgeon'
+  | 'assistant'
+  | 'scrub'
+  | 'circulator'
+  | 'anaesthetist'
+  | 'ir'
+  | 'ctRadiographer'
+  | 'sedation'
+  | 'cryoAnaes'
+  | 'breastRadiologist'
+  | 'sonographer'
+
+/** What someone is doing at a step: the crowd renderer has one pose (and stroke) per action; the sim falls back to an AnimState. */
+export type ProcAction =
+  // general, anaesthesia
+  | 'idle'
+  | 'watchField'
+  | 'watchMonitor'
+  | 'talkPatient'
+  | 'checklist'
+  | 'chart'
+  | 'transferPatient'
+  | 'attachMonitors'
+  | 'preoxygenate'
+  | 'injectIv'
+  | 'bagMask'
+  | 'intubate'
+  | 'secureTube'
+  | 'extubate'
+  | 'holdBreath'
+  | 'tuckArms'
+  | 'positionPatient'
+  | 'legsInStirrups'
+  | 'tiltTable'
+  // preparation, access
+  | 'scrubHands'
+  | 'gownGlove'
+  | 'skinPrep'
+  | 'drapePatient'
+  | 'removeDrapes'
+  | 'drapeRobot'
+  | 'markSkin'
+  | 'injectLocal'
+  | 'skinNick'
+  | 'insertTrocar'
+  | 'holdScope'
+  | 'insufflate'
+  | 'fitCatheter'
+  | 'fitManipulator'
+  // the robot and the bedside
+  | 'deployCart'
+  | 'driveCart'
+  | 'dockArm'
+  | 'fitInstrument'
+  | 'operateConsole'
+  | 'exchangeInstrument'
+  | 'passInstrument'
+  | 'receiveInstrument'
+  | 'suction'
+  | 'retractLap'
+  | 'clipLap'
+  | 'bagSpecimen'
+  | 'removeSpecimen'
+  // closing
+  | 'closeFascia'
+  | 'closeSkin'
+  | 'applyDressing'
+  | 'countItems'
+  // imaging and cryo
+  | 'operateCt'
+  | 'planPaths'
+  | 'insertNeedle'
+  | 'removeNeedle'
+  | 'injectSaline'
+  | 'warmSkin'
+  | 'runCryoConsole'
+  | 'scanProbe'
+  | 'insertProbe'
+  | 'pressSite'
+  | 'cleanRoom'
+
+/** What is in a hand. The crowd renderer models the hand-held ones; the rest (gown, drape sheet, gel pad …) are shown by their effect. */
+export type ToolKind =
+  | 'none'
+  | 'tablet'
+  | 'syringe'
+  | 'oxygenMask'
+  | 'bagValveMask'
+  | 'laryngoscope'
+  | 'breathingTube'
+  | 'ecgLeads'
+  | 'gelPad'
+  | 'tableRemote'
+  | 'scrubBrush'
+  | 'gown'
+  | 'prepStick'
+  | 'drapeSheet'
+  | 'marker'
+  | 'scalpel'
+  | 'veressNeedle'
+  | 'trocar8'
+  | 'trocar12'
+  | 'laparoscope'
+  | 'gasLine'
+  | 'catheter'
+  | 'manipulator'
+  | 'robotInstrument'
+  | 'lapSuction'
+  | 'lapGrasper'
+  | 'lapClipApplier'
+  | 'retrievalBag'
+  | 'specimenPot'
+  | 'needleHolder'
+  | 'forceps'
+  | 'scissors'
+  | 'skinGlue'
+  | 'dressing'
+  | 'countBoard'
+  | 'gauze'
+  | 'cryoNeedle'
+  | 'cryoProbe'
+  | 'usTransducer'
+  | 'salineSyringe'
+  | 'warmGauze'
+  | 'iceBag'
+  | 'ctRemote'
+  | 'mouse'
+
+/**
+ * Where a role stands for a step: a named spot in `places.ts`. OR: the existing `SURGERY.staff` spots, the sinks, the console seat and the
+ * anaesthetist's stool, plus the R5 spots (the table's west side before docking, its foot, the back table, the head's left, the count).
+ * Cryo and ultrasound anchors arrive with their waves.
+ */
+export type ProcAnchor =
+  | 'tableSurgeon'
+  | 'assistant'
+  | 'assistantWait'
+  | 'scrub'
+  | 'scrubWait'
+  | 'circulator'
+  | 'anaesHead'
+  | 'anaesStool'
+  | 'drive'
+  | 'driveEnd'
+  | 'drape'
+  | 'sink0'
+  | 'sink1'
+  | 'surgeonConsole'
+  | 'tableWest'
+  | 'tableWestHead'
+  | 'tableFoot'
+  | 'scrubBackTable'
+  | 'anaesLeft'
+  | 'circulatorCount'
+
+/** A point a role works at or looks at (resolved by the sim to a world point: hands go there, eyes follow). */
+export type ProcTarget =
+  | 'patientFace'
+  | 'patientChest'
+  | 'abdomen'
+  | 'pelvis'
+  | 'perineum'
+  | 'port0'
+  | 'port1'
+  | 'port2'
+  | 'port3'
+  | 'assistantPort'
+  | 'visionMonitor'
+  | 'anaesMonitor'
+  | 'mayo'
+  | 'backTable'
+  | 'robotCart'
+  | 'consoleViewer'
+  | 'sink'
+  | 'patient'
+
+/** What the watch camera frames at a step. */
+export type FocusId =
+  | 'room'
+  | 'head'
+  | 'abdomen'
+  | 'pelvis'
+  | 'legs'
+  | 'ports'
+  | 'robotCart'
+  | 'console'
+  | 'endoscope'
+  | 'mayo'
+  | 'backTable'
+  | 'sink'
+  | 'stretcher'
+  | 'ctTable'
+  | 'ctGantry'
+  | 'needle'
+  | 'iceBall'
+  | 'cryoConsole'
+  | 'controlRoom'
+  | 'usScreen'
+  | 'breast'
+
+/** Sterile attire bits on `Entity.attire`. */
+export const ATTIRE = { mask: 1, gown: 2, gloves: 4, lead: 8 } as const
+
+/**
+ * What a staff member is doing at a step, written on their entity while they are at the step's spot (the crowd's pose overlay).
+ * `work` is the world point the hands work at (sim frame, floor-relative y); the renderer offsets each hand from it per action and turns
+ * the head with `Entity.lookAt`. `progress` 0..1 drives the action's strokes, so compressed watch time and pauses stay in step.
+ */
+export interface StaffAct {
+  action: ProcAction
+  progress: number
+  left: ToolKind
+  right: ToolKind
+  work: Vec3 | null
+}
+
+/** One role's line at the current step (fixed length per machine, in `ProcedureView.roles`). */
+export interface ProcRoleView {
+  role: ProcRole
+  /** The staff member filling the role today (null: nobody yet). */
+  entityId: string | null
+  action: ProcAction
+  left: ToolKind
+  right: ToolKind
+  anchor: ProcAnchor | null
+}
+
+/**
+ * The step-by-step view of the case in a procedure room, mutated in place. Everything a caption, a watch camera or a pose needs: the
+ * current step of the script, its progress, who does what and the patient's pose. `version` changes only when the step changes.
+ */
+export interface ProcedureView {
+  procedureId: ProcedureId | null
+  caseId: string | null
+  /** A "Watch step by step" case (compressed) rather than one of the day's list (real time). */
+  watch: boolean
+  /** The coarse unit the step belongs to (an OR phase, a CryoStep or an exam unit). */
+  unit: string
+  stepIndex: number
+  stepCount: number
+  stepId: string
+  stepSince: number
+  stepEnds: number
+  progress: number
+  /** Repeated steps (one per needle): the repeat being shown, 1-based, of n. */
+  repeat: { k: number; n: number } | null
+  focus: FocusId
+  /** The point the camera should frame (sim frame). */
+  focusAt: Vec3
+  roles: ProcRoleView[]
+  patient: PatientPoseView
+  /** The endoscope (or ultrasound) stage key for the picture, if the step sets one. */
+  scope: string | null
+  version: number
+}
+
+/**
+ * What "Watch step by step" did. `started`: the case begins now. `queued`: it starts when the room is free (after the turnover).
+ * `following`: a case is already in the room, so you watch that one from its current step. `busy`: a watch case is already booked.
+ * `noTeam`: the team is not in (before or after the list's hours).
+ */
+export type WatchResult = 'started' | 'queued' | 'following' | 'noTeam' | 'busy'

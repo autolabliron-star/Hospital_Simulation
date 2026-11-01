@@ -4,7 +4,10 @@
  * blend continuously from folded through deployed to solved, and the tip motion is seeded, small and the same for the arms and the endoscope painter.
  */
 import { describe, expect, it } from 'vitest'
-import { SURGERY } from '@/sim/places'
+import { SURGERY, type PortLayout } from '@/sim/places'
+import { newTablePose, setTablePose, tablePointInto } from '@/sim/surgery/tablePose'
+import type { Vec3 } from '@/sim/types'
+import { laserTargetInto, LASER_TARGET } from './dims'
 import { arm, dockedRobot, LAYOUTS, stowedRobot } from './testkit'
 import { angleDelta, ARM_COUNT, BOOM_STOWED, CART, DEPLOY_AT, h01, LIMITS, motionGain, newRobotPose, poseRobot, smooth01, TIP, tipMotion, type ArmPose, type RobotPose, type TipMotion } from './robotPose'
 
@@ -342,6 +345,116 @@ describe('an arm with no port stays in its base pose', () => {
     same.arms[3] = arm(3, { engage: 0, port: null })
     poseRobot(same, 100, pose)
     expect(joints(pose.arms[3])).toEqual(free)
+  })
+})
+
+describe('the arms follow the tilted table (R5 wave 2)', () => {
+  /** [tilt, roll] degrees: level, the steep Trendelenburg of a pelvic case (-25, up to -30), a roll either way, and the gallbladder's reverse tilt. */
+  const TABLES: readonly [number, number][] = [[0, 0], [-25, 0], [-30, 6], [-25, -8], [-15, 3], [15, -12], [20, 12]]
+  const portsFor = (layout: PortLayout, tilt: number, roll: number): Vec3[] => {
+    const p = newTablePose()
+    setTablePose(p, tilt, roll)
+    return SURGERY.ports[layout].map((q) => tablePointInto(p, q.x, q.y, q.z, { x: 0, y: 0, z: 0 }))
+  }
+  const docked = (layout: PortLayout, tilt: number, roll: number, over: Parameters<typeof dockedRobot>[1] = {}) => {
+    const ports = portsFor(layout, tilt, roll)
+    return { ports, r: dockedRobot(layout, { ...over, arms: [0, 1, 2, 3].map((i) => arm(i, { instrument: `Tool ${i}`, port: ports[i], drape: 1, engage: 1, force: 0.4 })) }) }
+  }
+
+  it('sits every docked arm\'s remote centre on its tilted port within a millimetre, whatever the table\'s tilt and roll, the boom\'s yaw and the tip motion\'s phase', () => {
+    let n = 0
+    for (const layout of LAYOUTS) {
+      for (const [tilt, roll] of TABLES) {
+        for (const yaw of [-0.3, 0, 0.3]) {
+          for (const t of TIMES) {
+            const { ports, r } = docked(layout, tilt, roll, { boomYaw: yaw })
+            poseRobot(r, t, pose)
+            for (const a of pose.arms) {
+              const label = `${layout} tilt ${tilt} roll ${roll} yaw ${yaw} t ${t} arm ${a.index}`
+              const port = ports[a.index]
+              // the spar's remote centre (the point sparWP from the wrist along the spar) is the port
+              expect(Math.hypot(a.px - port.x, a.py - port.y, a.pz - port.z), label).toBeLessThan(1e-3)
+              expect(a.error, `${label}: the wrist reaches its target`).toBeLessThan(1e-3)
+              n++
+            }
+          }
+        }
+      }
+    }
+    expect(n).toBe(2 * TABLES.length * 3 * TIMES.length * 4)
+  })
+
+  it('keeps the arms\' joints within their limits and the tips inside the patient on a tilted table', () => {
+    for (const layout of LAYOUTS) {
+      for (const [tilt, roll] of TABLES) {
+        const { ports, r } = docked(layout, tilt, roll)
+        for (const t of TIMES) {
+          poseRobot(r, t, pose)
+          for (const a of pose.arms) {
+            const label = `${layout} tilt ${tilt} roll ${roll} t ${t} arm ${a.index}`
+            expect(a.a1, label).toBeGreaterThan(LIMITS.shoulder[0])
+            expect(a.a1, label).toBeLessThan(LIMITS.shoulder[1])
+            expect(Math.abs(angleDelta(a.a1, a.a2)), label).toBeLessThan(LIMITS.bend)
+            expect(a.beta, label).toBeGreaterThanOrEqual(LIMITS.tilt[0] - 0.2)
+            expect(a.beta, label).toBeLessThanOrEqual(LIMITS.tilt[1])
+            expect(a.ey, `${label}: the elbow clears the boom`).toBeLessThan(pose.boomTop - CART.boomThick)
+            expect(a.ty, `${label}: the tip is below the port`).toBeLessThan(ports[a.index].y)
+          }
+        }
+      }
+    }
+  })
+
+  it('has the spar pass through the tilted port to a millimetre', () => {
+    for (const [tilt, roll] of TABLES) {
+      const { ports, r } = docked('transverse', tilt, roll)
+      poseRobot(r, 133.9, pose)
+      for (const a of pose.arms) {
+        const port = ports[a.index]
+        const wx = port.x - a.wx
+        const wy = port.y - a.wy
+        const wz = port.z - a.wz
+        const off = Math.hypot(wy * a.dz - wz * a.dy, wz * a.dx - wx * a.dz, wx * a.dy - wy * a.dx)
+        expect(off, `tilt ${tilt} roll ${roll} arm ${a.index}`).toBeLessThan(1e-3)
+      }
+    }
+  })
+
+  it('follows a table that tips while the arms are docked: rewriting the ports in place moves the arms smoothly (no joint jumps more than 2.5 cm per half degree of tilt)', () => {
+    const level = SURGERY.ports.transverse
+    const ports = level.map((q) => ({ ...q }))
+    const r = dockedRobot('transverse', { arms: [0, 1, 2, 3].map((i) => arm(i, { instrument: `Tool ${i}`, port: ports[i], drape: 1, engage: 1 })) })
+    const p = newTablePose()
+    let prev: ReturnType<typeof joints>[] | null = null
+    let worst = 0
+    for (let tilt = 0; tilt >= -25; tilt -= 0.5) {
+      setTablePose(p, tilt, 0)
+      for (let i = 0; i < 4; i++) tablePointInto(p, level[i].x, level[i].y, level[i].z, ports[i])
+      poseRobot(r, 100, pose)
+      for (const a of pose.arms) expect(Math.hypot(a.px - ports[a.index].x, a.py - ports[a.index].y, a.pz - ports[a.index].z)).toBeLessThan(1e-3)
+      const now = pose.arms.map(joints)
+      if (prev) for (let a = 0; a < ARM_COUNT; a++) for (const k of ['e', 'w', 't'] as const) worst = Math.max(worst, dist3(prev[a][k], now[a][k]))
+      prev = now
+    }
+    expect(worst).toBeLessThan(0.025)
+  })
+
+  it('puts the laser on the endoscope\'s tilted port while docking, and on the tilted middle of the two port lines before it (laserTargetInto: the same transform)', () => {
+    const { ports, r } = docked('oblique', -25, 4, { laser: true })
+    poseRobot(r, 100, pose)
+    expect([pose.laserX, pose.laserY, pose.laserZ]).toEqual([ports[1].x, ports[1].y, ports[1].z])
+    r.arms[1].port = null
+    const p = newTablePose()
+    setTablePose(p, -25, 4)
+    const at = laserTargetInto(p, { x: 0, y: 0, z: 0 })
+    poseRobot(r, 100, pose, at)
+    expect([pose.laserX, pose.laserY, pose.laserZ]).toEqual([at.x, at.y, at.z])
+    // level: the contract's landing point, to the last bit
+    setTablePose(p, 0, 0)
+    expect(laserTargetInto(p, { x: 0, y: 0, z: 0 })).toEqual({ x: LASER_TARGET.x, y: LASER_TARGET.y, z: LASER_TARGET.z })
+    // and with no landing point given the default is the level one
+    poseRobot(r, 100, pose)
+    expect([pose.laserX, pose.laserY, pose.laserZ]).toEqual([LASER_TARGET.x, LASER_TARGET.y, LASER_TARGET.z])
   })
 })
 

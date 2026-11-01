@@ -20,7 +20,8 @@ import { smooth } from './field'
 import { ENERGY, LOOKS, type Look } from './looks'
 import type { EndoPlate } from './plates'
 import { COLLAR_AT, endoSprites, JAW_RECTS, SPRITE, type Rect } from './sprites'
-import { cameraPose, INSTRUMENT_ARMS, REST_HALF, type CameraPose, type EndoView } from './view'
+import { newWindow, type PlateWindow } from './stages'
+import { cameraPose, INSTRUMENT_ARMS, newCameraPose, REST_HALF, type CameraPose, type EndoView } from './view'
 
 /** One instrument on the picture, in frame units: where its shaft enters (off the picture), its wrist, the shaft's direction, the jaws 0 closed .. 1 open, the wrist's bend (radians), and its size (the camera's zoom). */
 export interface TipOnScreen {
@@ -48,7 +49,8 @@ export const RIG: readonly { ex: number; ey: number; x: number; y: number }[] = 
 export const TOOL = { shaftEdge: 0.22, shaftWrist: 0.105, wrist: 0.27, collar: 0.14, shadowX: 0.07, shadowY: 0.11 } as const
 
 const _m: TipMotion = { insert: 0, pitch: 0, yaw: 0, jaw: 0, roll: 0 }
-const _cam: CameraPose = { cx: 0, cy: 0, hh: REST_HALF, breath: 0 }
+const _cam: CameraPose = newCameraPose()
+const _win: PlateWindow = newWindow()
 
 /** Where slot `k` (arms 1, 3, 4) has its tool on the picture: its rest place moved by the arm's tip motion, withdrawn by `view.withdraw[k]`, seen through the camera. Writes into `out`. */
 export function tipOnScreen(k: number, v: EndoView, out: TipOnScreen): TipOnScreen {
@@ -74,15 +76,19 @@ export function tipOnScreen(k: number, v: EndoView, out: TipOnScreen): TipOnScre
     x -= (sx / sl) * back
     y -= (sy / sl) * back
   }
-  // the camera: the window's zoom and pan (the ports ride the same breathing belly as the tissue)
+  // the camera: the window's zoom and pan (the ports ride the same breathing belly as the tissue). R5: the surgeon brings the instruments to the work, so
+  // a stage's own pan and most of its zoom leave the instruments where they are: they follow the camera's movement about the stage's place, and grow
+  // with a part of the stage's zoom
   cameraPose(v, _cam)
-  const zr = REST_HALF / _cam.hh
-  const ox = (_cam.cx - PLATE_ASPECT / 2) / _cam.hh
-  const oy = (_cam.cy - 0.5) / _cam.hh
-  out.ex = r.ex * zr - ox
-  out.ey = r.ey * zr - oy
-  out.x = x * zr - ox
-  out.y = y * zr - oy
+  const zm = REST_HALF / _cam.hh / _cam.zs
+  const zr = zm * (1 + (_cam.zs - 1) * TOOL_ZOOM)
+  const zp = zm * (1 + (_cam.zs - 1) * TOOL_REACH)
+  const ox = (_cam.cx - _cam.bx) / _cam.hh
+  const oy = (_cam.cy - _cam.by) / _cam.hh
+  out.ex = r.ex * zp - ox
+  out.ey = r.ey * zp - oy
+  out.x = x * zp - ox
+  out.y = y * zp - oy
   const ax = out.x - out.ex
   const ay = out.y - out.ey
   const al = Math.sqrt(ax * ax + ay * ay)
@@ -101,24 +107,44 @@ export function tipOnScreen(k: number, v: EndoView, out: TipOnScreen): TipOnScre
 /** How much more the wet highlights move than the tissue under them. */
 export const PARALLAX = 0.7
 
+/**
+ * How much of a stage's zoom the instruments share: their size (1: they grow with the tissue, 0: they stay the size of the picture at rest) and how far from
+ * the middle they work (the surgeon brings the tips to the work, so that grows less than their size).
+ */
+export const TOOL_ZOOM = 0.45
+export const TOOL_REACH = 0.12
+
+/**
+ * The picture's window on the plate (plate units): the tissue's, clamped inside the plate, and the wet layer's, which leads the camera's movement about the
+ * stage's place by `PARALLAX`. Everything laid over the tissue (the stage's patches, clips and sutures) goes through the same window. Writes into `out`.
+ */
+export function windowInto(cam: CameraPose, out: PlateWindow): PlateWindow {
+  const hh = cam.hh
+  const hw = hh * PLATE_ASPECT
+  out.w = 2 * hw
+  out.h = 2 * hh
+  out.x0 = clampTo(cam.cx - hw, 0, PLATE_ASPECT - out.w)
+  out.y0 = clampTo(cam.cy - hh, 0, 1 - out.h)
+  out.lx0 = clampTo(out.x0 + (cam.cx - cam.bx) * PARALLAX, 0, PLATE_ASPECT - out.w)
+  out.ly0 = clampTo(out.y0 + ((cam.cy - cam.by) * PARALLAX + cam.breath * 0.004), 0, 1 - out.h)
+  return out
+}
+
 /** The plate's window over the whole picture, then its wet highlights added through a window that leads the camera a little. */
 export function drawTissue(c: Ctx2D, w: number, h: number, plate: EndoPlate, cam: CameraPose): void {
   const P = plate.h
-  const hh = cam.hh
-  const hw = hh * PLATE_ASPECT
-  const sw = 2 * hw * P
-  const sh = 2 * hh * P
-  const sx = clampTo((cam.cx - hw) * P, 0, plate.w - sw)
-  const sy = clampTo((cam.cy - hh) * P, 0, plate.h - sh)
+  const win = windowInto(cam, _win)
+  const sw = win.w * P
+  const sh = win.h * P
+  const sx = win.x0 * P
+  const sy = win.y0 * P
   c.setTransform(1, 0, 0, 1, 0, 0)
   c.globalAlpha = 1
   c.globalCompositeOperation = 'source-over'
   c.drawImage(plate.plate.canvas, sx, sy, sw, sh, 0, 0, w, h)
-  const lx = clampTo(sx + (cam.cx - PLATE_ASPECT / 2) * PARALLAX * P, 0, plate.w - sw)
-  const ly = clampTo(sy + ((cam.cy - 0.5) * PARALLAX + cam.breath * 0.004) * P, 0, plate.h - sh)
   c.globalCompositeOperation = 'lighter'
   c.globalAlpha = 0.85
-  c.drawImage(plate.spec.canvas, lx, ly, sw, sh, 0, 0, w, h)
+  c.drawImage(plate.spec.canvas, win.lx0 * P, win.ly0 * P, sw, sh, 0, 0, w, h)
   c.globalCompositeOperation = 'source-over'
   c.globalAlpha = 1
 }
