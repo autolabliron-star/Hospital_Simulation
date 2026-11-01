@@ -382,7 +382,9 @@ function updateUs(r: UsRig, s: ScannerState, dt: number, t: number): void {
     r.exam = s.exam
     r.ctx = usProbeContext(s.exam)
   }
-  const active = probeFrameInto(r.target, s.phase, s.sequence, s.detail, s.activity, t, r.ctx)
+  // a ProSense case (the step engine's view is on): the radiologist holds the transducer in her own hand (the crowd draws it), so the cart's one stays
+  // holstered, its built-in hand hidden (R5 fix K16: it used to keep scanning on the couch, 17 cm from her hands)
+  const active = probeFrameInto(r.target, s.phase, s.sequence, s.detail, s.activity, t, s.procedure.procedureId !== null ? null : r.ctx)
   // smooth the probe in the patient's frame: the face, then the beam and the array axis (kept orthonormal)
   const f = r.frame
   const w = r.target

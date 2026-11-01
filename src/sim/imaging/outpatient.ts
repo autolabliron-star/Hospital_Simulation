@@ -1,8 +1,8 @@
 /**
  * A booked outpatient (or the presenter's demo patient): arrives at the entrance a little before the appointment, checks in
  * at a kiosk or the reception desk like everyone else, sits in the imaging hall until the radiographer comes out to call
- * them, is scanned (the scanner's session drives them from there), and goes home by the entrance. After an MRI they change
- * back out of the gown first.
+ * them, is scanned (the scanner's session drives them from there), and goes home by the entrance. After an MRI or a ProSense
+ * cryoablation they change back out of the gown first (the ProSense patient in the cubicle reserved for her, for a fixed time).
  *
  *   fade -> queueing -> serving -> toHall -> waiting -> scan -> afterScan -> [changeBack] -> toExit
  *
@@ -199,11 +199,13 @@ export class Outpatient extends Actor implements ScanSubject {
         }
         break
       case 'changeBack': {
-        const c = this.svc.cubicles.claim(this.id)
+        // (a ProSense patient has the cubicle reserved for her, and a fixed time: she draws no random number, so nothing of her day moves)
+        const prosense = this.booking.cryo !== undefined
+        const c = this.svc.cubicles.claim(this.id, prosense)
         if (!c) break
         this.moveTo(c.at, { face: c.heading })
         this.state = 'changing'
-        this.timer = this.orng.between(CONFIG.imaging.changeBackSeconds)
+        this.timer = prosense ? CONFIG.imaging.cryo.changeBackSeconds : this.orng.between(CONFIG.imaging.changeBackSeconds)
         this.cubicleOutfit = false
         break
       }

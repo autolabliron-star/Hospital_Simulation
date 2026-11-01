@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { CRYO_STAFF } from '@/content/staff'
 import { CONFIG } from '../config'
+import { ACTION_ANIM } from '../procedure'
 import { clockText } from '../events'
 import { levelOf } from '../levels'
 import { tryPlanRoute } from '../nav/graph'
@@ -16,7 +17,7 @@ import { SurgerySites } from '../surgery/sites'
 import { testPerson } from '../lifts/testkit'
 import type { CryoStep, SimEvent } from '../types'
 import { CryoSites } from './sites'
-import { cryoTimeline, ROOM_STEPS, type PlannedCryoCase } from './plan'
+import { cryoTimeline, roomStepsFor, secondsOf, targetOf, type PlannedCryoCase } from './plan'
 import { cryoSuite, runCryoDay, type CryoHospital, type CryoTrace } from './testkit'
 
 const SEEDS = Array.from({ length: 50 }, (_, i) => 3100 + i * 53)
@@ -26,7 +27,7 @@ function nominalStep(plan: readonly PlannedCryoCase[], t: number): CryoStep {
   for (const p of plan) {
     const tl = cryoTimeline(p)
     if (t < p.nominalIn || t >= tl.roomEnd) continue
-    for (const s of ROOM_STEPS) if (t >= tl.start[s] && t < tl.end[s]) return s
+    for (const s of roomStepsFor(targetOf(p))) if (t >= tl.start[s] && t < tl.end[s]) return s
   }
   for (const p of plan) {
     const tl = cryoTimeline(p)
@@ -82,9 +83,9 @@ describe('the cryoablation day, 50 seeds', () => {
         expect(
           seen.map((s) => s.step),
           `seed ${seed} ${run.id}`,
-        ).toEqual(ROOM_STEPS.slice())
+        ).toEqual(roomStepsFor(targetOf(run.plan)).slice())
         const tl = cryoTimeline(run.plan)
-        for (const s of seen) expect(Math.abs(s.t - tl.start[s.step as (typeof ROOM_STEPS)[number]]), `seed ${seed} ${run.id} ${s.step}`).toBeLessThan(5)
+        for (const s of seen) expect(Math.abs(s.t - tl.start[s.step as keyof typeof tl.start]), `seed ${seed} ${run.id} ${s.step}`).toBeLessThan(5)
         // then the turnover, then idle
         const after = tr.steps[tr.steps.indexOf(seen[seen.length - 1]) + 1]
         expect(after.step, `seed ${seed} ${run.id}`).toBe('turnover')
@@ -93,7 +94,7 @@ describe('the cryoablation day, 50 seeds', () => {
     }
   }, 300_000)
 
-  it('logs each case once and in order: arrived, planned, every needle, two freezes, done', () => {
+  it('logs each case once and in order: arrived, planned, every needle, its freezes (the lung\'s three), done', () => {
     for (const { seed, tr } of days()) {
       for (const run of tr.h.cryo.runs) {
         const mine = cryoEvents(tr.h.log.events).filter((e) => e.subjectId === `${run.id}-patient`)
@@ -101,11 +102,54 @@ describe('the cryoablation day, 50 seeds', () => {
         expect(
           mine.map((e) => e.type),
           `seed ${seed} ${run.id}`,
-        ).toEqual(['cryoArrived', 'cryoPlanned', ...Array.from({ length: n }, () => 'cryoNeedle'), 'cryoFreeze', 'cryoFreeze', 'cryoDone'])
+        ).toEqual(['cryoArrived', 'cryoPlanned', ...Array.from({ length: n }, () => 'cryoNeedle'), ...Array.from({ length: targetOf(run.plan) === 'lung' ? 3 : 2 }, () => 'cryoFreeze'), 'cryoDone'])
         for (const e of mine) expect(e.text).not.toMatch(/[{}]/)
         expect(mine[2 + n - 1].text).toContain(`${n} of ${n}`)
+        const freezes = mine.filter((e) => e.type === 'cryoFreeze').map((e) => e.text)
+        freezes.forEach((text, i) => expect(text, `${run.id} freeze ${i + 1}`).toContain(`Freeze ${i + 1} of ${freezes.length}`))
       }
     }
+  }, 300_000)
+})
+
+describe('the scripted day, 50 seeds', () => {
+  it('plays every script step of every case in order (kidney, lung and liver all drawn), with the pose, the held breath and the tube right and nobody carrying a stale pose', () => {
+    const kinds = new Set<string>()
+    for (const { seed, tr } of days()) {
+      expect(tr.problems, `seed ${seed}`).toEqual([])
+      for (const run of tr.h.cryo.runs) {
+        const target = targetOf(run.plan)
+        kinds.add(target)
+        const sc = run.proc!
+        const marks = tr.script.filter((m) => m.caseId === run.id)
+        const n = sc.steps.flatCount
+        const where = `seed ${seed} ${run.id} (${target})`
+        expect(marks.map((m) => m.flat), where).toEqual(Array.from({ length: n }, (_, f) => f))
+        expect(marks.map((m) => m.stepId), where).toEqual(Array.from({ length: n }, (_, f) => sc.steps.cs.script.steps[sc.steps.stepOf[f]].id))
+        expect(marks.every((m) => !m.watch), where).toBe(true)
+        // the repeat run once per needle (the view names the repeat only when there is more than one needle)
+        const repeating = new Set(sc.steps.cs.script.steps.filter((x) => x.repeat === true).map((x) => x.id))
+        expect(marks.filter((m) => repeating.has(m.stepId)), where).toHaveLength(run.plan.needles.length * sc.steps.cs.repeatLen)
+        if (run.plan.needles.length > 1) expect(marks.filter((m) => m.k > 0).map((m) => m.k), where).toEqual(run.plan.needles.flatMap((_, i) => Array.from({ length: sc.steps.cs.repeatLen }, () => i + 1)))
+        // the tube only from the breathing tube to the extubation step (lung)
+        const tube = marks.filter((m) => m.airway === 'tube').map((m) => m.stepId)
+        if (target === 'lung') {
+          expect(tube[0], where).toBe('breathingTube')
+          expect(tube[tube.length - 1], where).toBe('extubate')
+        } else expect(tube, where).toEqual([])
+        // the held breath: never for the kidney; for the others a few seconds of every scan and every push (R5 wave 3: judged as each step ends, runCryoDay)
+        expect(tr.heldCases.includes(run.id), where).toBe(target !== 'kidney')
+        // on the back at the end
+        expect(marks[marks.length - 1].position, where).toBe('supine')
+        // the lines the script says: its events and its three WHO pauses, once each, in order
+        const mine = tr.h.log.events.filter((e) => e.subjectId === `${run.id}-patient`)
+        const steps = sc.steps.cs.script.steps
+        const said = mine.filter((e) => e.type === 'procedureStep').map((e) => e.text)
+        expect(said, where).toEqual(Array.from({ length: n }, (_, f) => steps[sc.steps.stepOf[f]].event).filter((e): e is string => e !== undefined).map((e) => `${run.name}: ${e}`))
+        expect(mine.filter((e) => e.type === 'whoSignIn' || e.type === 'whoTimeOut' || e.type === 'whoSignOut').map((e) => e.type), where).toEqual(['whoSignIn', 'whoTimeOut', 'whoSignOut'])
+      }
+    }
+    expect([...kinds].sort()).toEqual(['kidney', 'liver', 'lung'])
   }, 300_000)
 })
 
@@ -113,7 +157,7 @@ describe('the room\'s state', () => {
   it('keeps the robot stowed with the table in, a needle in only once aligned and until the needles come out, and the ice growing in a freeze', () => {
     // (runCryoDay checks these every step: here at 1/30 s and with the crowd on)
     for (const seed of [2026, 41]) {
-      const tr = runCryoDay(seed, { crowd: true, dt: 1 / 30, until: 16 })
+      const tr = runCryoDay(seed, { crowd: true, dt: 1 / 30, until: 19 })
       expect(tr.problems, `seed ${seed}`).toEqual([])
       expect(tr.stills, `seed ${seed}`).toEqual([])
       const scans = tr.steps.filter((s) => s.step === 'planningCt' || s.step === 'checkCt' || s.step === 'finalCt')
@@ -140,7 +184,8 @@ describe('the room\'s state', () => {
     // the team where the step wants them: the radiographer at the CT console, the radiologist at the robot station, the nurse at the head end
     expect(h.personById('cryo-rad')!.entity.seated?.seatId).toBe('console:cryo:ct')
     expect(h.personById('cryo-ir')!.entity.seated?.seatId).toBe('console:cryo:robot')
-    expect(h.personById('cryo-nurse')!.entity.anim).toBe('tablet')
+    // (the nurse comes round from the control room's glass to the head end, where the script has her watch the patient)
+    expect(h.runUntil(() => h.personById('cryo-nurse')!.entity.anim === ACTION_ANIM.watchMonitor, 120, 0.1)).toBe(true)
     expect(h.personById('cryo-ir')!.entity.outfit).toBe('theatre')
     expect(h.personById('cryo-rad')!.entity.outfit).toBe('role')
   }, 120_000)
@@ -254,9 +299,11 @@ describe('the presenter\'s demo', () => {
     const porter = h.personById(CRYO_STAFF.find((s) => s.title === 'wardPorter')!.id)!
     expect(porter.entity.fade).toBeGreaterThan(0.5)
     const demo = c.runs.find((r) => r.plan.demo)!
-    // the whole procedure takes about demoScale of a real one
-    const real = ROOM_STEPS.reduce((a, s) => a + demo.plan.steps[s] / CONFIG.cryoSuite.demoScale, 0)
-    expect(h.runUntil(() => demo.roomEnd !== null, real * CONFIG.cryoSuite.demoScale + 300, 1 / 30)).toBe(true)
+    // the whole procedure takes the script's watch seconds (600-900 s), the arrival and the stretcher's ride on top
+    const watch = roomStepsFor(targetOf(demo.plan)).reduce((a, s) => a + secondsOf(demo.plan, s), 0)
+    expect(watch).toBeGreaterThanOrEqual(600)
+    expect(watch).toBeLessThanOrEqual(900)
+    expect(h.runUntil(() => demo.roomEnd !== null, watch + 300, 1 / 30)).toBe(true)
     expect(c.startDemo()).toBe('queued')
     runUntilHour(h, 20, 0.1)
     expect(c.runs.map((r) => r.stage)).toEqual(c.runs.map(() => 'done'))
@@ -267,8 +314,8 @@ describe('the presenter\'s demo', () => {
   it('is queued while a case is in the room and goes to the front of the list: before a case already waiting', () => {
     const base = cryoSuite(77, { crowd: false })
     const second = base.cryo.runs[1].plan
-    // 12 min before case 2 a demo starts (about 15-21 min in the room): while it is in the room, case 2 comes due and waits
-    const h = cryoSuite(77, { crowd: false, hour: CONFIG.sim.startHour + (second.plannedIn - 12 * 60) / 3600 })
+    // 8 min before case 2 a demo starts (about 11-12 min in the room): while it is in the room, case 2 comes due and waits
+    const h = cryoSuite(77, { crowd: false, hour: CONFIG.sim.startHour + (second.plannedIn - 8 * 60) / 3600 })
     const c = h.cryo
     h.step(0.1)
     expect(c.startDemo()).toBe('started')

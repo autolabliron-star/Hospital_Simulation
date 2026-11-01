@@ -51,9 +51,10 @@ function bodyOf(src: string, name: string): string {
 /** Every function R5 added to a frame of the crowd (the rig's solve, the action poses, the model's lists, the attire written on a change). */
 const PATHS: Record<string, string[]> = {
   'surgicalPoses.ts': ['evalHand', 'evalAction', 'evalActionMode'],
-  'rig.ts': ['solveRig', 'actWeight', 'actContext', 'springTo', 'updateInstruments', 'gripPoint', 'aimPoint', 'aimArm', 'aimHand', 'reachError', 'instrumentFrame', 'tubeFrame', 'handMiddle', 'armReach', 'armReachAt', 'tuckArms', 'solveArmReach'],
+  'rig.ts': ['solveRig', 'actWeight', 'actContext', 'springTo', 'updateInstruments', 'gripPoint', 'aimPoint', 'aimArm', 'aimHand', 'reachError', 'instrumentFrame', 'tubeFrame', 'handMiddle', 'armReach', 'armReachAt', 'placeArms', 'armPole', 'solveArmReach'],
   // R5 wave 2: the patient on the OR table (the followers, the table's transform in the root frame, the legs and the foot, the pick capsule)
-  'tablePatient.ts': ['settleAt', 'stepTableBody', 'tableRootInto', 'uprightOfLying', 'footToShin', 'tableMovePoint'],
+  // R5 wave 3: the roll about the long axis (the torso's support function, the roll matrix and its inverse for the limbs' table-frame targets) and the pose's input
+  'tablePatient.ts': ['settleAt', 'stepTableBody', 'tableRootInto', 'uprightOfLying', 'footToShin', 'tableMovePoint', 'lieSupport', 'rollLift', 'rollMatrixInto', 'uprightOfRolled', 'writeTableInput', 'oneUpSide'],
   'model.ts': ['instruments', 'fillInput', 'bindAvatar', 'tick', 'capsule', 'visit'],
   'attire.ts': ['writeAttire', 'putSlot'],
   'blend.ts': ['modeFor'],

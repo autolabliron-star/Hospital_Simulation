@@ -118,6 +118,20 @@ export function onOrTable(e: Pick<Entity, 'seated'>): boolean {
   return id !== undefined && id.startsWith(OR_TABLE_SEAT)
 }
 
+/** R5 wave 3: the CT cryo table and the ultrasound couch, the two PROCEDURE tables besides the OR table: a patient on them with a pose is laid as the pose says too (no tilt). */
+export const PROC_TABLE_SEATS: readonly string[] = ['scanTable:cryo', 'usCouch:us']
+
+/**
+ * Which table a lying person is on, for the patient paths of the rig (rig.ts `tableKind`): 0 the OR table (`orTable:*`, the pose tips the top), 1 a procedure table (the CT
+ * cryo table, the ultrasound couch: level, the pose lays the body), -1 anything else (a bed, a trolley, the diagnostic scanners' tables: no pose is carried).
+ */
+export function tableKindOf(e: Pick<Entity, 'seated'>): -1 | 0 | 1 {
+  const id = e.seated?.seatId
+  if (id === undefined) return -1
+  if (id.startsWith(OR_TABLE_SEAT)) return 0
+  return PROC_TABLE_SEATS.includes(id) ? 1 : -1
+}
+
 /** Size factor of a person relative to the nominal body. */
 export function sizeOf(e: Entity): number {
   return scaleFor(e.id, e.variant)

@@ -17,6 +17,7 @@ import { floorFootprints, type Footprint } from '@/scene/lighting/contact/footpr
 import { registerContactSource, shownInScene, type ContactBuffer } from '@/scene/lighting/contact/registry'
 import { visualDt } from '@/scene/timeScale'
 import { loop, sim } from '@/sim'
+import { ProcStageLayer } from '@/scene/surgery/stage/proc/ProcStageLayer'
 import { monitorMaterial } from './machineMaterials'
 import { createRig, disposeRig, updateRig, type Rig } from './rig'
 
@@ -68,5 +69,11 @@ export function Machines() {
   // the table and probe smoothing stand for the sim's process (visualDt); the CT gantry spin stays on real time
   useFrame((state, dt) => updateRig(rig, sim.imaging.scanners, visualDt(dt), state.clock.elapsedTime, loop.paused ? 0 : Math.min(dt, 0.1)), MACHINES_FRAME_PRIORITY)
 
-  return <primitive object={rig.root} />
+  return (
+    <>
+      <primitive object={rig.root} />
+      {/* R5 wave 3: the ProSense patient's prepped skin, sterile sheet and skin marks (surgery/stage/proc): one hidden mesh until the case has some */}
+      <ProcStageLayer room="us" />
+    </>
+  )
 }

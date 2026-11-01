@@ -6,18 +6,24 @@
  *   servo chirps    short rising chirps every 0.5 s while the needle-guidance robot deploys, aims or retracts, from its arm's mount
  *   argon hiss      a soft, steady band of noise in 0.6 s puffs while the argon runs (the freezes), from the console
  *   freeze beep     two short beeps as a freeze starts (an edge: the first look at a state, and the first after a Jump, only learn it)
+ *   ventilator      R5 wave 3: the anaesthesia machine's soft breath (the OR's, surgeryPatterns.ts `ventilatorBreath`) every 4.8 s while it works a patient
+ *                   (lung and liver cases), PAUSED for the held breath (`state.apnoea`: a scan, a needle push) and back with the next window after it
  *
  * Everything that runs while something happens is periodic on the audio clock, so consecutive windows join with no gap and no repeat. All positions are
  * sim coordinates (level 2's strip), so a listener on level 1 hears nothing by distance.
  */
+import { anaesInUse } from '@/scene/cryoSuite/anaesInUse'
 import { CRYO_SUITE } from '@/sim/places'
 import type { CryoStep, CryoSuiteState, Vec3 } from '@/sim/types'
 import { ctGain, ctPitchHz } from '../patterns'
 import { blip, periodic, type DeviceEvent, type DevicePattern, type NoiseEvent, type PatternSink, type PlanWindow, type ToneEvent } from './registry'
+import { BREATH_PERIOD_S, ventilatorBreath } from './surgeryPatterns'
 
 export const GANTRY_AT: Vec3 = { x: CRYO_SUITE.ct.machine.x, y: 1.0, z: CRYO_SUITE.ct.machine.z }
 export const ROBOT_AT: Vec3 = { x: CRYO_SUITE.robot.mount.x, y: CRYO_SUITE.robot.mount.y + 0.4, z: CRYO_SUITE.robot.mount.z }
 export const CONSOLE_AT: Vec3 = { x: CRYO_SUITE.console.at.at.x, y: 1.0, z: CRYO_SUITE.console.at.at.z }
+/** The ventilator breathes at the anaesthesia machine's bellows. */
+export const VENT_AT: Vec3 = { x: CRYO_SUITE.anaesMachine.at.at.x, y: 1.0, z: CRYO_SUITE.anaesMachine.at.at.z }
 
 export const SERVO_PERIOD_S = 0.5
 export const HISS_PERIOD_S = 0.6
@@ -26,7 +32,7 @@ export const WHIR_LEVEL = 0.07
 /** A step change counts as an edge only while it is this fresh (sim seconds). */
 export const EDGE_FRESH_S = 6
 
-const FREEZES: ReadonlySet<CryoStep> = new Set<CryoStep>(['freeze1', 'freeze2'])
+const FREEZES: ReadonlySet<CryoStep> = new Set<CryoStep>(['anchorFreeze', 'freeze1', 'freeze2'])
 
 /** One servo chirp of the arm: a quick rising sawtooth and a breath of noise. */
 export function servoChirp(t: number, at: Vec3 | null = ROBOT_AT): DeviceEvent[] {
@@ -68,6 +74,8 @@ export function planCryo(st: CryoSuiteState, mem: CryoMemory, w: PlanWindow, out
   const p = st.robot.phase
   if (running && (p === 'deploying' || p === 'aiming' || p === 'retracting')) periodic(w.from, w.to, SERVO_PERIOD_S, 0.07, (t) => emit(out, servoChirp(t)))
   if (st.argon) periodic(w.from, w.to, HISS_PERIOD_S, 0, (t) => out.event(argonHiss(t)))
+  // R5 wave 3: the ventilator breathes while the machine works a patient, and holds its breath for a scan or a needle push
+  if (running && anaesInUse(st) && !st.apnoea) periodic(w.from, w.to, BREATH_PERIOD_S, 0, (t) => emit(out, ventilatorBreath(t, VENT_AT)))
 
   mem.src = st
   mem.step = st.step

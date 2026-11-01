@@ -11,7 +11,7 @@
  *     the path, slows behind slower walkers, steps round standing and seated people, takes turns at single-file doors and
  *     is always pulled back onto walkable ground. Call `crowd.beginStep()` once per sim step before the people update.
  */
-import type { Crowd } from './nav/crowd'
+import type { Crowd, CrowdWalker } from './nav/crowd'
 import { PathFollower } from './nav/follower'
 import { planRoute } from './nav/graph'
 import type { Vec2 } from './types'
@@ -55,6 +55,11 @@ export interface Walker {
    * In a crowd the others avoid its real footprint and the walker looks ahead from it. A solo walker: nothing to do.
    */
   setFootprint?(f: { ahead: number; halfWidth: number; halfLength: number } | null): void
+  /**
+   * A walker that wraps a crowd walker (the cryo team's `HopWalker`, src/sim/cryoSuite/hop.ts) says which one: the courtesy sidestep (src/sim/reactions.ts)
+   * is asked of that walker. Absent on every other walker (a `CrowdWalker` is its own).
+   */
+  readonly crowdWalker?: CrowdWalker | null
 }
 
 class NavWalker implements Walker {

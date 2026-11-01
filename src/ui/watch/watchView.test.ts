@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { scriptFor } from '@/content/procedures'
 import { fillWatch, WATCH } from '@/content/watch'
-import { captionModel, mmss, scriptStepOf, stepRows, type CaptionView } from './watchView'
+import { captionModel, mmss, scriptCaption, scriptStepOf, stepRows, type CaptionView } from './watchView'
 
 const ID = 'or-cholecystectomy' as const
 const script = scriptFor(ID)!
@@ -70,5 +70,31 @@ describe('the watch caption', () => {
     expect(mmss(59.2)).toBe('1:00')
     expect(mmss(605)).toBe('10:05')
     expect(mmss(-3)).toBe('0:00')
+  })
+})
+
+describe('the watch caption of a repeated cryo step', () => {
+  const CRYO = 'cryo-lung' as const
+  const lung = scriptFor(CRYO)!
+  const push = lung.steps.findIndex((s) => s.id === 'pushNeedle')
+  const caption = lung.steps[push].caption
+
+  it('fills the caption\'s own needle count, with no "(k of n)" after it and no raw brace', () => {
+    expect(caption).toMatch(/\{k\}/)
+    // needle 2 of 3: the flat index of the second play of the run (the run is the three repeat steps)
+    const run = lung.steps.filter((s) => s.repeat === true).length
+    const flat = push + run
+    const v: CaptionView = { procedureId: CRYO, stepIndex: flat, stepCount: lung.steps.length + 2 * run, stepId: 'pushNeedle', repeat: { k: 2, n: 3 } }
+    const m = captionModel({ status: 'case', mode: 'watch', procedureId: CRYO, view: v, startsAt: null, now: 0 })
+    expect(m.title).toBe(`Step ${flat + 1} of ${v.stepCount}: ${caption.replace('{k}', '2').replace('{n}', '3')}`)
+    expect(m.title).not.toMatch(/[{}]/)
+    for (const row of m.steps) expect(row.label).not.toMatch(/[{}]/)
+  })
+
+  it('says 1 of 1 when a case has one needle (the view has no repeat marker then)', () => {
+    const v: CaptionView = { procedureId: CRYO, stepIndex: push, stepCount: lung.steps.length, stepId: 'pushNeedle', repeat: null }
+    const m = captionModel({ status: 'case', mode: 'watch', procedureId: CRYO, view: v, startsAt: null, now: 0 })
+    expect(m.title).toContain(scriptCaption(caption, 1, 1))
+    expect(m.title).not.toMatch(/[{}]/)
   })
 })

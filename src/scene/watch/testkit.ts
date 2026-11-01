@@ -6,17 +6,22 @@ import { PerspectiveCamera } from 'three'
 import { getLayout } from '@/scene/building/layout'
 import { WallBoxProbe } from '@/scene/player/boomProbe'
 import { LEVEL_Y, levelDx, levelOf } from '@/sim/levels'
+import { PROCEDURE_META } from '@/content/procedures'
 import { SURGERY, type AreaId } from '@/sim/places'
 import { applyRoleViews, compiledFor, emptyProcedureView, focusPointInto, newRoleViews, newTargetCtx, setTable } from '@/sim/procedure'
-import type { PlayerMode, ProcedureId, ProcedureView, Vec3, WatchResult } from '@/sim/types'
+import type { CtNeedlePath } from '@/sim/procedure/cryoPlaces'
+import type { CryoTarget, PlayerMode, ProcedureId, ProcedureView, Vec3, WatchResult } from '@/sim/types'
 import type { CameraPose } from '@/scene/camera/cameraApi'
 import type { LevelId } from '@/sim/levels'
 import { WatchDirector, type DirectorDeps, type PlayerPort } from './director'
-import { roomObstacles, type WatchEntity, type WatchSim } from './rooms'
+import { roomObstacles, type RoomObstacles, type WatchEntity, type WatchRoomId, type WatchSim } from './rooms'
 import type { WatchUiState } from './watch.store'
 
-/** Fill `view` with step `i` of a script as the engine would (roles, the pose after the step, the focus point). */
-export function fillStepView(view: ProcedureView, id: ProcedureId, i: number, cart: { x: number; z: number }, caseId = 'case', watch = true): ProcedureView {
+/**
+ * Fill `view` with step `i` of a script as the engine would (roles, the pose after the step, the focus point). For a CT procedure the focus point follows
+ * the case's target (its key) and `tablePos` (0 out .. 1 in the bore, default out).
+ */
+export function fillStepView(view: ProcedureView, id: ProcedureId, i: number, cart: { x: number; z: number }, caseId = 'case', watch = true, tablePos = 0): ProcedureView {
   const cs = compiledFor(id)!
   const step = cs.script.steps[i]
   const changed = view.procedureId !== id || view.stepIndex !== i || view.caseId !== caseId
@@ -35,6 +40,10 @@ export function fillStepView(view: ProcedureView, id: ProcedureId, i: number, ca
   const t = newTargetCtx()
   setTable(t, view.patient.headTiltDeg, view.patient.rollDeg, view.patient.position)
   t.cart = cart
+  if (cs.machine === 'cryoCt') {
+    t.cryo.target = PROCEDURE_META[id].key as CryoTarget
+    t.cryo.tablePos = tablePos
+  }
   focusPointInto(step.focus, t, view.focusAt)
   if (changed) view.version++
   return view
@@ -93,11 +102,32 @@ export function fakePlayer(phase: PlayerMode, x: number, z: number, heading = 0.
   return p
 }
 
+/** The fake CT suite: its published state (the case's view, the table, the target, the needles) and the calls its port answers. */
+export interface FakeCryo {
+  state: { procedure: ProcedureView; tablePos: number; target: CryoTarget; needle: number; needles: CtNeedlePath[] }
+  calls: { target: CryoTarget; fromStart: boolean }[]
+  answer: WatchResult
+  startsAt: number | null
+  why: 'hours' | 'late' | null
+}
+
+/** The fake imaging department: the ultrasound room's ProSense view and the calls its port answers. */
+export interface FakeImaging {
+  view: ProcedureView
+  calls: { protocol: string; fromStart: boolean }[]
+  answer: WatchResult
+  startsAt: number | null
+}
+
 export interface Harness {
   director: WatchDirector
   camera: PerspectiveCamera
   player: FakePlayer
+  /** The robotic theatre's view (the other rooms': `cryo.state.procedure` and `imaging.view`; `viewOf` picks by room). */
   view: ProcedureView
+  cryo: FakeCryo
+  imaging: FakeImaging
+  viewOf(room: WatchRoomId): ProcedureView
   sim: WatchSim & { t: number; entities: Map<string, WatchEntity> }
   clock: { speed: number }
   cart: { x: number; z: number; heading: number }
@@ -125,7 +155,8 @@ export function placeCameraAtPlayer(camera: PerspectiveCamera, p: { x: number; z
   camera.updateMatrixWorld()
 }
 
-export function harness(o: { phase?: PlayerMode; x?: number; z?: number; reduced?: boolean } = {}): Harness {
+/** `sim`: a live simulation to watch instead of the fake one (the harness's own fake sim is still in `h.sim`, unused then). */
+export function harness(o: { phase?: PlayerMode; x?: number; z?: number; reduced?: boolean; sim?: WatchSim } = {}): Harness {
   const camera = new PerspectiveCamera(55, 16 / 9, 0.1, 500)
   const player = fakePlayer(o.phase ?? 'walk', o.x ?? -20, o.z ?? 3)
   if (player.phase === 'overview') {
@@ -135,11 +166,36 @@ export function harness(o: { phase?: PlayerMode; x?: number; z?: number; reduced
   camera.updateMatrixWorld()
   const view = emptyProcedureView()
   const cart = { x: SURGERY.cart.park.at.x, z: SURGERY.cart.park.at.z, heading: Math.PI / 2 }
+  const cryo: FakeCryo = { state: { procedure: emptyProcedureView(), tablePos: 0, target: 'kidney', needle: -1, needles: [] }, calls: [], answer: 'started', startsAt: null, why: null }
+  const imaging: FakeImaging = { view: emptyProcedureView(), calls: [], answer: 'started', startsAt: null }
   const sim = {
     t: 0,
     player: null,
     entities: new Map<string, WatchEntity>(),
     surgery: { state: { procedure: view, robot: { cart } }, startWatch: (): WatchResult => 'started', watchStartsAt: null },
+    cryoSuite: {
+      state: cryo.state,
+      startWatch: (target: CryoTarget, opts?: { fromStart?: boolean }): WatchResult => {
+        cryo.calls.push({ target, fromStart: opts?.fromStart === true })
+        return cryo.answer
+      },
+      get watchStartsAt() {
+        return cryo.startsAt
+      },
+      get whyNoTeam() {
+        return cryo.why
+      },
+    },
+    imaging: {
+      scanners: { us: { procedure: imaging.view } },
+      startWatch: (protocol: string, opts?: { fromStart?: boolean }): WatchResult => {
+        imaging.calls.push({ protocol, fromStart: opts?.fromStart === true })
+        return imaging.answer
+      },
+      get watchStartsAt() {
+        return imaging.startsAt
+      },
+    },
   }
   const published: Partial<Omit<WatchUiState, 'set'>>[] = []
   const ui: Partial<Omit<WatchUiState, 'set'>> = {}
@@ -151,12 +207,12 @@ export function harness(o: { phase?: PlayerMode; x?: number; z?: number; reduced
   const reduced = { value: o.reduced ?? false }
   const simCamera = { x: 0, y: 0, z: 0 }
   const clock = { speed: 1 }
-  const obstacles = roomObstacles('or', getLayout().footprints)
+  const obstacles = new Map<WatchRoomId, RoomObstacles>((['or', 'cryo', 'us'] as const).map((r) => [r, roomObstacles(r, getLayout().footprints)]))
   const rigPos = { x: -11, y: 80, z: 66 }
   const rigTgt = { x: -11, y: 0, z: 0 }
   const deps: DirectorDeps = {
     camera,
-    sim: () => sim,
+    sim: () => o.sim ?? sim,
     generation: () => gen.value,
     player: player.port,
     rig: () => ({
@@ -184,7 +240,7 @@ export function harness(o: { phase?: PlayerMode; x?: number; z?: number; reduced
       published.push(patch)
       Object.assign(ui, patch)
     },
-    obstacles: (room) => (room === 'or' ? obstacles : null),
+    obstacles: (room) => obstacles.get(room) ?? null,
     clock: { speed: () => clock.speed, setSpeed: (n) => (clock.speed = n) },
   }
   // like the app's: closing the panels closes the room panel
@@ -197,6 +253,9 @@ export function harness(o: { phase?: PlayerMode; x?: number; z?: number; reduced
     camera,
     player,
     view,
+    cryo,
+    imaging,
+    viewOf: (room) => (room === 'or' ? view : room === 'cryo' ? cryo.state.procedure : imaging.view),
     sim,
     cart,
     published,

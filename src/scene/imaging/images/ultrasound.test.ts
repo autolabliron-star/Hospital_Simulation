@@ -81,7 +81,7 @@ describe('ultrasound geometry', () => {
     }
   })
 
-  it('breast: a linear picture, the same for the same seed, with a ~1.2 cm dark tumour at about 2 cm in the gland', () => {
+  it('breast: a linear picture, the same for the same seed, with a ~1.2 cm dark tumour at about 2 cm in the gland (6 cm deep)', () => {
     expect(usViewOf('Probe placement', 'breast')).toBe('breast')
     expect(usViewOf('Freeze 1', 'breast')).toBe('breast')
     const tumourMm: number[] = []
@@ -90,7 +90,7 @@ describe('ultrasound geometry', () => {
       const b = usScene(createUsScene(), 'breast', seed, 0.5, 2.5)
       expect(snapshot(a)).toBe(snapshot(b))
       expect(a.linear).toBe(true)
-      expect(a.depthCm).toBe(5)
+      expect(a.depthCm).toBe(6)
       expect(a.count).toBeGreaterThan(15)
       // the tumour: the scene's target, a dark blob there
       expect(a.tr).toBeGreaterThan(0)
@@ -99,8 +99,8 @@ describe('ultrasound geometry', () => {
       expect(d).toBeLessThanOrEqual(BREAST_TUMOUR_MM[1] + 0.01)
       tumourMm.push(d)
       const depthMm = (a.ty - US_APEX_Y) / a.mm
-      expect(depthMm).toBeGreaterThan(17)
-      expect(depthMm).toBeLessThan(24)
+      expect(depthMm).toBeGreaterThan(19)
+      expect(depthMm).toBeLessThan(26)
       expect(Math.abs(a.tx)).toBeLessThan(0.1)
       const core = a.blobs.slice(0, a.count).find((k) => Math.abs(k.cx - a.tx) < 1e-9 && Math.abs(k.cy - a.ty) < 1e-9)
       expect(core?.echo).toBeLessThan(0.15)

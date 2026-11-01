@@ -453,6 +453,46 @@
           "step": "freeze"
         }
       ]
+    },
+    "us-cryo-fibroadenoma": {
+      "id": "us-cryo-fibroadenoma",
+      "modality": "us",
+      "bodyPart": "breast",
+      "name": "Ultrasound-guided cryoablation of a fibroadenoma, left breast (ProSense)",
+      "sequences": [
+        {
+          "name": "Probe placement",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 120,
+          "images": 3,
+          "step": "place"
+        },
+        {
+          "name": "Freeze 1",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 264,
+          "images": 4,
+          "step": "freeze"
+        },
+        {
+          "name": "Thaw",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 264,
+          "images": 3,
+          "step": "thaw"
+        },
+        {
+          "name": "Freeze 2",
+          "plane": "sweep",
+          "contrast": "none",
+          "seconds": 264,
+          "images": 4,
+          "step": "freeze"
+        }
+      ]
     }
   },
   "erTests": {

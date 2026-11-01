@@ -3,15 +3,26 @@
  * cryoablation now" button) to plain strings and numbers, so `usePoll` can compare it and the render test can feed it hand-made state. All the words
  * come from src/content/cryoSuite.ts; "Simulated" is the tag.
  */
-import { CRYO_SUITE_COPY, fillCryo } from '@/content/cryoSuite'
+import { CRYO_SUITE_COPY, cryoStepLabel, fillCryo } from '@/content/cryoSuite'
 import { clockText } from '@/sim/events'
-import type { CryoDemoResult } from '@/sim/cryoSuite/ports'
-import { CRYO_STEPS, type CryoCaseView, type CryoStep, type CryoSuiteState } from '@/sim/types'
+import type { CryoDemoResult, CryoNoTeamWhy } from '@/sim/cryoSuite/ports'
+import { CRYO_STEPS, type CryoCaseView, type CryoStep, type CryoSuiteState, type CryoTarget } from '@/sim/types'
 
 /** The steps of a case, in order, for the stepper (not the room's `idle`). */
 export const STEPPER_STEPS: readonly CryoStep[] = CRYO_STEPS.filter((s) => s !== 'idle')
 
 export type StepState = 'done' | 'current' | 'todo'
+
+/**
+ * What the start button last heard (R5 wave 3): the port's answer, with 'noTeam' split in two. The answer stays 'noTeam' (the team is out of hours); a
+ * team that is in but could not finish a whole case before it goes home (a start after about 17:13) is 'tooLate', so the panel says why.
+ */
+export type StartAnswer = CryoDemoResult | 'tooLate'
+
+/** The answer the panel shows for the port's `result`, given why a 'noTeam' was refused (`CryoSuite.whyNoTeam`). */
+export function startAnswer(result: CryoDemoResult, why: CryoNoTeamWhy | null): StartAnswer {
+  return result === 'noTeam' && why === 'late' ? 'tooLate' : result
+}
 
 export interface StepRow {
   step: CryoStep
@@ -69,7 +80,7 @@ export interface CryoSuiteView {
   card: { title: string; robot: string; console: string; honesty: string }
 }
 
-const FREEZE_OR_THAW: ReadonlySet<CryoStep> = new Set<CryoStep>(['freeze1', 'thaw', 'freeze2', 'activeThaw'])
+const FREEZE_OR_THAW: ReadonlySet<CryoStep> = new Set<CryoStep>(['anchorFreeze', 'anchorThaw', 'freeze1', 'thaw', 'freeze2', 'activeThaw'])
 
 export function tempText(c: number): string {
   return `${Math.round(c)} °C`
@@ -82,17 +93,21 @@ function timerText(seconds: number): string {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
-function stepLabel(step: CryoCaseView['step']): string {
+function stepLabel(step: CryoCaseView['step'], target: CryoTarget): string {
   if (step === 'scheduled') return CRYO_SUITE_COPY.listStates.booked
   if (step === 'pacu') return CRYO_SUITE_COPY.listStates.pacu
   if (step === 'done') return CRYO_SUITE_COPY.listStates.done
-  return CRYO_SUITE_COPY.steps[step]
+  return cryoStepLabel(step, target)
 }
 
-/** The stepper: the steps before the room's step are done, its step current, the rest to come (all to come while the room is idle). */
-export function stepRows(step: CryoStep): StepRow[] {
-  const at = STEPPER_STEPS.indexOf(step)
-  return STEPPER_STEPS.map((s, i) => ({ step: s, label: CRYO_SUITE_COPY.steps[s], state: at < 0 ? 'todo' : i < at ? 'done' : i === at ? 'current' : 'todo' }))
+/**
+ * The stepper: the steps before the room's step are done, its step current, the rest to come (all to come while the room is idle). R5 wave 3: only the
+ * lung has the short first freeze and its thaw (`target`; the others, and the idle room, skip them), and it labels its freezes 1 to 3 as its script does.
+ */
+export function stepRows(step: CryoStep, target: CryoTarget = 'kidney'): StepRow[] {
+  const steps = target === 'lung' ? STEPPER_STEPS : STEPPER_STEPS.filter((s) => s !== 'anchorFreeze' && s !== 'anchorThaw')
+  const at = steps.indexOf(step)
+  return steps.map((s, i) => ({ step: s, label: cryoStepLabel(s, target), state: at < 0 ? 'todo' : i < at ? 'done' : i === at ? 'current' : 'todo' }))
 }
 
 function needleRows(s: CryoSuiteState): NeedleRow[] {
@@ -118,16 +133,16 @@ function needleRows(s: CryoSuiteState): NeedleRow[] {
 }
 
 /** The button: start now when the room is free, book next while a case is in, nothing while a demo is already booked or running; the last answer's note. */
-export function startButton(s: CryoSuiteState, last: CryoDemoResult | null): StartButton {
+export function startButton(s: CryoSuiteState, last: StartAnswer | null): StartButton {
   const p = CRYO_SUITE_COPY.panel
   const roomBusy = s.caseId !== null && s.step !== 'idle'
   const label = roomBusy ? p.startNext : p.start
   const disabled = s.demoQueued || (s.demo && roomBusy)
-  const note = s.demoQueued || last === 'queued' ? p.queued : last === 'noTeam' ? p.noTeam : null
+  const note = s.demoQueued || last === 'queued' ? p.queued : last === 'noTeam' ? p.noTeam : last === 'tooLate' ? p.tooLate : null
   return { label, disabled, note }
 }
 
-export function cryoSuiteView(s: CryoSuiteState, last: CryoDemoResult | null = null): CryoSuiteView {
+export function cryoSuiteView(s: CryoSuiteState, last: StartAnswer | null = null): CryoSuiteView {
   const p = CRYO_SUITE_COPY.panel
   const current = s.caseId === null ? null : (s.cases.find((c) => c.id === s.caseId) ?? null)
   const timed = FREEZE_OR_THAW.has(s.step)
@@ -137,10 +152,10 @@ export function cryoSuiteView(s: CryoSuiteState, last: CryoDemoResult | null = n
   return {
     tag: p.tag,
     title: p.title,
-    step: CRYO_SUITE_COPY.steps[s.step],
+    step: cryoStepLabel(s.step, s.target),
     stepKey: s.step,
     patient: current ? current.name : null,
-    steps: stepRows(s.step),
+    steps: stepRows(s.step, s.target),
     needles: needleRows(s),
     needleNow: working >= 0 && s.needles.length > 0 ? fillCryo(p.needle, { k: working + 1, n: s.needles.length }) : null,
     console: {
@@ -152,7 +167,7 @@ export function cryoSuiteView(s: CryoSuiteState, last: CryoDemoResult | null = n
       coldest: coldest === null ? null : tempText(coldest),
     },
     labels: { tip: p.tip, margin: p.margin, ice: p.ice, timer: p.timer, list: p.list, planning: p.planning, live: p.live, argon: p.argon, heater: p.heater },
-    list: s.cases.map((c) => ({ id: c.id, time: clockText(c.wheelsIn ?? c.plannedIn), patient: c.name, step: stepLabel(c.step), current: c.id === s.caseId, demo: c.demo })),
+    list: s.cases.map((c) => ({ id: c.id, time: clockText(c.wheelsIn ?? c.plannedIn), patient: c.name, step: stepLabel(c.step, c.target), current: c.id === s.caseId, demo: c.demo })),
     empty: s.cases.length === 0 ? p.empty : null,
     start: startButton(s, last),
     card: { ...CRYO_SUITE_COPY.card },

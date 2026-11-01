@@ -7,12 +7,17 @@
  * table (`d`, towards the feet), across it (`x`, east +) and above its top (`h`). The ports are the case's `PortLayout` (places.ts). All of
  * them tip with the table through the one shared transform, src/sim/surgery/tablePose.ts.
  *
+ * The CT cryo suite's and the ultrasound room's anchors, targets and foci (wave 3) live in ./cryoPlaces.ts and ./usPlaces.ts; this file hands them
+ * over by name.
+ *
  * Everything writes into preallocated objects: nothing allocates per frame.
  */
-import { CRYO_SUITE, IMAGING, SURGERY, type PortLayout, type Spot } from '../places'
+import { SURGERY, type PortLayout, type Spot } from '../places'
 import { setTablePose, tablePointInto, type TablePose } from '../surgery/tablePose'
 import type { FocusId, PatientPosition, ProcAnchor, ProcTarget, Vec3 } from '../types'
 import { BODY_LANDMARKS, PELVIS_ON_TABLE, type BodyPoint } from './body'
+import { cryoAnchorSpot, cryoFocusInto, cryoTargetInto, newCryoTargetCtx, type CryoTargetCtx } from './cryoPlaces'
+import { newUsTargetCtx, usAnchorSpot, usFocusInto, usTargetInto, type UsTargetCtx } from './usPlaces'
 
 // ---------------------------------------------------------------------------------------------
 // Anchors
@@ -62,6 +67,22 @@ export function anchorSpot(anchor: ProcAnchor): Spot {
       return s.anaesLeft
     case 'circulatorCount':
       return s.circulatorCount
+    case 'ctInsert':
+    case 'ctConsole':
+    case 'ctHeadSouth':
+    case 'ctAnaesHead':
+    case 'ctFoot':
+    case 'ctSideSouth':
+    case 'ctSideNorth':
+    case 'ctControlScan':
+    case 'ctControlPlan':
+    case 'ctControlStand':
+      return cryoAnchorSpot(anchor)
+    case 'usDoctor':
+    case 'usConsole':
+    case 'usHead':
+    case 'usDoor':
+      return usAnchorSpot(anchor)
   }
 }
 
@@ -79,10 +100,13 @@ export interface TargetCtx extends TablePose {
   position: PatientPosition
   /** The cart's floor position: pass the robot state's `cart` object (it is read, not copied). */
   cart: { x: number; z: number }
+  /** Wave 3: the CT cryo suite's and the ultrasound room's own state (./cryoPlaces.ts, ./usPlaces.ts). */
+  readonly cryo: CryoTargetCtx
+  readonly us: UsTargetCtx
 }
 
 export function newTargetCtx(layout: PortLayout = 'oblique'): TargetCtx {
-  return { layout, position: 'supine', tiltDeg: 0, rollDeg: 0, cT: 1, sT: 0, cR: 1, sR: 0, cart: SURGERY.cart.park.at }
+  return { layout, position: 'supine', tiltDeg: 0, rollDeg: 0, cT: 1, sT: 0, cR: 1, sR: 0, cart: SURGERY.cart.park.at, cryo: newCryoTargetCtx(), us: newUsTargetCtx() }
 }
 
 /** Set the table's tilt and roll (degrees) and, if given, the patient's position; cheap when nothing has changed. */
@@ -180,6 +204,21 @@ export function resolveTarget(target: ProcTarget, ctx: TargetCtx, out: Vec3): Ve
       out.y = 1.1
       out.z = SURGERY.scrubSink.at.z
       return out
+    case 'ctField':
+    case 'needleEntry':
+    case 'ctFace':
+    case 'robotGuide':
+    case 'cryoScreen':
+    case 'roomScreen':
+    case 'ctScreen':
+    case 'planScreen':
+    case 'ctAnaesMachine':
+      return cryoTargetInto(target, ctx.cryo, out)
+    case 'breast':
+    case 'usFace':
+    case 'usScreen':
+    case 'prosenseScreen':
+      return usTargetInto(target, ctx.us, out)
   }
 }
 
@@ -220,34 +259,16 @@ export function focusPointInto(focus: FocusId, ctx: TargetCtx, out: Vec3): Vec3 
     case 'ctTable':
     case 'needle':
     case 'iceBall':
-      out.x = CRYO_SUITE.target.x
-      out.y = CRYO_SUITE.target.y
-      out.z = CRYO_SUITE.target.z
-      return out
     case 'ctGantry':
-      out.x = CRYO_SUITE.ct.machine.x
-      out.y = 1.1
-      out.z = CRYO_SUITE.ct.machine.z
-      return out
     case 'cryoConsole':
-      out.x = CRYO_SUITE.console.at.at.x
-      out.y = 1.2
-      out.z = CRYO_SUITE.console.at.at.z
-      return out
     case 'controlRoom':
-      out.x = CRYO_SUITE.screens.ctConsole.x
-      out.y = CRYO_SUITE.screens.ctConsole.y
-      out.z = CRYO_SUITE.screens.ctConsole.z
-      return out
+    case 'ctHead':
+    case 'ctRoom':
+      return cryoFocusInto(focus, ctx.cryo, out)
     case 'usScreen':
-      out.x = IMAGING.us.machine.x
-      out.y = 1.3
-      out.z = IMAGING.us.machine.z
-      return out
     case 'breast':
-      out.x = IMAGING.us.table.in.x
-      out.y = IMAGING.us.table.height + 0.2
-      out.z = IMAGING.us.table.in.z
-      return out
+    case 'usRoom':
+    case 'prosenseConsole':
+      return usFocusInto(focus, ctx.us, out)
   }
 }

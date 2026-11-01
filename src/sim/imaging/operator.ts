@@ -12,6 +12,8 @@ import type { ImagingModality, Vec2 } from '../types'
 import type { Walker } from '../walker'
 import { Actor } from '../er/actor'
 import type { World } from '../er/world'
+import type { Spot } from '../places'
+import { ActOverlay } from './overlay'
 import { dist, type ScannerSites } from './sites'
 
 /** Staff id -> the scanner they run. */
@@ -34,6 +36,12 @@ export class ImagingOperator extends Actor {
   private pending: Pending | null = null
   private toStation = false
   private readonly baseCruise: number
+  /**
+   * R5 wave 3 (a ProSense case): the script's pose overlay on her entity, and the key of the spot the script sent her to last (null while the
+   * exam's own session leads her: the walk in, and every other exam).
+   */
+  readonly overlay = new ActOverlay()
+  driveKey: string | null = null
 
   constructor(
     readonly world: World,
@@ -72,6 +80,25 @@ export class ImagingOperator extends Actor {
     }
     this.pending = null
     this.moveTo(spot, { face, leader: o.leader ?? null })
+  }
+
+  /** The script sends her to a spot (an anchor name); the same key again does nothing, and she does not walk if she is already there. */
+  driveTo(key: string, spot: Spot): void {
+    if (this.driveKey === key) return
+    this.driveKey = key
+    if (this.seat === null && this.done && this.mode === 'static' && dist(this.pos, spot.at) < 0.35) {
+      this.pending = null
+      this.toStation = false
+      this.walker.face(spot.heading)
+      return
+    }
+    this.goTo(spot.at, { face: spot.heading })
+  }
+
+  /** The script lets go of her: the session leads her again, and nothing of the script stays on her entity. */
+  releaseDrive(): void {
+    this.driveKey = null
+    this.overlay.clear(this.entity)
   }
 
   /** Back to the console, the booth or the stool. */

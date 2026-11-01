@@ -39,8 +39,8 @@ describe('the avatar material', () => {
     const keys = new Set<string>()
     for (const mats of all) for (const m of mats) keys.add(m.customProgramCacheKey())
     expect([...keys]).toEqual([AVATAR_PROGRAM_KEY])
-    // (R5: v2, the sterile gown's sleeves and the gloves)
-    expect(AVATAR_PROGRAM_KEY).toBe(`hospital-crowd-avatar-v2+${LIGHT_VOLUME_KEY}`)
+    // (R5: v2, the sterile gown's sleeves and the gloves; wave 3: v3, the lead apron)
+    expect(AVATAR_PROGRAM_KEY).toBe(`hospital-crowd-avatar-v3+${LIGHT_VOLUME_KEY}`)
     // nothing that would split the program: the same map / side / alpha state everywhere, no alpha test as a material, no defines
     for (const mats of all) {
       for (const m of mats) {

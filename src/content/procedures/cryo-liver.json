@@ -1,0 +1,1108 @@
+{
+  "id": "cryo-liver",
+  "machine": "cryoCt",
+  "key": "liver",
+  "name": "CT-guided liver cryoablation",
+  "short": "Liver",
+  "refs": [
+    "procedures:3",
+    "procedures:4",
+    "procedures:20",
+    "procedures:21",
+    "procedures:22",
+    "procedures:25",
+    "procedures:27",
+    "procedures:28",
+    "procedures:29",
+    "procedures:40"
+  ],
+  "anaesthesia": "sedation",
+  "start": {
+    "position": "supine",
+    "headTiltDeg": 0,
+    "rollDeg": 0,
+    "arms": "out",
+    "airway": "none",
+    "awareness": "awake",
+    "prep": 0,
+    "drape": 0,
+    "marks": "none",
+    "catheter": false,
+    "manipulator": false
+  },
+  "steps": [
+    {
+      "id": "wheelsIn",
+      "unit": "arrive",
+      "caption": "Wheels in from the ward",
+      "why": "The patient arrives from the ward and the team says hello.",
+      "realMinutes": [
+        3,
+        4
+      ],
+      "watchSeconds": 34,
+      "focus": "ctRoom",
+      "roles": {
+        "sedation": {
+          "do": "talkPatient",
+          "at": "ctSideSouth",
+          "look": "ctFace"
+        },
+        "cryoAnaes": {
+          "do": "talkPatient",
+          "at": "ctAnaesHead",
+          "look": "ctFace"
+        },
+        "ir": {
+          "do": "chart",
+          "at": "ctControlPlan",
+          "look": "planScreen",
+          "work": "planScreen"
+        },
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        }
+      }
+    },
+    {
+      "id": "ontoTable",
+      "unit": "arrive",
+      "caption": "Onto the CT table",
+      "why": "The patient is moved to the scan table, on the back.",
+      "realMinutes": [
+        3,
+        5
+      ],
+      "watchSeconds": 15,
+      "focus": "ctRoom",
+      "roles": {
+        "sedation": {
+          "do": "transferPatient",
+          "at": "ctSideSouth",
+          "look": "ctField",
+          "work": "ctField"
+        },
+        "ctRadiographer": {
+          "do": "transferPatient",
+          "at": "ctFoot",
+          "look": "ctField"
+        },
+        "cryoAnaes": {
+          "do": "talkPatient",
+          "at": "ctAnaesHead",
+          "look": "ctFace"
+        },
+        "ir": {
+          "do": "idle",
+          "at": "ctSideNorth",
+          "look": "ctField"
+        }
+      }
+    },
+    {
+      "id": "monitorsOn",
+      "unit": "sedation",
+      "caption": "Monitors, drip and oxygen on",
+      "why": "A heart trace, oxygen level and pressure are watched throughout.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 10,
+      "focus": "ctTable",
+      "roles": {
+        "sedation": {
+          "do": "attachMonitors",
+          "at": "ctSideSouth",
+          "look": "ctField",
+          "work": "ctField",
+          "right": "ecgLeads"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "ir": {
+          "do": "idle",
+          "at": "ctSideNorth",
+          "look": "ctField"
+        },
+        "ctRadiographer": {
+          "do": "idle",
+          "at": "ctFoot",
+          "look": "ctField"
+        }
+      },
+      "patient": {
+        "airway": "nasalCannula"
+      }
+    },
+    {
+      "id": "signIn",
+      "unit": "sedation",
+      "caption": "Sign In: name, procedure, allergies",
+      "why": "WHO-style check before any medicine: right patient, right side, allergies, fasting.",
+      "realMinutes": [
+        1,
+        2
+      ],
+      "watchSeconds": 15,
+      "focus": "ctRoom",
+      "roles": {
+        "cryoAnaes": {
+          "do": "checklist",
+          "at": "ctAnaesHead",
+          "look": "ctFace"
+        },
+        "sedation": {
+          "do": "checklist",
+          "at": "ctSideSouth",
+          "look": "ctField"
+        },
+        "ir": {
+          "do": "checklist",
+          "at": "ctSideNorth",
+          "look": "ctField"
+        },
+        "ctRadiographer": {
+          "do": "checklist",
+          "at": "ctFoot",
+          "look": "ctField"
+        }
+      },
+      "checklist": "signIn"
+    },
+    {
+      "id": "deepSedation",
+      "unit": "sedation",
+      "caption": "Deep sedation given",
+      "why": "The patient sleeps deeply and breathes with the anaesthetist's help.",
+      "realMinutes": [
+        5,
+        8
+      ],
+      "watchSeconds": 30,
+      "focus": "ctHead",
+      "roles": {
+        "cryoAnaes": {
+          "do": "injectIv",
+          "at": "ctAnaesHead",
+          "look": "ctFace",
+          "work": "ctFace",
+          "left": "oxygenMask",
+          "right": "syringe"
+        },
+        "sedation": {
+          "do": "passInstrument",
+          "at": "ctSideSouth",
+          "look": "ctFace"
+        },
+        "ir": {
+          "do": "idle",
+          "at": "ctSideNorth",
+          "look": "ctFace"
+        },
+        "ctRadiographer": {
+          "do": "idle",
+          "at": "ctFoot",
+          "look": "ctFace"
+        }
+      },
+      "patient": {
+        "airway": "oxygenMask",
+        "awareness": "asleep"
+      },
+      "event": "The anaesthetist gives deep sedation and supports the airway."
+    },
+    {
+      "id": "turnProne",
+      "unit": "sedation",
+      "caption": "Turned onto the front; mattress and straps",
+      "why": "The tumour must lie on the side the needles can reach; the mattress holds the body still.",
+      "realMinutes": [
+        4,
+        8
+      ],
+      "watchSeconds": 40,
+      "focus": "ctHead",
+      "roles": {
+        "cryoAnaes": {
+          "do": "turnPatient",
+          "at": "ctAnaesHead",
+          "look": "ctFace",
+          "work": "ctFace"
+        },
+        "ir": {
+          "do": "turnPatient",
+          "at": "ctSideNorth",
+          "look": "ctField",
+          "work": "ctField"
+        },
+        "ctRadiographer": {
+          "do": "turnPatient",
+          "at": "ctFoot",
+          "look": "ctField"
+        },
+        "sedation": {
+          "do": "positionPatient",
+          "at": "ctSideSouth",
+          "look": "ctField",
+          "work": "ctField"
+        }
+      },
+      "patient": {
+        "position": "prone",
+        "arms": "aboveHead"
+      },
+      "event": "The team turns the patient onto the front and shapes the vacuum mattress round the body."
+    },
+    {
+      "id": "skinPrep",
+      "unit": "sedation",
+      "caption": "Back cleaned for the needles",
+      "why": "A wide clean area means nobody touches the patient after the scan.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 12,
+      "focus": "ctTable",
+      "roles": {
+        "ir": {
+          "do": "skinPrep",
+          "at": "ctSideNorth",
+          "look": "ctField",
+          "work": "ctField",
+          "left": "gauze",
+          "right": "prepStick"
+        },
+        "sedation": {
+          "do": "passInstrument",
+          "at": "ctSideSouth",
+          "look": "ctField"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlPlan",
+          "look": "planScreen",
+          "work": "planScreen",
+          "right": "mouse"
+        }
+      },
+      "patient": {
+        "prep": 1,
+        "marks": "marked"
+      }
+    },
+    {
+      "id": "drapes",
+      "unit": "sedation",
+      "caption": "Wide drapes on; robot locked to its plate",
+      "why": "The drapes keep the field clean while the robot is checked and locked to its floor plate.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 13,
+      "focus": "ctTable",
+      "roles": {
+        "ir": {
+          "do": "drapePatient",
+          "at": "ctSideNorth",
+          "look": "ctField",
+          "work": "ctField",
+          "left": "drapeSheet"
+        },
+        "sedation": {
+          "do": "drapePatient",
+          "at": "ctSideSouth",
+          "look": "ctField",
+          "work": "ctField",
+          "left": "drapeSheet"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlPlan",
+          "look": "planScreen",
+          "work": "planScreen",
+          "right": "mouse"
+        }
+      },
+      "patient": {
+        "drape": 1
+      }
+    },
+    {
+      "id": "planningScan",
+      "unit": "planningCt",
+      "caption": "Planning scan with a held breath",
+      "why": "A first scan shows the tumour and the organs near it; the breath is held so the picture is sharp.",
+      "realMinutes": [
+        1.5,
+        2.5
+      ],
+      "watchSeconds": 25,
+      "focus": "ctGantry",
+      "roles": {
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        },
+        "cryoAnaes": {
+          "do": "holdBreath",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        },
+        "ir": {
+          "do": "watchMonitor",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        }
+      },
+      "scope": "planScan"
+    },
+    {
+      "id": "planPaths",
+      "unit": "planning",
+      "caption": "Needle paths drawn on the screen",
+      "why": "The doctor plans paths that keep the ice ball at least 5 mm beyond the tumour.",
+      "realMinutes": [
+        3,
+        5
+      ],
+      "watchSeconds": 35,
+      "focus": "controlRoom",
+      "roles": {
+        "ir": {
+          "do": "planPaths",
+          "at": "ctControlPlan",
+          "look": "planScreen",
+          "work": "planScreen",
+          "right": "mouse"
+        },
+        "ctRadiographer": {
+          "do": "chart",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "scope": "pathPlan"
+    },
+    {
+      "id": "timeOut",
+      "unit": "planning",
+      "caption": "Time Out: everyone agrees the plan",
+      "why": "WHO-style check before the first needle: names, roles, side and the number of needles.",
+      "realMinutes": [
+        1,
+        1
+      ],
+      "watchSeconds": 15,
+      "focus": "ctRoom",
+      "roles": {
+        "ir": {
+          "do": "checklist",
+          "at": "ctSideNorth",
+          "look": "ctField"
+        },
+        "cryoAnaes": {
+          "do": "checklist",
+          "at": "ctAnaesHead",
+          "look": "ctFace"
+        },
+        "sedation": {
+          "do": "checklist",
+          "at": "ctSideSouth",
+          "look": "ctField"
+        },
+        "ctRadiographer": {
+          "do": "checklist",
+          "at": "ctFoot",
+          "look": "ctField"
+        }
+      },
+      "checklist": "timeOut"
+    },
+    {
+      "id": "robotAims",
+      "unit": "aim",
+      "repeat": true,
+      "caption": "Robot aims the guide at path {k} of {n}",
+      "why": "The arm turns a guide onto the exact line the doctor planned, with the table out of the bore.",
+      "realMinutes": [
+        0.3,
+        0.3
+      ],
+      "watchSeconds": 28,
+      "focus": "needle",
+      "roles": {
+        "ir": {
+          "do": "aimRobot",
+          "at": "ctInsert",
+          "look": "robotGuide"
+        },
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "ctRemote"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "scope": "aimGuide",
+      "repeatSeconds": 8
+    },
+    {
+      "id": "localAndNick",
+      "unit": "aim",
+      "repeat": true,
+      "caption": "Numbing medicine and a tiny nick, needle {k} of {n}",
+      "why": "The skin is numbed through the guide and a small nick lets the needle pass.",
+      "realMinutes": [
+        0.4,
+        0.4
+      ],
+      "watchSeconds": 24,
+      "focus": "needle",
+      "roles": {
+        "ir": {
+          "do": "injectLocal",
+          "at": "ctSideNorth",
+          "look": "needleEntry",
+          "work": "needleEntry",
+          "right": "syringe"
+        },
+        "ctRadiographer": {
+          "do": "watchMonitor",
+          "at": "ctControlScan",
+          "look": "ctScreen"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "repeatSeconds": 8
+    },
+    {
+      "id": "pushNeedle",
+      "unit": "aim",
+      "repeat": true,
+      "caption": "Breath held: needle {k} of {n} pushed in",
+      "why": "The ventilator pauses so the liver is still during the push; the robot only aims.",
+      "realMinutes": [
+        1.3,
+        1.3
+      ],
+      "watchSeconds": 46,
+      "focus": "needle",
+      "roles": {
+        "cryoAnaes": {
+          "do": "holdBreath",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "ir": {
+          "do": "insertNeedle",
+          "at": "ctSideNorth",
+          "look": "needleEntry",
+          "work": "needleEntry",
+          "right": "cryoNeedle"
+        },
+        "ctRadiographer": {
+          "do": "watchMonitor",
+          "at": "ctControlScan",
+          "look": "ctScreen"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "repeatSeconds": 8
+    },
+    {
+      "id": "fluid",
+      "unit": "aim",
+      "caption": "Fluid moved in to protect the neighbours",
+      "why": "Fluid or gas pushes the diaphragm or the bowel away from the cold zone.",
+      "realMinutes": [
+        3,
+        6
+      ],
+      "watchSeconds": 20,
+      "focus": "needle",
+      "roles": {
+        "ir": {
+          "do": "injectSaline",
+          "at": "ctSideNorth",
+          "look": "needleEntry",
+          "work": "needleEntry",
+          "right": "salineSyringe"
+        },
+        "ctRadiographer": {
+          "do": "watchMonitor",
+          "at": "ctControlScan",
+          "look": "ctScreen"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "event": "Fluid is moved in beside the liver to protect the nearby organs from the cold."
+    },
+    {
+      "id": "checkScan",
+      "unit": "checkCt",
+      "caption": "Check scan of the needle tips",
+      "why": "A scan confirms the tips are where they were planned.",
+      "realMinutes": [
+        1,
+        1.5
+      ],
+      "watchSeconds": 25,
+      "focus": "ctGantry",
+      "roles": {
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        },
+        "cryoAnaes": {
+          "do": "holdBreath",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        },
+        "ir": {
+          "do": "watchMonitor",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        }
+      },
+      "patient": {
+        "marks": "needles"
+      },
+      "scope": "needleCheck"
+    },
+    {
+      "id": "freeze1",
+      "unit": "freeze1",
+      "caption": "Freeze 1: the ice ball grows",
+      "why": "Cold gas freezes the tumour and a margin of at least 5 mm around it.",
+      "realMinutes": [
+        10,
+        12
+      ],
+      "watchSeconds": 55,
+      "focus": "iceBall",
+      "roles": {
+        "ir": {
+          "do": "runCryoConsole",
+          "at": "ctConsole",
+          "look": "cryoScreen",
+          "work": "cryoScreen"
+        },
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "scope": "ice"
+    },
+    {
+      "id": "thaw",
+      "unit": "thaw",
+      "caption": "Thaw: the ice melts on its own",
+      "why": "A full thaw makes the second freeze more effective.",
+      "realMinutes": [
+        8,
+        10
+      ],
+      "watchSeconds": 30,
+      "focus": "iceBall",
+      "roles": {
+        "ir": {
+          "do": "watchMonitor",
+          "at": "ctConsole",
+          "look": "cryoScreen"
+        },
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "scope": "ice"
+    },
+    {
+      "id": "freeze2",
+      "unit": "freeze2",
+      "caption": "Freeze 2: the ice ball grows again",
+      "why": "The second freeze finishes the job.",
+      "realMinutes": [
+        10,
+        12
+      ],
+      "watchSeconds": 45,
+      "focus": "iceBall",
+      "roles": {
+        "ir": {
+          "do": "runCryoConsole",
+          "at": "ctConsole",
+          "look": "cryoScreen",
+          "work": "cryoScreen"
+        },
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "scope": "ice"
+    },
+    {
+      "id": "activeThaw",
+      "unit": "activeThaw",
+      "caption": "Active thaw; needle tracks sealed",
+      "why": "Warming frees the needles; a short heat pulse can seal each needle track.",
+      "realMinutes": [
+        3,
+        4
+      ],
+      "watchSeconds": 30,
+      "focus": "cryoConsole",
+      "roles": {
+        "ir": {
+          "do": "runCryoConsole",
+          "at": "ctConsole",
+          "look": "cryoScreen",
+          "work": "cryoScreen"
+        },
+        "ctRadiographer": {
+          "do": "idle",
+          "at": "ctControlScan",
+          "look": "ctScreen"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctSideSouth",
+          "look": "ctAnaesMachine"
+        }
+      },
+      "scope": "ice",
+      "event": "A short heat pulse from the console seals each needle track as the needles come free."
+    },
+    {
+      "id": "needlesOut",
+      "unit": "needlesOut",
+      "caption": "Needles out, one by one",
+      "why": "Each needle is drawn straight out after the thaw.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 22,
+      "focus": "needle",
+      "roles": {
+        "ir": {
+          "do": "removeNeedle",
+          "at": "ctSideNorth",
+          "look": "needleEntry",
+          "work": "needleEntry",
+          "left": "gauze",
+          "right": "cryoNeedle"
+        },
+        "sedation": {
+          "do": "pressSite",
+          "at": "ctSideSouth",
+          "look": "needleEntry",
+          "work": "needleEntry",
+          "left": "gauze"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "ctRadiographer": {
+          "do": "watchMonitor",
+          "at": "ctFoot",
+          "look": "ctField"
+        }
+      }
+    },
+    {
+      "id": "finalScan",
+      "unit": "finalCt",
+      "caption": "Final scan of the treated area",
+      "why": "The last scan checks the treated area and the organs around it.",
+      "realMinutes": [
+        1,
+        1.5
+      ],
+      "watchSeconds": 20,
+      "focus": "ctGantry",
+      "roles": {
+        "ctRadiographer": {
+          "do": "operateCt",
+          "at": "ctControlScan",
+          "look": "ctScreen",
+          "work": "ctScreen",
+          "right": "mouse"
+        },
+        "cryoAnaes": {
+          "do": "holdBreath",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        },
+        "ir": {
+          "do": "watchMonitor",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        },
+        "sedation": {
+          "do": "watchMonitor",
+          "at": "ctControlStand",
+          "look": "ctScreen"
+        }
+      },
+      "scope": "finalScan"
+    },
+    {
+      "id": "removeDrapes",
+      "unit": "dressing",
+      "caption": "Drapes off",
+      "why": "The drapes come off before the dressings go on.",
+      "realMinutes": [
+        1,
+        1.5
+      ],
+      "watchSeconds": 10,
+      "focus": "ctTable",
+      "roles": {
+        "ir": {
+          "do": "removeDrapes",
+          "at": "ctSideNorth",
+          "look": "ctField",
+          "work": "ctField",
+          "left": "drapeSheet"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "ctRadiographer": {
+          "do": "removeDrapes",
+          "at": "ctFoot",
+          "look": "ctField",
+          "left": "drapeSheet"
+        },
+        "sedation": {
+          "do": "removeDrapes",
+          "at": "ctSideSouth",
+          "look": "ctField",
+          "work": "ctField",
+          "left": "drapeSheet"
+        }
+      },
+      "patient": {
+        "drape": 0
+      }
+    },
+    {
+      "id": "dressings",
+      "unit": "dressing",
+      "caption": "Dressings on",
+      "why": "Small dressings protect the needle sites.",
+      "realMinutes": [
+        3,
+        4
+      ],
+      "watchSeconds": 12,
+      "focus": "needle",
+      "roles": {
+        "ir": {
+          "do": "applyDressing",
+          "at": "ctSideNorth",
+          "look": "needleEntry",
+          "work": "needleEntry",
+          "left": "dressing",
+          "right": "gauze"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        },
+        "ctRadiographer": {
+          "do": "idle",
+          "at": "ctFoot",
+          "look": "ctField"
+        },
+        "sedation": {
+          "do": "pressSite",
+          "at": "ctSideSouth",
+          "look": "needleEntry",
+          "work": "needleEntry",
+          "left": "gauze"
+        }
+      },
+      "patient": {
+        "marks": "dressed"
+      }
+    },
+    {
+      "id": "signOut",
+      "unit": "dressing",
+      "caption": "Sign Out: counts and handover",
+      "why": "WHO-style check: what was done, the counts and the instructions for recovery.",
+      "realMinutes": [
+        1,
+        2
+      ],
+      "watchSeconds": 12,
+      "focus": "ctRoom",
+      "roles": {
+        "ir": {
+          "do": "checklist",
+          "at": "ctSideNorth",
+          "look": "ctField"
+        },
+        "cryoAnaes": {
+          "do": "checklist",
+          "at": "ctAnaesHead",
+          "look": "ctFace"
+        },
+        "ctRadiographer": {
+          "do": "checklist",
+          "at": "ctFoot",
+          "look": "ctField"
+        },
+        "sedation": {
+          "do": "checklist",
+          "at": "ctSideSouth",
+          "look": "ctField"
+        }
+      },
+      "checklist": "signOut"
+    },
+    {
+      "id": "turnBack",
+      "unit": "dressing",
+      "caption": "Turned onto the back",
+      "why": "The patient is turned back on the anaesthetist's call before waking.",
+      "realMinutes": [
+        3,
+        5
+      ],
+      "watchSeconds": 18,
+      "focus": "ctHead",
+      "roles": {
+        "cryoAnaes": {
+          "do": "turnPatient",
+          "at": "ctAnaesHead",
+          "look": "ctFace",
+          "work": "ctFace"
+        },
+        "ir": {
+          "do": "turnPatient",
+          "at": "ctSideNorth",
+          "look": "ctField",
+          "work": "ctField"
+        },
+        "ctRadiographer": {
+          "do": "turnPatient",
+          "at": "ctFoot",
+          "look": "ctField"
+        },
+        "sedation": {
+          "do": "turnPatient",
+          "at": "ctSideSouth",
+          "look": "ctField",
+          "work": "ctField"
+        }
+      },
+      "patient": {
+        "position": "supine",
+        "arms": "out"
+      }
+    },
+    {
+      "id": "wakes",
+      "unit": "dressing",
+      "caption": "Wakes; ready for the stretcher",
+      "why": "The anaesthetist brings the patient round before moving them.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 12,
+      "focus": "ctHead",
+      "roles": {
+        "cryoAnaes": {
+          "do": "talkPatient",
+          "at": "ctAnaesHead",
+          "look": "ctFace",
+          "left": "oxygenMask"
+        },
+        "ir": {
+          "do": "watchField",
+          "at": "ctSideNorth",
+          "look": "ctFace"
+        },
+        "ctRadiographer": {
+          "do": "idle",
+          "at": "ctFoot",
+          "look": "ctFace"
+        },
+        "sedation": {
+          "do": "watchField",
+          "at": "ctSideSouth",
+          "look": "ctFace"
+        }
+      },
+      "patient": {
+        "awareness": "awake"
+      },
+      "event": "The patient wakes and is ready to move to the stretcher."
+    },
+    {
+      "id": "wheelsOut",
+      "unit": "out",
+      "caption": "Onto the stretcher; wheels out to recovery",
+      "why": "The patient goes to recovery, then usually a ward bed overnight.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 12,
+      "focus": "ctRoom",
+      "roles": {
+        "ctRadiographer": {
+          "do": "transferPatient",
+          "at": "ctFoot",
+          "look": "ctField"
+        },
+        "ir": {
+          "do": "talkPatient",
+          "at": "ctSideNorth",
+          "look": "ctFace"
+        },
+        "cryoAnaes": {
+          "do": "watchMonitor",
+          "at": "ctAnaesHead",
+          "look": "ctAnaesMachine"
+        }
+      }
+    }
+  ]
+}

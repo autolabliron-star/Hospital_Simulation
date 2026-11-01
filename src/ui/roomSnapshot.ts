@@ -6,6 +6,7 @@
 import { medicineById, patientInRoom } from '@/content/catalogue'
 import { staffName } from '@/content/staff'
 import { OUTPATIENTS, outpatientTimeSeconds, protocolById } from '@/content/imaging'
+import { cryoKindOf, type CryoKind } from '@/content/imagingUi'
 import { areaById, type AreaId, type Rect } from '@/sim/places'
 import type { Simulation } from '@/sim/Simulation'
 import type { Entity, ImagingExam, ImagingModality, OrderStage, Role, ScannerState } from '@/sim/types'
@@ -128,6 +129,8 @@ export interface ScannerView {
   demoPending: boolean
   /** The exam is a cryoablation (a step places, freezes or thaws): the viewer shows the device card. */
   cryo: boolean
+  /** Which card: the breast cancer's or the benign fibroadenoma's (null: not a cryoablation). R5 fix K6. */
+  cryoKind: CryoKind | null
   /** A demo cryoablation is booked and waiting (next after the current patient, or walking in). */
   cryoQueued: boolean
   queueLabel: 'Next in queue' | 'Next booked'
@@ -188,6 +191,7 @@ export function scannerView(imaging: ImagingSimLike, m: ImagingModality, simT: n
     remainingText: exam && s.phase !== 'idle' ? formatDuration(s.remaining) : null,
     completed: completedSteps(s, total),
     cryo: exam ? exam.sequences.some((q) => q.step !== undefined && q.step !== 'sweep') : false,
+    cryoKind: exam && exam.sequences.some((q) => q.step !== undefined && q.step !== 'sweep') ? cryoKindOf(exam.protocol) : null,
     ...queueSummary(imaging, m, exam, simT),
   }
 }

@@ -5,7 +5,7 @@
  */
 import { emptyCryoState } from '@/sim/cryoSuite'
 import { timeAtHour } from '@/sim/population/schedule'
-import type { CryoCaseView, CryoNeedleState, CryoRobotPhase, CryoStep, CryoSuiteState } from '@/sim/types'
+import type { Airway, Awareness, CryoCaseView, CryoNeedleState, CryoRobotPhase, CryoStep, CryoSuiteState, CryoTarget } from '@/sim/types'
 
 /** `n` needle paths (2..6) for a tumour of `tumourMm`, fanned in the slice and a little along the body. */
 export function fixtureNeedles(n: number, tumourMm = 26): CryoNeedleState[] {
@@ -29,7 +29,7 @@ export function fixtureNeedles(n: number, tumourMm = 26): CryoNeedleState[] {
 
 /** A case row for the list. */
 export function fixtureCase(over: Partial<CryoCaseView> = {}): CryoCaseView {
-  return { id: 'cryo-1', patientId: 'p-cryo-1', name: 'Mara Lindqvist', demo: false, plannedIn: timeAtHour(10.1), step: 'scheduled', wheelsIn: null, wheelsOut: null, needles: 3, tumourMm: 26, ...over }
+  return { id: 'cryo-1', patientId: 'p-cryo-1', name: 'Mara Lindqvist', demo: false, plannedIn: timeAtHour(10.1), step: 'scheduled', wheelsIn: null, wheelsOut: null, needles: 3, tumourMm: 26, target: 'kidney', ...over }
 }
 
 export interface CryoFixture {
@@ -83,5 +83,23 @@ export function cryoState(o: CryoFixture = {}): CryoSuiteState {
   s.timer = o.timer ?? 125
   s.cases = [fixtureCase({ step: s.step }), fixtureCase({ id: 'cryo-2', patientId: null, name: 'Tomas Ekwueme', plannedIn: timeAtHour(14.3) })]
   s.version = o.version ?? 1
+  return s
+}
+
+/** R5 wave 3: a case of `target` as the anaesthesia machine sees it (its monitor, its ventilator's sound): the patient's airway and awareness from the script. */
+export interface AnaesFixture extends CryoFixture {
+  target?: CryoTarget
+  airway?: Airway
+  awareness?: Awareness
+  apnoea?: boolean
+}
+
+/** A suite state for the lung (default) or the liver, a scripted case with the patient on the table, intubated (a tube) and asleep unless told otherwise. */
+export function anaesState(o: AnaesFixture = {}): CryoSuiteState {
+  const s = cryoState({ step: 'planningCt', tablePos: 1, scan: 0.4, ...o })
+  s.target = o.target ?? 'lung'
+  s.procedure.procedureId = s.target === 'lung' ? 'cryo-lung' : s.target === 'liver' ? 'cryo-liver' : 'cryo-kidney'
+  s.procedure.patient = { ...s.procedure.patient, airway: o.airway ?? 'tube', awareness: o.awareness ?? 'asleep' }
+  s.apnoea = o.apnoea ?? false
   return s
 }

@@ -216,6 +216,9 @@ export interface CaseSteps {
 /** The middle of a step's real-minute band, in seconds. */
 export const midSeconds = (s: ProcedureStep): number => ((s.realMinutes[0] + s.realMinutes[1]) / 2) * 60
 
+/** A step's watch seconds at play `k` (1-based): a repeat step's later plays take its `repeatSeconds` when it has them (the first needle in full). */
+export const watchSecondsOf = (s: ProcedureStep, k: number): number => (k > 1 && s.repeatSeconds !== undefined ? s.repeatSeconds : s.watchSeconds)
+
 /**
  * Lay a case's steps out. `rng` (live mode) is a NEW fork the caller makes for this (`caseRng.fork('script')`): it is drawn once per flat
  * step, in order, for the jitter `1 + CONFIG.procedure.liveJitter * rng.range(-1, 1)`; null gives the plain middles. A watch case ignores
@@ -249,7 +252,7 @@ export function caseSteps(cs: CompiledScript, mode: StepMode, rng: Rng | null, r
   const weight = new Float64Array(m)
   for (let f = 0; f < m; f++) {
     const s = steps[stepOf[f]]
-    weight[f] = mode === 'watch' ? s.watchSeconds : midSeconds(s) * (rng === null ? 1 : 1 + CONFIG.procedure.liveJitter * rng.range(-1, 1))
+    weight[f] = mode === 'watch' ? watchSecondsOf(s, kOf[f]) : midSeconds(s) * (rng === null ? 1 : 1 + CONFIG.procedure.liveJitter * rng.range(-1, 1))
   }
 
   const nu = cs.units.length

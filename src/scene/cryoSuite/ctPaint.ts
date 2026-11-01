@@ -8,17 +8,21 @@
  *   paintConsole       the argon console: each needle's temperature, argon and heater, the freeze timer and the margin sensor
  *   paintRobotStation  the robot's planning station: the path list, the needle being aimed and "Aligned 1.2 mm"
  *
- * Every view says "Simulated". The base slice (the synthetic abdomen of `imageSeed` at the kidneys, images/torso.ts) is painted once per seed into a
- * square surface (`baseSliceFor`) and only blitted after that. The slice's convention: anterior at the top, the patient's right on the image's left;
- * a needle's path (mm from the tumour centre, +x the patient's left, +y posterior) is drawn at the tumour, which sits in the left kidney.
+ * Every view says "Simulated". The base slice is painted once per seed and target into a square surface (`baseSliceFor`) and only blitted after that.
+ * The kidney's (the synthetic abdomen of `imageSeed` at the kidneys, images/torso.ts) has anterior at the top and the patient's right on the image's
+ * left; a needle's path (mm from the tumour centre, +x the patient's left, +y posterior) is drawn at the tumour, which sits in the left kidney.
+ * R5 wave 3: the lung's and the liver's patients lie face down, so their pictures (ctSlices.ts) are turned half a turn, the way a scanner shows a prone
+ * patient: the BACK at the top, the patient's right on the picture's right, the table pad at the bottom. A path's mm are then the picture's own axes
+ * (+x right, +y down: its skin entry is up and to the right, through the back from the robot's side) and the tumour sits where `CRYO_SLICES` says.
  */
-import { CRYO_SUITE_COPY, fillCryo } from '@/content/cryoSuite'
+import { CRYO_SUITE_COPY, cryoStepLabel, fillCryo } from '@/content/cryoSuite'
 import type { Ctx2D, Env, Surface } from '@/scene/imaging/images/ctx'
 import { ctLook } from '@/scene/imaging/images/looks'
 import { drawShapes } from '@/scene/imaging/images/paint'
 import { CT_WINDOWS } from '@/scene/imaging/images/tones'
 import { abdomenAxial } from '@/scene/imaging/images/torso'
-import type { CryoSuiteState } from '@/sim/types'
+import type { CryoSuiteState, CryoTarget } from '@/sim/types'
+import { CHEST_WINDOW, CRYO_SLICES, proneSliceModel, PRONE_FLIP } from './ctSlices'
 
 /**
  * The picture's geometry: mm per unit of the slice's -1..1 square, the tumour's centre (the left kidney's lateral lip), the slice through the kidneys.
@@ -40,12 +44,33 @@ export const INK = {
   iceEdge: 'rgba(200,225,238,0.9)',
   needle: '#ffffff',
   tumour: 'rgba(120,120,120,0.55)',
+  // R5 wave 3 (the lung's and the liver's pictures: no red anywhere): a soft-tissue lump in the black lung is bright; in the liver it is darker than the
+  // liver around it; the outline is pale; the ice in the lung is a grey haze (ground glass) rather than the dark of the kidney's and the liver's
+  tumourLung: 'rgba(214,214,214,0.92)',
+  tumourLiver: 'rgba(86,86,86,0.72)',
+  edge: '#e9f0f2',
+  iceLung: 'rgba(132,142,150,0.55)',
 } as const
+
+/** How a target's picture draws the tumour, its outline and the ice (the kidney's are the original ones). */
+interface PictureInk {
+  tumour: string
+  edge: string
+  ice: string
+}
+const PICTURE_INK: Readonly<Record<CryoTarget, PictureInk>> = {
+  kidney: { tumour: INK.tumour, edge: INK.red, ice: INK.ice },
+  lung: { tumour: INK.tumourLung, edge: INK.edge, ice: INK.iceLung },
+  liver: { tumour: INK.tumourLiver, edge: INK.edge, ice: INK.ice },
+}
+/** The target's picture ink (an unknown target falls back to the kidney's). */
+const inkOf = (s: CryoSuiteState): PictureInk => PICTURE_INK[s.target] ?? PICTURE_INK.kidney
 
 /** Steps that run the CT (the sweep shows). */
 const SCAN_STEPS: ReadonlySet<string> = new Set(['planningCt', 'checkCt', 'finalCt'])
-const FREEZE_STEPS: ReadonlySet<string> = new Set(['freeze1', 'freeze2'])
-const THAW_STEPS: ReadonlySet<string> = new Set(['thaw', 'activeThaw'])
+// (R5 wave 3: the lung's short first freeze and its thaw are a freeze and a thaw)
+const FREEZE_STEPS: ReadonlySet<string> = new Set(['anchorFreeze', 'freeze1', 'freeze2'])
+const THAW_STEPS: ReadonlySet<string> = new Set(['anchorThaw', 'thaw', 'activeThaw'])
 
 // ---------------------------------------------------------------------------------------------
 // The base slice
@@ -53,28 +78,40 @@ const THAW_STEPS: ReadonlySet<string> = new Set(['thaw', 'activeThaw'])
 
 export interface BaseSliceCache {
   seed: number
+  /** R5 wave 3: the target the surface shows (the kidney's slice until a lung or a liver case asks for its own). */
+  target: CryoTarget
   surface: Surface | null
   /** How many times a slice was painted (tests: once per seed). */
   paints: number
 }
 
-export const newBaseSliceCache = (): BaseSliceCache => ({ seed: Number.NaN, surface: null, paints: 0 })
+export const newBaseSliceCache = (): BaseSliceCache => ({ seed: Number.NaN, target: 'kidney', surface: null, paints: 0 })
 
-/** The base slice of `seed` (painted on the first call for a seed, blitted after). */
-export function baseSliceFor(cache: BaseSliceCache, env: Env, seed: number): Surface {
+/**
+ * The base slice of `seed` for `target` (painted on the first call for a seed and target, blitted after). The kidney's is the abdomen at the kidneys, as
+ * it always was; the lung's and the liver's are the prone slices of ctSlices.ts (turned half a turn: back at the top).
+ */
+export function baseSliceFor(cache: BaseSliceCache, env: Env, seed: number, target: CryoTarget = 'kidney'): Surface {
   const n = CRYO_IMAGE.size
   if (!cache.surface) cache.surface = env.createSurface(n, n)
-  if (cache.seed !== seed) {
+  if (cache.seed !== seed || cache.target !== target) {
     const c = cache.surface.ctx
     c.setTransform(1, 0, 0, 1, 0, 0)
     c.globalAlpha = 1
     c.globalCompositeOperation = 'source-over'
     c.fillStyle = '#000000'
     c.fillRect(0, 0, n, n)
-    c.setTransform(n / 2, 0, 0, n / 2, n / 2, n / 2)
-    drawShapes(c, abdomenAxial(seed, CRYO_IMAGE.kidneyZ), ctLook('portal', CT_WINDOWS.abdomen))
+    if (target === 'lung' || target === 'liver') {
+      // the supine slice turned half a turn about the square's centre: the table at the bottom, the back at the top
+      c.setTransform((PRONE_FLIP * n) / 2, 0, 0, (PRONE_FLIP * n) / 2, n / 2, n / 2)
+      drawShapes(c, proneSliceModel(target, seed), ctLook('portal', target === 'lung' ? CHEST_WINDOW : CT_WINDOWS.abdomen))
+    } else {
+      c.setTransform(n / 2, 0, 0, n / 2, n / 2, n / 2)
+      drawShapes(c, abdomenAxial(seed, CRYO_IMAGE.kidneyZ), ctLook('portal', CT_WINDOWS.abdomen))
+    }
     c.setTransform(1, 0, 0, 1, 0, 0)
     cache.seed = seed
+    cache.target = target
     cache.paints++
   }
   return cache.surface
@@ -92,6 +129,8 @@ export interface ImageBox {
   /** The text column (x, width); width 0 when the text overlays the image. */
   colX: number
   colW: number
+  /** R5 wave 3: where the tumour's centre is in the slice's -1..1 square (the kidney's, `CRYO_IMAGE.tumour`, when absent). */
+  tumour?: { x: number; y: number }
 }
 
 export function imageBox(w: number, h: number, out: ImageBox): ImageBox {
@@ -114,8 +153,8 @@ export function imageBox(w: number, h: number, out: ImageBox): ImageBox {
 const px = (b: ImageBox, u: number): number => b.x + b.size / 2 + (u * b.size) / 2
 const py = (b: ImageBox, v: number): number => b.y + b.size / 2 + (v * b.size) / 2
 /** A needle-path point (mm from the tumour centre) to view pixels. */
-const mmX = (b: ImageBox, mm: number): number => px(b, CRYO_IMAGE.tumour.x + mm / CRYO_IMAGE.mmPerUnit)
-const mmY = (b: ImageBox, mm: number): number => py(b, CRYO_IMAGE.tumour.y + mm / CRYO_IMAGE.mmPerUnit)
+const mmX = (b: ImageBox, mm: number): number => px(b, (b.tumour ?? CRYO_IMAGE.tumour).x + mm / CRYO_IMAGE.mmPerUnit)
+const mmY = (b: ImageBox, mm: number): number => py(b, (b.tumour ?? CRYO_IMAGE.tumour).y + mm / CRYO_IMAGE.mmPerUnit)
 const mmLen = (b: ImageBox, mm: number): number => ((mm / CRYO_IMAGE.mmPerUnit) * b.size) / 2
 
 function clear(c: Ctx2D, w: number, h: number): void {
@@ -153,12 +192,13 @@ function drawBase(c: Ctx2D, b: ImageBox, base: Surface): void {
 
 function drawTumour(c: Ctx2D, b: ImageBox, s: CryoSuiteState, outline: boolean): void {
   const r = mmLen(b, Math.max(8, s.tumourMm) / 2)
-  c.fillStyle = INK.tumour
+  const ink = inkOf(s)
+  c.fillStyle = ink.tumour
   c.beginPath()
   c.ellipse(mmX(b, 0), mmY(b, 0), r, r * 0.9, 0.3, 0, Math.PI * 2)
   c.fill()
   if (outline) {
-    c.strokeStyle = INK.red
+    c.strokeStyle = ink.edge
     c.lineWidth = 1.2
     c.setLineDash([3, 2])
     c.stroke()
@@ -183,14 +223,28 @@ export function clockOf(seconds: number): string {
 
 const _box: ImageBox = { x: 0, y: 0, size: 0, colX: 0, colW: 0 }
 
+/** The picture's box for the state's target: `imageBox`, with the tumour where that target's slice has it. */
+function boxFor(w: number, h: number, s: CryoSuiteState, out: ImageBox): ImageBox {
+  imageBox(w, h, out)
+  out.tumour = (CRYO_SLICES[s.target] ?? CRYO_SLICES.kidney).tumour
+  return out
+}
+
+/** The patient's-right marker of a prone picture (the slice is turned, so the side is named: R on the picture's right edge). */
+function sideMarker(c: Ctx2D, b: ImageBox, s: CryoSuiteState): void {
+  if (!(CRYO_SLICES[s.target] ?? CRYO_SLICES.kidney).prone) return
+  text(c, 'R', b.x + b.size - 8, b.y + b.size / 2 + 4, 12, INK.dim, 700, 'right')
+}
+
 // ---------------------------------------------------------------------------------------------
 // Planning
 // ---------------------------------------------------------------------------------------------
 
 export function paintPlanning(c: Ctx2D, w: number, h: number, s: CryoSuiteState, base: Surface): void {
   clear(c, w, h)
-  const b = imageBox(w, h, _box)
+  const b = boxFor(w, h, s, _box)
   drawBase(c, b, base)
+  sideMarker(c, b, s)
   drawTumour(c, b, s, true)
   const cur = currentNeedle(s)
   c.lineWidth = Math.max(1.2, b.size / 200)
@@ -229,7 +283,7 @@ export function paintPlanning(c: Ctx2D, w: number, h: number, s: CryoSuiteState,
       y += 17
     }
   }
-  text(c, CRYO_SUITE_COPY.steps[s.step], tx, h - 10, 11, INK.dim, 500)
+  text(c, cryoStepLabel(s.step, s.target), tx, h - 10, 11, INK.dim, 500)
   simulatedTag(c, w)
 }
 
@@ -250,11 +304,13 @@ export function iceRadiusMm(s: CryoSuiteState): number {
 export const LIVE_ZOOM = 2.4
 
 export function zoomBox(b: ImageBox, zoom: number, out: ImageBox): ImageBox {
+  const t = b.tumour ?? CRYO_IMAGE.tumour
   out.size = b.size * zoom
-  out.x = b.x + b.size / 2 - out.size / 2 - (CRYO_IMAGE.tumour.x * out.size) / 2
-  out.y = b.y + b.size / 2 - out.size / 2 - (CRYO_IMAGE.tumour.y * out.size) / 2
+  out.x = b.x + b.size / 2 - out.size / 2 - (t.x * out.size) / 2
+  out.y = b.y + b.size / 2 - out.size / 2 - (t.y * out.size) / 2
   out.colX = b.colX
   out.colW = b.colW
+  out.tumour = b.tumour
   return out
 }
 
@@ -262,8 +318,9 @@ const _zoom: ImageBox = { x: 0, y: 0, size: 0, colX: 0, colW: 0 }
 
 export function paintLive(c: Ctx2D, w: number, h: number, s: CryoSuiteState, base: Surface): void {
   clear(c, w, h)
-  const b = imageBox(w, h, _box)
+  const b = boxFor(w, h, s, _box)
   const z = zoomBox(b, LIVE_ZOOM, _zoom)
+  const ink = inkOf(s)
   c.save()
   c.beginPath()
   c.rect(b.x, b.y, b.size, b.size)
@@ -310,7 +367,7 @@ export function paintLive(c: Ctx2D, w: number, h: number, s: CryoSuiteState, bas
         c.lineWidth = Math.max(2.4, b.size / 110)
         c.stroke()
       } else {
-        c.fillStyle = INK.ice
+        c.fillStyle = ink.ice
         c.fill()
       }
     }
@@ -347,6 +404,7 @@ export function paintLive(c: Ctx2D, w: number, h: number, s: CryoSuiteState, bas
     c.fill()
   }
   c.restore()
+  sideMarker(c, b, s)
   // the sweep: the part of the slice not yet reconstructed is dark, a teal line at the front
   if (SCAN_STEPS.has(s.step) && s.scan > 0 && s.scan < 1) {
     const y = b.y + b.size * s.scan
@@ -358,7 +416,7 @@ export function paintLive(c: Ctx2D, w: number, h: number, s: CryoSuiteState, bas
   const p = CRYO_SUITE_COPY.panel
   const tx = b.colW > 0 ? b.colX : b.x + 8
   text(c, p.live, tx, b.y + 18, 14, INK.text, 650)
-  text(c, CRYO_SUITE_COPY.steps[s.step], tx, b.y + 36, 11, INK.dim, 500)
+  text(c, cryoStepLabel(s.step, s.target), tx, b.y + 36, 11, INK.dim, 500)
   if (s.ice > 0.005) {
     const iceLine = `${p.ice} ${s.iceMm.long} × ${s.iceMm.short} mm`
     if (b.colW > 0) text(c, iceLine, tx, b.y + 58, 11, INK.teal, 600)
@@ -376,7 +434,7 @@ export function paintConsole(c: Ctx2D, w: number, h: number, s: CryoSuiteState):
   const p = CRYO_SUITE_COPY.panel
   const freezing = FREEZE_STEPS.has(s.step)
   const thawing = THAW_STEPS.has(s.step)
-  text(c, CRYO_SUITE_COPY.steps[s.step], 10, 20, 13, freezing ? INK.teal : thawing ? INK.amber : INK.text, 650)
+  text(c, cryoStepLabel(s.step, s.target), 10, 20, 13, freezing ? INK.teal : thawing ? INK.amber : INK.text, 650)
   // argon and heater lamps
   const lamp = (label: string, on: boolean, x: number, color: string): void => {
     c.fillStyle = on ? color : '#26323a'
@@ -437,7 +495,7 @@ export function paintRobotStation(c: Ctx2D, w: number, h: number, s: CryoSuiteSt
     const right = done || (isCur && s.robot.phase === 'aligned') ? fillCryo(p.aligned, { err: n.errorMm.toFixed(1) }) : isCur && s.robot.phase === 'aiming' ? p.aiming : '—'
     text(c, right, 30, y, 12, color, 600)
   }
-  if (s.needles.length === 0) text(c, CRYO_SUITE_COPY.steps[s.step], 10, top + 20, 12, INK.dim, 500)
-  text(c, CRYO_SUITE_COPY.steps[s.step], 10, h - 10, 10, INK.dim, 500)
+  if (s.needles.length === 0) text(c, cryoStepLabel(s.step, s.target), 10, top + 20, 12, INK.dim, 500)
+  text(c, cryoStepLabel(s.step, s.target), 10, h - 10, 10, INK.dim, 500)
   simulatedTag(c, w)
 }

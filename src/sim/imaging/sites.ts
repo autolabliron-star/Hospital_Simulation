@@ -167,22 +167,37 @@ export function buildSites(seats: SeatRegistry): ImagingSites {
   return { scanners, cubicles, hallStand }
 }
 
-/** Who is in which changing cubicle (one person per cubicle). */
+/**
+ * Who is in which changing cubicle (one person per cubicle). The last `reserved` cubicles belong to the ProSense patient (R5 fix K19): an MRI patient (at most
+ * two at a time: the one changing before the scan and the one changing back after the last) only ever takes the first ones, so a ProSense case can never leave
+ * her without a cubicle, and the MRI day is the same with or without a case. The ProSense patient takes only the reserved one(s): when it is in use (the
+ * case before hers is still changing back) she waits or changes where she stands, as the scanner decides.
+ */
 export class CubiclePool {
   private readonly by: (string | null)[]
 
-  constructor(readonly cubicles: readonly Cubicle[]) {
+  constructor(
+    readonly cubicles: readonly Cubicle[],
+    /** How many of the last cubicles are the ProSense patient's alone (0: all are shared, first free first). */
+    private readonly reserved = 0,
+  ) {
     this.by = cubicles.map(() => null)
   }
 
-  /** The first free cubicle, now held by `id`; null if all are taken. */
-  claim(id: string): Cubicle | null {
+  /** The first free cubicle (a ProSense patient's: the free one among the reserved), now held by `id`; null if there is none for her. */
+  claim(id: string, prosense = false): Cubicle | null {
     const held = this.by.indexOf(id)
     if (held >= 0) return this.cubicles[held]
-    const i = this.by.indexOf(null)
-    if (i < 0) return null
-    this.by[i] = id
-    return this.cubicles[i]
+    const n = this.by.length
+    const from = prosense && this.reserved > 0 ? n - this.reserved : 0
+    const to = !prosense && this.reserved > 0 ? n - this.reserved : n
+    for (let i = from; i < to; i++) {
+      if (this.by[i] === null) {
+        this.by[i] = id
+        return this.cubicles[i]
+      }
+    }
+    return null
   }
 
   release(id: string): void {

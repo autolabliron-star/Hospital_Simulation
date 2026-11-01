@@ -9,9 +9,10 @@
  */
 import { PROCEDURE_META } from '@/content/procedures'
 import { SURGERY_COPY } from '@/content/surgery'
-import { anchorSpot, newTargetCtx, resolveTarget, setTable, type TargetCtx } from '@/sim/procedure'
+import { anchorSpot, focusPointInto, newTargetCtx, resolveTarget, setTable, type CryoFocus, type CryoTargetId, type TargetCtx, type UsFocus, type UsTargetId } from '@/sim/procedure'
+import type { CtNeedlePath } from '@/sim/procedure/cryoPlaces'
 import { SURGERY } from '@/sim/places'
-import type { ProcRole, ProcedureId, ProcedureView, SurgeryProcedure, Vec3 } from '@/sim/types'
+import type { CryoTarget, ProcRole, ProcedureId, ProcedureView, SurgeryProcedure, Vec3 } from '@/sim/types'
 
 /** The room's own points. */
 export type PlaceAnchor =
@@ -36,8 +37,15 @@ export type PlaceAnchor =
   | 'backTable'
   | 'mayo'
 
-/** Something the camera looks at or stands by: a point of the room, or a member of the team. */
-export type AnchorId = PlaceAnchor | ProcRole
+/**
+ * The CT cryo suite's and the ultrasound room's own points (R5 wave 3, src/sim/procedure/cryoPlaces.ts and usPlaces.ts): the procedure engine's targets
+ * and foci by their own names, so the camera and the hands agree to the millimetre. The CT ones follow the table's travel (`tablePos`), the case's target
+ * and the needle being worked on (`syncCryoAnchors`).
+ */
+export type RoomAnchor = CryoTargetId | CryoFocus | UsTargetId | UsFocus
+
+/** Something the camera looks at or stands by: a point of the room, a point of the CT or ultrasound room, or a member of the team. */
+export type AnchorId = PlaceAnchor | RoomAnchor | ProcRole
 
 /** A person's shoulder height, where the camera aims at someone (and where an over-the-shoulder eye starts from). */
 export const SHOULDER_Y = 1.45
@@ -77,6 +85,23 @@ export function syncAnchorCtx(
     }
   } else setTable(t, 0, 0, 'supine')
   t.cart = cart ?? PARK
+}
+
+/** The CT suite's state the anchors follow: the table, the case's target and the needle being worked on (`CryoSuiteState`). */
+export interface CryoAnchorState {
+  readonly tablePos: number
+  readonly target: CryoTarget
+  readonly needle: number
+  readonly needles: readonly CtNeedlePath[]
+}
+
+/** Refresh the CT anchors for this frame: the table's travel into the bore, the case's target, the needle being worked on. Allocation-free. */
+export function syncCryoAnchors(ctx: AnchorCtx, state: CryoAnchorState): void {
+  const c = ctx.targets.cryo
+  c.tablePos = state.tablePos
+  c.target = state.target
+  c.needle = state.needle
+  c.needles = state.needles
 }
 
 /**
@@ -201,6 +226,31 @@ export function anchorInto(id: AnchorId, ctx: AnchorCtx, out: Vec3): Vec3 {
       return resolveTarget('backTable', t, out)
     case 'mayo':
       return resolveTarget('mayo', t, out)
+    case 'ctField':
+    case 'needleEntry':
+    case 'ctFace':
+    case 'robotGuide':
+    case 'cryoScreen':
+    case 'roomScreen':
+    case 'ctScreen':
+    case 'planScreen':
+    case 'ctAnaesMachine':
+    case 'breast':
+    case 'usFace':
+    case 'usScreen':
+    case 'prosenseScreen':
+      return resolveTarget(id, t, out)
+    case 'ctTable':
+    case 'ctGantry':
+    case 'needle':
+    case 'iceBall':
+    case 'cryoConsole':
+    case 'controlRoom':
+    case 'ctHead':
+    case 'ctRoom':
+    case 'usRoom':
+    case 'prosenseConsole':
+      return focusPointInto(id, t, out)
     default: {
       // a member of the team, at shoulder height; nobody known: the patient
       if (roleFloorInto(id, ctx, out)) {

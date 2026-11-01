@@ -316,6 +316,13 @@ function patchGear(shader: WebGLProgramParametersWithUniforms, pose: DataTexture
 export const SLEEVE_PARTS: readonly number[] = [P.armL, P.foreL, P.armR, P.foreR]
 /** R5: the gloves' cream latex (linear). */
 const GLOVE = new Color(FIXED_COLORS[FX.glove])
+const LEAD = new Color(FIXED_COLORS[FX.lead])
+/**
+ * R5 wave 3: where the lead apron stops at the arms. The arm parts (SLEEVE_PARTS) are part of the top garment's mask and the bind pose's front half faces +Z, so the apron painted the
+ * front half of the scrub SLEEVES navy; it is the torso's: the apron's weight goes from full to nothing as the sleeve weight (the skin weights of the arm parts) goes from the first
+ * number to the second (the shoulder's seam blends, the sleeve itself keeps the scrub colour). leadApron.test.ts checks it on the avatars' own vertices.
+ */
+export const APRON_SLEEVE_FADE: readonly [number, number] = [0.15, 0.5]
 
 const anyOf = (k: string, parts: readonly number[]): string => parts.map((p) => `${k} == ${p}`).join(' || ')
 
@@ -342,8 +349,9 @@ flat varying vec3 vCrowdTint;
 flat varying vec3 vCrowdTop;
 flat varying vec3 vCrowdBottom;
 varying vec4 vCrowdBare;
-flat varying vec2 vCrowdAttire;
+flat varying vec3 vCrowdAttire;
 varying float vCrowdSleeve;
+varying float vCrowdApron;
 ${CROWD_BARE_FN}
 `
 
@@ -373,9 +381,11 @@ vCrowdTint = vec3(float(cTintBits & 1), float((cTintBits >> 1) & 1), float((cTin
 vCrowdBare = aWeights.x * crowdBare(aJoints.x) + aWeights.y * crowdBare(aJoints.y) + aWeights.z * crowdBare(aJoints.z) + aWeights.w * crowdBare(aJoints.w);
 vCrowdTop = texelFetch(uPose, ivec2(${TEX.palette + SLOT.top}, cRow), 0).rgb;
 vCrowdBottom = texelFetch(uPose, ivec2(${TEX.palette + SLOT.pants}, cRow), 0).rgb;
-// R5: the sterile attire bits (gear texel z: mask 1, gown 2, gloves 4): x the gloves, y the gown; and how much of the vertex is a sleeve
+// R5: the sterile attire bits (gear texel z: mask 1, gown 2, gloves 4, lead apron 8): x the gloves, y the gown, z the lead apron (the gown wins over it, as in attire.ts
+// writeAttire); and how much of the vertex is a sleeve, and how far it faces the front (the apron wraps the front and a little of the sides: the bind pose faces +Z)
 int cAttire = int(texelFetch(uPose, ivec2(${TEX.gear}, cRow), 0).z + 0.5);
-vCrowdAttire = vec2(float((cAttire >> 2) & 1), float((cAttire >> 1) & 1));
+vCrowdAttire = vec3(float((cAttire >> 2) & 1), float((cAttire >> 1) & 1), ((cAttire & 10) == 8) ? 1.0 : 0.0);
+vCrowdApron = smoothstep(-0.3, 0.3, normal.z);
 vCrowdSleeve = aWeights.x * crowdSleeve(aJoints.x) + aWeights.y * crowdSleeve(aJoints.y) + aWeights.z * crowdSleeve(aJoints.z) + aWeights.w * crowdSleeve(aJoints.w);
 vec4 cR0 = vec4(0.0);
 vec4 cR1 = vec4(0.0);
@@ -404,8 +414,9 @@ flat varying vec3 vCrowdTint;
 flat varying vec3 vCrowdTop;
 flat varying vec3 vCrowdBottom;
 varying vec4 vCrowdBare;
-flat varying vec2 vCrowdAttire;
+flat varying vec3 vCrowdAttire;
 varying float vCrowdSleeve;
+varying float vCrowdApron;
 `
 
 const SOCKS = new Color(GOWN_SOCKS)
@@ -448,6 +459,11 @@ const AVATAR_ATTIRE_FRAG = /* glsl */ `
       float cFoldG = clamp(pow(cLum / max(uTintRef.x, 1e-3), 0.3), 0.75, 1.15);
       float cCover = max(cTopMask, smoothstep(0.35, 0.6, vCrowdSleeve));
       diffuseColor.rgb = mix(diffuseColor.rgb, vCrowdTop * cFoldG, cCover);
+    }
+    if (vCrowdAttire.z > 0.5) {
+      // a lead apron (navy, attire.ts): the front of the torso (not the sleeves), in the garment's own folds; the patient's gown wins over it (z is 0)
+      float cFoldL = clamp(pow(cLum / max(uTintRef.x, 1e-3), 0.3), 0.75, 1.15);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${g(LEAD.r)}, ${g(LEAD.g)}, ${g(LEAD.b)}) * cFoldL, cTopMask * vCrowdApron * (1.0 - smoothstep(${g(APRON_SLEEVE_FADE[0])}, ${g(APRON_SLEEVE_FADE[1])}, vCrowdSleeve)));
     }
     if (vCrowdAttire.x > 0.5) {
       float cGl = clamp(pow(cLum / max(dot(uSkin, vec3(0.2126, 0.7152, 0.0722)), 1e-3), 0.6), 0.6, 1.2);
@@ -521,7 +537,7 @@ function patchAvatarBody(shader: WebGLProgramParametersWithUniforms, pose: DataT
 }
 
 /** The one program every avatar body of every LOD shares (the light volume's key composed in). */
-export const AVATAR_PROGRAM_KEY = `hospital-crowd-avatar-v2+${LIGHT_VOLUME_KEY}`
+export const AVATAR_PROGRAM_KEY = `hospital-crowd-avatar-v3+${LIGHT_VOLUME_KEY}`
 
 /** The uniform values of an avatar: its hair rectangle as (u0, v0, u1, v1) (nothing when it has no hair cards), its tint references, its skin (linear). */
 export function avatarUniformValues(entry: Pick<AvatarEntry, 'atlas' | 'tintRef' | 'palette'>): {

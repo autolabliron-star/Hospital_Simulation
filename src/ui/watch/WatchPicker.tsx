@@ -1,12 +1,14 @@
 /**
- * R5: the "Watch step by step" button of a room panel (the robotic theatre's today; the CT cryo suite's and the ultrasound room's later). It opens a short
- * list of the room's procedures that have a script; a pick asks the room for a watch case (watchFlow.ts) and the watch begins at once, or after the
- * turnover with a countdown. With a case already in the room it offers to watch that one from its current step, or the whole operation from the start
- * after it; when the team is not in, or a watch case is already booked, it says so. All the words are in src/content/watch.json.
+ * R5: the "Watch step by step" button of a room panel (the robotic theatre's, the CT cryo suite's and the ultrasound room's: the same picker, with the
+ * room's own words). It opens a short list of the room's procedures that have a script; a pick asks the room for a watch case (watchFlow.ts) and the
+ * watch begins at once, or after the turnover with a countdown. With a case already in the room it offers to watch that one from its current step, or the
+ * whole case from the start after it; when the team is not in (or, in the CT suite, it is too late today for a whole case), or a watch case is already
+ * booked, it says so. All the words are in src/content/watch.json (and the CT suite's "too late" line in src/content/cryoSuite.json).
  */
 import { useCallback, useMemo, useState } from 'react'
 import { scriptFor } from '@/content/procedures'
-import { fillWatch, WATCH } from '@/content/watch'
+import { CRYO_SUITE_COPY } from '@/content/cryoSuite'
+import { fillWatch, panelWords, WATCH } from '@/content/watch'
 import { proceduresOfRoom, type WatchRoomId } from '@/scene/watch/rooms'
 import { CONFIG } from '@/sim/config'
 import { compiledFor, watchTotalSeconds } from '@/sim/procedure'
@@ -43,14 +45,27 @@ export function hourText(h: number): string {
   return `${hh < 10 ? '0' : ''}${hh}:${mm < 10 ? '0' : ''}${mm}`
 }
 
-/** The line a refused pick shows (null: nothing to say). */
-export function answerText(result: PickResult | null): string | null {
+/** The hours each room's team is on site (the theatre's, the cryoablation team's, the ultrasound room's office hours). */
+export function teamHours(room: WatchRoomId): { from: number; to: number } {
+  if (room === 'cryo') return { from: CONFIG.cryoSuite.teamFromHour, to: CONFIG.cryoSuite.teamToHour }
+  if (room === 'us') return { from: CONFIG.day.shifts.office[0], to: CONFIG.day.shifts.office[1] }
+  return { from: CONFIG.surgery.teamFromHour, to: CONFIG.surgery.teamToHour }
+}
+
+/** The line a refused pick shows in a room's panel (null: nothing to say). */
+export function answerText(result: PickResult | null, room: WatchRoomId = 'or'): string | null {
+  const w = panelWords(room)
   switch (result) {
     case 'busy':
     case 'noCamera':
-      return WATCH.panel.busy
-    case 'noTeam':
-      return fillWatch(WATCH.panel.noTeam, { from: hourText(CONFIG.surgery.teamFromHour), to: hourText(CONFIG.surgery.teamToHour) })
+      return w.busy
+    case 'noTeam': {
+      const h = teamHours(room)
+      return fillWatch(w.noTeam, { from: hourText(h.from), to: hourText(h.to) })
+    }
+    case 'tooLate':
+      // (the CT suite's own words: its team is in, but not for long enough to finish a whole case)
+      return CRYO_SUITE_COPY.panel.tooLate
     case 'noScript':
       return WATCH.panel.noScript
     default:
@@ -73,8 +88,8 @@ export interface WatchPickerViewProps {
 
 /** The markup, with its state as props (so it renders in node). */
 export function WatchPickerView(p: WatchPickerViewProps) {
-  const w = WATCH.panel
-  const message = answerText(p.answer?.result ?? null)
+  const w = panelWords(p.room)
+  const message = answerText(p.answer?.result ?? null, p.room)
   return (
     <div className="watch-pick" data-room={p.room}>
       <button type="button" className="hud-send watch-pick__open" aria-expanded={p.open} title={w.buttonTitle} onClick={p.onToggle}>

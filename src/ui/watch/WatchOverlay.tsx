@@ -6,7 +6,8 @@
  *   left          the steps, done / current / upcoming (collapsible; the current one kept in view)
  *   bottom        the caption bar: "Step 7 of 32: Clips placed on duct and artery" and the step's one-line why; before a booked case, the wait and
  *                 "Skip to the start"
- *   inset         the endoscope picture-in-picture when the shot asks for it (big when the picture is the story)
+ *   inset         the picture-in-picture when the shot asks for it (the endoscope, the ultrasound, the CT plan or the live CT; big when the picture is the story;
+ *                 nothing at all while its source is not registered)
  *   the dip       a 0.5 s fade through black on every cut the director makes (it cuts at the black)
  *
  * The caption is read from the sim at 4 Hz (`usePoll`); the rest comes from the watch store, written by the director only on change. `?probe=1` installs
@@ -130,7 +131,7 @@ function readCaption(): CaptionModel {
   const w = useWatch.getState()
   const s = sim as unknown as WatchSim
   const room = w.room ?? 'or'
-  return captionModel({ status: w.status, mode: w.mode, procedureId: w.procedureId, view: roomView(s, room), startsAt: roomPort(s, room)?.startsAt() ?? null, now: s.t })
+  return captionModel({ room, status: w.status, mode: w.mode, procedureId: w.procedureId, view: roomView(s, room), startsAt: roomPort(s, room)?.startsAt() ?? null, now: s.t })
 }
 
 function setSpeed(n: number): void {
@@ -195,9 +196,9 @@ function useWatchProbe(): void {
     const w = window as unknown as { __hospitalWatch?: unknown }
     const idOf = (name: string): ProcedureId => (name.includes('-') ? name : `or-${name}`) as ProcedureId
     w.__hospitalWatch = {
-      /** Start watching a procedure ('cholecystectomy' or 'or-cholecystectomy'); `{ fromStart: true }` books it after the case in the room. */
+      /** Start watching a procedure ('cholecystectomy' or 'or-cholecystectomy', 'cryo-lung', 'us-breastCancer'); `{ fromStart: true }` books it after the case in the room. */
       start: (name: string, opts: { fromStart?: boolean } = {}) => watchActions.pick(idOf(name), opts),
-      /** Watch the case in the room now. */
+      /** Watch the case in the room now ('or', 'cryo' or 'us'). */
       follow: (room: WatchRoomId = 'or') => watchActions.follow(room),
       skip: () => watchActions.skipToStart(),
       freeLook: (on: boolean) => watchActions.holdFreeLook(on),

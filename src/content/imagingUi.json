@@ -32,18 +32,41 @@
       "temp": "{c} °C",
       "timer": "{m}:{s}",
       "ice": "Ice ball {w} x {d} mm",
-      "probe": "CRYOPROBE"
+      "probe": "CRYOPROBE",
+      "survey": "SURVEY",
+      "held": "SURVEY STORED",
+      "lump": "Lump {d} mm",
+      "local": "LOCAL ANAESTHETIC",
+      "nick": "SKIN NICK",
+      "saline": "SALINE LAYER",
+      "programme": "PROGRAMME",
+      "programmeLine": "{a}-{b}-{c} min",
+      "measure": "MEASURE",
+      "measureLine": "Ice ball {w} mm (target {t}+)",
+      "lumpCovered": "LUMP COVERED",
+      "lumpOutside": "PART OF THE LUMP OUTSIDE: MOVE PROBE",
+      "thawFree": "THAW: PROBE LOOSENING",
+      "probeOut": "PROBE OUT",
+      "treated": "TREATED AREA",
+      "relocate": "PROBE MOVED",
+      "needle": "NEEDLE"
     }
   },
   "cryoCard": {
     "label": "Device",
     "title": "ProSense cryoablation",
-    "what": "Freezes the tumour with liquid nitrogen: an ice ball at about −170 °C, guided by ultrasound, no cut",
-    "status": "FDA authorized October 2025 for early, low-risk breast cancer in women 70 and over, with hormone therapy",
     "synthetic": "Synthetic patient",
     "start": "Start a cryoablation (ProSense)",
     "startNext": "Cryoablation next, after this patient",
-    "queued": "Cryoablation booked: next in the room"
+    "queued": "Cryoablation booked: next in the room",
+    "breastCancer": {
+      "what": "Freezes the tumour with liquid nitrogen: an ice ball at about −170 °C, guided by ultrasound, no cut",
+      "status": "FDA authorised October 2025 for early, low-risk breast cancer in women 70 and over, with hormone therapy"
+    },
+    "fibroadenoma": {
+      "what": "Freezes a benign lump (a fibroadenoma) with liquid nitrogen: an ice ball at about −170 °C, guided by ultrasound, no cut",
+      "status": "IceCure states FDA clearance for fibroadenomas (company release, March 2026)"
+    }
   },
   "image": "Im {n}/{total}",
   "orient": {

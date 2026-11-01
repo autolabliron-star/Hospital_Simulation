@@ -42,6 +42,8 @@ import { CrowdModel, MAX_BADGES, MAX_BLANKETS, MAX_BLOBS, MAX_CAPS, MAX_GOWNS, M
 import { highlight } from './runtime'
 import { createAvatarMaterials, createCrowdMaterials } from './shaders'
 import { measureCapFit, measureFaceFit, measureHandGrip, type CapFit, type FaceFit } from './avatars'
+import { measureLieFit, type LieFit } from './tablePatient'
+import { skinSourceOfBody, skinSourceOfProcedural } from './skinSource'
 import { buildInstrumentGeometry } from './instruments'
 import { buildGownGeometry, buildMaskGeometry } from './attire'
 import type { LoadedPeople } from './avatarLoader'
@@ -133,6 +135,8 @@ export function createCrowdRig(): CrowdRig {
   // the three bodies
   const g = buildBodyGeometries()
   const bodyGeometries = [g.high, g.mid, g.far]
+  // R5 wave 3: the procedural body's near mesh as plain numbers (the drapes of the procedure rooms fit a patient who wears it)
+  model.proceduralSkin = skinSourceOfProcedural(g.high)
   const lists = [model.rowsHigh, model.rowsMid, model.rowsFar]
   const bodies = bodyGeometries.map((geo, i) => {
     geo.setAttribute('aRow', instancedAttr(lists[i], 1))
@@ -279,6 +283,12 @@ export function handGripOfBody(g: InstancedBufferGeometry, bindInverse: ArrayLik
   return measureHandGrip(b.p, b.j, b.w, b.n, bindInverse)
 }
 
+/** R5 wave 3: an avatar's torso support function, measured on its near (LOD 0) body (tablePatient.ts measureLieFit): how it rests on a pad as it rolls about its long axis. */
+export function lieFitOfBody(g: InstancedBufferGeometry, bindInverse: ArrayLike<number>): LieFit | null {
+  const b = bodyArrays(g)
+  return measureLieFit(b.p, b.j, b.w, b.n, bindInverse)
+}
+
 /** A body's positions, joints and weights as plain numbers (dequantised). */
 function bodyArrays(g: InstancedBufferGeometry): { p: Float32Array; j: Float32Array; w: Float32Array; n: number } {
   const pos = g.getAttribute('position') as BufferAttribute
@@ -309,6 +319,8 @@ export function attachPeople(r: CrowdRig, loaded: LoadedPeople): PeopleMeshes {
     loaded.avatars.map((a) => capFitOfBody(a.lods[0])),
     loaded.avatars.map((a) => faceFitOfBody(a.lods[0])),
     loaded.avatars.map((a) => handGripOfBody(a.lods[0], a.entry.bindInverse)),
+    loaded.avatars.map((a) => lieFitOfBody(a.lods[0], a.entry.bindInverse)),
+    loaded.avatars.map((a) => skinSourceOfBody(a.lods[0])),
   )
   const L = r.model.avatarLists
   const geometries: InstancedBufferGeometry[] = []

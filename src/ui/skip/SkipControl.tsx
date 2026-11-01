@@ -8,6 +8,7 @@ import { SKIP, fillSkip } from '@/content/skip'
 import { useFocus } from '@/scene/camera/focus.store'
 import { useOverviewLevel } from '@/scene/levels/levelView'
 import { useWalk } from '@/scene/player/state'
+import { roomPort, type WatchRoomId, type WatchSim } from '@/scene/watch/rooms'
 import { useWatch, watchingNow } from '@/scene/watch/watch.store'
 import { sim, skipLimit } from '@/sim'
 import { areaAt } from '@/sim/places'
@@ -17,6 +18,15 @@ import { useJump } from '../jump.store'
 import { caseTimes, keyTarget, requestFor, rowModel, skipTargets, type SkipRowModel, type SkipView } from './skipModel'
 import type { SkipRequest, SkipTarget } from './types'
 import './skip.css'
+
+/**
+ * R5: when the booked watch case of the room being watched is wheeled in (sim seconds), or null. The theatre's is the surgery port's; the CT suite's and the
+ * ultrasound room's come from their ports (the ultrasound's is a projection that allocates: this runs from a poll or an event, never a frame).
+ */
+export function watchStartsAtOf(room: WatchRoomId | null): number | null {
+  if (room === null || room === 'or') return sim.surgery.watchStartsAt ?? null
+  return roomPort(sim as unknown as WatchSim, room)?.startsAt() ?? null
+}
 
 /** The snapshot of the sim and the screen the targets are built from. Allocates; call it from a poll or an event, never from a frame. */
 export function readSkipView(): SkipView {
@@ -38,7 +48,8 @@ export function readSkipView(): SkipView {
     scanners,
     // R5: while you watch step by step only live skips, and the booked watch case's start
     watching: watchingNow(useWatch.getState()),
-    watchStartsAt: sim.surgery.watchStartsAt ?? null,
+    watchStartsAt: watchStartsAtOf(useWatch.getState().room),
+    watchRoom: useWatch.getState().room,
   }
 }
 

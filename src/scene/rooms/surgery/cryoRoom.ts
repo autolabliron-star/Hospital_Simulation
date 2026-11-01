@@ -50,6 +50,9 @@ export const CRYO_FOOTPRINTS: readonly CryoRect[] = [
   { id: 'l2:cryo:cylinders', area: 'l2Cryo', x0: -61.0, x1: -60.2, z0: 14.1, z1: 14.7, bake: 'baked' },
   { id: 'l2:cryo:cabinet', area: 'l2Cryo', x0: -61.0, x1: -58.6, z0: 21.35, z1: 21.9, bake: 'baked' },
   { id: 'l2:cryo:boom', area: 'l2Cryo', x0: -57.5, x1: -57.3, z0: 19.2, z1: 19.4, overhead: true, bake: 'marker' },
+  // R5 wave 3: the anaesthesia machine of the lung's and the liver's cases (CRYO_SUITE.anaesMachine, 0.64 x 0.78 m, facing north). Live: nothing is
+  // drawn or baked here (the model comes with the cryo rig's instance pools); the rect only makes the nav graph and the people's walk see it.
+  { id: 'l2:cryo:anaes', area: 'l2Cryo', x0: -59.07, x1: -58.43, z0: 18.96, z1: 19.74, bake: 'live' },
   { id: 'l2:cryoctl:desk', area: 'l2CryoControl', x0: -61.4, x1: -58.6, z0: 12.2, z1: 12.8, bake: 'baked' },
   { id: 'l2:cryoctl:station', area: 'l2CryoControl', x0: -58.0, x1: -56.6, z0: 12.2, z1: 12.8, bake: 'baked' },
 ]
@@ -203,6 +206,8 @@ function buildScanRoom(b: LayoutBuilder, D: Frame): void {
   // the CT is live (src/scene/cryoSuite): its gantry and the table's pedestal and cradle at `out` are obstacles only
   footprint(D, 'l2:cryo:ct:gantry')
   footprint(D, 'l2:cryo:ct:table')
+  // the anaesthesia machine is live (R5 wave 3): its footprint only, nothing drawn
+  footprint(D, 'l2:cryo:anaes')
   D.seat(CRYO_SEATS.table, 'scanTable', drawn(ct.table.out.x), ct.table.out.z, ct.table.height, {
     pose: 'lie',
     ry: ct.table.heading,

@@ -350,7 +350,7 @@ export const AREAS: Area[] = [
   { id: 'l2Lounge', label: 'Family lounge', subtitle: 'Level 2: waiting and day-case discharge', rect: { x0: l2(-62), x1: l2(-53), z0: 2, z1: 10 }, kind: 'public', mapLabel: true },
   // R4: the CT-guided, robot-assisted cryoablation suite (docs/R4-CRYO-SUITE.md), both rooms entered from recovery
   { id: 'l2CryoControl', label: 'Cryoablation control', subtitle: 'CT console and robot planning', rect: { x0: l2(-62), x1: l2(-53), z0: 10, z1: 13 }, kind: 'staff', mapLabel: false },
-  { id: 'l2Cryo', label: 'CT cryoablation', subtitle: 'Robot-guided freezing of small kidney tumours', rect: { x0: l2(-62), x1: l2(-53), z0: 13, z1: 22 }, kind: 'clinical', mapLabel: true },
+  { id: 'l2Cryo', label: 'CT cryoablation', subtitle: 'Robot-guided freezing of small kidney, lung and liver tumours', rect: { x0: l2(-62), x1: l2(-53), z0: 13, z1: 22 }, kind: 'clinical', mapLabel: true },
   ...ROOMS.map(
     (r): Area => ({ id: `room:${r.id}`, label: `Room ${r.id}`, subtitle: '', rect: r.rect, kind: 'room', ward: r.ward, mapLabel: false }),
   ),
@@ -487,6 +487,39 @@ export interface ScannerAnchors {
   operator: Spot
   /** Where staff stand to help the patient on and off the table. */
   assist: Spot
+  /**
+   * R5 wave 3, the ultrasound room only (`procedure` is absent on the other scanners): the places of a ProSense cryoablation, resolved by
+   * src/sim/procedure/usPlaces.ts. The patient lies with her head south of the body centre (couch heading pi), so her left is WEST: the baked
+   * liquid-nitrogen console (tools/arch/zones/imaging.py `CRYO`, collision `imaging:us:cryo`) stands west of the couch's head end and the
+   * ultrasound cart east of it, so the treated breast is the left one and the radiologist works from the west side.
+   */
+  procedure?: UsProcedureSpots
+}
+
+export interface UsProcedureSpots {
+  /** The treated breast: always the patient's left (west, -x): the console and the radiologist's side. */
+  side: 'left'
+  /** The breast radiologist's stool at the treated side of the couch, facing the breast. */
+  doctor: Spot
+  /**
+   * The sonographer at the ProSense console (timer, programme, hose), facing its screen (north face): 0.55 m from the point her hands work (`prosense`,
+   * about the length of an arm, as the cryo suite's console is worked) and 0.75 m or less from the radiologist, so she can pass her the syringes.
+   */
+  console: Spot
+  /** The patient's right side at the shoulder (the couch's head end), across the couch from the radiologist, facing the patient: helping her lie down, passing, the aftercare talk. */
+  head: Spot
+  /** Inside the door (north wall), facing the door: greeting, walking the patient out. */
+  door: Spot
+  /** Where the radiologist waits out of sight between cases (a corner of the room nobody walks through: she fades out and is put here, kept in the simulation). */
+  park: Spot
+  /**
+   * The baked ProSense console's centre (plan x, z), where its screen is (height, m) and how far east of the centre line the hands work it (m: the touchscreen is
+   * 0.4 m wide and the sonographer stands to its east); the ultrasound cart's screen height.
+   */
+  prosense: { at: Vec2; screenHeight: number; screenEast: number }
+  usScreenHeight: number
+  /** The treated breast on the body, from the couch's `table.in` (the body centre): metres toward the head (+z), across (west is -x) and above the couch top. */
+  breast: { toHead: number; across: number; above: number }
 }
 
 export const IMAGING: Record<ImagingModalityId, ScannerAnchors> = {
@@ -528,6 +561,24 @@ export const IMAGING: Record<ImagingModalityId, ScannerAnchors> = {
     // the sonographer sits on a stool at the patient's right, facing them
     operator: { at: { x: -30.3, z: 8.4 }, heading: -Math.PI / 2 },
     assist: { at: { x: -30.3, z: 8.4 }, heading: -Math.PI / 2 },
+    procedure: {
+      side: 'left',
+      // west of the couch (its west edge is x = -31.99), at the treated breast toward the head end, turned to it. 0.72 m from the couch's getting-on point
+      // (-32.65, 8.6): the patient climbs on and off with the radiologist clear of her (the old spot, 0.46 m away, was in her way)
+      doctor: { at: { x: -32.35, z: 9.25 }, heading: 2.05 },
+      // north-east of the baked console (x -33.69..-33.15, z 10.11..10.87), turned to its screen (north face): 0.55 m from where her hands work it (an arm's
+      // length: from the old spot, 0.8 m, they could not reach) and 0.74 m from the radiologist, so she passes the syringes from the console too
+      console: { at: { x: -32.9, z: 9.75 }, heading: -0.82 },
+      // the patient's right (east) at the shoulder, across the couch from the radiologist, by the ultrasound cart, facing west
+      head: { at: { x: -30.88, z: 9.15 }, heading: -Math.PI / 2 },
+      // inside the door (-32.6, 2.0), west of the passage, turned to the door
+      door: { at: { x: -33.15, z: 3.4 }, heading: 2.6 },
+      // the south-east corner, beyond the ultrasound cart
+      park: { at: { x: -28.75, z: 11.2 }, heading: Math.PI },
+      prosense: { at: { x: -33.45, z: 10.5 }, screenHeight: 1.1, screenEast: 0.15 },
+      usScreenHeight: 1.25,
+      breast: { toHead: 0.3, across: 0.09, above: 0.2 },
+    },
   },
 }
 
@@ -1092,13 +1143,49 @@ export const CRYO_SUITE = {
     /** Seat 'scanTable:cryo' (kind scanTable, pose lie) at `out`; `in` puts the kidney in the rotor plane (x -59.8). The sim carries the patient with tablePos. */
     table: { out: { x: l2(-57.0), z: 17.4 } as Vec2, in: { x: l2(-59.55), z: 17.4 } as Vec2, heading: Math.PI / 2, height: 0.8 },
   },
-  /** The left kidney (the target) with the table out. */
+  /** The left kidney (the kidney case's target) with the table out. (R5 wave 3: `targets` has every case's own; this is the kidney's, unchanged.) */
   target: { x: l2(-57.25), y: 0.9, z: 17.3 } as Vec3,
+  /**
+   * R5 wave 3: where each case's tumour lies with the table out (the sim frame; `tumour` is its centre, y the height above the floor) and the centre of
+   * the skin window the needles go in through, as an offset from the tumour (`field`: the sterile field, the entry's neighbourhood). The patient lies
+   * head WEST on the table (the crown 0.82 m, the head end of the table about 0.9 m, from the table's centre `ct.table.out.x`), the body centre (the
+   * pelvis, src/sim/procedure/body.ts) on the table's centre. Along the table the points follow body.ts's landmarks (toward the head from the pelvis
+   * centre: the navel 0.10 m, the sternum 0.32 m); across it, north is the robot's side (z falls toward it).
+   *
+   *   kidney  the left kidney, the patient on the right side with the left flank up (back to the robot): lumbar level (0.25 m toward the head from the
+   *           pelvis centre, 0.70 m from the head end of the table), 0.035 m north of the table's centre line and 0.24 m over the pad: in a body rolled
+   *           55 degrees about its centre line (the roll's pivot is a pelvis' height, 0.14 m, over the pad: src/sim/procedure/ctSlice.ts) the kidney's
+   *           planned entries (75 to 95 mm from it toward the patient's left, which is UP and north on her side) are on her upper flank, and on the
+   *           drape's window over it, for every avatar and size (window.test.ts P5)
+   *   lung    prone: a tumour in the posterior chest, mid-back (0.38 m toward the head, 0.52 m from the head end), in the right lung, which lies on the
+   *           robot's side (prone with the head west, the patient's right is north): 0.08 m lateral to the spine
+   *   liver   prone: the lower right posterior chest (the right lobe behind the ribs: 0.27 m toward the head, 0.63 m from the head end), 0.075 m lateral to
+   *           the spine on the robot's side; the back is a little thinner here than over the chest
+   *
+   * The prone back's skin lies about 0.25 m over the table top (1.05 m over the chest, 1.04 m over the liver; measured on the avatars, whose builds and
+   * sizes differ by +-4 cm), the tumour's centre 0.11 m under it; the window's centre (`field`) is where the planned entries are on average: the
+   * planning slice is the patient's own frame and the room sees it through the roll (src/sim/procedure/ctSlice.ts: the kidney's patient on her right side,
+   * the lung's and the liver's face down), so the kidney's window is up 0.075 m and 0.04 m toward the robot, the lung's back 0.11 m up and 0.01 m toward the robot,
+   * the liver's 0.108 m up and 0.01 m toward the robot.
+   */
+  targets: {
+    kidney: { tumour: { x: l2(-57.25), y: 1.04, z: 17.365 } as Vec3, field: { x: 0, y: 0.075, z: -0.04 } as Vec3 },
+    lung: { tumour: { x: l2(-57.38), y: 0.94, z: 17.32 } as Vec3, field: { x: 0, y: 0.11, z: -0.0105 } as Vec3 },
+    liver: { tumour: { x: l2(-57.27), y: 0.93, z: 17.325 } as Vec3, field: { x: 0, y: 0.108, z: -0.01 } as Vec3 },
+  },
   /** MAXIO/Epione-class robot: base 1.3 (x) x 0.8 (z) x 0.85 m, about 250 kg, floor-docked; the live 5-axis arm starts at `mount`. */
   robot: { base: { at: { x: l2(-57.6), z: 16.25 }, heading: 0 } as Spot, size: { w: 1.3, d: 0.8, h: 0.85 }, mount: { x: l2(-57.95), y: 1.05, z: 16.45 } as Vec3 },
   /** Visual-ICE-class argon console (up to 20 needles, 4 temperature sensors), facing south; its live screen face; the cylinder cart beside it. */
   console: { at: { at: { x: l2(-59.0), z: 14.6 }, heading: 0 } as Spot, size: { w: 0.7, d: 1.0, h: 1.35 }, screen: { x: l2(-59.0), y: 1.42, z: 14.95, w: 0.46, h: 0.3, heading: 0, tilt: 0.35 } },
   cylinders: { at: { x: l2(-60.6), z: 14.4 }, heading: 0 } as Spot,
+  /**
+   * R5 wave 3: the anaesthesia machine for the lung's and the liver's cases (the OR's procedural machine, 0.64 x 0.78 m: the scene reuses its builder),
+   * south of the head end, facing north to the table (axis-aligned: x 0.64, z 0.78; its monitor tower, `monitorY` above the floor, faces the
+   * anaesthetist's spot `staff.anaesHead`, 1.0 m north-east of it). It stands clear of the table's travel into the bore (z 17.15..17.65), of the
+   * turnover's wipe spots, of the nurse's and the anaesthetist's spots, of the in-room boom screens (x -58.31..-57.69 at z 19.3) and of the
+   * stretcher's lane (x east of -57.4). Its floor footprint is `l2:cryo:anaes` in src/scene/rooms/surgery/cryoRoom.ts (live: nothing is baked).
+   */
+  anaesMachine: { at: { at: { x: l2(-58.75), z: 19.35 }, heading: Math.PI } as Spot, size: { w: 0.64, d: 0.78, h: 1.5 }, monitorY: 1.45 },
   /** Live screen faces (centre, size, facing heading). In-room boom south of the table facing north; control-room desks facing the seats. */
   screens: {
     roomPlan: { x: l2(-58.0), y: 1.75, z: 19.3, w: 0.62, h: 0.38, heading: Math.PI },
@@ -1116,8 +1203,11 @@ export const CRYO_SUITE = {
     insert: { at: { x: l2(-56.4), z: 16.5 }, heading: -Math.PI / 4 } as Spot,
     /** The radiologist at the cryo console during the freezes. */
     atConsole: { at: { x: l2(-59.0), z: 15.5 }, heading: Math.PI } as Spot,
-    /** The sedation nurse at the head end, south side. */
-    sedation: { at: { x: l2(-58.4), z: 18.25 }, heading: Math.PI } as Spot,
+    /**
+     * The sedation nurse at the head end, south side (R5 wave 3: 0.35 m nearer the head and the table, turned to the face, so her hands reach the face
+     * and the drip: 0.7 m from it; it was (-58.4, 18.25), facing north).
+     */
+    sedation: { at: { x: l2(-58.15), z: 18.05 }, heading: 2.59 } as Spot,
     /** The radiographer at the table's foot (transfers, positioning). */
     assist: { at: { x: l2(-55.4), z: 17.4 }, heading: -Math.PI / 2 } as Spot,
     /** The pusher parks here; the stretcher (VEHICLE_AHEAD 1.45) lies beside the table's south side. */
@@ -1128,11 +1218,33 @@ export const CRYO_SUITE = {
       { at: { x: l2(-58.9), z: 18.4 }, heading: Math.PI },
       { at: { x: l2(-56.2), z: 15.4 }, heading: Math.PI },
     ] as Spot[],
-    /** Where the team waits between cases (control room, behind the seats). */
+    /** Where the team waits between cases (control room, behind the seats). R5 wave 3: the fourth is the cryo anaesthetist's. */
     base: [
       { at: { x: l2(-58.6), z: 10.9 }, heading: 0 },
       { at: { x: l2(-56.0), z: 10.9 }, heading: 0 },
       { at: { x: l2(-61.0), z: 10.9 }, heading: 0 },
+      { at: { x: l2(-54.2), z: 10.9 }, heading: 0 },
+    ] as Spot[],
+    /**
+     * R5 wave 3 (the step-by-step scripts, src/sim/procedure/cryoPlaces.ts): the anaesthetist at the patient's head, on the south side beside the
+     * head end (0.6 m from the face, so the hands reach the mouth and the airway; the head end itself is the table's cradle, then the gantry); the
+     * two table sides (a first slot at the patient's shoulder or flank, a second further along: transfers, turning, prep, dressing; the north
+     * side's first slot is the radiologist's work spot at the flank, 0.7 m from the skin, between the robot's east end and the table's edge); and
+     * the control room behind the glass (a scan: the people who left the scan room stand here; three slots).
+     */
+    anaesHead: { at: { x: l2(-57.95), z: 18.02 }, heading: 2.83 } as Spot,
+    sideSouth: [
+      { at: { x: l2(-57.1), z: 18.05 }, heading: Math.PI },
+      { at: { x: l2(-56.5), z: 18.05 }, heading: Math.PI },
+    ] as Spot[],
+    sideNorth: [
+      { at: { x: l2(-56.6), z: 16.84 }, heading: -1.07 },
+      { at: { x: l2(-55.6), z: 16.8 }, heading: Math.PI },
+    ] as Spot[],
+    controlStand: [
+      { at: { x: l2(-56.3), z: 11.7 }, heading: 0 },
+      { at: { x: l2(-55.0), z: 11.7 }, heading: 0 },
+      { at: { x: l2(-53.9), z: 11.7 }, heading: 0 },
     ] as Spot[],
   },
   /** Walk mode: E at the control-room glass opens the panel. */

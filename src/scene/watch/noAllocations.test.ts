@@ -2,7 +2,7 @@
  * R5: the watch camera's per-frame paths allocate nothing: no `new`, no array or object literals, no spreads, no closures and no array methods inside the
  * functions that run every frame while you watch (a GC pause is a stutter in the middle of a dolly). This reads the source, like
  * src/scene/surgery/noAllocations.test.ts: the director's frame and everything it calls each frame (the anchors, the shot pose, the hold's drift, the
- * dolly, the limits). The UI is told of a change through separate methods that run only on that change (`cue`, `setStatus`, `startMove` ...).
+ * dolly, the limits), and (wave 3) the room readers and the CT anchors' sync. The UI is told of a change through separate methods that run only on that change (`cue`, `setStatus`, `startMove` ...).
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -54,7 +54,9 @@ const PATHS: Record<string, string[]> = {
   'director.ts': ['update', 'stepLive', 'collectPeople', 'visit', 'trackCase', 'pickShot', 'stepFree', 'snapTo', 'write', 'stepLeaving'],
   'dolly.ts': ['tick', 'poseInto', 'start', 'dollySeconds'],
   'shots.ts': ['shotPoseInto', 'holdDriftInto', 'cueAt', 'floorOf', 'shotPlanFor', 'isOverridePlan', 'bedsideLead', 'candidateInto', 'poseClear', 'pickAltInto', 'inFrustum'],
-  'anchors.ts': ['anchorInto', 'syncAnchorCtx', 'roleFloorInto', 'fieldInto'],
+  'anchors.ts': ['anchorInto', 'syncAnchorCtx', 'syncCryoAnchors', 'roleFloorInto', 'fieldInto'],
+  // R5 wave 3: what a frame reads of each room (the view, the cart or the CT cradle)
+  'rooms.ts': ['roomView', 'roomCart'],
   'limits.ts': ['clampEyeInto', 'addPerson', 'insideRect', 'insideObstacle', 'moveObstacle', 'segmentClearOfPeople'],
 }
 

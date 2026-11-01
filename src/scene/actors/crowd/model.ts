@@ -13,7 +13,9 @@
 // to the rig; the attire is written into the row when it changes (attire.ts writeAttire); the instruments of the people within INSTRUMENT_NEAR, the masks
 // (MASK_FRAME, fitted on each avatar's face) and the gown skirts are listed for their meshes; a `?probe=1` hook can force an act (`forced`, forceAct).
 // R5 wave 2: a lying person on the OR table with an `Entity.patientPose` (or a probe-forced one: `forcePatient`) is given to the rig as the table pose (tilt, roll, lithotomy,
-// tucked arms, the level's drawn offsets); the rig carries the body with the table (tablePatient.ts), and the pick capsule follows it.
+// tucked arms, the level's drawn offsets); the rig carries the body with the table (tablePatient.ts), and the pick capsule follows it. R5 wave 3: the same for a patient on the CT
+// cryo table or the ultrasound couch (`tableKindOf`: face down, on the side, the arms over the head or one up, the wedge), and each avatar carries its torso's support function
+// (`setAvatars` `lies`) and its near mesh as plain numbers (`skins`, `skinOf`) for the drapes' fit.
 /**
  * The crowd model: every person that is drawn, their state and the pose texture data, with no GL in it.
  *
@@ -39,7 +41,7 @@ import { ATTIRE, type Airway, type Entity, type Outfit, type PatientPoseView, ty
 import { PELVIS_ON_TABLE } from '@/sim/procedure/body'
 import { shownAt } from '@/scene/levels/levelView'
 import { BADGE_FRAME, CAP_FRAME, INSTRUMENT_HAND, MASK_FRAME, MAX_PEOPLE, NOMINAL_BODY, P, PROP, RIM_COLORS, ROW_FLOATS, SEATED_HEAD_CENTRE, STAND_HEAD_CENTRE, TEX, VEHICLE, VEHICLE_AHEAD, BODY } from './constants'
-import { inBlanketBed, levelsOf, onOrTable, type Levels } from './head'
+import { inBlanketBed, levelsOf, tableKindOf, type Levels } from './head'
 import { AVATAR_LOD, LOD, lodBounds, lodWeights, type LodWeights } from './lod'
 import { clamp, damp } from './math'
 import { modeFor, type Mode, type Posture } from './blend'
@@ -49,7 +51,8 @@ import { BIND_FLOATS_MIN, applyBinds, avatarBuild, avatarFor, defaultCapFit, def
 import { PROCEDURAL_GRIP } from './rig'
 import { INSTRUMENT, TABLET_TOOLS, instrumentKindOf } from './instrumentTable'
 import { writeAttire } from './attire'
-import { tableMovePoint } from './tablePatient'
+import { defaultLieFit, tableMovePoint, writeTableInput, type LieFit } from './tablePatient'
+import type { SkinSource } from './skinSource'
 import { facingTarget, turnFacing } from './facing'
 import { PROCEDURAL_MOUTH, aimHead, createRig, makeInput, solveRig, type PersonRig, type RigInput } from './rig'
 import { pickRadius, rayVsSegment } from './picking'
@@ -362,6 +365,11 @@ export class CrowdModel {
   private mouths: [number, number, number][] = []
   /** R5: each avatar's hand middle (Dims.grip: towards the palm, down the hand), where its instruments are held. */
   private grips: (readonly [number, number])[] = []
+  /** R5 wave 3: each avatar's torso support function (Dims.lie), how it lies on a pad turned about its long axis. */
+  private lies: LieFit[] = []
+  /** R5 wave 3: each avatar's near mesh as plain numbers (null: not given), and the procedural body's (set by the rig): what the drapes of the procedure rooms fit themselves to. */
+  private skins: (SkinSource | null)[] = []
+  proceduralSkin: SkinSource | null = null
   /** R5: the sim clock of this frame (seconds). */
   private simT = 0
   private readonly choice: AvatarChoice = { index: -1, tint: 0 }
@@ -424,7 +432,14 @@ export class CrowdModel {
    * bodies. Everybody already drawn is re-dressed at once. R2: `caps` are the theatre caps measured on the avatars' meshes (avatars.ts measureCapFit), in
    * the same order; an avatar without one wears a cap over its skeleton's crown (defaultCapFit).
    */
-  setAvatars(avatars: readonly AvatarEntry[], caps: readonly (CapFit | null)[] = [], faces: readonly (FaceFit | null)[] = [], grips: readonly ([number, number] | null)[] = []): void {
+  setAvatars(
+    avatars: readonly AvatarEntry[],
+    caps: readonly (CapFit | null)[] = [],
+    faces: readonly (FaceFit | null)[] = [],
+    grips: readonly ([number, number] | null)[] = [],
+    lies: readonly (LieFit | null)[] = [],
+    skins: readonly (SkinSource | null)[] = [],
+  ): void {
     // the binds of an index older than the widest pose row (PART_COUNT parts) still cover every skinned part; anything shorter is refused
     for (const a of avatars) if (a.bindInverse.length < BIND_FLOATS_MIN) throw new Error(`avatar ${a.id}: bindInverse has ${a.bindInverse.length} floats, fewer than its skinned parts need (${BIND_FLOATS_MIN})`)
     this.avatarList = [...avatars]
@@ -434,6 +449,10 @@ export class CrowdModel {
     this.faces = this.avatarList.map((a, i) => faces[i] ?? defaultFaceFit(a.body, a.bindInverse.slice(P.head * 12, P.head * 12 + 12)))
     this.mouths = this.avatarList.map((a, i) => headLocal(a.bindInverse, this.faces[i].mouth, [0, 0, 0]))
     this.grips = this.avatarList.map((a, i) => grips[i] ?? [PROCEDURAL_GRIP[0], a.body.hand])
+    // R5 wave 3: the torso's support function of each avatar (how it rests on a pad as it rolls: tablePatient.ts), the skeleton's own ellipse for one not measured
+    this.lies = this.avatarList.map((a, i) => lies[i] ?? defaultLieFit(a.body))
+    // R5 wave 3: each avatar's near mesh as plain numbers, for the drapes' fit to the patient (skinSource.ts)
+    this.skins = this.avatarList.map((_, i) => skins[i] ?? null)
     const L = this.avatarLists
     L.rows = [0, 1, 2].map(() => this.avatarList.map(() => new Float32Array(MAX_PEOPLE))) as AvatarLists['rows']
     L.counts = [0, 1, 2].map(() => new Int32Array(this.avatarList.length)) as AvatarLists['counts']
@@ -443,6 +462,11 @@ export class CrowdModel {
   /** The loaded avatars, in list order (empty: everybody is procedural). */
   get avatars(): readonly AvatarEntry[] {
     return this.avatarList
+  }
+
+  /** R5 wave 3: the near mesh of the body a person wears (a realistic avatar's, or the procedural body's), for the drapes' fit; null when it is not known. */
+  skinOf(p: PersonSlot): SkinSource | null {
+    return p.avatar >= 0 ? this.skins[p.avatar] ?? null : this.proceduralSkin
   }
 
   /** Chooses the person's avatar (or none) and writes what goes with it: the skeleton, the build, the tint bits and the bottom garment's colour. */
@@ -461,6 +485,7 @@ export class CrowdModel {
       d.mouth[2] = m[2]
       d.grip[0] = this.grips[p.avatar][0]
       d.grip[1] = this.grips[p.avatar][1]
+      d.lie = this.lies[p.avatar]
     } else {
       d.b = NOMINAL_BODY
       d.w = look.build
@@ -469,8 +494,11 @@ export class CrowdModel {
       d.mouth[2] = PROCEDURAL_MOUTH[2]
       d.grip[0] = PROCEDURAL_GRIP[0]
       d.grip[1] = PROCEDURAL_GRIP[1]
+      d.lie = defaultLieFit(NOMINAL_BODY)
     }
     d.tl = 1 + (d.w - 1) * 0.6
+    // (whether the person wears an avatar decides how a lead apron is drawn: the attire is written again)
+    p.attire = -1
     const o = p.row * ROW_FLOATS
     this.data[o + TEX.size * 4 + 2] = p.tint
     // the bottom garment's colour: a patient's gown is gown all over (the procedural body shows it on the coat piece; its trousers slot is unused)
@@ -874,7 +902,7 @@ export class CrowdModel {
     const act = forced && forced.act !== undefined ? forced.act : (e.act ?? null)
     const attire = forced && forced.attire !== undefined ? forced.attire : (e.attire ?? 0)
     if (attire !== p.attire) {
-      writeAttire(this.data, p.row, p.look, attire)
+      writeAttire(this.data, p.row, p.look, attire, p.avatar >= 0)
       p.attire = attire
     }
     const acting = act !== null && posture !== 'lie'
@@ -941,14 +969,13 @@ export class CrowdModel {
     // a patient in a ward bed, an ER trolley or on a stretcher is under a blanket (the rig carries it as the prop of the lying body)
     inp.covered = posture === 'lie' && inBlanketBed(e)
     // R5 wave 2: lying on the OR table, the patient lies as the pose says: the table's tilt and roll carry the body, the position puts the legs in the boots (and slides the
-    // pelvis), the arms tuck. The drawn offsets are the level's (the table is built in the sim frame inside the level's group). No pose: the rig settles the legs and arms back
-    inp.tableSeat = posture === 'lie' && onOrTable(e)
+    // pelvis), the arms tuck. The drawn offsets are the level's (the table is built in the sim frame inside the level's group). No pose: the rig settles the legs and arms back.
+    // R5 wave 3: the CT cryo table and the ultrasound couch carry a pose too (a procedure table: level, the position lays the body face up, face down or on its side, the arms
+    // go over the head or one of them up, `rollDeg` is a wedge under the body)
+    const kind = posture === 'lie' ? tableKindOf(e) : -1
+    inp.tableSeat = kind >= 0
     if (inp.tableSeat) {
-      inp.tablePose = pose !== null
-      inp.tableLith = pose !== null && pose.position === 'lithotomy'
-      inp.tableTuck = pose !== null && pose.arms === 'tucked'
-      inp.tableTilt = pose !== null ? pose.headTiltDeg : 0
-      inp.tableRoll = pose !== null ? pose.rollDeg : 0
+      writeTableInput(inp, kind, pose)
       inp.tableOffX = levelDx(p.level)
       inp.tableOffY = LEVEL_Y[p.level]
       inp.tableOffZ = 0

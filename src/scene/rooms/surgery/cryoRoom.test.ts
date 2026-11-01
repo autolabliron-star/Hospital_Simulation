@@ -64,6 +64,32 @@ describe('the cryoablation suite footprints', () => {
     }
   })
 
+  it('R5 wave 3: the anaesthesia machine\'s footprint is a live rect on the CRYO_SUITE.anaesMachine spot, the OR machine\'s size, clear of everything a person or the table needs', () => {
+    const m = CRYO_SUITE.anaesMachine
+    const rect = CRYO_FOOTPRINTS.find((r) => r.id === 'l2:cryo:anaes')!
+    expect(rect.bake).toBe('live')
+    expect(rect.overhead).toBeUndefined()
+    // drawn x: centred on the spot, the machine's width across x and its depth along z (it faces north, so the rect is axis-aligned)
+    expect((rect.x0 + rect.x1) / 2).toBeCloseTo(m.at.at.x - LEVEL2_DX, 6)
+    expect((rect.z0 + rect.z1) / 2).toBeCloseTo(m.at.at.z, 6)
+    expect(rect.x1 - rect.x0).toBeCloseTo(m.size.w, 6)
+    expect(rect.z1 - rect.z0).toBeCloseTo(m.size.d, 6)
+    expect(Math.abs(Math.sin(m.at.heading))).toBeLessThan(1e-6)
+    // the table's travel into the bore (the cradle's rect, out to in), the stretcher's lane and the clean spots stay clear of it, and nobody's spot is inside its 0.3 m
+    const f = upper.find((q) => q.id === 'l2:cryo:anaes')!
+    const t = CRYO_SUITE.ct.table
+    for (let k = 0; k <= 10; k++) {
+      const dx = ((t.in.x - t.out.x) * k) / 10
+      for (const z of [t.out.z - 0.3, t.out.z + 0.3]) expect(footprintDistance(f, t.out.x - 1.2 + dx, z), `cradle head at ${k}/10`).toBeGreaterThan(0.3)
+    }
+    const s = CRYO_SUITE.staff
+    const stretcher = { x: s.stretcherPark.at.x + Math.sin(s.stretcherPark.heading) * 1.45, z: s.stretcherPark.at.z + Math.cos(s.stretcherPark.heading) * 1.45 }
+    for (const [name, p] of [['stretcher park', s.stretcherPark.at], ['stretcher', stretcher], ['sedation', s.sedation.at], ['anaesHead', s.anaesHead.at], ...s.clean.map((c, i) => [`clean ${i}`, c.at] as const)] as const) {
+      expect(footprintDistance(f, p.x, p.z), name).toBeGreaterThanOrEqual(0.3 - 1e-9)
+    }
+    expect(isWalkable(m.at.at.x, m.at.at.z, 0)).toBe(false)
+  })
+
   it('the robot mount stands over the robot base, the target lies over the table, the table travels from out to in through the gantry', () => {
     const m = CRYO_SUITE.robot.mount
     const base = upper.find((q) => q.id === 'l2:cryo:robot')!

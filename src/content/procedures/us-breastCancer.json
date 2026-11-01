@@ -1,0 +1,721 @@
+{
+  "id": "us-breastCancer",
+  "machine": "prosense",
+  "key": "us-cryo-breast",
+  "name": "Early breast cancer: ProSense freezing under ultrasound",
+  "short": "Breast cancer",
+  "refs": [
+    "procedures:3",
+    "procedures:4",
+    "procedures:31",
+    "procedures:32",
+    "procedures:33",
+    "procedures:38",
+    "procedures:40"
+  ],
+  "anaesthesia": "local",
+  "start": {
+    "position": "supine",
+    "headTiltDeg": 0,
+    "rollDeg": 0,
+    "arms": "out",
+    "airway": "none",
+    "awareness": "awake",
+    "prep": 0,
+    "drape": 0,
+    "marks": "none",
+    "catheter": false,
+    "manipulator": false
+  },
+  "steps": [
+    {
+      "id": "consoleCheck",
+      "unit": "check",
+      "caption": "Console and probe checked",
+      "why": "The nitrogen console and the sterile probe are tested before the patient comes in.",
+      "realMinutes": [
+        5,
+        10
+      ],
+      "watchSeconds": 18,
+      "focus": "prosenseConsole",
+      "roles": {
+        "breastRadiologist": {
+          "do": "watchMonitor",
+          "at": "usDoctor",
+          "look": "usScreen"
+        },
+        "sonographer": {
+          "do": "runCryoConsole",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "work": "prosenseScreen",
+          "right": "tablet"
+        }
+      }
+    },
+    {
+      "id": "patientArrives",
+      "unit": "arrive",
+      "caption": "Patient arrives; plan and consent checked",
+      "why": "Everyone confirms who is being treated and that the plan fits the approved use of the freezing treatment.",
+      "realMinutes": [
+        3,
+        5
+      ],
+      "watchSeconds": 20,
+      "focus": "usRoom",
+      "roles": {
+        "breastRadiologist": {
+          "do": "talkPatient",
+          "at": "usDoor"
+        },
+        "sonographer": {
+          "do": "talkPatient",
+          "at": "usHead"
+        }
+      }
+    },
+    {
+      "id": "changeGown",
+      "unit": "arrive",
+      "caption": "Changes into a gown in a cubicle",
+      "why": "A gown lets the team reach the breast and keeps her own clothes clean; she changes in a cubicle nearby.",
+      "realMinutes": [
+        2,
+        4
+      ],
+      "watchSeconds": 30,
+      "focus": "usRoom",
+      "roles": {
+        "breastRadiologist": {
+          "do": "watchMonitor",
+          "at": "usDoctor",
+          "look": "usScreen"
+        },
+        "sonographer": {
+          "do": "chart",
+          "at": "usHead",
+          "look": "usScreen",
+          "left": "tablet"
+        }
+      }
+    },
+    {
+      "id": "lieDown",
+      "unit": "arrive",
+      "caption": "Lies on the couch, arm raised",
+      "why": "An arm above the head flattens the breast and brings the lump closer to the skin.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 22,
+      "focus": "usRoom",
+      "roles": {
+        "breastRadiologist": {
+          "do": "talkPatient",
+          "at": "usDoctor",
+          "look": "usFace"
+        },
+        "sonographer": {
+          "do": "positionPatient",
+          "at": "usHead",
+          "work": "breast"
+        }
+      },
+      "patient": {
+        "arms": "oneUp",
+        "rollDeg": -8
+      }
+    },
+    {
+      "id": "surveyMarks",
+      "unit": "survey",
+      "caption": "Ultrasound survey; skin marks drawn",
+      "why": "The lump's size and depth are measured, and the path of the probe is planned.",
+      "realMinutes": [
+        3,
+        5
+      ],
+      "watchSeconds": 40,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "markSkin",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "marker"
+        },
+        "sonographer": {
+          "do": "chart",
+          "at": "usHead",
+          "look": "usScreen",
+          "left": "tablet"
+        }
+      },
+      "patient": {
+        "marks": "marked"
+      },
+      "scope": "survey"
+    },
+    {
+      "id": "prepSkin",
+      "unit": "drape",
+      "caption": "Gloves on; skin cleaned",
+      "why": "Everyone is masked and gloved, and the breast is cleaned so no germs get in.",
+      "realMinutes": [
+        1.5,
+        2
+      ],
+      "watchSeconds": 14,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "skinPrep",
+          "at": "usDoctor",
+          "look": "breast",
+          "work": "breast",
+          "right": "prepStick"
+        },
+        "sonographer": {
+          "do": "gownGlove",
+          "at": "usHead",
+          "look": "breast"
+        }
+      },
+      "patient": {
+        "prep": 1
+      },
+      "scope": "hold"
+    },
+    {
+      "id": "drape",
+      "unit": "drape",
+      "caption": "Sterile drape on; probe covered",
+      "why": "A sterile drape with a window and a covered ultrasound probe keep the field clean.",
+      "realMinutes": [
+        1.5,
+        2
+      ],
+      "watchSeconds": 16,
+      "focus": "usRoom",
+      "roles": {
+        "breastRadiologist": {
+          "do": "drapePatient",
+          "at": "usDoctor",
+          "look": "breast",
+          "work": "breast",
+          "left": "drapeSheet"
+        },
+        "sonographer": {
+          "do": "drapePatient",
+          "at": "usHead",
+          "look": "breast",
+          "work": "breast",
+          "left": "drapeSheet",
+          "right": "drapeSheet"
+        }
+      },
+      "patient": {
+        "drape": 1
+      },
+      "scope": "hold"
+    },
+    {
+      "id": "timeOut",
+      "unit": "drape",
+      "caption": "Time Out: patient, side and plan",
+      "why": "A short pause before the first needle, in the style of the WHO check.",
+      "realMinutes": [
+        1,
+        1
+      ],
+      "watchSeconds": 18,
+      "focus": "usRoom",
+      "roles": {
+        "breastRadiologist": {
+          "do": "checklist",
+          "at": "usDoctor",
+          "look": "usFace"
+        },
+        "sonographer": {
+          "do": "checklist",
+          "at": "usHead",
+          "look": "usFace",
+          "left": "tablet"
+        }
+      },
+      "event": "Time Out: the team has confirmed the patient, the side and the plan.",
+      "checklist": "timeOut",
+      "scope": "hold"
+    },
+    {
+      "id": "localAnaesthetic",
+      "unit": "place",
+      "caption": "Numbing medicine around the lump",
+      "why": "Local anaesthetic numbs the skin and the path of the probe so the patient feels little.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 30,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "injectLocal",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "syringe"
+        },
+        "sonographer": {
+          "do": "passInstrument",
+          "at": "usConsole",
+          "look": "breast",
+          "right": "syringe"
+        }
+      },
+      "scope": "local",
+      "event": "The skin and the path of the probe are numbed with local anaesthetic."
+    },
+    {
+      "id": "skinNick",
+      "unit": "place",
+      "caption": "Small nick in the skin",
+      "why": "A tiny nick lets the probe pass through the skin.",
+      "realMinutes": [
+        0.5,
+        1
+      ],
+      "watchSeconds": 14,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "skinNick",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "scalpel"
+        },
+        "sonographer": {
+          "do": "watchField",
+          "at": "usConsole",
+          "look": "breast"
+        }
+      },
+      "patient": {
+        "marks": "needles"
+      },
+      "scope": "nick"
+    },
+    {
+      "id": "probeIn",
+      "unit": "place",
+      "caption": "Probe guided to the lump under ultrasound",
+      "why": "The probe goes along the long axis so the ice ball covers the whole lump.",
+      "realMinutes": [
+        2,
+        4
+      ],
+      "watchSeconds": 46,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "insertProbe",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "cryoProbe"
+        },
+        "sonographer": {
+          "do": "runCryoConsole",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "work": "prosenseScreen"
+        }
+      },
+      "scope": "probeIn"
+    },
+    {
+      "id": "saline",
+      "unit": "place",
+      "caption": "Saline injected to protect the skin",
+      "why": "Saline lifts the skin away from the cold ice ball.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 30,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "injectSaline",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "salineSyringe"
+        },
+        "sonographer": {
+          "do": "passInstrument",
+          "at": "usConsole",
+          "look": "breast",
+          "right": "salineSyringe"
+        }
+      },
+      "scope": "saline"
+    },
+    {
+      "id": "programme",
+      "unit": "place",
+      "caption": "Freeze programme set on the console",
+      "why": "The freeze and thaw times are chosen from the size of the lump.",
+      "realMinutes": [
+        1,
+        1
+      ],
+      "watchSeconds": 14,
+      "focus": "prosenseConsole",
+      "roles": {
+        "breastRadiologist": {
+          "do": "watchMonitor",
+          "at": "usDoctor",
+          "look": "prosenseScreen"
+        },
+        "sonographer": {
+          "do": "runCryoConsole",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "work": "prosenseScreen",
+          "right": "tablet"
+        }
+      },
+      "scope": "programme"
+    },
+    {
+      "id": "freeze1",
+      "unit": "freeze1",
+      "caption": "Freeze 1: the ice ball grows",
+      "why": "Liquid nitrogen at the tip freezes the lump and a margin round it.",
+      "realMinutes": [
+        9,
+        9
+      ],
+      "watchSeconds": 70,
+      "focus": "usScreen",
+      "roles": {
+        "breastRadiologist": {
+          "do": "scanProbe",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "cryoProbe"
+        },
+        "sonographer": {
+          "do": "runCryoConsole",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "work": "prosenseScreen"
+        }
+      },
+      "scope": "freeze1"
+    },
+    {
+      "id": "measure35",
+      "unit": "freeze1",
+      "caption": "Ice ball measured: at least 35 mm",
+      "why": "The doctor checks the ice ball is big enough to cover the lump with a margin.",
+      "realMinutes": [
+        1,
+        1
+      ],
+      "watchSeconds": 20,
+      "focus": "usScreen",
+      "roles": {
+        "breastRadiologist": {
+          "do": "scanProbe",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "mouse"
+        },
+        "sonographer": {
+          "do": "chart",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "left": "tablet"
+        }
+      },
+      "scope": "measure35",
+      "event": "The ice ball is measured on the ultrasound: at least 35 mm after the first freeze."
+    },
+    {
+      "id": "thaw",
+      "unit": "thaw",
+      "caption": "Thaw: the ice melts on its own",
+      "why": "A full thaw before the second freeze makes the treatment more thorough.",
+      "realMinutes": [
+        8,
+        8
+      ],
+      "watchSeconds": 45,
+      "focus": "usScreen",
+      "roles": {
+        "breastRadiologist": {
+          "do": "scanProbe",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer"
+        },
+        "sonographer": {
+          "do": "runCryoConsole",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "work": "prosenseScreen"
+        }
+      },
+      "scope": "thaw"
+    },
+    {
+      "id": "freeze2",
+      "unit": "freeze2",
+      "caption": "Freeze 2: the ice ball grows again",
+      "why": "The second freeze finishes the job.",
+      "realMinutes": [
+        9,
+        9
+      ],
+      "watchSeconds": 65,
+      "focus": "usScreen",
+      "roles": {
+        "breastRadiologist": {
+          "do": "scanProbe",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "cryoProbe"
+        },
+        "sonographer": {
+          "do": "runCryoConsole",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "work": "prosenseScreen"
+        }
+      },
+      "scope": "freeze2"
+    },
+    {
+      "id": "measure40",
+      "unit": "freeze2",
+      "caption": "Ice ball measured: at least 40 mm",
+      "why": "Final check that the lump is well covered.",
+      "realMinutes": [
+        1,
+        1
+      ],
+      "watchSeconds": 20,
+      "focus": "usScreen",
+      "roles": {
+        "breastRadiologist": {
+          "do": "scanProbe",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer",
+          "right": "mouse"
+        },
+        "sonographer": {
+          "do": "chart",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "left": "tablet"
+        }
+      },
+      "scope": "measure40",
+      "event": "The ice ball is measured again: at least 40 mm after the second freeze."
+    },
+    {
+      "id": "thawFree",
+      "unit": "cleanup",
+      "caption": "Thaw until the probe frees itself",
+      "why": "The probe comes free once the ice around the tip has melted.",
+      "realMinutes": [
+        2,
+        4
+      ],
+      "watchSeconds": 28,
+      "focus": "usScreen",
+      "roles": {
+        "breastRadiologist": {
+          "do": "scanProbe",
+          "at": "usDoctor",
+          "look": "usScreen",
+          "work": "breast",
+          "left": "usTransducer"
+        },
+        "sonographer": {
+          "do": "runCryoConsole",
+          "at": "usConsole",
+          "look": "prosenseScreen",
+          "work": "prosenseScreen"
+        }
+      },
+      "scope": "thawFree"
+    },
+    {
+      "id": "probeOut",
+      "unit": "cleanup",
+      "caption": "Probe out",
+      "why": "A gentle withdrawal after the thaw, with the skin steadied.",
+      "realMinutes": [
+        1,
+        1
+      ],
+      "watchSeconds": 18,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "removeNeedle",
+          "at": "usDoctor",
+          "look": "breast",
+          "work": "breast",
+          "left": "gauze",
+          "right": "cryoProbe"
+        },
+        "sonographer": {
+          "do": "watchField",
+          "at": "usConsole",
+          "look": "breast"
+        }
+      },
+      "scope": "probeOut"
+    },
+    {
+      "id": "dressing",
+      "unit": "cleanup",
+      "caption": "Pressure and a small dressing",
+      "why": "A few minutes of pressure and a small dressing protect the nick.",
+      "realMinutes": [
+        2,
+        3
+      ],
+      "watchSeconds": 26,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "watchField",
+          "at": "usDoctor",
+          "look": "breast"
+        },
+        "sonographer": {
+          "do": "pressSite",
+          "at": "usHead",
+          "look": "breast",
+          "work": "breast",
+          "left": "gauze",
+          "right": "dressing"
+        }
+      },
+      "patient": {
+        "marks": "dressed",
+        "drape": 0
+      },
+      "scope": "dressing",
+      "event": "A small dressing is put on the probe site after a few minutes of pressure."
+    },
+    {
+      "id": "coldPack",
+      "unit": "cleanup",
+      "caption": "Cold pack placed on the breast",
+      "why": "A cold pack is a common comfort after the treatment.",
+      "realMinutes": [
+        1,
+        2
+      ],
+      "watchSeconds": 14,
+      "focus": "breast",
+      "roles": {
+        "breastRadiologist": {
+          "do": "chart",
+          "at": "usDoctor",
+          "left": "tablet"
+        },
+        "sonographer": {
+          "do": "applyDressing",
+          "at": "usHead",
+          "look": "breast",
+          "work": "breast",
+          "right": "iceBag"
+        }
+      },
+      "scope": "standby"
+    },
+    {
+      "id": "signOut",
+      "unit": "cleanup",
+      "caption": "Sign Out and aftercare talk",
+      "why": "The team confirms what was done and explains the hormone tablets and the follow-up scan.",
+      "realMinutes": [
+        1,
+        2
+      ],
+      "watchSeconds": 22,
+      "focus": "usRoom",
+      "roles": {
+        "breastRadiologist": {
+          "do": "talkPatient",
+          "at": "usDoctor",
+          "look": "usFace"
+        },
+        "sonographer": {
+          "do": "checklist",
+          "at": "usHead",
+          "look": "usFace",
+          "left": "tablet"
+        }
+      },
+      "patient": {
+        "arms": "out",
+        "rollDeg": 0
+      },
+      "checklist": "signOut",
+      "event": "Sign Out: the treatment is recorded; the hormone tablets and the follow-up scan are explained.",
+      "scope": "standby"
+    },
+    {
+      "id": "walkOut",
+      "unit": "cleanup",
+      "caption": "Rest, then walk out",
+      "why": "The patient goes home the same day and most return to normal activity within about two days.",
+      "realMinutes": [
+        5,
+        10
+      ],
+      "watchSeconds": 22,
+      "focus": "usRoom",
+      "roles": {
+        "breastRadiologist": {
+          "do": "chart",
+          "at": "usDoctor",
+          "left": "tablet"
+        },
+        "sonographer": {
+          "do": "talkPatient",
+          "at": "usDoor",
+          "look": "usFace"
+        }
+      },
+      "scope": "standby"
+    }
+  ]
+}

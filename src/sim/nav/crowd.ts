@@ -607,6 +607,31 @@ export class CrowdWalker implements Walker {
     this.publishDiscs()
   }
 
+  /**
+   * Is another body (a person, or a vehicle disc that is not this walker's own) closer than `gap` metres, edge to edge, to the straight line a-b? A walk that
+   * is not planned through the crowd (the cryo team's short hops, src/sim/cryoSuite/hop.ts) asks this before it starts. Reads the bodies as they are now,
+   * changes nothing, allocates nothing.
+   */
+  bodyNear(ax: number, az: number, bx: number, bz: number, gap: number): boolean {
+    const crowd = this.crowd
+    if (crowd === null) return false
+    const dx = bx - ax
+    const dz = bz - az
+    const len2 = dx * dx + dz * dz
+    for (let j = 0; j < crowd.count; j++) {
+      if (j === this.slot || crowd.act[j] === 0 || crowd.owner[j] === this.slot) continue
+      const qx = crowd.px[j]
+      const qz = crowd.pz[j]
+      let u = len2 > 0 ? ((qx - ax) * dx + (qz - az) * dz) / len2 : 0
+      u = u < 0 ? 0 : u > 1 ? 1 : u
+      const ex = ax + dx * u - qx
+      const ez = az + dz * u - qz
+      const reach = this.radius + crowd.rad[j] + gap
+      if (ex * ex + ez * ez < reach * reach) return true
+    }
+    return false
+  }
+
   /** Leave the crowd (a person who walks out of the building). The walker keeps working on its own. */
   remove(): void {
     if (!this.crowd) return

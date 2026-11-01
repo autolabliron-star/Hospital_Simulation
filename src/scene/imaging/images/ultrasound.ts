@@ -52,7 +52,13 @@ export interface UsScene {
   tx: number
   ty: number
   tr: number
+  /** R5 wave 3: the lesion's half width and half height (image units): both its core radius for a tumour, an oval wider than it is tall for a fibroadenoma. */
+  tw: number
+  th: number
 }
+
+/** What the breast lesion is: an early cancer (small, dark, lobulated), a fibroadenoma (a smooth oval), a large one that needs the probe moved. */
+export type UsLump = 'cancer' | 'fibroadenoma' | 'fibroadenomaLarge'
 
 export const US_MAX_BLOBS = 24
 export const US_APEX_Y = 0.07
@@ -62,7 +68,7 @@ export const US_HALF_ANGLE = Math.PI / 6
 export function createUsScene(): UsScene {
   const blobs: UsBlob[] = []
   for (let i = 0; i < US_MAX_BLOBS; i++) blobs.push({ cx: 0, cy: 0, rx: 0, ry: 0, rot: 0, echo: 0, wall: 0, behind: 0 })
-  return { count: 0, blobs, depthCm: 14, title: '', linear: false, mm: 0, tx: 0, ty: 0, tr: 0 }
+  return { count: 0, blobs, depthCm: 14, title: '', linear: false, mm: 0, tx: 0, ty: 0, tr: 0, tw: 0, th: 0 }
 }
 
 /** Where the fan's depth ends, as a fraction of the picture height (usPaint draws down to here). */
@@ -91,19 +97,25 @@ const TITLES: Record<UsView, string> = {
   pancreas: 'Pancreas',
   breast: 'Breast',
 }
-const DEPTH: Record<UsView, number> = { liver: 16, gallbladder: 12, kidneyR: 14, kidneyL: 14, spleen: 14, bladder: 12, pancreas: 13, breast: 5 }
+/** (the breast's 6 cm: with the wide linear field the 42 mm ice ball and its second spot fit the picture, R5 fix K12) */
+const DEPTH: Record<UsView, number> = { liver: 16, gallbladder: 12, kidneyR: 14, kidneyL: 14, spleen: 14, bladder: 12, pancreas: 13, breast: 6 }
 
 /** The breast tumour: diameter range (mm) and the depth of its centre under the skin (mm). Early, small, low-risk: about 1.2 cm. */
 export const BREAST_TUMOUR_MM: readonly [number, number] = [11, 13]
 /** How far the tumour's lobulated edge reaches, as a multiple of its core radius (UsScene.tr is the core radius times this). */
 export const TUMOUR_EXTENT = 1.1
-const BREAST_TUMOUR_DEPTH_MM: readonly [number, number] = [19, 22]
+const BREAST_TUMOUR_DEPTH_MM: readonly [number, number] = [21, 24]
+/** The fibroadenoma's width (mm): a lump one ice ball covers, and a larger one that needs the probe moved; its height is this share of the width. */
+export const FIBROADENOMA_MM: readonly [number, number] = [18, 24]
+export const FIBROADENOMA_LARGE_MM: readonly [number, number] = [32, 36]
+const FIBROADENOMA_FLAT = 0.55
 
 /**
  * Fill `out` with the structures of `view` for this exam seed, probe phase and time. The structures glide sideways as the probe sweeps and
  * grow and shrink a little where the sweep cuts them through the middle; breathing moves everything up and down a few millimetres.
+ * `lumpMm` (a ProSense case, R5 fix K9): the width of the breast lump the case treats, in mm; without it the seeded size of the lump kind.
  */
-export function usScene(out: UsScene, view: UsView, seed: number, phase: number, t: number): UsScene {
+export function usScene(out: UsScene, view: UsView, seed: number, phase: number, t: number, lump: UsLump = 'cancer', lumpMm?: number): UsScene {
   const sd = (seed ^ 0x9e3779b1) >>> 0
   // the seeded numbers, without a generator or an array per frame (nthRandom k = the (k+1)-th draw of mulberry32(sd))
   const j0 = nthRandom(sd, 0)
@@ -122,6 +134,8 @@ export function usScene(out: UsScene, view: UsView, seed: number, phase: number,
   out.tx = 0
   out.ty = 0
   out.tr = 0
+  out.tw = 0
+  out.th = 0
   let tumour = -1
   let tumourR = 0
   const mid = 1 - Math.abs(sweep) // 1 when the sweep cuts the structure through its middle
@@ -237,18 +251,32 @@ export function usScene(out: UsScene, view: UsView, seed: number, phase: number,
       }
       put(out, sh * 0.2, y0 + 0.8 + breathe, 0.62, 0.006, 0, 0.95) // the pleura, a bright line between the ribs
       // the tumour: in the middle at about 2 cm, its centre held still while the probe is (phase 0.5), lobulated by three small bulges
-      const dMm = BREAST_TUMOUR_MM[0] + (BREAST_TUMOUR_MM[1] - BREAST_TUMOUR_MM[0]) * j2
-      const tr = (dMm / 2) * mm * (0.55 + 0.45 * mid)
+      const dMm = lumpMm !== undefined && lump === 'cancer' ? lumpMm : BREAST_TUMOUR_MM[0] + (BREAST_TUMOUR_MM[1] - BREAST_TUMOUR_MM[0]) * j2
       const tx = sweep * 0.12 + (j1 - 0.5) * 0.08
       const ty = y0 + lerp(BREAST_TUMOUR_DEPTH_MM[0], BREAST_TUMOUR_DEPTH_MM[1], j0) * mm + breathe
-      tumour = out.count
-      tumourR = tr * TUMOUR_EXTENT
-      put(out, tx, ty, tr * 1.04, tr * 0.94, 0.25 * (j3 - 0.5), 0.07)
-      for (let k = 0; k < 4; k++) {
-        // small bulges at uneven angles: a slightly irregular, microlobulated edge
-        const a = ((k + 0.6 * nthRandom(sd, 110 + k)) / 4) * Math.PI * 2
-        const br = tr * (0.3 + 0.1 * nthRandom(sd, 120 + k))
-        put(out, tx + Math.cos(a) * (tumourR - br), ty + Math.sin(a) * (tumourR - br) * 0.92, br, br * 0.8, a, 0.07)
+      if (lump === 'cancer') {
+        const tr = (dMm / 2) * mm * (0.55 + 0.45 * mid)
+        tumour = out.count
+        tumourR = tr * TUMOUR_EXTENT
+        out.tw = tumourR
+        out.th = tumourR
+        put(out, tx, ty, tr * 1.04, tr * 0.94, 0.25 * (j3 - 0.5), 0.07)
+        for (let k = 0; k < 4; k++) {
+          // small bulges at uneven angles: a slightly irregular, microlobulated edge
+          const a = ((k + 0.6 * nthRandom(sd, 110 + k)) / 4) * Math.PI * 2
+          const br = tr * (0.3 + 0.1 * nthRandom(sd, 120 + k))
+          put(out, tx + Math.cos(a) * (tumourR - br), ty + Math.sin(a) * (tumourR - br) * 0.92, br, br * 0.8, a, 0.07)
+        }
+      } else {
+        // a fibroadenoma: a smooth, well-defined oval, wider than it is tall, a thin bright capsule, a little brightening behind it
+        const w = (lumpMm !== undefined ? lumpMm : lump === 'fibroadenomaLarge' ? lerp(FIBROADENOMA_LARGE_MM[0], FIBROADENOMA_LARGE_MM[1], j2) : lerp(FIBROADENOMA_MM[0], FIBROADENOMA_MM[1], j2)) / 2
+        const rx = w * mm * (0.7 + 0.3 * mid)
+        const ry = w * FIBROADENOMA_FLAT * mm
+        tumour = out.count
+        tumourR = rx
+        out.tw = rx
+        out.th = ry
+        put(out, tx, ty, rx, ry, 0.06 * (j3 - 0.5), 0.1, 0.55, 0.3)
       }
       break
     }

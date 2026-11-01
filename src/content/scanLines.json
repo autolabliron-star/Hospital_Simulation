@@ -1,0 +1,40 @@
+{
+  "modality": {
+    "mri": "MRI",
+    "ct": "CT",
+    "xray": "X-ray",
+    "us": "ultrasound"
+  },
+  "lines": {
+    "gettingReadyEr": "{who} is getting the {modality} ready for {patient}: {protocol}.",
+    "gettingReady": "{who} is getting ready for {patient}: {protocol}.",
+    "changing": "{patient} is changing into a gown for the {protocol}.",
+    "screening": "{who} is running the MRI safety check with {patient}: metal, implants, pacemaker.",
+    "screeningCleared": "{patient} is cleared for the MRI.",
+    "explainCryoDemo": "{who} is numbing the skin with a local anaesthetic for {patient}'s cryoablation.",
+    "explainCryo": "{who} is going through the consent with {patient} and numbing the skin with a local anaesthetic.",
+    "positioningCryo": "{who} is cleaning the skin, putting on the gel and a sterile drape for {patient}'s cryoablation.",
+    "positioning": "{who} is positioning {patient} for the {protocol}.",
+    "tableIn": "The {modality} table is moving {patient} in.",
+    "tableOut": "The {modality} table is bringing {patient} out.",
+    "cleanupCryo": "{who} is putting a small dressing on {patient}, helping her off the couch and wiping down the {modality} room.",
+    "cleanup": "{who} is helping {patient} off the table and wiping down the {modality} room.",
+    "sequence": "{who} started the {protocol} for {patient}: {name}.",
+    "cryoPlace": "{who} is guiding the cryoprobe into the tumour under ultrasound for {patient}: {name}.",
+    "cryoPlaceLump": "{who} is guiding the cryoprobe into the lump under ultrasound for {patient}: {name}.",
+    "cryoMove": "{who} is moving the cryoprobe to a second spot in the lump for {patient}: {name}.",
+    "cryoFreeze": "{who} started {name} for {patient}: liquid nitrogen is flowing and the ice ball is growing.",
+    "cryoThaw": "{who} started the thaw for {patient}: the ice ball softens before the second freeze.",
+    "finishedCryo": "The cryoablation for {patient} is finished: the probe is out, the images are sent.",
+    "finished": "{protocol} for {patient} finished: images sent.",
+    "cryoChecking": "{who} is checking the ProSense console and the cryoprobe before {patient} comes in.",
+    "finishedFreezing": "The last freeze for {patient} is over: the images are sent."
+  },
+  "stepLines": {
+    "probeIn": "{who} is guiding the cryoprobe into the {lump} under ultrasound for {patient}.",
+    "thawMove": "{who} is waiting for the ice to melt so the probe can be moved for {patient}.",
+    "thawFree": "{who} is waiting for the ice to melt so the probe comes free for {patient}.",
+    "probeOut": "{who} is drawing the cryoprobe out for {patient}.",
+    "walkOut": "The cryoablation for {patient} is finished: the probe is out, the images are sent."
+  }
+}

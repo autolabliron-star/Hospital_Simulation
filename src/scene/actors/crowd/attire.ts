@@ -8,7 +8,8 @@
  *   gloves   a realistic avatar's hands are tinted cream latex by its shader (FX.glove); the procedural body has no separate hand colour (gown only)
  *   mask     a realistic avatar wears the pleated MASK mesh below (props material, kind MASK_KIND) on its face fit (avatars.ts measureFaceFit), framed
  *            on the head by the model (MASK_FRAME); the procedural fallback body wears none
- *   lead     the top and front slots take the lead apron's navy (Wave 3: the CT suite)
+ *   lead     the procedural body's top and front slots take the lead apron's navy (the CT suite); a realistic avatar's shader paints the navy over the front of its
+ *            torso (the apron wraps the front and a little of the sides), the scrubs keep their colour behind and in the sleeves. The gown wins over the lead apron.
  *
  * The attire bits ride the gear texel's z (TEX.gear) for the avatar shader. Nothing here allocates per frame: writeAttire runs only when a person's bits
  * change, and the colours are converted once.
@@ -49,12 +50,14 @@ function putSlot(data: Float32Array, o: number, slot: number, hex: string): void
 
 /**
  * Write a person's attire into their row of the pose texture: the palette slots the gown or the lead apron covers (or the look's own colours again when it
- * is taken off) and the attire bits (gear texel z). Call it when the bits change and after the look is rewritten.
+ * is taken off) and the attire bits (gear texel z). Call it when the bits change and after the look is rewritten. R5 wave 3: a realistic avatar's lead apron is drawn
+ * by its shader over the FRONT of the torso only (in the navy it carries itself: the scrubs keep their colour at the back and in the sleeves), so for an avatar
+ * (`avatar` true) the palette keeps the look's own top and front colours.
  */
-export function writeAttire(data: Float32Array, row: number, look: Look, bits: number): void {
+export function writeAttire(data: Float32Array, row: number, look: Look, bits: number, avatar = false): void {
   const o = row * ROW_FLOATS
   const gown = (bits & ATTIRE.gown) !== 0
-  const lead = !gown && (bits & ATTIRE.lead) !== 0
+  const lead = !avatar && !gown && (bits & ATTIRE.lead) !== 0
   putSlot(data, o, SLOT.top, gown ? GOWN_COLOR : lead ? LEAD_COLOR : look.top)
   putSlot(data, o, SLOT.front, gown ? GOWN_COLOR : lead ? LEAD_COLOR : look.front)
   putSlot(data, o, SLOT.sleeve, gown ? GOWN_COLOR : look.sleeve)

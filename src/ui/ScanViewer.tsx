@@ -4,16 +4,19 @@
  * The big picture is the machines agent's live canvas for this scanner: the very element that is also the 3D monitor's
  * texture. It is mounted here while the viewer is open and taken out again when it closes; no pixels are copied.
  * Everything else is text and numbers read from the sim at 4 Hz.
+ *
+ * R5: the ultrasound room's panel also offers "Watch step by step" (src/ui/watch/WatchPicker.tsx): the two ProSense cryoablations, watched from close up.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAudio } from '@/audio/audio.store'
-import { IMAGING_UI } from '@/content/imagingUi'
+import { IMAGING_UI, type CryoKind } from '@/content/imagingUi'
 import { sim } from '@/sim'
 import { DEMO_PROCEDURES } from '@/sim/imaging/department'
 import type { ImagingModality } from '@/sim/types'
 import { loadImagingScene, type ImagingScene } from './imagingApi'
 import { imagingOf, scannerView, type ScannerView } from './roomSnapshot'
 import { usePoll } from './usePoll'
+import { WatchPicker } from './watch/WatchPicker'
 
 /** Edge of the series thumbnails in pixels (drawn once per finished step). */
 const THUMB_PX = 112
@@ -142,17 +145,18 @@ function Series({ scene, modality, view }: { scene: ImagingScene | null | undefi
 // The device card (a cryoablation: docs/research/cryoablation.md)
 // ---------------------------------------------------------------------------------------------
 
-/** What the machine is and what it is authorized for, in three short lines; the patient is synthetic. */
-export function CryoCard() {
+/** What the machine is and what it is authorised for, in three short lines; the patient is synthetic. The words follow the case: the breast cancer's, or the benign fibroadenoma's. */
+export function CryoCard({ kind = 'breastCancer' }: { kind?: CryoKind }) {
   const c = IMAGING_UI.cryoCard
+  const words = c[kind]
   return (
     <section className="sv-device" aria-label={`${c.label}: ${c.title}`}>
       <h3 className="hud-field__label">{c.label}</h3>
       <p className="sv-device__title">
         {c.title} <span className="hud-chip">{c.synthetic}</span>
       </p>
-      <p className="sv-device__line">{c.what}</p>
-      <p className="sv-device__line sv-device__status">{c.status}</p>
+      <p className="sv-device__line">{words.what}</p>
+      <p className="sv-device__line sv-device__status">{words.status}</p>
     </section>
   )
 }
@@ -281,7 +285,7 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
             </div>
           </dl>
 
-          {view.cryo && <CryoCard />}
+          {view.cryo && <CryoCard kind={view.cryoKind ?? 'breastCancer'} />}
 
           <section className="sv-section" aria-label="Series">
             <h3 className="hud-field__label">Series</h3>
@@ -299,6 +303,7 @@ export function ScanViewer({ modality }: { modality: ImagingModality }) {
                 {view.cryoQueued ? IMAGING_UI.cryoCard.queued : busy ? IMAGING_UI.cryoCard.startNext : IMAGING_UI.cryoCard.start}
               </button>
             )}
+            {modality === 'us' && <WatchPicker room="us" />}
             {noOperator && (
               <p className="sv-queue sv-queue--closed" role="status">
                 No {staffTitle} on duty: the {name} is closed until the day team is back.

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 import { PROTOCOLS } from '@/content/imaging'
 import type { ImagingExam, ImagingModality, ScannerPhase, ScannerState } from '@/sim/types'
 import { createPainter, type Painter } from './paint'
@@ -11,7 +12,7 @@ function examOf(protocolId: string): ImagingExam {
 }
 
 function stateOf(modality: ImagingModality, exam: ImagingExam | null, phase: ScannerPhase, sequence = -1, progress = 0, activity = 0, detail = 0): ScannerState {
-  return { modality, phase, exam, sequence, progress, remaining: 0, phaseTime: 0, tablePos: 0, activity, detail, operatorId: null }
+  return { modality, phase, exam, sequence, progress, remaining: 0, phaseTime: 0, tablePos: 0, activity, detail, operatorId: null, procedure: emptyProcedureView() }
 }
 
 function setup(modality: ImagingModality) {
@@ -168,4 +169,62 @@ describe('LiveScreen with the imaging worker (R3, inline backend)', () => {
     expect(backend.stats.sent).toBeGreaterThanOrEqual(2)
     expect(screen.thumbOf(exam, 1)).toBeNull()
   }, 60_000)
+})
+
+describe('the scripted ProSense picture (R5): real time, whatever the sim speed', () => {
+  /** A ProSense freeze of the step engine's script on the ultrasound screen. */
+  function scripted(): { screen: LiveScreen; st: ScannerState } {
+    const { env } = mockEnv()
+    const screen = new LiveScreen('us', env, createPainter(env))
+    const st = stateOf('us', examOf('us-cryo-breast'), 'scanning', 1, 0.5, 1, 0.5)
+    st.procedure.procedureId = 'us-breastCancer'
+    st.procedure.scope = 'freeze1'
+    st.procedure.progress = 0.5
+    return { screen, st }
+  }
+
+  /** Offer a frame at 60 Hz of real time for `seconds`, the sim running at `speed` times real time (0: paused). Returns the draws. */
+  function drawsIn(screen: LiveScreen, st: ScannerState, seconds: number, speed: number, interval: number, from = 0): number {
+    let draws = 0
+    const frames = Math.round(seconds * 60)
+    for (let k = 0; k < frames; k++) if (screen.update(st, 100 + (from + k) * (speed / 60), 1000 + (from + k) * (1000 / 60), interval)) draws++
+    return draws
+  }
+
+  it.each([0.25, 1, 2, 4, 10])('redraws about 4 times a real second at %sx (never more), however fast or slow the sim runs', (speed) => {
+    const { screen, st } = scripted()
+    // (a redraw interval of 50 ms leaves the picture's own frame rate as the only limit)
+    const draws = drawsIn(screen, st, 10, speed, 50)
+    expect(draws).toBeLessThanOrEqual(41)
+    expect(draws).toBeGreaterThanOrEqual(38)
+    expect(screen.paints).toBe(draws)
+  })
+
+  it('holds the picture while the sim is paused (no redraw for a sim that has not moved), and goes on when it moves again', () => {
+    const { screen, st } = scripted()
+    expect(drawsIn(screen, st, 2, 1, 50)).toBeGreaterThanOrEqual(7)
+    const paints = screen.paints
+    // paused: the same sim time, real time running on
+    let paused = 0
+    for (let k = 0; k < 120; k++) if (screen.update(st, 105, 3000 + k * (1000 / 60), 50)) paused++
+    expect(paused).toBeLessThanOrEqual(1) // (the frame for the time it stopped at, if it had not been drawn yet)
+    expect(screen.paints).toBeLessThanOrEqual(paints + 1)
+    const held = screen.paints
+    expect(drawsIn(screen, st, 1, 1, 50, 200)).toBeGreaterThanOrEqual(3)
+    expect(screen.paints).toBeGreaterThan(held)
+  })
+
+  it('counts every redraw of any picture (the standby page, a scan, the cryoablation) for the inset to copy again', () => {
+    const { env } = mockEnv()
+    const screen = new LiveScreen('mri', env, createPainter(env))
+    expect(screen.paints).toBe(0) // the constructor's standby page is not a redraw the overlay waits for
+    const exam = examOf('ct-head')
+    const ct = new LiveScreen('ct', env, createPainter(env))
+    expect(ct.update(stateOf('ct', exam, 'prep'), 1, 1000, 100)).toBe(true)
+    expect(ct.paints).toBe(1)
+    expect(ct.update(stateOf('ct', exam, 'prep'), 1.2, 1200, 100)).toBe(false)
+    expect(ct.paints).toBe(1)
+    expect(ct.update(stateOf('ct', exam, 'positioning'), 2, 2000, 100)).toBe(true)
+    expect(ct.paints).toBe(2)
+  })
 })

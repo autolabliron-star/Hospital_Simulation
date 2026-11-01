@@ -56,6 +56,9 @@ const PATHS: Record<string, string[]> = {
   'arms.ts': ['withdrawAt', 'startOffset', 'armsAt'],
   'roles.ts': ['roleLine', 'applyRoleViews'],
   'targets.ts': ['anchorSpot', 'setTable', 'tiltPointInto', 'onPatient', 'resolveTarget', 'portInto', 'focusPointInto'],
+  // R5 geometry: the planning slice seen through the patient's roll (the needle entries every frame: the people's hands, the arm, the drapes) and the nominal body it is checked against
+  'ctSlice.ts': ['ctTableShift', 'ctTumourInto', 'ctSliceInto', 'ctSliceDirInto', 'ctRoomToSliceInto', 'ctPivotInto', 'ctBodyOffsetOf', 'ellipseSignedDistance'],
+  'cryoPlaces.ts': ['tableShift', 'tumourOf', 'fieldInto', 'entryInto', 'cryoTargetInto', 'cryoFocusInto'],
   'view.ts': ['fillView'],
   'actions.ts': ['animOf'],
 }

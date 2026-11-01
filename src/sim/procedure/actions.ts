@@ -67,6 +67,8 @@ export const ACTION_ANIM: Record<ProcAction, AnimState> = {
   insertProbe: 'give',
   pressSite: 'give',
   cleanRoom: 'clean',
+  aimRobot: 'tablet',
+  turnPatient: 'give',
 }
 
 /** The `AnimState` for an action (the fallback pose). */

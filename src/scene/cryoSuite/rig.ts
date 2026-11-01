@@ -6,12 +6,14 @@
  *   ct-rotor   the rotor ring, spinning with `state.rotor`                                                MACHINE_BODY
  *   ct-cradle  the table top, at `tablePos` between out and in                                           MACHINE_BODY
  *   ct-glow    the red positioning lasers (`state.lasers`) and the status strip (amber, green while scanning)  MACHINE_GLOW
- *   arm boxes  the needle-guidance robot's links (column, upper arm, forearm, hand, guide block, a status band) and the needles' handles
+ *   arm boxes  the needle-guidance robot's links (column, upper arm, forearm, hand, guide block, a status band), the needles' handles and, R5 wave 3,
+ *              the anaesthesia machine's cabinet, tower and ventilator (anaesMachine.ts)                   MAT.tinted (instance colours)
+ *   arm cyls   the five joints, the guide sleeve, up to six needles' shafts and the anaesthesia machine's castors, bellows, vaporiser and hoses
  *                                                                                                        MAT.tinted (instance colours)
- *   arm cyls   the five joints, the guide sleeve and up to six needles' shafts                            MAT.tinted (instance colours)
  *
  * With the screens (screens.ts) that is 7 draw calls; every material is one the hospital already compiles (no new shader program). The CT's geometry is
- * baked once at build; `step` writes three transforms, two glow regions when they change and the instance matrices, and allocates nothing.
+ * baked once at build; `step` writes three transforms, two glow regions when they change and the arm's and the needles' instance matrices, and allocates
+ * nothing. The anaesthesia machine's slots are written once at creation and never again: it is always there (its footprint is permanent).
  */
 import { CylinderGeometry, Color, Group, InstancedMesh, Mesh, type BufferGeometry, type Material } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
@@ -21,6 +23,7 @@ import { MACHINE_BODY, MACHINE_GLOW } from '@/scene/imaging/machines/machineMate
 import { LASER_FADE_SECONDS, ROTOR_TURNS_PER_SECOND, stepToward } from '@/scene/imaging/machines/motion'
 import { MAT } from '@/scene/materials'
 import { hideInstance, putSegment } from '@/scene/surgery/matrices'
+import { ANAES_BOXES, ANAES_CYLS, writeAnaesMachine, type PlacedPart } from './anaesMachine'
 import { CRYO_SUITE, IMAGING } from '@/sim/places'
 import type { CryoSuiteState } from '@/sim/types'
 import { ARM, armTargetInto, cryoTableX, easeGuide, NEEDLE, needlePoseInto, newArmPose, newGuide, newNeedlePose, solveArm, type ArmPose, type Guide, type NeedlePose } from './pose'
@@ -28,12 +31,15 @@ import { ARM, armTargetInto, cryoTableX, easeGuide, NEEDLE, needlePoseInto, newA
 /** The most needles the scene draws (CONFIG.cryoSuite.maxNeedles). */
 export const MAX_NEEDLES = 6
 
-/** Box pool: the arm's links, then one handle per needle. */
+/** Box pool: the arm's links, one handle per needle, then (R5 wave 3) the anaesthesia machine's boxes. */
 const B = { column: 0, upper: 1, fore: 2, hand: 3, block: 4, band: 5, handle: 6 } as const
-export const BOX_COUNT = B.handle + MAX_NEEDLES
-/** Cylinder pool: the five joints, the guide sleeve, then one shaft per needle. */
+/** Where the anaesthesia machine's slots begin in each pool (after the arm's and the needles'). */
+export const MACHINE_BOX_BASE = B.handle + MAX_NEEDLES
+export const BOX_COUNT = MACHINE_BOX_BASE + ANAES_BOXES
+/** Cylinder pool: the five joints, the guide sleeve, one shaft per needle, then the machine's cylinders and hoses. */
 const C = { j1: 0, j2: 1, j3: 2, j4: 3, j5: 4, guide: 5, needle: 6 } as const
-export const CYL_COUNT = C.needle + MAX_NEEDLES
+export const MACHINE_CYL_BASE = C.needle + MAX_NEEDLES
+export const CYL_COUNT = MACHINE_CYL_BASE + ANAES_CYLS
 
 /** The brief's colours: white shells, graphite joints, a teal status glow (tinted, so in the palette's lit program). */
 const COL = {
@@ -118,6 +124,8 @@ export interface CryoRig {
   cyls: InstancedMesh
   arm: ArmPose
   needles: NeedlePose[]
+  /** Where each part of the anaesthesia machine went in the pools. */
+  machine: PlacedPart[]
   memory: CryoRigMemory
   /** The meshes that are drawn (the draw calls). */
   meshes(): Mesh[]
@@ -215,6 +223,8 @@ export function createCryoRig(): CryoRig {
     cyls.setColorAt(C.needle + k, COL.steel)
   }
   cyls.setColorAt(C.guide, COL.teal)
+  // the anaesthesia machine: written into its slots once, in its own colours
+  const machine = writeAnaesMachine(boxes.instanceMatrix.array as Float32Array, cyls.instanceMatrix.array as Float32Array, MACHINE_BOX_BASE, MACHINE_CYL_BASE, (pool, i, col) => (pool === 'box' ? boxes : cyls).setColorAt(i, col))
   if (boxes.instanceColor) boxes.instanceColor.needsUpdate = true
   if (cyls.instanceColor) cyls.instanceColor.needsUpdate = true
 
@@ -242,6 +252,7 @@ export function createCryoRig(): CryoRig {
     cyls,
     arm,
     needles,
+    machine,
     memory: mem,
     meshes: () => meshes,
     snap() {

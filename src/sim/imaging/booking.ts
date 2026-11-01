@@ -12,6 +12,7 @@
 import type { Actor } from '../er/actor'
 import type { ScannerState } from '../types'
 import type { ImagingModality } from '../types'
+import type { CryoCase } from './exam'
 import type { ScannerSites } from './sites'
 
 export type BookingKind = 'er' | 'outpatient' | 'demo'
@@ -54,6 +55,14 @@ export interface Booking {
   ready: boolean
   state: 'waiting' | 'active' | 'done'
   subject: ScanSubject | null
+  /** R5 wave 3, a ProSense demo: the case's lump, programme and probe move (absent: drawn when the scanner takes it, or the cancer's fixed one). */
+  cryo?: CryoCase
+  /** R5 wave 3: a "Watch step by step" booking (its exam runs the script's watch seconds; its patient appears when the scanner takes it). */
+  watch?: boolean
+  /** The demo patient's age (a ProSense demo: from `CONFIG.imaging.cryoAges`). */
+  age?: number
+  /** Sim time the scanner took it (a watch booking). */
+  startedAt?: number
 }
 
 const RANK: Record<BookingKind, number> = { demo: 0, er: 1, outpatient: 2 }

@@ -58,13 +58,13 @@ export const MATERIAL_SITES: Readonly<Record<string, MaterialSite>> = {
     count: 1,
     via: 'mounted',
     where:
-      'SurgeryLayer (R5 wave 2): the stage\'s matte cloth (drapes, prepped skin, marks: stage/runtime.ts), `MACHINE_BODY` with roughness 0.9 and metalness 0, light-volume patched the same way, so the SAME shader program (stage.test.ts compares the program keys); the mesh is mounted at load in the level-2 group, hidden while empty',
+      'SurgeryLayer (R5 wave 2): the stage\'s matte cloth (drapes, prepped skin, marks: stage/runtime.ts), `MACHINE_BODY` with roughness 0.9 and metalness 0, light-volume patched the same way, so the SAME shader program (stage.test.ts compares the program keys); the mesh is mounted at load in the level-2 group, hidden while empty. R5 wave 3: the CT cryo suite\'s and the ultrasound room\'s stage meshes (stage/proc/runtime.ts, mounted by CryoSuiteLayer and the imaging machines) share this very material (no site of their own), hidden while empty',
   },
   'src/scene/surgery/liveEndoscope.ts': { count: 1, via: 'mounted', where: 'SurgeryLayer: the four endoscope screens (surgery-live-screens: vision cart, wall monitor, console viewers), made at mount by createLiveResources; imaging-monitor settings, shared program' },
   'src/scene/cryoSuite/screens.ts': {
     count: 1,
     via: 'mounted',
-    where: 'CryoSuiteLayer (R4): the five cryo suite screens on one atlas (cryo-screens), made at mount by createCryoScreens and mounted hidden in the level-2 group; imaging-monitor settings (map, toneMapped false, vertex colours of item size 3), shared program. The CT and the arm reuse MACHINE_BODY, MACHINE_GLOW and MAT.tinted',
+    where: 'CryoSuiteLayer (R4): the six cryo suite screens (R5 wave 3: the anaesthesia monitor is the sixth) on one atlas (cryo-screens), made at mount by createCryoScreens and mounted hidden in the level-2 group; imaging-monitor settings (map, toneMapped false, vertex colours of item size 3), shared program. The CT, the arm and the anaesthesia machine reuse MACHINE_BODY, MACHINE_GLOW and MAT.tinted',
   },
   'src/scene/robots/faceMaterial.ts': { count: 1, via: 'mounted', where: 'PodsLayer: the pod face screens' },
   'src/scene/building/splat/depth.ts': {

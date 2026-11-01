@@ -1,11 +1,12 @@
 /**
- * R5: what "Watch step by step" does with each answer of the room's port (watchFlow.ts), on fakes: the sim's surgery port, the watch session and the skip.
+ * R5: what "Watch step by step" does with each answer of the room's port (watchFlow.ts), on fakes: the sim's surgery, CT cryo suite and imaging ports, the
+ * watch session and the skip. Wave 3: the CT suite's and the ultrasound room's flows, with the five answers each.
  */
 import { describe, expect, it } from 'vitest'
 import { emptyProcedureView } from '@/sim/procedure'
-import type { ProcedureView, SurgeryProcedure, WatchResult } from '@/sim/types'
+import type { CryoTarget, ProcedureId, ProcedureView, SurgeryProcedure, WatchResult } from '@/sim/types'
 import type { WatchRequest, WatchSession } from '@/scene/watch/watch.store'
-import type { WatchSim } from '@/scene/watch/rooms'
+import type { WatchRoomId, WatchSim } from '@/scene/watch/rooms'
 import type { SkipRequest } from '@/ui/skip/types'
 import { followCase, rebook, skipToStart, watchProcedure, type FlowDeps } from './watchFlow'
 
@@ -13,6 +14,11 @@ interface Fake {
   deps: FlowDeps
   answers: WatchResult[]
   calls: { procedure: SurgeryProcedure; fromStart: boolean }[]
+  /** The CT suite's and the ultrasound room's ports' calls. */
+  cryoCalls: { target: CryoTarget; fromStart: boolean }[]
+  usCalls: { protocol: string; fromStart: boolean }[]
+  /** Why the CT suite answered 'noTeam'. */
+  why: { value: 'hours' | 'late' | null }
   begun: WatchRequest[]
   ended: number
   expected: number
@@ -22,6 +28,8 @@ interface Fake {
   published: Record<string, unknown>[]
   startsAt: { value: number | null }
   view: ProcedureView
+  cryoView: ProcedureView
+  usView: ProcedureView
   sessionOk: boolean
 }
 
@@ -30,6 +38,9 @@ function fake(answers: WatchResult[]): Fake {
     deps: null as unknown as FlowDeps,
     answers,
     calls: [],
+    cryoCalls: [],
+    usCalls: [],
+    why: { value: null },
     begun: [],
     ended: 0,
     expected: 0,
@@ -39,6 +50,8 @@ function fake(answers: WatchResult[]): Fake {
     published: [],
     startsAt: { value: null },
     view: emptyProcedureView(),
+    cryoView: emptyProcedureView(),
+    usView: emptyProcedureView(),
     sessionOk: true,
   }
   const session: WatchSession = {
@@ -59,6 +72,29 @@ function fake(answers: WatchResult[]): Fake {
       state: { procedure: f.view, robot: { cart: { x: 0, z: 0, heading: 0 } } },
       startWatch: (procedure: SurgeryProcedure, opts?: { fromStart?: boolean }): WatchResult => {
         f.calls.push({ procedure, fromStart: opts?.fromStart === true })
+        return f.answers.shift() ?? 'busy'
+      },
+      get watchStartsAt() {
+        return f.startsAt.value
+      },
+    },
+    cryoSuite: {
+      state: { procedure: f.cryoView, tablePos: 0, target: 'kidney', needle: -1, needles: [] },
+      startWatch: (target: CryoTarget, opts?: { fromStart?: boolean }): WatchResult => {
+        f.cryoCalls.push({ target, fromStart: opts?.fromStart === true })
+        return f.answers.shift() ?? 'busy'
+      },
+      get watchStartsAt() {
+        return f.startsAt.value
+      },
+      get whyNoTeam() {
+        return f.why.value
+      },
+    },
+    imaging: {
+      scanners: { us: { procedure: f.usView } },
+      startWatch: (protocol: string, opts?: { fromStart?: boolean }): WatchResult => {
+        f.usCalls.push({ protocol, fromStart: opts?.fromStart === true })
         return f.answers.shift() ?? 'busy'
       },
       get watchStartsAt() {
@@ -123,9 +159,12 @@ describe('watchProcedure', () => {
       expect(watchProcedure('or-cholecystectomy', {}, f.deps)).toBe(r)
       expect(f.begun).toHaveLength(0)
     }
+    // (every procedure has a script now: an id with none is refused before any room is asked)
     const f = fake(['started'])
-    expect(watchProcedure('cryo-lung', {}, f.deps)).toBe('noScript')
+    expect(watchProcedure('or-appendicectomy' as ProcedureId, {}, f.deps)).toBe('noScript')
     expect(f.calls).toHaveLength(0)
+    expect(f.cryoCalls).toHaveLength(0)
+    expect(f.usCalls).toHaveLength(0)
   })
 
   it('says noCamera when the camera cannot be taken', () => {
@@ -180,5 +219,125 @@ describe('rebook', () => {
     const b = fake(['noTeam'])
     expect(rebook('or-cholecystectomy', b.deps)).toBe('noTeam')
     expect(b.ended).toBe(1)
+  })
+})
+
+
+// ---------------------------------------------------------------------------------------------
+// R5 wave 3: the CT cryo suite's and the ultrasound room's ports
+// ---------------------------------------------------------------------------------------------
+
+const ROOMS: readonly { room: WatchRoomId; id: ProcedureId; key: string }[] = [
+  { room: 'cryo', id: 'cryo-kidney', key: 'kidney' },
+  { room: 'cryo', id: 'cryo-lung', key: 'lung' },
+  { room: 'cryo', id: 'cryo-liver', key: 'liver' },
+  { room: 'us', id: 'us-breastCancer', key: 'us-cryo-breast' },
+  { room: 'us', id: 'us-fibroadenoma', key: 'us-cryo-fibroadenoma' },
+]
+
+/** What the room's port was asked: the CT suite's target or the ultrasound room's protocol, and whether from the start. */
+function asked(f: Fake, room: WatchRoomId): { key: string; fromStart: boolean }[] {
+  return room === 'cryo' ? f.cryoCalls.map((c) => ({ key: c.target, fromStart: c.fromStart })) : f.usCalls.map((c) => ({ key: c.protocol, fromStart: c.fromStart }))
+}
+
+describe.each(ROOMS)('watchProcedure in the $room room: $id', ({ room, id, key }) => {
+  it('started: asks its own port for the procedure by its key and begins the watch in that room', () => {
+    const f = fake(['started'])
+    expect(watchProcedure(id, {}, f.deps)).toBe('started')
+    expect(asked(f, room)).toEqual([{ key, fromStart: false }])
+    expect(f.calls).toHaveLength(0) // the theatre was not asked
+    expect(f.begun).toEqual([{ room, mode: 'watch', procedureId: id }])
+    expect(f.skips).toHaveLength(0)
+  })
+
+  it('queued: begins the watch (the overlay counts down); nothing is skipped unless asked for', () => {
+    const f = fake(['queued'])
+    expect(watchProcedure(id, {}, f.deps)).toBe('queued')
+    expect(f.begun).toEqual([{ room, mode: 'watch', procedureId: id }])
+    expect(f.skips).toHaveLength(0)
+  })
+
+  it('following: begins nothing; "the current case" follows the room\'s case', () => {
+    const f = fake(['following'])
+    expect(watchProcedure(id, {}, f.deps)).toBe('following')
+    expect(f.begun).toHaveLength(0)
+    expect(followCase(room, f.deps)).toBe(true)
+    expect(f.begun).toEqual([{ room, mode: 'follow', procedureId: null }])
+  })
+
+  it('"Full case from the start": booked after the case in the room, the watch begins and the clock skips to its start', () => {
+    const f = fake(['queued'])
+    expect(watchProcedure(id, { fromStart: true }, f.deps)).toBe('queued')
+    expect(asked(f, room)).toEqual([{ key, fromStart: true }])
+    expect(f.begun).toHaveLength(1)
+    expect(f.skips).toHaveLength(1)
+    expect(f.published).toContainEqual({ skipping: true })
+    f.idle.forEach((fn) => fn())
+    expect(f.published).toContainEqual({ skipping: false })
+  })
+
+  it('busy and noTeam begin nothing', () => {
+    for (const r of ['busy', 'noTeam'] as const) {
+      const f = fake([r])
+      expect(watchProcedure(id, {}, f.deps)).toBe(r)
+      expect(f.begun).toHaveLength(0)
+    }
+  })
+
+  it('says noCamera when the camera cannot be taken', () => {
+    const f = fake(['started'])
+    f.sessionOk = false
+    expect(watchProcedure(id, {}, f.deps)).toBe('noCamera')
+  })
+
+  it('a rebuilding skip is announced to the director, and the case is booked again from the same port once it is over', () => {
+    const f = fake(['started'])
+    f.skipMode = 'rebuild'
+    expect(skipToStart(id, f.deps)).toBe(true)
+    expect(f.expected).toBe(1)
+    expect(asked(f, room)).toHaveLength(0)
+    f.idle.forEach((fn) => fn())
+    expect(asked(f, room)).toEqual([{ key, fromStart: false }])
+  })
+
+  it('rebook: nothing while the case is still booked or in the room; a day case that came in meanwhile is followed; the team gone: stop', () => {
+    const still = fake(['started'])
+    still.startsAt.value = 2000
+    expect(rebook(id, still.deps)).toBeNull()
+    still.startsAt.value = null
+    const view = room === 'cryo' ? still.cryoView : still.usView
+    view.procedureId = id
+    view.watch = true
+    expect(rebook(id, still.deps)).toBeNull()
+    expect(asked(still, room)).toHaveLength(0)
+    const a = fake(['following'])
+    expect(rebook(id, a.deps)).toBe('following')
+    expect(a.begun).toEqual([{ room, mode: 'follow', procedureId: null }])
+    const b = fake(['noTeam'])
+    expect(rebook(id, b.deps)).toBe('noTeam')
+    expect(b.ended).toBe(1)
+  })
+})
+
+describe('the CT suite\'s noTeam says why', () => {
+  it('the team out of hours is noTeam; the team in but too late for a whole case today is tooLate (and begins nothing either)', () => {
+    const hours = fake(['noTeam'])
+    hours.why.value = 'hours'
+    expect(watchProcedure('cryo-kidney', {}, hours.deps)).toBe('noTeam')
+    const late = fake(['noTeam'])
+    late.why.value = 'late'
+    expect(watchProcedure('cryo-kidney', {}, late.deps)).toBe('tooLate')
+    expect(late.begun).toHaveLength(0)
+    // a reason with nothing refused changes nothing
+    const ok = fake(['started'])
+    ok.why.value = 'late'
+    expect(watchProcedure('cryo-kidney', {}, ok.deps)).toBe('started')
+    // the other rooms never say tooLate
+    const us = fake(['noTeam'])
+    us.why.value = 'late'
+    expect(watchProcedure('us-breastCancer', {}, us.deps)).toBe('noTeam')
+    const or = fake(['noTeam'])
+    or.why.value = 'late'
+    expect(watchProcedure('or-cholecystectomy', {}, or.deps)).toBe('noTeam')
   })
 })

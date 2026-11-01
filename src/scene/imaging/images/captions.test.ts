@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 import { PROTOCOLS } from '@/content/imaging'
 import type { ImagingExam, ImagingModality, ScannerPhase, ScannerState } from '@/sim/types'
 import { captionOf, phaseWords } from './captions'
@@ -8,7 +9,7 @@ const exam = (id: string): ImagingExam => {
   const p = PROTOCOLS[id]
   return { id, modality: p.modality, bodyPart: p.bodyPart, protocol: p.name, sequences: p.sequences, patientId: 'p', patientName: 'Mira Alder', source: 'outpatient', imageSeed: 1 }
 }
-const state = (m: ImagingModality, e: ImagingExam | null, phase: ScannerPhase, sequence = -1, progress = 0): ScannerState => ({ modality: m, phase, exam: e, sequence, progress, remaining: 0, phaseTime: 0, tablePos: 0, activity: 0, detail: 0, operatorId: null })
+const state = (m: ImagingModality, e: ImagingExam | null, phase: ScannerPhase, sequence = -1, progress = 0): ScannerState => ({ modality: m, phase, exam: e, sequence, progress, remaining: 0, phaseTime: 0, tablePos: 0, activity: 0, detail: 0, operatorId: null, procedure: emptyProcedureView() })
 
 describe('scanner captions', () => {
   it('names the scanner when it is idle', () => {

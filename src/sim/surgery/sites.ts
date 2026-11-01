@@ -16,6 +16,7 @@ import { PACU, PREOP, SURGERY, THEATRE_BASE, type Spot } from '../places'
 import type { SeatRegistry } from '../seats'
 import type { ProcAnchor, SeatKind, SeatSpec, Vec2 } from '../types'
 import { inDoorway, seatSpot } from '../er/spots'
+import { anchorSpot } from '../procedure/targets'
 
 const CLEAR = 0.3
 
@@ -320,6 +321,9 @@ export class SurgerySites {
         return this.consoleSpot
       case 'anaesStool':
         return this.stoolSpot
+      default:
+        // the CT cryo suite's and the ultrasound room's anchors (wave 3) are never a theatre script's: their contract spots
+        return anchorSpot(a)
     }
   }
 

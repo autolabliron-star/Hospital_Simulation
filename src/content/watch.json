@@ -15,6 +15,24 @@
     "noScript": "This one cannot be watched step by step yet.",
     "cancel": "Back"
   },
+  "panelRooms": {
+    "cryo": {
+      "buttonTitle": "Watch a whole cryoablation step by step, from up close",
+      "pick": "Choose a cryoablation",
+      "following": "A cryoablation is in the CT suite now.",
+      "fromStartNote": "Skips to the end of this case, then the next one starts",
+      "busy": "A step-by-step case is already booked.",
+      "noTeam": "The cryoablation team is not in now: try between {from} and {to}."
+    },
+    "us": {
+      "buttonTitle": "Watch a whole ultrasound-guided cryoablation step by step, from up close",
+      "pick": "Choose a procedure",
+      "following": "A cryoablation is in the ultrasound room now.",
+      "fromStartNote": "Skips to the end of this case, then the next one starts",
+      "busy": "A step-by-step case is already booked.",
+      "noTeam": "The ultrasound team is not in now: try between {from} and {to}."
+    }
+  },
   "overlay": {
     "region": "Watching step by step",
     "simulated": "Simulated",
@@ -47,6 +65,24 @@
     "exit": "Exit",
     "exitTitle": "Stop watching (Esc)",
     "exitKey": "Esc"
+  },
+  "overlayRooms": {
+    "cryo": {
+      "waiting": "Waiting for the patient",
+      "startsIn": "The cryoablation starts in {time}",
+      "startingNow": "The cryoablation is starting",
+      "ended": "The cryoablation is over",
+      "endedWhy": "The patient goes to recovery. The camera hands back to you in a moment.",
+      "skipCaption": "The suite gets ready"
+    },
+    "us": {
+      "waiting": "Waiting for the patient",
+      "startsIn": "The procedure starts in {time}",
+      "startingNow": "The procedure is starting",
+      "ended": "The procedure is over",
+      "endedWhy": "The patient has left the room. The camera hands back to you in a moment.",
+      "skipCaption": "The room gets ready"
+    }
   },
   "insets": {
     "endo": "Endoscope",

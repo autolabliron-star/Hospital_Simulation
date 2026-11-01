@@ -10,10 +10,11 @@ import { CONFIG } from '../config'
 import { clockText } from '../events'
 import { Rng } from '../rng'
 import { Simulation } from '../Simulation'
-import { buildExam, CRYO, drawPlan, iceSize, isProcedure, scanningSeconds, stepOf } from './exam'
+import { buildExam, drawPlan, iceSize, isProcedure, scanningSeconds, stepOf } from './exam'
 import { DEMO_PROCEDURES } from './department'
 
 const DT = CONFIG.sim.step
+const CRYO = CONFIG.imaging.cryo
 const CRYO_ID = 'us-cryo-breast'
 const proto = protocolById(CRYO_ID)
 const who = { patientId: 'p', patientName: 'Test Patient' }
@@ -143,10 +144,14 @@ function checkProcedure(samples: Sample[]): void {
   expect(endOf(2).detail).toBeCloseTo(CRYO.firstFreezeSize * CRYO.thawKeep, 2)
   expect(endOf(3).progress).toBeCloseTo(1, 3)
   expect(endOf(3).detail).toBeCloseTo(1, 3)
-  // full size at the end, and held through the dressing
+  // full size at the end of the last freeze, held until the thaw before the probe comes out, then melting to nothing (R5 fix K14: the sim owns the melt,
+  // the picture follows it) and gone for the probe out, the dressing and the walk out
   const cleanup = samples.filter((x) => x.phase === 'cleanup')
   expect(cleanup.length).toBeGreaterThan(0)
-  for (const s of cleanup) expect(s.detail).toBe(1)
+  expect(cleanup[0].detail).toBeGreaterThan(0.99)
+  for (let i = 1; i < cleanup.length; i++) expect(cleanup[i].detail, `ice in the cleanup at ${i}`).toBeLessThanOrEqual(cleanup[i - 1].detail + 1e-9)
+  expect(cleanup.at(-1)!.detail).toBe(0)
+  expect(cleanup.some((x) => x.detail > 0.2 && x.detail < 0.8)).toBe(true)
 }
 
 const ofDemo = (sim: Simulation) => sim.people.filter((p) => p.entity.id.startsWith('demo'))

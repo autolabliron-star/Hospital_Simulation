@@ -7,7 +7,8 @@
  *                               queued    it starts after the turnover: the watch begins (the overlay counts down and offers a skip)
  *                               following a case is in the room: the panel offers "Watch the current case" (`followCase`) or "Full case from the start"
  *                                         (`watchProcedure(id, { fromStart: true })`: booked after it, then the clock skips to its start)
- *                               busy / noTeam   the panel says so
+ *                               busy / noTeam   the panel says so (the CT suite's 'noTeam' says whether the team is out of hours or it is
+ *                                         too late today for a whole case: `tooLate`)
  *   skipToStart(id)           the skip machinery to the booked case's start. A long skip REBUILDS the hospital (src/sim skipRebuild re-plans the day from
  *                             the seed and drops the watch case): the director is told the new generation is ours, and once the skip is over the case is
  *                             booked again (`rebook`): wheeled in now, after the turnover, or (a day case has come in meanwhile) followed.
@@ -18,8 +19,11 @@ import { roomOfProcedure, roomPort, roomView, type WatchRoomId, type WatchSim } 
 import type { ProcedureId, WatchResult } from '@/sim/types'
 import type { SkipRequest } from '@/ui/skip/types'
 
-/** What a pick did: the port's answer, or it could not start at all (no script yet, the camera could not be taken). */
-export type PickResult = WatchResult | 'noScript' | 'noCamera'
+/**
+ * What a pick did: the port's answer, or it could not start at all (no script yet, the camera could not be taken). `tooLate` is the CT suite's `noTeam`
+ * when its team is in but could not finish a whole case before going home (`CryoSuitePort.whyNoTeam` 'late').
+ */
+export type PickResult = WatchResult | 'noScript' | 'noCamera' | 'tooLate'
 
 export interface FlowDeps {
   sim(): WatchSim
@@ -41,6 +45,7 @@ export function watchProcedure(id: ProcedureId, opts: { fromStart?: boolean }, d
   if (session === null) return 'noCamera'
   const fromStart = opts.fromStart === true
   const r = port.start(id, fromStart ? { fromStart: true } : undefined)
+  if (r === 'noTeam' && port.whyNoTeam() === 'late') return 'tooLate'
   if (r === 'started' || r === 'queued') {
     if (!session.begin({ room, mode: 'watch', procedureId: id })) return 'noCamera'
     if (r === 'queued' && fromStart) skipToStart(id, deps)

@@ -11,7 +11,7 @@
  *   resolveTarget / anchorSpot / focusPointInto    places and points
  *   BODY_LANDMARKS / PELVIS_ON_TABLE / LITHOTOMY_LEG the nominal patient on the table (shared with the crowd, the table top and the drapes)
  */
-export { compileScript, compiledFor, caseSteps, midSeconds, COMPILED_SCRIPTS } from './script'
+export { compileScript, compiledFor, caseSteps, midSeconds, watchSecondsOf, COMPILED_SCRIPTS } from './script'
 export type { CompiledScript, CompiledRole, CaseSteps, ArmChange, StepMode } from './script'
 export { stepAt, newCursor, davinciSlots, watchUnitSeconds, watchTotalSeconds } from './timing'
 export type { StepCursor, SlotFn, SlotWindow } from './timing'
@@ -27,3 +27,7 @@ export { ACTION_ANIM, animOf } from './actions'
 export { emptyProcedureView, emptyPatientPose } from './empty'
 export { BODY_LANDMARKS, LEG_BREAK_D, LITHOTOMY_LEG, PELVIS_ON_TABLE, bodyPointOnTable } from './body'
 export type { BodyPoint } from './body'
+export { cryoAnchorSpot, cryoFocusInto, cryoTargetInto, newCryoTargetCtx } from './cryoPlaces'
+export type { CryoAnchor, CryoFocus, CryoTargetCtx, CryoTargetId } from './cryoPlaces'
+export { newUsTargetCtx, usAnchorSpot, usFocusInto, usTargetInto } from './usPlaces'
+export type { UsAnchor, UsFocus, UsTargetCtx, UsTargetId } from './usPlaces'

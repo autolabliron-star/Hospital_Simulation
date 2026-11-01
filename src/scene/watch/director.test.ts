@@ -5,11 +5,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Vector3 } from 'three'
-import { SURGERY } from '@/sim/places'
-import { LEVEL2_DX, LEVEL_Y } from '@/sim/levels'
+import { CRYO_SUITE, SURGERY } from '@/sim/places'
+import { LEVEL2_DX, LEVEL_Y, levelOf } from '@/sim/levels'
 import { DIP_SECONDS, DOLLY_MAX_SECONDS } from './dolly'
 import { ENDED_HOLD_SECONDS, FREE_IDLE_SECONDS, REPICK_SECONDS, WATCH_NEAR } from './director'
 import { addPerson, newPeople, segmentClearOfPeople } from './limits'
+import { WATCH_ROOMS } from './rooms'
 import { SHOTS } from './shots'
 import { fillStepView, harness, stepIndexOf } from './testkit'
 
@@ -370,5 +371,276 @@ describe('the sim speed', () => {
       expect(h.director.phase, how).toBe('off')
       expect(h.clock.speed, how).toBe(1)
     }
+  })
+})
+
+
+// ---------------------------------------------------------------------------------------------
+// R5 wave 3: a session in the CT cryo suite (level 2, watched from the control room) and in the ultrasound room (level 1, watched from outside its door)
+// ---------------------------------------------------------------------------------------------
+
+/** The camera is drawn where a sim eye of level 1 is (nothing added). */
+function expectDrawnAtLevel1(camera: { position: { x: number; y: number; z: number } }, eye: { x: number; y: number; z: number }, digits = 6): void {
+  expect(camera.position.x).toBeCloseTo(eye.x, digits)
+  expect(camera.position.y).toBeCloseTo(eye.y, digits)
+  expect(camera.position.z).toBeCloseTo(eye.z, digits)
+}
+
+describe('a CT cryo suite session', () => {
+  const CT = 'cryo-lung' as const
+  const spot = WATCH_ROOMS.cryo.spot.at
+
+  it('stands you in the control room, cuts into the scan room\'s wide shot, and hands back exactly the pose you had', () => {
+    const h = harness({ phase: 'walk', x: -20, z: 3 })
+    const before = { pos: h.camera.position.clone(), dir: h.camera.getWorldDirection(new Vector3()), fov: h.camera.fov, near: h.camera.near }
+    expect(h.director.begin({ room: 'cryo', mode: 'watch', procedureId: CT })).toBe(true)
+    expect(h.lease.held).toBe(true)
+    expect(h.ui.room).toBe('cryo')
+    expect([h.player.x, h.player.z]).toEqual([spot.x, spot.z])
+    expect(levelOf(spot.x)).toBe(2) // level 2's strip of the sim
+    h.director.update(1 / 60)
+    expect(h.director.phase).toBe('live')
+    expect(h.ui.dip).toBe(1) // the scan room is another place: a cut behind a dip to black
+    expect(h.director.shotId).toBe('ct.establish') // no case yet: the room's default
+    h.run(DIP_SECONDS + 0.05)
+    expectDrawnAt(h.camera, SHOTS['ct.establish'].eye, 1)
+    expect(h.camera.near).toBe(WATCH_NEAR)
+    expect(h.simCamera.x).toBeCloseTo(h.director.pose.eye.x, 9)
+    h.director.end()
+    expect(h.director.phase).toBe('leaving')
+    h.run(DIP_SECONDS + 0.05)
+    expect(h.director.phase).toBe('off')
+    expect(h.lease.held).toBe(false)
+    expect([h.player.x, h.player.z, h.player.heading]).toEqual([-20, 3, 0.4])
+    expect(h.camera.position.distanceTo(before.pos)).toBeLessThan(1e-9)
+    expect(h.camera.getWorldDirection(new Vector3()).distanceTo(before.dir)).toBeLessThan(1e-9)
+    expect(h.camera.fov).toBe(before.fov)
+    expect(h.camera.near).toBe(before.near)
+    expect(h.ui.phase).toBe('off')
+  })
+
+  it('follows the steps: a dolly inside the scan room, a cut into the control room, the CT picture as an inset (small, then big), the bore for a scan', () => {
+    const h = harness({ reduced: false })
+    h.director.begin({ room: 'cryo', mode: 'watch', procedureId: CT })
+    h.run(DIP_SECONDS + 0.3)
+    expect(h.ui.status).toBe('waiting')
+    const view = h.cryo.state.procedure
+    h.cryo.state.target = 'lung'
+    fillStepView(view, CT, stepIndexOf(CT, 'monitorsOn'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.ui.status).toBe('case')
+    expect(h.director.shotId).toBe('ct.table')
+    // the wide shot to the table, both in the scan room and under 6 m: flown, not cut
+    expect(h.ui.dip).toBe(1)
+    expect(h.director.moving).toBe(true)
+    h.run(DOLLY_MAX_SECONDS + 0.1)
+    expect(h.director.moving).toBe(false)
+    expect(h.ui.inset).toBeNull()
+
+    // a freeze: the table with the CT picture small, then big part-way
+    fillStepView(view, CT, stepIndexOf(CT, 'freezeMain'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.ice')
+    expect(h.ui.inset).toBe('ctLive')
+    expect(h.ui.insetBig).toBe(false)
+    view.progress = 0.5
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.iceBig')
+    expect(h.ui.insetBig).toBe(true)
+
+    // the planning is in the control room: another area, so a cut behind a dip, with the plan inset
+    const dips = h.ui.dip ?? 0
+    fillStepView(view, CT, stepIndexOf(CT, 'planPaths'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.plan')
+    expect(h.ui.inset).toBe('ctPlan')
+    expect(h.ui.insetBig).toBe(false)
+    expect(h.ui.dip).toBe(dips + 1)
+    h.run(DIP_SECONDS + 0.1)
+    const eye = h.director.pose.eye
+    const control = { z1: 13 }
+    expect(eye.z).toBeLessThan(control.z1) // inside the control room, behind the glass
+    expect(eye.z).toBeGreaterThan(10)
+    view.progress = 0.6
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.planBig')
+    expect(h.ui.insetBig).toBe(true)
+
+    // a scan: the table slides in, the bore shot and then the CT picture big; the camera does not follow the table (the bore is fixed)
+    h.cryo.state.tablePos = 0
+    view.progress = 0
+    fillStepView(view, CT, stepIndexOf(CT, 'planningScan'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.bore')
+    expect(h.ui.inset).toBeNull()
+    h.cryo.state.tablePos = 1
+    view.progress = 0.5
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.boreCt')
+    expect(h.ui.inset).toBe('ctLive')
+    expect(h.ui.insetBig).toBe(true)
+    // the needle steps hold the radiologist's shoulder; an unknown needle never breaks the frame
+    h.cryo.state.tablePos = 0
+    h.cryo.state.needle = 0
+    h.cryo.state.needles = [{ entry: { x: 85, y: -12 }, dz: 18 }]
+    fillStepView(view, CT, stepIndexOf(CT, 'pushNeedle'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.needle')
+    h.run(DOLLY_MAX_SECONDS + DIP_SECONDS + 0.5)
+    for (const v of [h.director.pose.eye.x, h.director.pose.eye.y, h.director.pose.eye.z, h.director.pose.target.x]) expect(Number.isFinite(v)).toBe(true)
+  })
+
+  it('a reduced-motion session cuts to every shot; a Jump hands the camera back at once; the case leaving hands it back after a while, with the speed put back', () => {
+    const r = harness({ reduced: true })
+    r.director.begin({ room: 'cryo', mode: 'watch', procedureId: CT })
+    r.director.update(1 / 60)
+    expect(r.ui.dip ?? 0).toBe(0)
+    fillStepView(r.cryo.state.procedure, CT, stepIndexOf(CT, 'induction'), r.cart)
+    r.director.update(1 / 60)
+    expect(r.director.shotId).toBe('ct.head')
+    expect(r.director.moving).toBe(false)
+
+    const j = harness()
+    j.director.begin({ room: 'cryo', mode: 'watch', procedureId: CT })
+    j.run(0.5)
+    j.gen.value++
+    j.director.update(1 / 60)
+    expect(j.director.phase).toBe('off')
+    expect(j.lease.held).toBe(false)
+    expect([j.player.x, j.player.z]).toEqual([-20, 3])
+
+    const e = harness({ reduced: true })
+    e.clock.speed = 1
+    e.director.begin({ room: 'cryo', mode: 'watch', procedureId: CT })
+    fillStepView(e.cryo.state.procedure, CT, stepIndexOf(CT, 'wheelsOut'), e.cart)
+    e.run(0.5)
+    e.clock.speed = 4
+    e.cryo.state.procedure.procedureId = null
+    e.cryo.state.procedure.caseId = null
+    e.cryo.state.procedure.version++
+    e.run(ENDED_HOLD_SECONDS + 0.5)
+    expect(e.director.phase).toBe('off')
+    expect(e.clock.speed).toBe(1)
+  })
+
+  it('follows the case in the room from its current step (follow mode), and does not take another day\'s case for the watch case', () => {
+    const h = harness({ reduced: true })
+    h.director.begin({ room: 'cryo', mode: 'watch', procedureId: CT })
+    fillStepView(h.cryo.state.procedure, CT, 3, h.cart, 'dayCase', false)
+    h.run(0.5)
+    expect(h.ui.status).toBe('waiting')
+    h.director.begin({ room: 'cryo', mode: 'follow', procedureId: null })
+    h.director.update(1 / 60)
+    expect(h.ui.status).toBe('case')
+    expect(h.ui.room).toBe('cryo')
+  })
+
+  it('looks at the case, not at the theatre: the other rooms\' cases do not move the camera', () => {
+    const h = harness({ reduced: true })
+    h.director.begin({ room: 'cryo', mode: 'watch', procedureId: CT })
+    // a theatre case in progress while we watch the CT suite
+    fillStepView(h.view, 'or-cholecystectomy', stepIndexOf('or-cholecystectomy', 'monitorsOn'), h.cart)
+    h.run(0.5)
+    expect(h.ui.status).toBe('waiting')
+    expect(h.director.shotId).toBe('ct.establish')
+    expect(CRYO_SUITE.viewing.at.x).toBe(spot.x)
+  })
+})
+
+describe('an ultrasound room session', () => {
+  const US = 'us-breastCancer' as const
+  const spot = WATCH_ROOMS.us.spot.at
+
+  it('stands you outside the door (level 1), cuts to the room\'s wide shot drawn where it is, and hands back exactly the pose you had', () => {
+    const h = harness({ phase: 'walk', x: -45, z: 3 })
+    const before = { pos: h.camera.position.clone(), dir: h.camera.getWorldDirection(new Vector3()), fov: h.camera.fov }
+    expect(h.director.begin({ room: 'us', mode: 'watch', procedureId: US })).toBe(true)
+    expect([h.player.x, h.player.z]).toEqual([spot.x, spot.z])
+    expect(h.ui.room).toBe('us')
+    h.director.update(1 / 60)
+    expect(h.director.phase).toBe('live')
+    expect(h.director.shotId).toBe('us.establish')
+    expect(h.ui.dip).toBe(1)
+    h.run(DIP_SECONDS + 0.05)
+    expectDrawnAtLevel1(h.camera, SHOTS['us.establish'].eye, 1)
+    h.director.end()
+    h.run(DIP_SECONDS + 0.05)
+    expect(h.director.phase).toBe('off')
+    expect(h.lease.held).toBe(false)
+    expect([h.player.x, h.player.z, h.player.heading]).toEqual([-45, 3, 0.4])
+    expect(h.camera.position.distanceTo(before.pos)).toBeLessThan(1e-9)
+    expect(h.camera.getWorldDirection(new Vector3()).distanceTo(before.dir)).toBeLessThan(1e-9)
+    expect(h.camera.fov).toBe(before.fov)
+  })
+
+  it('follows the steps: flown inside the room, the field behind the radiologist, the ultrasound picture small then big, the console behind the sonographer', () => {
+    const h = harness()
+    h.director.begin({ room: 'us', mode: 'watch', procedureId: US })
+    h.run(DIP_SECONDS + 0.3)
+    const view = h.imaging.view
+    fillStepView(view, US, stepIndexOf(US, 'prepSkin'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.ui.status).toBe('case')
+    expect(h.director.shotId).toBe('us.field')
+    expect(h.ui.dip).toBe(1)
+    expect(h.director.moving).toBe(true) // establish to the field: inside the room, under 6 m: flown
+    h.run(DOLLY_MAX_SECONDS + 0.1)
+    expect(h.director.moving).toBe(false)
+    expect(h.ui.inset).toBeNull()
+
+    fillStepView(view, US, stepIndexOf(US, 'probeIn'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('us.fieldUs')
+    expect(h.ui.inset).toBe('us')
+    expect(h.ui.insetBig).toBe(false)
+    view.progress = 0.5
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('us.fieldUsBig')
+    expect(h.ui.insetBig).toBe(true)
+    // the next picture step keeps the big picture from its start (no shrinking back and growing again)
+    fillStepView(view, US, stepIndexOf(US, 'freeze1'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('us.fieldUsBig')
+
+    fillStepView(view, US, stepIndexOf(US, 'programme'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('us.prosense')
+    expect(h.ui.inset).toBeNull()
+    fillStepView(view, US, stepIndexOf(US, 'walkOut'), h.cart)
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('us.establish')
+  })
+
+  it('a stepping case that is a different procedure of the room is not ours; the case leaving hands back, and the speed is put back', () => {
+    const h = harness({ reduced: true })
+    h.clock.speed = 1
+    h.director.begin({ room: 'us', mode: 'watch', procedureId: US })
+    fillStepView(h.imaging.view, 'us-fibroadenoma', 2, h.cart)
+    h.run(0.5)
+    expect(h.ui.status).toBe('waiting')
+    fillStepView(h.imaging.view, US, 3, h.cart)
+    h.run(0.2)
+    expect(h.ui.status).toBe('case')
+    h.clock.speed = 2
+    h.imaging.view.procedureId = null
+    h.imaging.view.caseId = null
+    h.imaging.view.version++
+    h.run(0.2)
+    expect(h.ui.status).toBe('ended')
+    h.run(ENDED_HOLD_SECONDS + 0.5)
+    expect(h.director.phase).toBe('off')
+    expect(h.clock.speed).toBe(1)
+  })
+
+  it('switches room while watching: begin for another room keeps the lease and re-aims at that room\'s shots', () => {
+    const h = harness({ reduced: true })
+    h.director.begin({ room: 'us', mode: 'watch', procedureId: US })
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('us.establish')
+    expect(h.director.begin({ room: 'cryo', mode: 'watch', procedureId: 'cryo-kidney' })).toBe(true)
+    expect(h.ui.room).toBe('cryo')
+    h.director.update(1 / 60)
+    expect(h.director.shotId).toBe('ct.establish')
+    expect(h.lease.held).toBe(true)
   })
 })

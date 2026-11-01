@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { CRYO_SUITE_COPY } from '@/content/cryoSuite'
 import { emptyCryoState } from '@/sim/cryoSuite'
 import { cryoState } from '@/scene/cryoSuite/testkit'
-import { cryoSuiteView, startButton, STEPPER_STEPS, stepRows } from './cryoSuiteView'
+import { cryoSuiteView, startAnswer, startButton, STEPPER_STEPS, stepRows } from './cryoSuiteView'
 
 const P = CRYO_SUITE_COPY.panel
 
@@ -26,9 +26,12 @@ describe('the cryo suite panel view', () => {
   })
 
   it('the stepper: done before the room\'s step, current at it, to come after', () => {
-    const rows = stepRows('aim')
+    // (R5 wave 3: only the lung's list has the short first freeze and its thaw)
+    const rows = stepRows('aim', 'lung')
     expect(rows).toHaveLength(STEPPER_STEPS.length)
     expect(STEPPER_STEPS).not.toContain('idle')
+    expect(stepRows('aim').map((r) => r.step)).toEqual(STEPPER_STEPS.filter((x) => x !== 'anchorFreeze' && x !== 'anchorThaw'))
+    expect(stepRows('aim', 'liver')).toHaveLength(STEPPER_STEPS.length - 2)
     const at = rows.findIndex((r) => r.state === 'current')
     expect(rows[at].step).toBe('aim')
     expect(rows.slice(0, at).every((r) => r.state === 'done')).toBe(true)
@@ -84,6 +87,43 @@ describe('the cryo suite panel view', () => {
     const demo = cryoState({ step: 'aim' })
     demo.demo = true
     expect(startButton(demo, 'started').disabled).toBe(true)
+  })
+
+  it('R5 wave 3 review: a lung case counts its freezes 1 to 3 in the stepper, the step title and the list, the others the common way', () => {
+    const lung = cryoState({ step: 'freeze1' })
+    lung.target = 'lung'
+    lung.cases[0].target = 'lung'
+    const v = cryoSuiteView(lung)
+    expect(v.step).toBe('Freeze 2 of 3')
+    expect(v.steps.find((r) => r.state === 'current')!.label).toBe('Freeze 2 of 3')
+    expect(v.steps.filter((r) => r.step === 'anchorFreeze' || r.step === 'thaw' || r.step === 'freeze2').map((r) => r.label)).toEqual(['Freeze 1 of 3 (short)', 'Thaw 2 of 3', 'Freeze 3 of 3'])
+    expect(v.list[0].step).toBe('Freeze 2 of 3')
+    for (const step of ['anchorFreeze', 'anchorThaw', 'freeze1', 'thaw', 'freeze2'] as const) {
+      lung.step = step
+      expect(cryoSuiteView(lung).step).toMatch(/of 3/)
+    }
+    const liver = cryoState({ step: 'freeze1' })
+    liver.target = 'liver'
+    liver.cases[0].target = 'liver'
+    expect(cryoSuiteView(liver).step).toBe(CRYO_SUITE_COPY.steps.freeze1)
+    expect(cryoSuiteView(liver).list[0].step).toBe(CRYO_SUITE_COPY.steps.freeze1)
+    expect(stepRows('freeze1', 'lung').find((r) => r.step === 'freeze1')!.label).toBe('Freeze 2 of 3')
+    expect(stepRows('freeze1', 'kidney').find((r) => r.step === 'freeze1')!.label).toBe(CRYO_SUITE_COPY.steps.freeze1)
+  })
+
+  it('R5 wave 3 review: a refused start says whether the team is out or it is too late today for a whole case', () => {
+    const idle = emptyCryoState()
+    // the port\'s answer is still noTeam; the panel tells the two apart by why (CryoSuite.whyNoTeam)
+    expect(startAnswer('noTeam', 'hours')).toBe('noTeam')
+    expect(startAnswer('noTeam', 'late')).toBe('tooLate')
+    expect(startAnswer('noTeam', null)).toBe('noTeam')
+    expect(startAnswer('started', 'late')).toBe('started')
+    expect(startAnswer('queued', 'late')).toBe('queued')
+    expect(startButton(idle, startAnswer('noTeam', 'hours')).note).toBe(P.noTeam)
+    expect(startButton(idle, startAnswer('noTeam', 'late')).note).toBe(P.tooLate)
+    expect(startButton(idle, 'tooLate')).toEqual({ label: P.start, disabled: false, note: P.tooLate })
+    expect(P.tooLate).not.toBe(P.noTeam)
+    expect(cryoSuiteView(idle, 'tooLate').start.note).toBe(P.tooLate)
   })
 
   it('the card names the real devices; the model elsewhere is brand-free', () => {

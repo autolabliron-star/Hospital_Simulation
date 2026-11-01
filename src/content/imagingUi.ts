@@ -40,10 +40,50 @@ export const ImagingUiSchema = z.strictObject({
     /** The scan parameters of the linear (breast) probe, in place of the curved array's. */
     linearParams: line,
     /** The cryoablation readout on the live picture: the step, the probe temperature, the step timer, the ice ball and the probe label. */
-    cryo: z.strictObject({ place: line, freeze: line, thaw: line, temp: line, timer: line, ice: line, probe: line }),
+    cryo: z.strictObject({
+      place: line,
+      freeze: line,
+      thaw: line,
+      temp: line,
+      timer: line,
+      ice: line,
+      probe: line,
+      /** R5 wave 3: the stages of the scripted ProSense case (the script's `scope` keys): survey, local, nick, saline, programme, measure, lump check, thaw to free, probe out, dressing, probe moved. The lump check says what the picture shows (R5 fix K4): the lump covered, or part of it outside the ice ball. */
+      survey: line,
+      /** The survey's stored picture while the skin is prepared, the field draped and the Time Out said (the script's `hold` scope: one still frame, not a live picture of a probe that is not on the skin). */
+      held: line,
+      lump: line,
+      local: line,
+      nick: line,
+      saline: line,
+      programme: line,
+      programmeLine: line,
+      measure: line,
+      measureLine: line,
+      lumpCovered: line,
+      lumpOutside: line,
+      thawFree: line,
+      probeOut: line,
+      treated: line,
+      relocate: line,
+      needle: line,
+    }),
   }),
-  /** The device card the Scan viewer shows for a cryoablation (docs/research/cryoablation.md): the real product named on the card only. */
-  cryoCard: z.strictObject({ label: line, title: line, what: sentence, status: sentence, synthetic: line, start: line, startNext: line, queued: line }),
+  /**
+   * The device card the Scan viewer shows for a cryoablation (docs/research/cryoablation.md): the real product named on the card only. What the machine does and
+   * what it is authorised for depend on the case (R5 fix K6): the breast cancer's card says the FDA authorisation of October 2025 and "tumour", the benign
+   * fibroadenoma's says the company's statement of clearance for fibroadenomas and "lump" (docs/research/procedures.md section 10).
+   */
+  cryoCard: z.strictObject({
+    label: line,
+    title: line,
+    synthetic: line,
+    start: line,
+    startNext: line,
+    queued: line,
+    breastCancer: z.strictObject({ what: sentence, status: sentence }),
+    fibroadenoma: z.strictObject({ what: sentence, status: sentence }),
+  }),
   /** The image counter of a series. */
   image: line,
   /** Orientation letters at the picture's edges: right, left, anterior, posterior, head, feet. */
@@ -79,6 +119,17 @@ export const ImagingUiSchema = z.strictObject({
 })
 
 export type ImagingUi = z.infer<typeof ImagingUiSchema>
+
+/** Which ProSense case a device card is for. */
+export type CryoKind = 'breastCancer' | 'fibroadenoma'
+
+/** Made once: a regex literal inside a function is a new RegExp every call. */
+const FIBROADENOMA = /fibroadenoma/i
+
+/** The card of a cryoablation exam, from its protocol name (the fibroadenoma's says "fibroadenoma"; everything else is the breast cancer's). */
+export function cryoKindOf(protocol: string | null | undefined): CryoKind {
+  return protocol !== null && protocol !== undefined && FIBROADENOMA.test(protocol) ? 'fibroadenoma' : 'breastCancer'
+}
 
 export const IMAGING_UI: ImagingUi = ImagingUiSchema.parse(json)
 

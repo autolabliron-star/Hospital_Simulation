@@ -130,7 +130,8 @@ export function stepAt(cs: CaseSteps, unit: string, since: number, until: number
 }
 
 /**
- * The seconds a watch case needs for `unit`: the sum of its steps' watch seconds (the repeat run counted `repeatN` times). The case sets the
+ * The seconds a watch case needs for `unit`: the sum of its steps' watch seconds (the repeat run counted `repeatN` times, its later plays at their
+ * `repeatSeconds` when the step has them: script.ts `watchSecondsOf`). The case sets the
  * unit's window to this, so the steps last exactly their watch seconds (a slotted unit's sub-windows are the machine's fixed fractions of it).
  */
 export function watchUnitSeconds(cs: CompiledScript, unit: string, repeatN = 1): number {
@@ -140,7 +141,7 @@ export function watchUnitSeconds(cs: CompiledScript, unit: string, repeatN = 1):
   let total = 0
   for (let i = cs.unitFirst[u]; i < cs.unitFirst[u] + cs.unitLen[u]; i++) {
     const s = cs.script.steps[i]
-    total += s.repeat === true ? s.watchSeconds * reps : s.watchSeconds
+    total += s.repeat === true ? s.watchSeconds + (reps - 1) * (s.repeatSeconds ?? s.watchSeconds) : s.watchSeconds
   }
   return total
 }

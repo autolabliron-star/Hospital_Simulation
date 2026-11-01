@@ -1,4 +1,5 @@
 import { type BufferGeometry, MeshBasicMaterial, type Mesh } from 'three'
+import { emptyProcedureView } from '@/sim/procedure/empty'
 import { describe, expect, it } from 'vitest'
 import { getLayout } from '@/scene/building/layout'
 import { IMAGING } from '@/sim/places'
@@ -41,7 +42,7 @@ function radial(g: BufferGeometry, y0: number, z0: number): [number, number] {
 }
 
 function state(modality: ImagingModality, o: Partial<ScannerState> = {}): ScannerState {
-  return { modality, phase: 'idle', exam: null, sequence: -1, progress: 0, remaining: 0, phaseTime: 0, tablePos: 0, activity: 0, detail: 0, operatorId: null, ...o }
+  return { modality, phase: 'idle', exam: null, sequence: -1, progress: 0, remaining: 0, phaseTime: 0, tablePos: 0, activity: 0, detail: 0, operatorId: null, procedure: emptyProcedureView(), ...o }
 }
 
 function exam(modality: ImagingModality, bodyPart: ImagingExam['bodyPart']): ImagingExam {
@@ -496,6 +497,49 @@ describe('animation from the scanner state', () => {
     expect(probe.position.x).toBeCloseTo(h.x, 2)
     expect(probe.position.z).toBeCloseTo(h.z, 2)
     expect(rig.us.hand).toBe(false)
+  })
+
+  it('during a ProSense case (the step engine\'s view is on) the cart\'s transducer stays holstered and its built-in hand hidden: the radiologist holds the handheld one (R5 fix K16)', () => {
+    const cryoExam: ImagingExam = {
+      ...exam('us', 'breast'),
+      id: 'e-cryo',
+      protocol: 'Ultrasound-guided cryoablation, left breast (ProSense)',
+      sequences: [
+        { name: 'Probe placement', plane: 'sweep', contrast: 'none', seconds: 150, images: 3, step: 'place' },
+        { name: 'Freeze 1', plane: 'sweep', contrast: 'none', seconds: 420, images: 6, step: 'freeze' },
+      ],
+    }
+    const h = US_CART.holder
+    const cryo = (procedureId: ScannerState['procedure']['procedureId']): Partial<ScannerState> => ({
+      exam: cryoExam,
+      phase: 'scanning',
+      sequence: 1,
+      detail: 0.5,
+      activity: 1,
+      procedure: { ...emptyProcedureView(), procedureId },
+    })
+    // the same exam without a script (a plain cryoablation exam): the cart's probe goes to the couch as for any scan
+    const plain = createRig(screens, stub)
+    for (let i = 0; i < 240; i++) updateRig(plain, states({ us: cryo(null) }), dt, i * dt)
+    expect(plain.us.hand).toBe(true)
+    expect(Math.hypot(plain.us.probe.position.x - h.x, plain.us.probe.position.z - h.z)).toBeGreaterThan(0.3)
+    // with the script: it stays in its holder through positioning, scanning and everything else
+    const scripted = createRig(screens, stub)
+    for (const phase of ['prep', 'positioning', 'scanning', 'cleanup'] as const) {
+      for (let i = 0; i < 240; i++) updateRig(scripted, states({ us: { ...cryo('us-breastCancer'), phase } }), dt, i * dt)
+      const probe = m(scripted, 'us-probe')
+      expect(probe.position.x, phase).toBeCloseTo(h.x, 2)
+      expect(probe.position.y, phase).toBeCloseTo(h.y, 2)
+      expect(probe.position.z, phase).toBeCloseTo(h.z, 2)
+      expect(scripted.us.hand, phase).toBe(false)
+      expect(probe.geometry.drawRange.count, phase).toBe(scripted.us.probeVertices)
+    }
+    expect(probeLive.active).toBe(false)
+    // the case ends (an empty view again): the cart's probe is the room's again
+    for (let i = 0; i < 240; i++) updateRig(scripted, states({ us: cryo(null) }), dt, i * dt)
+    expect(scripted.us.hand).toBe(true)
+    disposeRig(plain)
+    disposeRig(scripted)
   })
 
   it('a paused sim (dt 0) holds every pose', () => {

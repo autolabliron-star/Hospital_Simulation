@@ -205,7 +205,10 @@ export function insideObstacle(o: Readonly<Obstacles>, x: number, y: number, z: 
   return -1
 }
 
-/** How tall a piece of the theatre's furniture is (m), by its footprint id (the eye may pass over what is lower than it). */
+/**
+ * How tall a piece of furniture is (m), by its footprint id (the eye may pass over what is lower than it): the theatre's, then (R5 wave 3) the CT suite's
+ * and the ultrasound room's, whose pieces are lower than the 2.2 m a footprint of unknown height is assumed to be.
+ */
 export function furnitureTop(id: string): number {
   if (/:table$/.test(id)) return 1.3 // with the patient on it
   if (/:chair$/.test(id)) return 1.35
@@ -214,6 +217,20 @@ export function furnitureTop(id: string): number {
   if (/:stool$/.test(id)) return 0.8
   if (/:(backtable|mayo|desk)$/.test(id)) return 1.2
   if (/:scrub$/.test(id)) return 1.9
+  // the CT cryo suite
+  if (/:cryo:ct:gantry$/.test(id)) return 2.2
+  if (/:cryo:robot$/.test(id)) return 1.6 // its base 0.85 m and the arm folded over it
+  if (/:cryo:console$/.test(id)) return 1.5
+  if (/:cryo:anaes$/.test(id)) return 1.7 // the machine and its monitor tower
+  if (/:cryo:cylinders$/.test(id)) return 1.3
+  if (/:cryo:cabinet$/.test(id)) return 1.1
+  if (/:cryoctl:station$/.test(id)) return 1.2
+  // the ultrasound room
+  if (/:us:couch$/.test(id)) return 1.15 // with the patient on it
+  if (/:us:cart$/.test(id)) return 1.5
+  if (/:us:cryo$/.test(id)) return 1.3 // the ProSense console
+  if (/:us:counter$/.test(id)) return 1.05
+  if (/:us:cabinet$/.test(id)) return 2.0
   return 2.2
 }
 

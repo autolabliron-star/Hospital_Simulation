@@ -232,6 +232,9 @@ export const ACTION_MODE: Readonly<Record<ProcAction, Mode>> = Object.freeze({
   insertProbe: 'aNeedle',
   pressSite: 'aDress',
   cleanRoom: 'aWipe',
+  // R5 wave 3 (contract placeholders until the cryo poses land): confirming the robot's aim, rolling the patient with the team
+  aimRobot: 'aWatchField',
+  turnPatient: 'aTransfer',
 })
 
 /** R5: the seated actions that have a seated pose of their own (the console surgeon, a radiographer at a desk, a checklist read in a chair). */

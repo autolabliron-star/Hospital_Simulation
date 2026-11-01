@@ -584,6 +584,11 @@ export interface ScannerState {
   detail: number
   /** The radiographer or sonographer working it. */
   operatorId: string | null
+  /**
+   * R5 wave 3: the step-by-step view of a ProSense cryoablation on the ultrasound couch (an empty view with `procedureId` null for every scan and
+   * on the other scanners).
+   */
+  procedure: ProcedureView
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1098,6 +1103,9 @@ export type CryoStep =
   | 'planning'
   | 'aim'
   | 'checkCt'
+  // R5 wave 3: the lung's short first freeze and its thaw (SOLSTICE's triple freeze: 3-3-10-5-10); zero-length for kidney and liver cases
+  | 'anchorFreeze'
+  | 'anchorThaw'
   | 'freeze1'
   | 'thaw'
   | 'freeze2'
@@ -1108,7 +1116,7 @@ export type CryoStep =
   | 'out'
   | 'turnover'
 export const CRYO_STEPS: readonly CryoStep[] = [
-  'idle', 'arrive', 'sedation', 'planningCt', 'planning', 'aim', 'checkCt', 'freeze1', 'thaw', 'freeze2', 'activeThaw', 'needlesOut', 'finalCt', 'dressing', 'out', 'turnover',
+  'idle', 'arrive', 'sedation', 'planningCt', 'planning', 'aim', 'checkCt', 'anchorFreeze', 'anchorThaw', 'freeze1', 'thaw', 'freeze2', 'activeThaw', 'needlesOut', 'finalCt', 'dressing', 'out', 'turnover',
 ] as const
 
 export type CryoRobotPhase = 'stowed' | 'deploying' | 'aiming' | 'aligned' | 'retracting'
@@ -1139,6 +1147,8 @@ export interface CryoCaseView {
   wheelsOut: number | null
   needles: number
   tumourMm: number
+  /** R5 wave 3: what the case treats (the day's list draws kidney, lung and liver cases; a kidney case plans exactly as before R5). */
+  target: CryoTarget
 }
 
 export interface CryoSuiteState {
@@ -1173,6 +1183,11 @@ export interface CryoSuiteState {
   /** The demo is booked to follow the case in the room. */
   demoQueued: boolean
   cases: CryoCaseView[]
+  /** R5 wave 3: the case's target ('kidney' between cases), and the anaesthetist holding the ventilator for a scan or a needle push (lung, liver). */
+  target: CryoTarget
+  apnoea: boolean
+  /** R5: the step-by-step view of the case in the room (an empty view with `procedureId` null between cases). */
+  procedure: ProcedureView
   version: number
 }
 
@@ -1306,6 +1321,9 @@ export type ProcAction =
   | 'insertProbe'
   | 'pressSite'
   | 'cleanRoom'
+  // R5 wave 3: the IR confirms the robot's aim (pendant and foot switch); the team rolls a patient onto the front or back on the anaesthetist's call
+  | 'aimRobot'
+  | 'turnPatient'
 
 /** What is in a hand. The crowd renderer models the hand-held ones; the rest (gown, drape sheet, gel pad …) are shown by their effect. */
 export type ToolKind =
@@ -1380,6 +1398,33 @@ export type ProcAnchor =
   | 'scrubBackTable'
   | 'anaesLeft'
   | 'circulatorCount'
+  // R5 wave 3, the CT cryo suite (CRYO_SUITE, places.ts; resolved by src/sim/procedure/cryoPlaces.ts). The patient lies head west, the robot north.
+  /** The IR at the robot's side, pushing a needle through the guide (`staff.insert`). */
+  | 'ctInsert'
+  /** The IR at the cryo console (`staff.atConsole`). */
+  | 'ctConsole'
+  /** The head end, south side (`staff.sedation`): the sedation nurse. */
+  | 'ctHeadSouth'
+  /** The anaesthetist at the head end by the anaesthesia machine (lung and liver). */
+  | 'ctAnaesHead'
+  /** The table's foot (`staff.assist`). */
+  | 'ctFoot'
+  /** Beside the table, south (the supine patient's right) and north (the left, clear of the robot): transfers, turning, prep. */
+  | 'ctSideSouth'
+  | 'ctSideNorth'
+  /** The control room: the CT console seat, the robot planning station seat, standing behind the glass during a scan. */
+  | 'ctControlScan'
+  | 'ctControlPlan'
+  | 'ctControlStand'
+  // R5 wave 3, the ultrasound room's ProSense (IMAGING.us, places.ts; resolved by src/sim/procedure/usPlaces.ts)
+  /** The breast radiologist's stool at the treated side of the couch. */
+  | 'usDoctor'
+  /** At the ProSense console (the sonographer: timer, programme, hose). */
+  | 'usConsole'
+  /** The head of the couch (helping the patient, the aftercare talk). */
+  | 'usHead'
+  /** Inside the door (greeting, walking the patient out). */
+  | 'usDoor'
 
 /** A point a role works at or looks at (resolved by the sim to a world point: hands go there, eyes follow). */
 export type ProcTarget =
@@ -1401,6 +1446,25 @@ export type ProcTarget =
   | 'consoleViewer'
   | 'sink'
   | 'patient'
+  // R5 wave 3, the CT cryo suite (src/sim/procedure/cryoPlaces.ts): on the patient they ride the CT table (tablePos) and follow the position
+  /** The treated skin window (the kidney's flank, the lung's or liver's back) and the current needle's entry on it. */
+  | 'ctField'
+  | 'needleEntry'
+  /** The patient's face on the CT table (mask, tube, eyes). */
+  | 'ctFace'
+  /** The robot's needle guide, the cryo console's screen, the in-room boom screen, the CT console, the planning station, the anaesthesia machine. */
+  | 'robotGuide'
+  | 'cryoScreen'
+  | 'roomScreen'
+  | 'ctScreen'
+  | 'planScreen'
+  | 'ctAnaesMachine'
+  // R5 wave 3, the ultrasound room (src/sim/procedure/usPlaces.ts)
+  /** The treated breast, the patient's face on the couch, the ultrasound screen, the ProSense console's screen. */
+  | 'breast'
+  | 'usFace'
+  | 'usScreen'
+  | 'prosenseScreen'
 
 /** What the watch camera frames at a step. */
 export type FocusId =
@@ -1425,6 +1489,11 @@ export type FocusId =
   | 'controlRoom'
   | 'usScreen'
   | 'breast'
+  // R5 wave 3: the CT patient's head (the airway, the turn) and the CT room as a whole; the ultrasound couch as a whole and the ProSense console
+  | 'ctHead'
+  | 'ctRoom'
+  | 'usRoom'
+  | 'prosenseConsole'
 
 /** Sterile attire bits on `Entity.attire`. */
 export const ATTIRE = { mask: 1, gown: 2, gloves: 4, lead: 8 } as const

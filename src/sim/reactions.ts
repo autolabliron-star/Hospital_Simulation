@@ -124,6 +124,11 @@ const SCAN_KINDS = new Set(['scanTable', 'xrayTable', 'usCouch'])
 const POST = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS].map((s) => [s.id, s]))
 const MODALITY_NAME: Record<ImagingModality, string> = { mri: 'MRI', ct: 'CT scan', xray: 'X-ray', us: 'ultrasound' }
 
+/** The crowd walker that steps aside for you: the person's own, or the one their walker wraps (the cryo team's hop walker); null for a solo walker. */
+function crowdWalkerOf(w: Walker): CrowdWalker | null {
+  return w instanceof CrowdWalker ? w : (w.crowdWalker ?? null)
+}
+
 /** One person's reactions to you. Made on first contact, kept for as long as the person exists. */
 class Mind {
   // (-Infinity, not 0: a warm start before 07:30 runs the sim clock at negative times)
@@ -314,12 +319,13 @@ export class Reactions {
     m.yielding = true
     m.behind = fwd < 0
     p.pace = staff ? COURTESY_PACE_STAFF : COURTESY_PACE
-    if (this.sidestep && w instanceof CrowdWalker) {
-      m.cw = w
+    const cw = this.sidestep ? crowdWalkerOf(w) : null
+    if (cw !== null) {
+      m.cw = cw
       m.metres = staff ? SIDESTEP_STAFF : SIDESTEP
       // (which side has room is judged where you will meet, not where you are: you may be walking towards them)
-      m.court = w.courtesyPick(this.plx + this.plVx * tca, this.plz + this.plVz * tca, m.metres, 0)
-      w.setCourtesy(m.court, m.metres)
+      m.court = cw.courtesyPick(this.plx + this.plVx * tca, this.plz + this.plVz * tca, m.metres, 0)
+      cw.setCourtesy(m.court, m.metres)
       m.nextPickAt = t + REPICK_EVERY
     }
     this.activate(m)

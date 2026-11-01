@@ -11,6 +11,9 @@
 // never mirrored); a procedure patient's breathing tube rides P.propL at the mouth; a sterile gown hangs a long skirt.
 // R5 wave 2 (the OR table): a patient lying on the OR table with a `PatientPoseView` (RigInput.table*, tablePatient.ts) is laid at PELVIS_ON_TABLE[position], carried with the
 // table's tilt and roll as one rigid body (step 9), the legs steered into the boots (lithotomy, step 4) and the arms tucked along the sides (step 6). Nobody else is touched.
+// R5 wave 3 (the CT cryo table and the ultrasound couch: `tableKind` 1): the same patient paths also roll the body about its long axis (`psi`: the turn onto the front, the side, the
+// couch's wedge; the torso kept on the pad by its measured support function, tablePatient.ts `LieFit`), put the ankles on the pad (step 4: side by side, stacked, the feet plantar-flexed
+// on their fronts), turn the head onto its cheek when face down (step 5) and put the wrists over the head or behind it (step 6: `placeArms`); the roll is one more matrix in step 9.
 /**
  * The rig solver: one person's state and, each frame, the part matrices that pose the instanced body.
  *
@@ -45,7 +48,34 @@ import { ATTIRE } from '@/sim/types'
 import { BACKREST, MATTRESS } from '@/scene/rooms/bedParts'
 import { reclineAngle } from '@/scene/rooms/bedPose'
 import { BODY_LANDMARKS, LITHOTOMY_LEG, PELVIS_ON_TABLE } from '@/sim/procedure/body'
-import { LITHO_POLE, TUCK_EXTEND, TUCK_PRON, TUCK_WING, createTableBody, footToShin, stepTableBody, tableRootInto, uprightOfLying, type TableBody } from './tablePatient'
+import {
+  ARMS_UP,
+  ARM_SWEEP,
+  ARM_ONE,
+  F_ONE,
+  F_TUCK,
+  F_UP,
+  LEG_ROLL_FROM,
+  LEG_ROLL_TO,
+  LITHO_POLE,
+  PRONE_HEAD,
+  ROLL_LEGS,
+  TUCK_EXTEND,
+  TUCK_PRON,
+  TUCK_WING,
+  createTableBody,
+  defaultLieFit,
+  footToShin,
+  rollLift,
+  rollMatrixInto,
+  stepTableBody,
+  tableRootInto,
+  unwrapNear,
+  uprightOfLying,
+  uprightOfRolled,
+  type LieFit,
+  type TableBody,
+} from './tablePatient'
 
 export interface Dims {
   /** Overall size relative to the nominal body. */
@@ -66,6 +96,8 @@ export interface Dims {
    * (PROCEDURAL_GRIP: on its palm), or an avatar's own, measured on its mesh (avatars.ts measureHandGrip). An instrument's grip point is this plus its grip's.
    */
   grip: [number, number]
+  /** R5 wave 3: the torso's support function (tablePatient.ts `LieFit`): how the body rests on the pad as it rolls about its long axis. The skeleton's own ellipse until the model measures the mesh. */
+  lie: LieFit
 }
 
 /** R5: the procedural mitten's grip middle: on its palm, half way down the hand (ACT_HANDS.palm, BODY.hand). */
@@ -234,6 +266,16 @@ export interface RigInput {
   tableOffZ: number
   /** Place the followers at once: a warm start, or a Jump (the entity was replaced). */
   tableSnap: boolean
+  // --- R5 wave 3: a procedure table (the CT cryo table `scanTable:cryo`, the ultrasound couch `usCouch:us`), where `tableSeat` is also true ---
+  /** 0 the OR table (the pose's roll tips the top), 1 a procedure table (no tilt: the roll is a wedge under the body, the table's matrix is not used). */
+  tableKind: number
+  /** Face down (`position` 'prone'); on the right side with the left flank up (`position` 'obliqueLeftUp'). */
+  tableProne: boolean
+  tableSide: boolean
+  /** Both arms above the head (`arms` 'aboveHead'); one arm up (`arms` 'oneUp'), the treated side's: +1 the patient's left, -1 the right. */
+  tableUp: boolean
+  tableOne: boolean
+  tableOneSide: number
   // --- W3: the driven body (the player; every NPC leaves these at their defaults and is planned exactly as before) ---
   /**
    * `vx`, `vz` and `speed` above are the body's TRUE velocity, and the fields below say what its keys ask for (the contract `walkBody`, state.ts):
@@ -259,7 +301,7 @@ export function createRig(look: Look, body: Readonly<BodyDims> = NOMINAL_BODY): 
   const ctx = createPoseCtx(h, look.hand, (k) => rnd(h, k))
   return {
     look,
-    dims: { s: look.scale, w: look.build, tl: 1 + (look.build - 1) * 0.6, b: body, mouth: [PROCEDURAL_MOUTH[0], PROCEDURAL_MOUTH[1], PROCEDURAL_MOUTH[2]], grip: [PROCEDURAL_GRIP[0], PROCEDURAL_GRIP[1]] },
+    dims: { s: look.scale, w: look.build, tl: 1 + (look.build - 1) * 0.6, b: body, mouth: [PROCEDURAL_MOUTH[0], PROCEDURAL_MOUTH[1], PROCEDURAL_MOUTH[2]], grip: [PROCEDURAL_GRIP[0], PROCEDURAL_GRIP[1]], lie: defaultLieFit(body) },
     ctx,
     blender: createBlender('relaxed'),
     planter: createPlanter(),
@@ -346,6 +388,12 @@ export function makeInput(): RigInput {
     tableOffY: 0,
     tableOffZ: 0,
     tableSnap: false,
+    tableKind: 0,
+    tableProne: false,
+    tableSide: false,
+    tableUp: false,
+    tableOne: false,
+    tableOneSide: 1,
     driven: false,
     ax: 0,
     az: 0,
@@ -391,6 +439,8 @@ const iPR = MAT * 14
 const iLT = MAT * 15
 /** R5 wave 2: the table's transform in the root frame (tablePatient.ts tableRootInto). */
 const iTR = MAT * 16
+/** R5 wave 3: the roll about the long axis (tablePatient.ts rollMatrixInto). */
+const iRL = MAT * 17
 const LEG = new Float64Array(MAT * 4) // thighL, shinL, thighR, shinR
 const legL = createLegResult()
 const legR = createLegResult()
@@ -476,12 +526,15 @@ const HOLD: readonly (HoldSpec | null)[] = [
   null, // mop (follows the two hands in 'clean')
 ]
 
+/** The branch cut of a patient's arm pitch (radians): the arm horizontal behind the shoulder (see `solveArmReach`). */
+const PITCH_CUT = Math.PI / 2
+
 /**
  * Two-bone arm solve in the chest frame. Writes pitch, roll, twist and elbow into `up` at `base` (the hand's FK block),
  * mixed with the angles already there by `w`. The target is the middle of the hand (the wrist plus 0.085 along the forearm).
  * `side` is +1 for the left arm. A target out of reach is pulled in to the arm's full length.
  */
-function solveArmReach(up: Float32Array, base: number, side: 1 | -1, w: number, tx: number, ty: number, tz: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>, wing = 0, handLen = B.hand): void {
+function solveArmReach(up: Float32Array, base: number, side: 1 | -1, w: number, tx: number, ty: number, tz: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>, wing = 0, handLen = B.hand, pole: Float64Array | null = null, refs: Float64Array | null = null, ri = 0): void {
   const L1 = B.upperArm * s
   // (R5: the hand aim solves for the wrist itself, `handLen` 0, once the wrist is turned)
   const L2 = (B.forearm + handLen) * s
@@ -497,9 +550,10 @@ function solveArmReach(up: Float32Array, base: number, side: 1 | -1, w: number, 
   const sinA = Math.sqrt(1 - cosA * cosA)
   // the elbow bends down and out: the pole, made perpendicular to the shoulder-to-hand line. R5: `wing` 0..1 swings it out (a surgeon's elbows over the table)
   const wg = clamp(wing, 0, 1)
-  let nx = side * (0.55 + 0.65 * wg)
-  let ny = -1 + 0.55 * wg
-  let nz = -0.25 + 0.15 * wg
+  // (R5 wave 3: a body rolled on the table asks for the elbow's direction itself, in the chest frame: up from the pad, not "down and out" of a body that lies on its side)
+  let nx = pole !== null ? pole[0] : side * (0.55 + 0.65 * wg)
+  let ny = pole !== null ? pole[1] : -1 + 0.55 * wg
+  let nz = pole !== null ? pole[2] : -0.25 + 0.15 * wg
   const dot = nx * hx + ny * hy + nz * hz
   nx -= dot * hx
   ny -= dot * hy
@@ -508,6 +562,41 @@ function solveArmReach(up: Float32Array, base: number, side: 1 | -1, w: number, 
   nx /= nl
   ny /= nl
   nz /= nl
+  // R5 wave 3 (P11, the residual twitch): a raised arm's elbow starts on the lying arm's own side of the shoulder-to-hand line and swings round it to the pole as the sweep begins (`LYING`:
+  // the lying arm's pole, the swing's progress). The solve with the lying elbow's side IS the lying pose (the hand is where the lying arm's is), so the hand stays on its way while the arm's
+  // twist, which the lying pose has at 0 and the pole at 2.2 to 2.5 radians, eases over the first part of the sweep instead of in the ten frames the angles are mixed in (the forearm and the
+  // hand rolled about the arm's own axis at 0.25 to 0.36 radians a frame: 3.1 to 4.1 cm a frame at the fingers, with the joints moving 1.3 cm). The angle is taken on the branch nearest
+  // the last frame's (`refs[ri + 4]`), so the elbow never flips to the other way round. Only while the arms are going UP (placeArms sets `LYING` then): coming down, the follower's slow tail
+  // hands the arm back to the lying pose through the old mix, which the swing back made worse (the hand was swung under the pad by the twist's wound-up branch).
+  if (pole !== null && refs !== null && LYING[3] >= 0 && LYING[3] < 1) {
+    let ex = LYING[0]
+    let ey = LYING[1]
+    let ez = LYING[2]
+    const ed = ex * hx + ey * hy + ez * hz
+    ex -= ed * hx
+    ey -= ed * hy
+    ez -= ed * hz
+    const el = Math.sqrt(ex * ex + ey * ey + ez * ez)
+    if (el > 1e-5) {
+      ex /= el
+      ey /= el
+      ez /= el
+      const cx = ey * nz - ez * ny
+      const cy = ez * nx - ex * nz
+      const cz = ex * ny - ey * nx
+      const th = unwrapNear(Math.atan2(cx * hx + cy * hy + cz * hz, ex * nx + ey * ny + ez * nz), refs[ri + SWING_REF])
+      refs[ri + SWING_REF] = th
+      const a = -(1 - LYING[3]) * th
+      const ca = Math.cos(a)
+      const sa = Math.sin(a)
+      const px = nx
+      const py = ny
+      const pz = nz
+      nx = px * ca + (hy * pz - hz * py) * sa
+      ny = py * ca + (hz * px - hx * pz) * sa
+      nz = pz * ca + (hx * py - hy * px) * sa
+    }
+  }
   // upper arm direction u
   const ux = hx * cosA + nx * sinA
   const uy = hy * cosA + ny * sinA
@@ -522,18 +611,34 @@ function solveArmReach(up: Float32Array, base: number, side: 1 | -1, w: number, 
   fz /= fl
   const elbow = Math.acos(clamp(ux * fx + uy * fy + uz * fz, -1, 1))
   const sr = Math.asin(clamp(ux, -1, 1))
-  const pitch = Math.atan2(uz, -uy)
-  // twist: undo pitch then roll on the forearm direction, what is left is the elbow's own bend rotated about the arm axis
+  let pitch = Math.atan2(uz, -uy)
+  // twist: undo pitch then roll on the forearm direction, what is left is the elbow's own bend rotated about the arm axis. R5 wave 3 (a patient's arms: `refs` is given): the direction
+  // the elbow bends (sin A h - cos A n, perpendicular to the upper arm, in the plane of the shoulder, the hand and the pole) stands for the forearm's, so the twist is the bend's own
+  // direction, the same wherever the elbow's angle is more than zero and still defined where the arm is straight: no fading of it is needed, and none is done (the fade of the wrapped
+  // twist jumped by 2 pi times itself where the twist crossed the wrap, and where the arm came to full stretch the fade itself changed quickly).
+  const bnd = refs !== null
+  const gx = bnd ? sinA * hx - cosA * nx : fx
+  const gy = bnd ? sinA * hy - cosA * ny : fy
+  const gz = bnd ? sinA * hz - cosA * nz : fz
   const cp = Math.cos(pitch)
   const sp = Math.sin(pitch)
-  const y1 = fy * cp - fz * sp
-  const z1 = fy * sp + fz * cp
+  const y1 = gy * cp - gz * sp
+  const z1 = gy * sp + gz * cp
   const cs = Math.cos(sr)
   const ss = Math.sin(sr)
-  const x2 = fx * cs + y1 * ss
+  const x2 = gx * cs + y1 * ss
   const z2 = z1
   let twist = Math.atan2(x2, z2) * side
-  twist *= smoothstep(0.02, 0.2, Math.sin(elbow))
+  if (!bnd) twist *= smoothstep(0.02, 0.2, Math.sin(elbow))
+  // R5 wave 3 (a patient's arms: `refs` is given): the angles are MIXED with the lying pose's (about 0) by `w`, so the branch of the target matters. An arm raised overhead has a pitch of
+  // +-pi (atan2 wraps where the arm points straight up), and the mix of 0 with +pi or with -pi swings the arm to opposite sides: it flew 0.6 to 1 m in one frame as the roll turned the
+  // elbow's side. The pitch is taken in (-PITCH_CUT, 2 pi - PITCH_CUT] (the cut is the arm horizontal behind the shoulder, which no lying arm reaches), so a raised arm always sweeps up
+  // through the front. The twist (an atan2 too) is taken on the branch nearest the last solve's (`refs[ri]`, tablePatient.ts `TableBody.twistRef`), nearest zero for the first.
+  if (refs !== null) {
+    if (pitch < -PITCH_CUT) pitch += 2 * Math.PI
+    twist = unwrapNear(twist, refs[ri])
+    refs[ri] = twist
+  }
   const k = clamp(w, 0, 1)
   up[base] += (pitch - up[base]) * k
   up[base + 1] += (side * sr - up[base + 1]) * k
@@ -793,6 +898,13 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   const lieS = Math.sin(lieTheta)
   const lieY = pY + (surface + B.liePelvis - pY) * lb
   const lieSlide = tOn ? PELVIS_ON_TABLE.lithotomy * tb.st[0] * lb : 0
+  // R5 wave 3: the body's roll about its long axis (the turn onto the front, the side, the wedge) and the lift that keeps its torso on the pad at that angle; the limbs'
+  // resting places are given in the table's frame and undone through the roll (`uprightOfRolled`). Nothing when the person is not on a procedure table or lies level.
+  const psiE = tOn && lb > 0 ? tb.psi * lb : 0
+  const rolled = psiE > 1e-4 || psiE < -1e-4
+  const cPsi = rolled ? Math.cos(psiE) : 1
+  const sPsi = rolled ? Math.sin(psiE) : 0
+  const rollDy = rolled ? rollLift(d.lie, psiE) * s : 0
 
   // hips and the two legs
   const hipDrop = B.hipDrop * s
@@ -828,6 +940,33 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     prx += (-LITHO_POLE.x - prx) * kL
     prz += (LITHO_POLE.up - prz) * kL
   }
+  // R5 wave 3: a body rolled onto its front or its side: each ankle goes to a place on the pad (side by side, or the upper leg riding on the lower one), where it lies from the hip
+  // along the table as the lying leg's own does; the knees bow up away from the pad (the pole is the way up in the body's own frame: (sin psi, cos psi)) and the feet trail
+  // plantar-flexed on their fronts
+  const kRoll = rolled ? smoothstep(LEG_ROLL_FROM, LEG_ROLL_TO, Math.abs(wrapPi(psiE))) : 0
+  let plantar = 0
+  if (kRoll > 0.0005) {
+    const half = ROLL_LEGS.half * s
+    const lat = 1 - 0.8 * sPsi * sPsi
+    const rest = surface + ROLL_LEGS.rest * s
+    const stack = ROLL_LEGS.stack * s
+    // (the left leg: the one at +x)
+    let dN = lieS * ay0 + lieC * az0 - lieS * pY + lieSlide
+    uprightOfRolled(Q3, 0, half * cPsi * lat, rest + clamp(2 * half * sPsi, 0, stack), dN, cPsi, sPsi, lieY, rollDy, lieC, lieS, lieY, lieSlide, pY)
+    lax += (Q3[0] - lax) * kRoll
+    lay += (Q3[1] - lay) * kRoll
+    laz += (Q3[2] - laz) * kRoll
+    dN = lieS * ay1 + lieC * az1 - lieS * pY + lieSlide
+    uprightOfRolled(Q3, 0, -half * cPsi * lat, rest + clamp(-2 * half * sPsi, 0, stack), dN, cPsi, sPsi, lieY, rollDy, lieC, lieS, lieY, lieSlide, pY)
+    rax += (Q3[0] - rax) * kRoll
+    ray += (Q3[1] - ray) * kRoll
+    raz += (Q3[2] - raz) * kRoll
+    plx += (sPsi - plx) * kRoll
+    plz += (cPsi - plz) * kRoll
+    prx += (sPsi - prx) * kRoll
+    prz += (cPsi - prz) * kRoll
+    plantar = ROLL_LEGS.plantar * 0.5 * (1 - cPsi) * kRoll
+  }
   solveLeg(LEG, 0, S[iHL], S[iHL + 1], S[iHL + 2], lax, lay, laz, plx, plz, thighL, shinL, legL)
   solveLeg(LEG, MAT * 2, S[iHR], S[iHR + 1], S[iHR + 2], rax, ray, raz, prx, prz, thighL, shinL, legR)
 
@@ -844,12 +983,20 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   mul(S, iT2, S, iC, S, iT1)
   copy12(S, iC, S, iT2)
 
-  const hYaw = up[U.headYaw] + 0.8 * lyaw - 0.5 * (cYaw + pYaw)
+  // R5 wave 3: face down, the head turns to the patient's left onto its cheek (and nods a little to the pad)
+  const proneHead = rolled ? smoothstep(PRONE_HEAD.from, PRONE_HEAD.to, Math.abs(wrapPi(psiE))) : 0
+  const hYaw = up[U.headYaw] + 0.8 * lyaw - 0.5 * (cYaw + pYaw) + PRONE_HEAD.yaw * proneHead
   const hPitch = up[U.headPitch] + lpit - 0.5 * (cPitch + pPitch)
   const hRoll = up[U.headRoll] - 0.5 * (cRoll + pRoll)
   copy12(S, iH, S, iC)
   translateLocal(S, iH, 0, B.neck * s, B.neckZ * s)
   setRotYXZ(S, iT1, hYaw, hPitch, hRoll)
+  if (proneHead > 0.001) {
+    // the nod comes after the turn, about the neck's own cross axis: the face goes down to the pad and the head with it (a turned head cannot nod about its own axis)
+    setRotYXZ(S, iT3, 0, PRONE_HEAD.nod * proneHead, 0)
+    mul(S, iT2, S, iT3, S, iT1)
+    copy12(S, iT1, S, iT2)
+  }
   mul(S, iT2, S, iH, S, iT1)
   copy12(S, iH, S, iT2)
 
@@ -866,8 +1013,11 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   armReach(up, REACH_L, ARM_L, 1, shX, shY, shZ, s, pelvisRef, standP, B)
   armReach(up, REACH_R, ARM_R, -1, shX, shY, shZ, s, pelvisRef, standP, B)
   // R5 wave 2: a patient's arms tucked along the sides (the wrists at BODY_LANDMARKS.wristTucked), by how far they are tucked and how much of the pose is the lying one
-  const kT = tOn ? tb.st[2] * lb * wts[MODE_INDEX.lie] : 0
-  if (kT > 0.002) tuckArms(up, kT, shX, shY, shZ, s, B, surface, lieY, pY, lieC, lieS)
+  const kTbl = tOn ? lb * wts[MODE_INDEX.lie] : 0
+  const kT = tb.st[F_TUCK] * kTbl
+  const kU = tb.st[F_UP] * kTbl
+  const kO = tb.st[F_ONE] * kTbl
+  if (kT > 0.002 || kU > 0.002 || kO > 0.002) placeArms(up, kT, kU, kO, tb.oneSide, shX, shY, shZ, s, B, surface, lieY, pY, lieC, lieS, cPsi, sPsi, rollDy, Math.cos(tb.armPsi), Math.sin(tb.armPsi), tb.twistRef, tb.st[F_UP + 1] > 0)
   arm(+1, up, ARM_L, iSL, iEL, iWL, shX, shY, shZ, s, B)
   arm(-1, up, ARM_R, iSR, iER, iWR, shX, shY, shZ, s, B)
   // R5: the instruments in the hands (which, how far shown, the moving part) and the hand aim: the wrist turns the tool's tip to the work
@@ -985,10 +1135,10 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
   putPart(out, o, P.shinL, LEG, MAT, ts, s, ts)
   putPart(out, o, P.thighR, LEG, MAT * 2, ts, s, ts)
   putPart(out, o, P.shinR, LEG, MAT * 3, ts, s, ts)
-  setFootMatrix(S, iT1, legL.ankleX, legL.ankleY, legL.ankleZ, yaw0, pitch0)
+  setFootMatrix(S, iT1, legL.ankleX, legL.ankleY, legL.ankleZ, yaw0, pitch0 - plantar)
   if (kL > 0.0005) footToShin(S, iT1, LEG, MAT, kL)
   putPart(out, o, P.footL, S, iT1, s, s, s)
-  setFootMatrix(S, iT1, legR.ankleX, legR.ankleY, legR.ankleZ, yaw1, pitch1)
+  setFootMatrix(S, iT1, legR.ankleX, legR.ankleY, legR.ankleZ, yaw1, pitch1 - plantar)
   if (kL > 0.0005) footToShin(S, iT1, LEG, MAT * 3, kL)
   putPart(out, o, P.footR, S, iT1, s, s, s)
 
@@ -1054,9 +1204,17 @@ export function solveRig(r: PersonRig, inp: RigInput, out: Float32Array, o: numb
     S[iLT + 11] = -sT * pY + lieSlide
     // R5 wave 2: a patient on the table is carried by the table's own transform, the whole laid-flat body as one (the pelvis, the legs in the boots, the arms, the head)
     if (tOn) {
-      tableRootInto(tb, inp.x, inp.y, inp.z, inp.heading, inp.tableOffX, inp.tableOffY, inp.tableOffZ, S, iTR)
-      mul(S, iT3, S, iTR, S, iLT)
-      copy12(S, iLT, S, iT3)
+      // R5 wave 3: the roll about the long axis (the lift keeps the torso on the pad), then the table's own transform (the OR table; a procedure table is level)
+      if (rolled) {
+        rollMatrixInto(S, iRL, cPsi, sPsi, lieY, rollDy)
+        mul(S, iT3, S, iRL, S, iLT)
+        copy12(S, iLT, S, iT3)
+      }
+      if (inp.tableKind === 0) {
+        tableRootInto(tb, inp.x, inp.y, inp.z, inp.heading, inp.tableOffX, inp.tableOffY, inp.tableOffZ, S, iTR)
+        mul(S, iT3, S, iTR, S, iLT)
+        copy12(S, iLT, S, iT3)
+      }
     }
     for (let part = 0; part < PART_COUNT; part++) {
       const b = o + part * MAT
@@ -1122,7 +1280,7 @@ function armReach(up: Float32Array, reachBase: number, base: number, side: 1 | -
 }
 
 /** The two-bone arm solve for a target given as a root-frame point (metres, this person's size), mixed into the angles at `base` by `k`. */
-function armReachAt(up: Float32Array, base: number, side: 1 | -1, k: number, tx: number, ty: number, tz: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>, wing: number, handLen: number): void {
+function armReachAt(up: Float32Array, base: number, side: 1 | -1, k: number, tx: number, ty: number, tz: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>, wing: number, handLen: number, pole: Float64Array | null = null, refs: Float64Array | null = null, ri = 0): void {
   // root frame -> chest frame: the chest matrix is at S[iC]
   const dx = tx - S[iC + 3]
   const dy = ty - S[iC + 7]
@@ -1130,35 +1288,183 @@ function armReachAt(up: Float32Array, base: number, side: 1 | -1, k: number, tx:
   TGT[0] = S[iC] * dx + S[iC + 4] * dy + S[iC + 8] * dz
   TGT[1] = S[iC + 1] * dx + S[iC + 5] * dy + S[iC + 9] * dz
   TGT[2] = S[iC + 2] * dx + S[iC + 6] * dy + S[iC + 10] * dz
-  solveArmReach(up, base, side, k, TGT[0], TGT[1], TGT[2], shX, shY, shZ, s, B, wing, handLen)
+  solveArmReach(up, base, side, k, TGT[0], TGT[1], TGT[2], shX, shY, shZ, s, B, wing, handLen, pole, refs, ri)
+}
+
+/** The elbow's direction for a raised arm, in the chest frame (module scratch `POLE`): out to table side `out` (-1..1, +1 table x: it eases through 0, straight up, as the arm crosses the middle in a roll) and up from the pad, carried through the roll and the lie transform. */
+const POLE = new Float64Array(3)
+function armPole(out: number, cPsi: number, sPsi: number, lieC: number, lieS: number): void {
+  // the direction in the table's frame: out 0.6, up 0.8 (the elbow rises off the pad rather than sprawling out: the bore is 0.76 m across)
+  const fx = out * 0.6
+  const fy = 0.8
+  // the roll undone, then the lie transform undone (directions: no translation), into the root's upright frame
+  const rx = cPsi * fx + sPsi * fy
+  const ry = -sPsi * fx + cPsi * fy
+  const ux = rx
+  const uy = lieC * ry + lieS * 0
+  const uz = -lieS * ry + lieC * 0
+  // the root frame -> the chest frame (the chest matrix's rotation, transposed)
+  POLE[0] = S[iC] * ux + S[iC + 4] * uy + S[iC + 8] * uz
+  POLE[1] = S[iC + 1] * ux + S[iC + 5] * uy + S[iC + 9] * uz
+  POLE[2] = S[iC + 2] * ux + S[iC + 6] * uy + S[iC + 10] * uz
 }
 
 /**
- * R5 wave 2: a patient's arms tucked along the sides: each WRIST goes to `BODY_LANDMARKS.wristTucked` (mirrored; given on the table with the body, so the pelvis's
- * slide cancels), solved in the upright frame through the lie transform (`lieC`, `lieS`, `lieY`, `pY`), the elbow winged out to the side (it falls over the pad's edge
- * rather than into the pad), the palm in. `k` is how far the arms are tucked: the angles of the lying pose are mixed toward the solve by it.
+ * R5 wave 2 and 3: where a patient's arms are put, each WRIST to a point of the table's frame, solved in the upright frame through the lie transform (`lieC`, `lieS`,
+ * `lieY`, `pY`) and the body's roll (`cPsi`, `sPsi`, lifted by `rollDy`), the elbow winged out to the side (it falls over the pad's edge rather than into the pad). By how far
+ * each is in force (the angles of the lying pose are mixed toward each solve by it):
+ *   `kT`  both arms tucked along the sides, the wrists at `BODY_LANDMARKS.wristTucked` (mirrored; given on the table with the body, so the pelvis's slide cancels), the palm in;
+ *   `kU`  both above the head: the wrists over the head on the pad (`ARMS_UP`), the hands beyond the crown supine, the forearms by the head prone, the arm that is up on its
+ *         side resting higher;
+ *   `kO`  one arm up (`oneSide`, +1 the patient's left): the wrist behind the head on a pillow (`ARM_ONE`); the other arm is tucked along its side by the same `kO`.
  */
-function tuckArms(up: Float32Array, k: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>, surface: number, lieY: number, pY: number, lieC: number, lieS: number): void {
+/** The lying pose's hand targets (upright root frame, metres; left then right) a raised arm's sweep starts from. */
+const REST = new Float64Array(6)
+/** The lying pose's elbow poles (upright root frame, unit vectors across the shoulder-to-hand line, 0 for a straight arm; left then right): the side the elbow swings from. */
+const RELB = new Float64Array(6)
+/** The elbow swing `solveArmReach` takes: the lying arm's pole in the chest frame (x, y, z) and how far the swing has come (0 the lying side, 1 the pole; -1: none). */
+const LYING = new Float64Array([0, 0, 0, -1])
+/** `refs` slots of the elbow swing's angle (above the head, left then right): the twist's own slot plus this. */
+const SWING_REF = 4
+
+/** The point the arm solve aims at for the hand, with the arm as `arm()` has just laid it: the elbow's frame, `forearm + hand` along its -Y. */
+function restHandInto(o: number, iS: number, iE: number, s: number, B: Readonly<BodyDims>): void {
+  const L = (B.forearm + B.hand) * s
+  REST[o] = S[iE + 3] - S[iE + 1] * L
+  REST[o + 1] = S[iE + 7] - S[iE + 5] * L
+  REST[o + 2] = S[iE + 11] - S[iE + 9] * L
+  // the side the elbow lies on, as a direction across the shoulder-to-hand line (the lying arm's own pole), kept as it is for the whole sweep
+  const hx = REST[o] - S[iS + 3]
+  const hy = REST[o + 1] - S[iS + 7]
+  const hz = REST[o + 2] - S[iS + 11]
+  const hl = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1
+  const ux = hx / hl
+  const uy = hy / hl
+  const uz = hz / hl
+  let ex = S[iE + 3] - S[iS + 3]
+  let ey = S[iE + 7] - S[iS + 7]
+  let ez = S[iE + 11] - S[iS + 11]
+  const ed = ex * ux + ey * uy + ez * uz
+  ex -= ed * ux
+  ey -= ed * uy
+  ez -= ed * uz
+  const el = Math.sqrt(ex * ex + ey * ey + ez * ez)
+  const inv = el > 1e-5 ? 1 / el : 0
+  RELB[o] = ex * inv
+  RELB[o + 1] = ey * inv
+  RELB[o + 2] = ez * inv
+}
+
+function placeArms(up: Float32Array, kT: number, kU: number, kO: number, oneSide: number, shX: number, shY: number, shZ: number, s: number, B: Readonly<BodyDims>, surface: number, lieY: number, pY: number, lieC: number, lieS: number, cPsi: number, sPsi: number, rollDy: number, armC: number, armS: number, refs: Float64Array, upRising: boolean): void {
   const w = BODY_LANDMARKS.wristTucked
+  const prone01 = 0.5 * (1 - cPsi)
+  if (kU > 0.002) {
+    // where each hand lies now, before any placement has touched the angles: the lying pose's, in the upright frame (the elbow's frame carries the forearm along its -Y)
+    arm(1, up, ARM_L, iSL, iEL, iWL, shX, shY, shZ, s, B)
+    restHandInto(0, iSL, iEL, s, B)
+    arm(-1, up, ARM_R, iSR, iER, iWR, shX, shY, shZ, s, B)
+    restHandInto(3, iSR, iER, s, B)
+  }
   for (let a = 0; a < 2; a++) {
     const side: 1 | -1 = a === 0 ? 1 : -1
     const base = side === 1 ? ARM_L : ARM_R
-    uprightOfLying(Q3, 0, side * w.x, surface + w.h, w.d, lieC, lieS, lieY, 0, pY)
-    // the wrist is moved away from the shoulder by up to TUCK_EXTEND, as far as the arm reaches, so the elbow does not bow out
-    transformPoint(S, iC, side * shX, shY, shZ, Q3, 3)
-    const vx = Q3[0] - Q3[3]
-    const vy = Q3[1] - Q3[4]
-    const vz = Q3[2] - Q3[5]
-    const dist = Math.sqrt(vx * vx + vy * vy + vz * vz)
-    const reach = (B.upperArm + B.forearm) * s * 0.995
-    if (dist > 1e-6 && dist < reach) {
-      const e = Math.min(reach, dist + TUCK_EXTEND) / dist
-      Q3[0] = Q3[3] + vx * e
-      Q3[1] = Q3[4] + vy * e
-      Q3[2] = Q3[5] + vz * e
+    const raised = side === oneSide
+    const tuck = clamp(kT + (raised ? 0 : kO), 0, 1)
+    if (tuck > 0.002) {
+      // (the wrist's side rides the roll as the raised arms' does: face down the patient's left hand is on the table's -x, not crossed over to the right hand's place)
+      uprightOfRolled(Q3, 0, side * w.x * cPsi, surface + w.h, w.d, cPsi, sPsi, lieY, rollDy, lieC, lieS, lieY, 0, pY)
+      // the wrist is moved away from the shoulder by up to TUCK_EXTEND, as far as the arm reaches, so the elbow does not bow out
+      transformPoint(S, iC, side * shX, shY, shZ, Q3, 3)
+      const vx = Q3[0] - Q3[3]
+      const vy = Q3[1] - Q3[4]
+      const vz = Q3[2] - Q3[5]
+      const dist = Math.sqrt(vx * vx + vy * vy + vz * vz)
+      const reach = (B.upperArm + B.forearm) * s * 0.995
+      if (dist > 1e-6 && dist < reach) {
+        const e = Math.min(reach, dist + TUCK_EXTEND) / dist
+        Q3[0] = Q3[3] + vx * e
+        Q3[1] = Q3[4] + vy * e
+        Q3[2] = Q3[5] + vz * e
+      }
+      armReachAt(up, base, side, tuck, Q3[0], Q3[1], Q3[2], shX, shY, shZ, s, B, TUCK_WING, 0, null, refs, a)
+      up[base + 5] += (TUCK_PRON - up[base + 5]) * tuck
+    } else refs[a] = NaN
+    if (kU > 0.002) {
+      const dW = ARMS_UP.d + (ARMS_UP.dProne - ARMS_UP.d) * prone01
+      const hF = ARMS_UP.rest + Math.max(0, side * ARMS_UP.rise * sPsi)
+      const latF = side * ARMS_UP.lat * cPsi
+      // R5 wave 3 (P11): the hand slides over the pad from where it lies (the lying pose's hand at the side of the hip: `REST`) round the shoulder (an arc in the table's plane, centred on
+      // the shoulder as the table sees it) out beside the body and up to its place over the head, in the TABLE'S frame: it never leaves the pad's plane, whatever the roll does underneath.
+      // The angles used to be mixed linearly with the lying pose's (the arm swung through the chest's front, which face down is the table: wrists 37 to 49 cm under the pad, 3 to 4 s of
+      // each turn). Round the shoulder the arm's distance from it changes smoothly (the elbow is not asked to snap from straight to bent), and it starts where the lying pose's own arm
+      // is, so the handover to the solved arm moves nothing.
+      // (the follower is eased once more along the path: the hand leaves the rest place gently and goes at about the follower's own peak pace through the middle)
+      const k1 = kU > 1 ? 1 : kU
+      const kk = k1 * k1 * (3 - 2 * k1)
+      // the shoulder in the table's frame: the chest's joint in the upright frame, laid flat, then rolled (the inverse of `uprightOfRolled`)
+      transformPoint(S, iC, side * shX, shY, shZ, Q3, 3)
+      const uy = Q3[4] - pY
+      const ly = lieY + lieC * uy - lieS * Q3[5]
+      const lz = lieS * uy + lieC * Q3[5]
+      const xs = cPsi * Q3[3] - sPsi * (ly - lieY)
+      const hs = sPsi * Q3[3] + cPsi * (ly - lieY) + rollDy
+      const ds = lz
+      // the rest hand in the table's frame: laid flat, then rolled by the roll the arms rest at (`armPsi`: nothing when the patient lies level; face down the hand is where the body's side
+      // is), and no lower than the pad's plane
+      const o3 = a * 3
+      const rly = lieY + lieC * (REST[o3 + 1] - pY) - lieS * REST[o3 + 2]
+      const rd = lieS * (REST[o3 + 1] - pY) + lieC * REST[o3 + 2]
+      const cA = armC
+      const sA = armS
+      const rx = cA * REST[o3] - sA * (rly - lieY)
+      let ry = sA * REST[o3] + cA * (rly - lieY) + lieY - surface
+      if (ry < ARM_SWEEP.floor * s) ry = ARM_SWEEP.floor * s
+      // (outward from the shoulder, and along the table toward the feet, of the rest hand and of the place over the head, in metres)
+      const u0 = side * (rx - xs)
+      const dd0 = rd - ds
+      const fx = latF * s
+      const fd = dW * s
+      const u1 = side * (fx - xs)
+      const dd1 = fd - ds
+      const a0 = Math.atan2(u0, dd0)
+      let a1 = Math.atan2(u1, dd1)
+      // (always the way out beside the body, never across it: round the side the rest hand is on)
+      if (u0 >= 0) {
+        if (a1 < a0) a1 += 2 * Math.PI
+      } else if (a1 > a0) a1 -= 2 * Math.PI
+      const r0 = Math.sqrt(u0 * u0 + dd0 * dd0)
+      const r1 = Math.sqrt(u1 * u1 + dd1 * dd1)
+      const bump = smoothstep(0, 0.4, kk) * (1 - smoothstep(0.6, 1, kk))
+      const r = r0 + (r1 - r0) * kk - ARM_SWEEP.pull * s * bump
+      const al = a0 + (a1 - a0) * kk
+      const px = xs + side * r * Math.sin(al)
+      const ph = ry + (hF * s - ry) * kk + ARM_SWEEP.lift * s * bump
+      const pd = ds + r * Math.cos(al)
+      void hs
+      uprightOfRolled(Q3, 0, px, surface + ph, pd, cPsi, sPsi, lieY, rollDy, lieC, lieS, lieY, 0, pY)
+      // the elbow stands out to the side the arm is on and up from the pad
+      armPole(clamp((latF * s) / 0.06, -1, 1), cPsi, sPsi, lieC, lieS)
+      // (the lying arm's pole, from the upright frame into the chest's)
+      const ex = RELB[o3]
+      const ey = RELB[o3 + 1]
+      const ez = RELB[o3 + 2]
+      LYING[0] = S[iC] * ex + S[iC + 4] * ey + S[iC + 8] * ez
+      LYING[1] = S[iC + 1] * ex + S[iC + 5] * ey + S[iC + 9] * ez
+      LYING[2] = S[iC + 2] * ex + S[iC + 6] * ey + S[iC + 10] * ez
+      // (only while the arms are going up: coming down, the lying pose's own elbow side has nothing to give a hand that is on its way back to where the lying pose has it)
+      LYING[3] = upRising ? smoothstep(ARM_SWEEP.blend, ARM_SWEEP.swing, kU) : -1
+      armReachAt(up, base, side, smoothstep(0, ARM_SWEEP.blend, kU), Q3[0], Q3[1], Q3[2], shX, shY, shZ, s, B, TUCK_WING, B.hand, POLE, refs, 2 + a)
+      LYING[3] = -1
+    } else {
+      refs[2 + a] = NaN
+      refs[2 + a + SWING_REF] = NaN
     }
-    armReachAt(up, base, side, k, Q3[0], Q3[1], Q3[2], shX, shY, shZ, s, B, TUCK_WING, 0)
-    up[base + 5] += (TUCK_PRON - up[base + 5]) * k
+    if (raised && kO > 0.002) {
+      const lat = side * ARM_ONE.lat * s
+      uprightOfRolled(Q3, 0, lat, surface + ARM_ONE.h * s, ARM_ONE.d * s, cPsi, sPsi, lieY, rollDy, lieC, lieS, lieY, 0, pY)
+      armPole(clamp(lat / 0.06, -1, 1), cPsi, sPsi, lieC, lieS)
+      armReachAt(up, base, side, kO, Q3[0], Q3[1], Q3[2], shX, shY, shZ, s, B, TUCK_WING, B.hand, POLE, refs, 4 + a)
+    } else refs[4 + a] = NaN
   }
 }
 

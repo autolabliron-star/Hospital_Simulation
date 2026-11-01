@@ -3,9 +3,11 @@
  * the argon hiss only while argon runs (periodic: windows join with no gap and no repeat), and the freeze beep once on a fresh freeze, never at load.
  */
 import { describe, expect, it } from 'vitest'
-import { cryoState } from '@/scene/cryoSuite/testkit'
+import { anaesState, cryoState } from '@/scene/cryoSuite/testkit'
+import { CRYO_SUITE } from '@/sim/places'
 import { ctPitchHz } from '../patterns'
-import { createCryoPattern, HISS_PERIOD_S, newCryoMemory, planCryo } from './cryoSuitePatterns'
+import { createCryoPattern, HISS_PERIOD_S, newCryoMemory, planCryo, VENT_AT } from './cryoSuitePatterns'
+import { BREATH_PERIOD_S } from './surgeryPatterns'
 import type { DeviceEvent, DroneSpec, PatternSink, PlanWindow } from './registry'
 
 function sink() {
@@ -80,5 +82,88 @@ describe('the cryo suite sounds', () => {
     const o = sink()
     createCryoPattern(() => null).plan(win(0, 1), o.out)
     expect(o.events).toHaveLength(0)
+  })
+})
+
+describe('R5 wave 3: the anaesthesia machine\'s ventilator', () => {
+  /** The start times of the ventilator's breaths (its first noise: a band rising from 320 Hz). */
+  const breaths = (events: DeviceEvent[]): number[] => events.filter((e) => e.kind === 'noise' && e.f0 === 320).map((e) => e.t)
+  const plan = (s: ReturnType<typeof anaesState>, from: number, to: number, speed = 1) => {
+    const o = sink()
+    planCryo(s, newCryoMemory(), win(from, to, 100, speed), o.out)
+    return o
+  }
+  const quiet = (s: ReturnType<typeof anaesState>): void => {
+    s.rotor = 0
+    s.argon = false
+    s.robot.phase = 'stowed'
+  }
+
+  it('sits at the machine\'s bellows, on the OR ventilator\'s breath (4.8 s)', () => {
+    expect(VENT_AT.x).toBe(CRYO_SUITE.anaesMachine.at.at.x)
+    expect(VENT_AT.z).toBe(CRYO_SUITE.anaesMachine.at.at.z)
+    expect(BREATH_PERIOD_S).toBe(4.8)
+    const s = anaesState()
+    quiet(s)
+    const o = plan(s, 0, 20)
+    const t = breaths(o.events)
+    expect(t).toHaveLength(Math.ceil(20 / BREATH_PERIOD_S))
+    for (let i = 1; i < t.length; i++) expect(t[i] - t[i - 1]).toBeCloseTo(BREATH_PERIOD_S, 9)
+    for (const e of o.events) expect(e.at).toEqual(VENT_AT)
+  })
+
+  it('breathes only while the machine works a patient: lung and liver, not the kidney, not before the monitors go on, not while the sim is paused', () => {
+    for (const target of ['lung', 'liver'] as const) {
+      const s = anaesState({ target })
+      quiet(s)
+      expect(breaths(plan(s, 0, 10).events).length, target).toBeGreaterThan(0)
+    }
+    const k = anaesState({ target: 'kidney' })
+    quiet(k)
+    expect(breaths(plan(k, 0, 10).events)).toHaveLength(0)
+    const kn = cryoState({ step: 'freeze1' })
+    kn.argon = false
+    expect(breaths(plan(kn as never, 0, 10).events)).toHaveLength(0)
+    const early = anaesState({ airway: 'none' })
+    quiet(early)
+    expect(breaths(plan(early, 0, 10).events)).toHaveLength(0)
+    const paused = anaesState()
+    quiet(paused)
+    expect(breaths(plan(paused, 0, 10, 0).events)).toHaveLength(0)
+  })
+
+  it('holds its breath: silent for as long as the sim says the breath is held (a scan, a needle push), and back with the window after', () => {
+    const s = anaesState()
+    quiet(s)
+    const mem = newCryoMemory()
+    const o = sink()
+    // 10 s of windows, the held breath from 3 s to 8 s
+    for (let k = 0; k < 100; k++) {
+      s.apnoea = k >= 30 && k < 80
+      planCryo(s, mem, win(k * 0.1, (k + 1) * 0.1, 100), o.out)
+    }
+    const t = breaths(o.events)
+    // breaths at 0 and 4.8 are planned in windows that were running at the time: 0 yes, 4.8 is inside the hold (3..8): no; 9.6 is after: yes
+    expect(t.filter((x) => x >= 3 && x < 8)).toHaveLength(0)
+    expect(t.some((x) => x < 3)).toBe(true)
+    expect(t.some((x) => x >= 8)).toBe(true)
+    // the whole day without a hold has the one in the middle
+    const free = sink()
+    const m2 = newCryoMemory()
+    const s2 = anaesState()
+    quiet(s2)
+    for (let k = 0; k < 100; k++) planCryo(s2, m2, win(k * 0.1, (k + 1) * 0.1, 100), free.out)
+    expect(breaths(free.events).length).toBe(breaths(o.events).length + 1)
+  })
+
+  it('joins up across windows with no gap and no repeat', () => {
+    const s = anaesState()
+    quiet(s)
+    const mem = newCryoMemory()
+    const o = sink()
+    for (let k = 0; k < 150; k++) planCryo(s, mem, win(k * 0.1, (k + 1) * 0.1, 100), o.out)
+    const t = breaths(o.events)
+    expect(t).toHaveLength(Math.ceil(15 / BREATH_PERIOD_S))
+    for (let i = 1; i < t.length; i++) expect(t[i] - t[i - 1]).toBeCloseTo(BREATH_PERIOD_S, 9)
   })
 })

@@ -157,12 +157,23 @@ const EXPECTED: Array<[id: string, modality: string, bodyPart: string, sequences
       ['Freeze 2', 'sweep', 'none', 420, 6],
     ],
   ],
+  [
+    'us-cryo-fibroadenoma',
+    'us',
+    'breast',
+    [
+      ['Probe placement', 'sweep', 'none', 120, 3],
+      ['Freeze 1', 'sweep', 'none', 264, 4],
+      ['Thaw', 'sweep', 'none', 264, 3],
+      ['Freeze 2', 'sweep', 'none', 264, 4],
+    ],
+  ],
 ]
 
 /** The brief's clinical rules, one reason each. */
 
 describe('protocols', () => {
-  it('defines exactly the protocols in the brief (thirteen, the R3 knee radiograph, the non-contrast CT KUB and the ProSense cryoablation)', () => {
+  it('defines exactly the protocols in the brief (thirteen, the R3 knee radiograph, the non-contrast CT KUB and the two ProSense cryoablations)', () => {
     expect(Object.keys(PROTOCOLS).sort()).toEqual(EXPECTED.map(([id]) => id).sort())
   })
 
@@ -182,7 +193,8 @@ describe('protocols', () => {
 
   it('marks the cryoablation steps (place, freeze, thaw, freeze), and every other protocol is plain scans (no step)', () => {
     expect(protocolById('us-cryo-breast').sequences.map((s) => s.step)).toEqual(['place', 'freeze', 'thaw', 'freeze'])
-    for (const p of Object.values(PROTOCOLS)) if (p.id !== 'us-cryo-breast') for (const s of p.sequences) expect(s.step, `${p.id} ${s.name}`).toBeUndefined()
+    expect(protocolById('us-cryo-fibroadenoma').sequences.map((s) => s.step)).toEqual(['place', 'freeze', 'thaw', 'freeze'])
+    for (const p of Object.values(PROTOCOLS)) if (!p.id.startsWith('us-cryo-')) for (const s of p.sequences) expect(s.step, `${p.id} ${s.name}`).toBeUndefined()
   })
 
   it('rejects procedure steps outside the ultrasound, a thaw before any freeze, and scan sweeps mixed into a procedure', () => {

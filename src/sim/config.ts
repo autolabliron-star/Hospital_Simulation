@@ -3,6 +3,20 @@
  * Geometry lives in places.ts; this file holds only numbers that change how the hospital behaves.
  * Times are in sim seconds, distances in metres.
  */
+/** R5 wave 3: the cryo suite's targets (the `CryoTarget` union of types.ts, spelled out here: this file imports nothing). */
+export type CryoTargetKey = 'kidney' | 'lung' | 'liver'
+/** One target's settings in `CONFIG.cryoSuite.targets` (see the comment there). */
+export interface CryoTargetBlock {
+  anaesthesia: 'sedation' | 'general' | 'deepSedation'
+  anaesthetist: boolean
+  position: 'obliqueLeftUp' | 'prone'
+  approach: { thetaDeg: readonly [number, number]; entryX: readonly [number, number]; entryY: readonly [number, number] }
+  needles?: readonly [number, number]
+  tumourMm?: readonly [number, number]
+  iceMm?: readonly [number, number]
+  stepMinutes?: Readonly<Partial<Record<'arrive' | 'sedation' | 'planningCt' | 'planning' | 'aimPerNeedle' | 'aimExtra' | 'checkCt' | 'anchorFreeze' | 'anchorThaw' | 'freeze1' | 'thaw' | 'freeze2' | 'activeThaw' | 'needlesOut' | 'finalCt' | 'dressing' | 'out', readonly [number, number]>>>
+}
+
 export const CONFIG = {
   sim: {
     step: 1 / 60,
@@ -315,6 +329,75 @@ export const CONFIG = {
     stuckSeconds: 150,
     /** The metrics window of the utilisation numbers (clock hours). */
     utilisationHours: [7.75, 17.0] as readonly [number, number],
+
+    /**
+     * R5 wave 3: the ProSense cryoablation in the ultrasound room (docs/research/cryoablation.md, docs/research/procedures.md sections 10-12).
+     * The exam of the cryoablation is an ultrasound "exam" whose steps are a procedure (place, freeze, thaw, freeze) played through the R5 step
+     * engine (src/sim/procedure, src/content/procedures/us-*.json). These constants were `CRYO` in exam.ts.
+     */
+    cryo: {
+      /** The consent and the local anaesthetic take this many times the ultrasound history talk (`explainSeconds.us`). */
+      explainFactor: 3,
+      /** The demo patient is already consented: only the local anaesthetic, this share of a normal talk. */
+      demoExplainFactor: 0.4,
+      /** Skin prep, gel and a sterile drape: this many times the ultrasound positioning. */
+      positionFactor: 2.5,
+      /** A small dressing on the probe site, then the room wiped down: this many times the usual cleanup. */
+      cleanupFactor: 2,
+      /** Ice-ball size (0..1) at the end of a freeze that is not the last one; the last freeze ends at 1. (0.86 of the full size is about 36 mm, the ICE3 target of 35 mm.) */
+      firstFreezeSize: 0.86,
+      /** The share of its size the ice ball keeps through a thaw. */
+      thawKeep: 0.85,
+      /** `activity` (cryogen flow) while the probe is being placed: probe contact only, no cryogen. */
+      placeActivity: 0.15,
+      /** How fast the cryogen flow ramps up at a freeze, and down at a thaw or a pause (fraction per second). */
+      flowUpPerSecond: 0.25,
+      flowDownPerSecond: 0.2,
+      /**
+       * The ice ball on the picture at full size: the radius across the beam (mm) and how much longer it is along the probe (the elliptical ball
+       * of the 10 G probe). Full size is 2 x 13 x 1.6 = 41.6 mm along the probe (ICE3: at least 40 mm after the second freeze); the first freeze
+       * ends at `firstFreezeSize` of it, 35.8 mm (at least 35 mm).
+       */
+      iceRadiusMm: 13,
+      iceElongation: 1.6,
+      /** The ice ball's size targets at the end of freeze 1 and freeze 2 (mm, along the probe) for a breast cancer (ICE3). */
+      targetsMm: [35, 40] as readonly [number, number],
+      /**
+       * The console programme in clinical minutes [freeze 1, thaw, freeze 2] and the limit of one freeze (ICE3: 9-8-9, each freeze up to 12).
+       * A watch case shows these on the console and the console clock runs to them; the living day keeps the exam's own (shorter) durations.
+       */
+      programmes: { 'us-cryo-breast': { minutes: [9, 8, 9] as readonly number[], maxFreezeMinutes: 12 } } as Record<string, { minutes: readonly number[]; maxFreezeMinutes: number }>,
+      /** The fibroadenoma: the lump's size (mm, seeded) picks the programme (8-8-8, 6-6-6) and whether the probe has to be moved (`relocateOverMm`). */
+      fibroadenoma: {
+        lumpMm: [10, 38] as readonly [number, number],
+        programmes: [
+          { upToMm: 20, minutes: [6, 6, 6] as readonly number[] },
+          { upToMm: 99, minutes: [8, 8, 8] as readonly number[] },
+        ] as readonly { upToMm: number; minutes: readonly number[] }[],
+        relocateOverMm: 30,
+        /** Sim seconds the living day gives each clinical second of a fibroadenoma's freezes and thaws (the cancer's day durations are the protocol's own). */
+        dayScale: 0.55,
+        /** The probe's place (and its move) in the living day, seconds. */
+        placeSeconds: 120,
+        relocateSeconds: 90,
+      },
+      /** The first step of a case (the sonographer checks the console and the probe, the patient not yet in the room) and the walk in and lie down. Seconds in the living day. */
+      checkSeconds: 20,
+      arriveSeconds: 100,
+      /** The gown change in a cubicle before lying down (R5 fix K19): seconds in the living day (a watch case takes the script's step `changeGown`). */
+      changeSeconds: 30,
+      /** The ProSense patient changing back into her own clothes after the case: a fixed time (the middle of an MRI patient's drawn 20-35 s), so no random number is drawn for her (R5 fix K19). */
+      changeBackSeconds: 28,
+      /**
+       * The watch projection (`ImagingDepartment.watchStartsAt`): after a ProSense case the radiologist walks out to the hall and fades before the next ProSense case
+       * can begin (she is the same person, kept in the simulation): the longest that takes (s).
+       */
+      doctorLeaveSeconds: 10,
+    },
+    /** Seconds the projection allows for a plain scan's patient still on the way to the couch (the walk in from the hall; a demo patient: 19 s from the press to the positioning with the arrival and the call). */
+    prepWalkSeconds: 12,
+    /** The demo patient's age (drawn from this span) per cryoablation protocol: a woman of 70 or more for the cancer (the FDA indication); younger for a fibroadenoma. */
+    cryoAges: { 'us-cryo-breast': [70, 82] as readonly [number, number], 'us-cryo-fibroadenoma': [20, 45] as readonly [number, number] } as Record<string, readonly [number, number]>,
   },
 
   // ---------------------------------------------------------------------------------------------
@@ -615,9 +698,108 @@ export const CONFIG = {
     iceMm: [38, 52] as readonly [number, number],
     firstFreezeSize: 0.85,
     thawKeep: 0.9,
-    /** The presenter's demo: wheeled out of lift B within this many seconds; every step x demoScale. */
+    /**
+     * The presenter's watch case ("Watch step by step", R5): wheeled out of lift B within this many seconds. Its steps take the script's watch
+     * seconds (src/content/procedures/cryo-*.json); `demoScale` is only what is left of the old scaling: the room turnover after it is the
+     * live one x demoScale, and a watch plan made without a script scales every step by it.
+     */
     demoArrivalSeconds: 5,
     demoScale: 0.3,
+    /**
+     * R5 wave 3: the day's list draws a target per case (seeded, on its own fork) with these weights; only the suite's own day uses them (`planCryoDay`
+     * with `mixed`), so a kidney-only day stays byte-identical to R4's. A watch case plays this many needles (the repeat run of its script).
+     */
+    dayTargetShare: { kidney: 0.4, lung: 0.3, liver: 0.3 } as Readonly<Record<CryoTargetKey, number>>,
+    watchNeedles: { kidney: 3, lung: 2, liver: 3 } as Readonly<Record<CryoTargetKey, number>>,
+    /** The ice ball of the lung's short first freeze (a share of full size at its end) and what it keeps through the first thaw. */
+    anchorIce: 0.3,
+    anchorThawKeep: 0.7,
+    /**
+     * The longest held breath (apnoea) the living day shows (seconds). A needle push or a scan takes minutes on the day's clock, but the sources
+     * (docs/research/procedures.md sections 6 and 8) have the ventilator paused for a few seconds at a time: the lung's and the liver's held breath is
+     * a window of this length inside the push (centred on the needle's travel) and inside each scan's sweep, and breathing resumes between. A watch
+     * case's compressed steps are short already: there the held breath is the push step itself and the scan's sweep, uncapped.
+     */
+    apnoeaSeconds: 20,
+    /**
+     * R5 wave 3: what differs per target (docs/research/procedures.md sections 7-9; every number is a seeded draw for the display, the sim makes no
+     * clinical decisions). The kidney keeps the block's own values above (a kidney case plans byte-identically to R4's): its entry here only says
+     * where the patient lies and the direction of the needle paths. A field a target lists replaces the block's.
+     *
+     *   anaesthesia  who sedates and how: the nurse (moderate sedation), the cryo anaesthetist (general anaesthetic with a breathing tube, or
+     *                deep sedation with the airway supported); a held breath (apnoea) for each scan and each needle push when it is the anaesthetist's
+     *   position     on the CT table (`PatientPosition`): the kidney with the left flank up, the lung and the liver prone with the arms above the head
+     *   approach     the needle paths in the planning slice, which is the PATIENT's own frame (+x the patient's left, +y posterior; the room sees it through
+     *                the patient's roll: src/sim/procedure/ctSlice.ts): `thetaDeg` the direction from the tumour toward the skin (0 = toward the patient's
+     *                left, 90 = posterior), `entryX` / `entryY` the bands the skin entries keep to (mm from the tumour centre). The kidney (on her right side,
+     *                the left flank up) comes in from the left, a little anterior. Prone (a half turn: posterior is up, the patient's left is south) the paths
+     *                come in from the back, from the robot's side, which is the patient's RIGHT: x negative, y posterior (up); the bands are narrow (a hand's
+     *                breadth) where the back's skin lies (about 0.25 m over the table top, 0.11 to 0.12 m over the tumour), the calibration the drapes' P5 test
+     *                measures on every avatar
+     *   stepMinutes  the lung's anchor freeze and thaw (3 + 3 minutes: SOLSTICE's 3-3-10-5-10) and `aimExtra`, the minutes after the last needle
+     *                (the liver's fluid to protect its neighbours)
+     */
+    targets: {
+      kidney: {
+        anaesthesia: 'sedation',
+        anaesthetist: false,
+        position: 'obliqueLeftUp',
+        approach: { thetaDeg: [-12, 0], entryX: [75, 95], entryY: [-40, 20] },
+      },
+      lung: {
+        anaesthesia: 'general',
+        anaesthetist: true,
+        position: 'prone',
+        approach: { thetaDeg: [105, 125], entryX: [-20, 0], entryY: [110, 124] },
+        needles: [1, 3],
+        tumourMm: [10, 30],
+        iceMm: [30, 48],
+        stepMinutes: {
+          arrive: [3, 4],
+          sedation: [28, 34],
+          planningCt: [1.5, 2.5],
+          planning: [4, 6],
+          aimPerNeedle: [3, 5],
+          checkCt: [1, 1.5],
+          anchorFreeze: [3, 3],
+          anchorThaw: [3, 3],
+          freeze1: [10, 10],
+          thaw: [5, 5],
+          freeze2: [10, 10],
+          activeThaw: [3, 4],
+          needlesOut: [2, 3],
+          finalCt: [1, 1.5],
+          dressing: [14, 19],
+          out: [2, 3],
+        },
+      },
+      liver: {
+        anaesthesia: 'deepSedation',
+        anaesthetist: true,
+        position: 'prone',
+        approach: { thetaDeg: [105, 125], entryX: [-20, 0], entryY: [108, 122] },
+        needles: [2, 4],
+        tumourMm: [20, 40],
+        iceMm: [38, 58],
+        stepMinutes: {
+          arrive: [3, 4],
+          sedation: [23, 28],
+          planningCt: [1.5, 2.5],
+          planning: [4, 6],
+          aimPerNeedle: [3, 5],
+          aimExtra: [3, 6],
+          checkCt: [1, 1.5],
+          freeze1: [10, 12],
+          thaw: [8, 10],
+          freeze2: [10, 12],
+          activeThaw: [3, 4],
+          needlesOut: [2, 3],
+          finalCt: [1, 1.5],
+          dressing: [9, 14],
+          out: [2, 3],
+        },
+      },
+    } as Readonly<Record<CryoTargetKey, CryoTargetBlock>>,
   },
 
   // ---------------------------------------------------------------------------------------------

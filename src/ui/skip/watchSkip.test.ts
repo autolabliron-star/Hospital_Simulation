@@ -49,4 +49,19 @@ describe('skips while watching (R5)', () => {
     expect(skipTargets(view({ watchStartsAt: 3600 + 1500 })).some((t) => t.kind === 'watch')).toBe(false)
     expect(DEFAULT_SKIP_CTX.leadSeconds).toBe(LEAD)
   })
+
+  it('names the room being watched in the skip\'s caption (R5 wave 3): the CT suite and the ultrasound room get ready; the theatre\'s words are unchanged', () => {
+    const at = 3600 + 1500
+    const caption = (watchRoom?: 'or' | 'cryo' | 'us' | null) => watchTarget(view({ watching: true, watchStartsAt: at, watchRoom }))!.caption
+    expect(caption()).toBe(WATCH.overlay.skipCaption)
+    expect(caption(null)).toBe(WATCH.overlay.skipCaption)
+    expect(caption('or')).toBe(WATCH.overlay.skipCaption)
+    expect(caption('cryo')).toBe(WATCH.overlayRooms.cryo.skipCaption)
+    expect(caption('us')).toBe(WATCH.overlayRooms.us.skipCaption)
+    expect(caption('cryo')).not.toBe(caption('or'))
+    // the target itself (when, how) is the same whichever room it is
+    const a = watchTarget(view({ watching: true, watchStartsAt: at, watchRoom: 'cryo' }))!
+    const b = watchTarget(view({ watching: true, watchStartsAt: at }))!
+    expect([a.toT, a.label, a.kind]).toEqual([b.toT, b.label, b.kind])
+  })
 })

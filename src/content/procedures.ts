@@ -14,6 +14,7 @@
  *   scope     the endoscope picture's stage key; carried forward until another step sets one
  *   event     a line for the event feed (3-6 per script), checklist: the WHO checklist the step is
  *   repeat    (cryo) the step is repeated once per needle: a run of consecutive repeat steps, played n times
+ *   repeatSeconds  (a repeat step) its watch seconds from the second play on: the first needle in full, the next ones as quicker repeats
  *
  * The unions are the contract's (src/sim/types.ts): each is checked with a `Record<Union, true>`, so adding a member there fails the typecheck
  * here until it is listed. Synthetic and display-only: the sim makes no clinical decisions, and the copy stays non-graphic (no blood, no wounds).
@@ -166,6 +167,8 @@ const ACTION_CHECK: Record<ProcAction, true> = {
   insertProbe: true,
   pressSite: true,
   cleanRoom: true,
+  aimRobot: true,
+  turnPatient: true,
 }
 
 const TOOL_CHECK: Record<ToolKind, true> = {
@@ -215,7 +218,7 @@ const TOOL_CHECK: Record<ToolKind, true> = {
   mouse: true,
 }
 
-/** Every anchor belongs to the machine whose room it is in (cryo and ultrasound anchors arrive with their waves). */
+/** Every anchor belongs to the machine whose room it is in. */
 const ANCHOR_MACHINE: Record<ProcAnchor, ProcMachine> = {
   tableSurgeon: 'daVinci',
   assistant: 'daVinci',
@@ -237,6 +240,20 @@ const ANCHOR_MACHINE: Record<ProcAnchor, ProcMachine> = {
   scrubBackTable: 'daVinci',
   anaesLeft: 'daVinci',
   circulatorCount: 'daVinci',
+  ctInsert: 'cryoCt',
+  ctConsole: 'cryoCt',
+  ctHeadSouth: 'cryoCt',
+  ctAnaesHead: 'cryoCt',
+  ctFoot: 'cryoCt',
+  ctSideSouth: 'cryoCt',
+  ctSideNorth: 'cryoCt',
+  ctControlScan: 'cryoCt',
+  ctControlPlan: 'cryoCt',
+  ctControlStand: 'cryoCt',
+  usDoctor: 'prosense',
+  usConsole: 'prosense',
+  usHead: 'prosense',
+  usDoor: 'prosense',
 }
 
 const TARGET_CHECK: Record<ProcTarget, true> = {
@@ -258,6 +275,19 @@ const TARGET_CHECK: Record<ProcTarget, true> = {
   consoleViewer: true,
   sink: true,
   patient: true,
+  ctField: true,
+  needleEntry: true,
+  ctFace: true,
+  robotGuide: true,
+  cryoScreen: true,
+  roomScreen: true,
+  ctScreen: true,
+  planScreen: true,
+  ctAnaesMachine: true,
+  breast: true,
+  usFace: true,
+  usScreen: true,
+  prosenseScreen: true,
 }
 
 const FOCUS_CHECK: Record<FocusId, true> = {
@@ -282,6 +312,10 @@ const FOCUS_CHECK: Record<FocusId, true> = {
   controlRoom: true,
   usScreen: true,
   breast: true,
+  ctHead: true,
+  ctRoom: true,
+  usRoom: true,
+  prosenseConsole: true,
 }
 
 /** The theatre phases a da Vinci case passes through in the room (a type-level copy of `ROOM_PHASES`, src/sim/surgery/plan.ts, which a test compares). */
@@ -305,11 +339,15 @@ const ROOM_PHASE_CHECK: Record<RoomPhase, true> = {
 export const UNITS: Record<ProcMachine, readonly string[]> = {
   daVinci: Object.keys(ROOM_PHASE_CHECK),
   cryoCt: CRYO_STEPS.filter((s) => s !== 'idle' && s !== 'turnover'),
-  prosense: ['prep', 'positioning', 'scanning', 'cleanup'],
+  // ProSense (src/sim/imaging/prosense.ts): the units are the windows of the exam's own session, so the steps tile it exactly. check: the sonographer
+  // checks the console, the patient not yet in the room; arrive: the walk in and lying down; survey / drape: the exam's explain and positioning
+  // phases; place, freeze1, thaw, freeze2 (and, for a fibroadenoma whose lump needs the probe moved, relocate and freeze3): one per exam sequence
+  // (each with the pause after it); cleanup: the exam's cleanup phase (the probe out, the dressing, the aftercare talk, the walk out).
+  prosense: ['check', 'arrive', 'survey', 'drape', 'place', 'freeze1', 'thaw', 'freeze2', 'relocate', 'freeze3', 'cleanup'],
 }
 
 /** Units a case may pass through without any step (zero-length for most targets). */
-export const OPTIONAL_UNITS: Record<ProcMachine, readonly string[]> = { daVinci: [], cryoCt: ['anchorFreeze', 'anchorThaw'], prosense: [] }
+export const OPTIONAL_UNITS: Record<ProcMachine, readonly string[]> = { daVinci: [], cryoCt: ['anchorFreeze', 'anchorThaw'], prosense: ['relocate', 'freeze3'] }
 
 /**
  * The machine's own sub-windows of a unit, in order: a unit listed here has its steps laid into these slots (every step names one; the slots
@@ -387,6 +425,7 @@ const StepSchema = z
     unit: z.string().min(1),
     slot: z.string().min(1).optional(),
     repeat: z.boolean().optional(),
+    repeatSeconds: z.number().min(8).max(180).optional(),
     caption: line.max(60),
     why: line.max(160),
     realMinutes: z.tuple([z.number().min(0.1).max(120), z.number().min(0.1).max(120)]),
@@ -411,6 +450,8 @@ const StepSchema = z
     }
     if (step.event !== undefined && !step.event.endsWith('.')) ctx.addIssue({ code: 'custom', path: ['event'], message: 'an event line ends with a full stop' })
     if (step.repeat === true && step.patient !== undefined) ctx.addIssue({ code: 'custom', path: ['patient'], message: 'a repeated step cannot change the patient' })
+    if (step.repeatSeconds !== undefined && step.repeat !== true) ctx.addIssue({ code: 'custom', path: ['repeatSeconds'], message: 'only a repeat step has repeatSeconds (its watch seconds from the second play on)' })
+    if (step.repeatSeconds !== undefined && step.repeatSeconds > step.watchSeconds) ctx.addIssue({ code: 'custom', path: ['repeatSeconds'], message: 'a quicker repeat lasts no longer than the first play (watchSeconds)' })
   })
 
 export const ProcedureScriptSchema = z

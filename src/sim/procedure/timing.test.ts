@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { Rng } from '../rng'
 import { segmentAt, DOCK_SPLIT, UNDOCK_SPLIT, type RobotCaseTimes } from '../surgery/robot'
 import { CONFIG } from '../config'
-import { caseSteps, compileScript, compiledFor, midSeconds, type CaseSteps } from './script'
+import { caseSteps, compileScript, compiledFor, midSeconds, watchSecondsOf, type CaseSteps } from './script'
 import { davinciSlots, newCursor, stepAt, watchTotalSeconds, watchUnitSeconds, type SlotWindow } from './timing'
 import { davinciWindows, synthCryo } from './testkit'
 
@@ -263,5 +263,26 @@ describe('caseSteps: the weights', () => {
       if (ks[ks.length - 1] !== cur.k) ks.push(cur.k)
     }
     expect(ks).toEqual([1, 2, 3, 1]) // 1, 2, 3 for the repeats, then the step after the run
+  })
+
+  it('plays a repeat step quicker from its second play on when it has repeatSeconds (the first needle in full)', () => {
+    const script = synthCryo()
+    const run = script.steps as unknown as { id: string; repeatSeconds?: number }[]
+    run[3].repeatSeconds = 8 // aimGuide: 10 s the first time, 8 s after
+    run[4].repeatSeconds = 9 // needleIn: 14 s the first time, 9 s after
+    const syn = compileScript(script)
+    const steps = caseSteps(syn, 'watch', null, 3)
+    expect(Array.from(steps.weight).slice(3, 9)).toEqual([10, 14, 8, 9, 8, 9])
+    expect(watchUnitSeconds(syn, 'aim', 3)).toBe(10 + 14 + 2 * (8 + 9) + 12)
+    expect(watchUnitSeconds(syn, 'aim', 1)).toBe(10 + 14 + 12)
+    const aim = syn.unitIndex.get('aim')!
+    // the window the case sets (watchUnitSeconds) is exactly the steps' weights: every step lasts its own seconds
+    expect(steps.totalU[aim]).toBe(watchUnitSeconds(syn, 'aim', 3))
+    expect(watchSecondsOf(syn.script.steps[3], 1)).toBe(10)
+    expect(watchSecondsOf(syn.script.steps[3], 2)).toBe(8)
+    expect(watchSecondsOf(syn.script.steps[5], 2)).toBe(12) // not a repeat step: always its watch seconds
+    // the live day is untouched: real minutes for every play
+    const live = caseSteps(syn, 'live', null, 3)
+    expect(live.weight[5]).toBe(live.weight[3])
   })
 })

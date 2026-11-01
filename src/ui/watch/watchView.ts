@@ -8,7 +8,8 @@
  * repeats (flat = script).
  */
 import { scriptFor } from '@/content/procedures'
-import { fillWatch, WATCH } from '@/content/watch'
+import { fillWatch, overlayWords, WATCH } from '@/content/watch'
+import type { WatchRoomId } from '@/scene/watch/rooms'
 import { caseSteps, compiledFor, type CaseSteps } from '@/sim/procedure'
 import type { ProcedureId, ProcedureView } from '@/sim/types'
 import type { WatchMode, WatchStatus } from '@/scene/watch/watch.store'
@@ -70,6 +71,17 @@ export function scriptStepOf(id: ProcedureId, flat: number, repeatN = 1): number
   return l.stepOf[flat]
 }
 
+/** A caption that counts its own repeat ("Needle {k} of {n} pushed in"), as the cryo scripts' per-needle steps do. */
+const COUNTS = /\{[kn]\}/
+
+/**
+ * A script caption with its own {k} and {n} filled: the repeat being played and how many there are (1 of 1 when the run plays once, so a one-needle
+ * case never shows a raw brace).
+ */
+export function scriptCaption(caption: string, k: number, n: number): string {
+  return COUNTS.test(caption) ? fillWatch(caption, { k, n }) : caption
+}
+
 /** Every step of a case as a list row (the repeats numbered), with `current` (flat; -1: none yet, Infinity: all done) marked. */
 export function stepRows(id: ProcedureId, current: number, repeatN = 1): StepRow[] {
   const script = scriptFor(id)
@@ -79,7 +91,11 @@ export function stepRows(id: ProcedureId, current: number, repeatN = 1): StepRow
   for (let f = 0; f < l.flatCount; f++) {
     const step = script.steps[l.stepOf[f]]
     const k = l.kOf[f]
-    const label = step.repeat === true && l.repeatN > 1 ? fillWatch(WATCH.overlay.stepRow, { caption: step.caption, k, n: l.repeatN }) : step.caption
+    const label = COUNTS.test(step.caption)
+      ? scriptCaption(step.caption, k, l.repeatN)
+      : step.repeat === true && l.repeatN > 1
+        ? fillWatch(WATCH.overlay.stepRow, { caption: step.caption, k, n: l.repeatN })
+        : step.caption
     rows.push({ key: f, label, state: f < current ? 'done' : f === current ? 'current' : 'upcoming' })
   }
   return rows
@@ -89,6 +105,8 @@ export function stepRows(id: ProcedureId, current: number, repeatN = 1): StepRow
 export type CaptionView = Pick<ProcedureView, 'procedureId' | 'stepIndex' | 'stepCount' | 'stepId' | 'repeat'>
 
 export interface CaptionInput {
+  /** The room watched: the waiting and ending lines name it ("The cryoablation starts in 4:12"); the theatre's words when left out. */
+  room?: WatchRoomId
   status: WatchStatus
   mode: WatchMode | null
   /** The procedure asked for (watch mode), shown in the step list before the case starts. */
@@ -101,7 +119,7 @@ export interface CaptionInput {
 }
 
 export function captionModel(i: CaptionInput): CaptionModel {
-  const o = WATCH.overlay
+  const o = overlayWords(i.room ?? 'or')
   const badge = i.mode === 'follow' ? o.live : o.watchCase
   const v = i.view
   if (i.status === 'case' && v !== null && v.procedureId !== null) {
@@ -109,9 +127,11 @@ export function captionModel(i: CaptionInput): CaptionModel {
     const repeatN = v.repeat?.n ?? 1
     const s = scriptStepOf(id, v.stepIndex, repeatN)
     const step = s === null ? undefined : scriptFor(id)?.steps[s]
-    const caption = step?.caption ?? v.stepId
+    const raw = step?.caption ?? v.stepId
+    // a caption that counts its own repeat says "needle 2 of 3" itself: no "(2 of 3)" after it
+    const caption = scriptCaption(raw, v.repeat?.k ?? 1, v.repeat?.n ?? 1)
     const title =
-      v.repeat !== null
+      v.repeat !== null && !COUNTS.test(raw)
         ? fillWatch(o.stepRepeat, { k: v.stepIndex + 1, n: v.stepCount, caption, r: v.repeat.k, m: v.repeat.n })
         : fillWatch(o.step, { k: v.stepIndex + 1, n: v.stepCount, caption })
     return { status: 'case', badge, title, why: step?.why ?? '', startsIn: null, canSkip: false, steps: stepRows(id, v.stepIndex, repeatN) }

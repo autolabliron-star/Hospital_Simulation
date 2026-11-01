@@ -3,6 +3,9 @@
  * live CT picture (384 px, Planning or Live, painted by the same painters as the room's screens, src/scene/cryoSuite/ctPaint.ts), the step and the
  * stepper, the needles, the console's readouts, today's list, the "Start a cryoablation now" button and the "Meet the devices" card.
  *
+ * R5: under the start button, "Watch step by step" (src/ui/watch/WatchPicker.tsx): the three cryoablations, each compressed to 10-15 minutes and watched
+ * from close up (the watch camera, src/scene/watch).
+ *
  * Reads the sim at 4 Hz through `usePoll` (the view model is src/ui/cryoSuiteView.ts); the picture repaints at most 4 Hz and only when what it shows
  * changes. Nothing here runs per frame or touches the 3D world. The model is brand-free; real products are named only on the card.
  */
@@ -11,10 +14,10 @@ import { domEnv } from '@/scene/imaging/images/ctx'
 import { baseSliceFor, newBaseSliceCache, paintLive, paintPlanning } from '@/scene/cryoSuite/ctPaint'
 import { newRepaintGate, shouldRepaint } from '@/scene/cryoSuite/screens'
 import { sim } from '@/sim'
-import type { CryoDemoResult } from '@/sim/cryoSuite/ports'
 import type { CryoSuiteState } from '@/sim/types'
-import { cryoSuiteView, type CryoSuiteView, type NeedleRow, type StepRow } from './cryoSuiteView'
+import { cryoSuiteView, startAnswer, type CryoSuiteView, type NeedleRow, type StartAnswer, type StepRow } from './cryoSuiteView'
 import { usePoll } from './usePoll'
+import { WatchPicker } from './watch/WatchPicker'
 import './cryoSuite.css'
 
 /** The picture's edge (px). */
@@ -71,7 +74,7 @@ function Picture({ mode, state }: { mode: PictureMode; state: () => CryoSuiteSta
       // somebody is looking (the panel is open): the 4 Hz rate
       if (!shouldRepaint(gate, s, performance.now() / 1000, true)) return
       ctx.setTransform(1, 0, 0, 1, 0, 0)
-      const slice = baseSliceFor(base, domEnv, s.imageSeed)
+      const slice = baseSliceFor(base, domEnv, s.imageSeed, s.target)
       if (mode === 'planning') paintPlanning(ctx, LIVE_PX, LIVE_PX, s, slice)
       else paintLive(ctx, LIVE_PX, LIVE_PX, s, slice)
     }
@@ -82,19 +85,21 @@ function Picture({ mode, state }: { mode: PictureMode; state: () => CryoSuiteSta
   return <canvas ref={ref} className="cr-picture" width={LIVE_PX} height={LIVE_PX} />
 }
 
-/** The panel's markup from a view. Pure (the picture aside), so the render test can feed it hand-made state. */
+/** The panel's markup from a view. Pure (the picture aside), so the render test can feed it hand-made state. `extra` goes under the start button (R5: the "Watch step by step" picker). */
 export function CryoSuitePanel({
   v,
   mode,
   onMode,
   onStart,
   picture,
+  extra,
 }: {
   v: CryoSuiteView
   mode: PictureMode
   onMode: (m: PictureMode) => void
   onStart: () => void
   picture: ReactNode
+  extra?: ReactNode
 }) {
   return (
     <div className="cr">
@@ -194,6 +199,7 @@ export function CryoSuitePanel({
             {v.start.note}
           </p>
         )}
+        {extra}
       </Section>
 
       <Section title={v.card.title}>
@@ -208,11 +214,12 @@ export function CryoSuitePanel({
 }
 
 export function CryoSuiteBody() {
-  const [last, setLast] = useState<CryoDemoResult | null>(null)
+  const [last, setLast] = useState<StartAnswer | null>(null)
   const [mode, setMode] = useState<PictureMode>('live')
   const read = useCallback(() => cryoSuiteView(sim.cryoSuite.state, last), [last])
   const v = usePoll(read)
   const state = useCallback(() => sim.cryoSuite.state, [])
-  const onStart = useCallback(() => setLast(sim.cryoSuite.startDemo()), [])
-  return <CryoSuitePanel v={v} mode={mode} onMode={setMode} onStart={onStart} picture={<Picture mode={mode} state={state} />} />
+  // (a refused start says why: the team is out of hours, or it is too late today for a whole case)
+  const onStart = useCallback(() => setLast(startAnswer(sim.cryoSuite.startDemo(), sim.cryoSuite.whyNoTeam)), [])
+  return <CryoSuitePanel v={v} mode={mode} onMode={setMode} onStart={onStart} picture={<Picture mode={mode} state={state} />} extra={<WatchPicker room="cryo" />} />
 }

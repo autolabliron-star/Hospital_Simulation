@@ -137,13 +137,25 @@ export const THEATRE_STAFF: (StaffMember & { title: 'surgeon' | 'assistant' | 'a
 
 /**
  * R4: the CT-guided cryoablation suite on level 2 (on site CONFIG.cryoSuite.teamFromHour..teamToHour): the interventional radiologist, the CT
- * radiographer, the sedation nurse, and the ward porter who brings the patient down from the surgical ward. Synthetic people only.
+ * radiographer, the sedation nurse (R5: and the anaesthetist, for the lung and liver cases), and the ward porter who brings the patient down from the surgical ward. Synthetic people only.
  */
-export const CRYO_STAFF: (StaffMember & { title: 'ir' | 'ctRadiographer' | 'sedation' | 'wardPorter' })[] = [
+export const CRYO_STAFF: (StaffMember & { title: 'ir' | 'ctRadiographer' | 'sedation' | 'cryoAnaes' | 'wardPorter' })[] = [
   { id: 'cryo-ir', role: 'doctor', post: 'cryoSuite', shift: 'office', name: 'Dr. Mireille', title: 'ir' },
   { id: 'cryo-rad', role: 'radiographer', post: 'cryoSuite', shift: 'office', name: 'Radiographer Pavel', title: 'ctRadiographer' },
   { id: 'cryo-nurse', role: 'nurse', post: 'cryoSuite', shift: 'office', name: 'Nurse Adaeze', title: 'sedation' },
+  // R5 wave 3: the anaesthetist of the lung's and the liver's cases (general anaesthetic with a tube, deep sedation); idle in the control room otherwise
+  { id: 'cryo-anaes', role: 'doctor', post: 'cryoSuite', shift: 'office', name: 'Dr. Ravindra', title: 'cryoAnaes' },
   { id: 'cryo-porter', role: 'porter', post: 'cryoSuite', shift: 'day', name: 'Porter Lorcan', title: 'wardPorter' },
+]
+
+/**
+ * R5 wave 3: the breast radiologist who performs the ProSense cryoablation in the ultrasound room (src/sim/imaging/procedureDoctor.ts), with
+ * the sonographer `sono-1` assisting. She is NOT in STAFF: STAFF is the day rhythm's roster (src/sim/day/roster.ts gives every member of
+ * `post: 'imaging'` an operator's post and a scanner), and she runs no scanner. Like the theatre and cryo suite teams the room spawns her when
+ * a ProSense case begins (she comes in through the imaging hall and leaves by it). Office hours; synthetic person.
+ */
+export const IMAGING_STAFF: (StaffMember & { title: 'breastRadiologist' })[] = [
+  { id: 'us-breast-rad', role: 'doctor', post: 'imaging', shift: 'office', name: 'Dr. Saoirse', title: 'breastRadiologist' },
 ]
 
 // ---------------------------------------------------------------------------------------------
@@ -207,9 +219,9 @@ export const StaffListsSchema = z.array(z.array(StaffMemberSchema)).superRefine(
     }),
   )
 })
-parseOrThrow(StaffListsSchema, [STAFF, NIGHT_STAFF, HOSTS, W4_STAFF, THEATRE_STAFF, CRYO_STAFF], 'src/content/staff.ts')
+parseOrThrow(StaffListsSchema, [STAFF, NIGHT_STAFF, HOSTS, W4_STAFF, THEATRE_STAFF, CRYO_STAFF, IMAGING_STAFF], 'src/content/staff.ts')
 
-const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF, ...THEATRE_STAFF, ...CRYO_STAFF].map((s) => [s.id, s]))
+const BY_ID = new Map([...STAFF, ...NIGHT_STAFF, ...HOSTS, ...W4_STAFF, ...THEATRE_STAFF, ...CRYO_STAFF, ...IMAGING_STAFF].map((s) => [s.id, s]))
 
 export function staffName(id: string): string {
   return BY_ID.get(id)?.name ?? id

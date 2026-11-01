@@ -19,7 +19,7 @@ import { CONFIG } from '@/sim/config'
 import { clockText } from '@/sim/events'
 import { hourAt } from '@/sim/population/schedule'
 import { fillSkip, MILESTONE_KINDS, SKIP, type MilestoneKind } from '@/content/skip'
-import { fillWatch, WATCH } from '@/content/watch'
+import { fillWatch, overlayWords, WATCH, type WatchRoomKey } from '@/content/watch'
 import type { SkipRequest, SkipTarget } from './types'
 
 export { MILESTONE_KINDS, type MilestoneKind }
@@ -46,6 +46,8 @@ export interface SkipView {
   watching?: boolean
   /** R5: when the booked watch case is wheeled in (sim seconds), or null. */
   watchStartsAt?: number | null
+  /** R5: the room being watched (the caption says "The suite gets ready" for the CT suite): the theatre's words when left out. */
+  watchRoom?: WatchRoomKey | null
 }
 
 export interface SkipCtx {
@@ -176,7 +178,7 @@ export function watchTarget(view: SkipView, ctx: SkipCtx = DEFAULT_SKIP_CTX): Sk
   if (at === null || at === undefined) return null
   const toT = Math.min(at - ctx.leadSeconds, view.limitT)
   if (toT - view.nowT < MIN_SKIP_SECONDS) return null
-  return { kind: 'watch', toT, label: fillWatch(WATCH.overlay.skipLabel, { time: ctx.clock(at) }), caption: WATCH.overlay.skipCaption }
+  return { kind: 'watch', toT, label: fillWatch(WATCH.overlay.skipLabel, { time: ctx.clock(at) }), caption: overlayWords(view.watchRoom ?? 'or').skipCaption }
 }
 
 /** The skip buttons right now: the plain steps first, then the context target(s). */

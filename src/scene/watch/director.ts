@@ -10,6 +10,9 @@
  * room, else a cut behind a dip to black), from the overview with the player's own flight out to the shot you were on, after which you are put back where
  * you stood and the room panel reopens.
  *
+ * The rooms (rooms.ts): the robotic theatre, the CT cryo suite (you watch from its control room; the scan room is a camera area of its own, and so is the
+ * control room for the planning steps) and the ultrasound room (you watch from outside its door).
+ *
  * EVERY FRAME (live): read the room's procedure view -> which case is ours (waiting / in the room / over) -> the step's shot (shots.ts: per-step override,
  * the step's focus, the room's default; sub-shots by the step's progress) -> the shot's pose from the anchors, with a slow push or orbit while it holds ->
  * the first of the shot's alternates with nobody's body between the lens and the look point (shots.ts `pickAltInto`; re-chosen when someone has stood
@@ -27,7 +30,7 @@ import type { InsetId } from '@/scene/registries/insetSources'
 import { levelOf, toDisplayInto, toSimInto, type LevelId } from '@/sim/levels'
 import { areaById, type AreaId, type Rect } from '@/sim/places'
 import type { PlayerMode, ProcedureId, ProcedureView, Vec3 } from '@/sim/types'
-import { newAnchorCtx, syncAnchorCtx, type AnchorCtx } from './anchors'
+import { newAnchorCtx, syncAnchorCtx, syncCryoAnchors, type AnchorCtx } from './anchors'
 import { CUT_CHORD, DIP_SECONDS, Dolly } from './dolly'
 import { addPerson, clampEyeInto, insideRect, moveObstacle, newObstacles, newPeople, type PeopleBuf } from './limits'
 import { WATCH_ROOMS, roomCart, roomView, type RoomObstacles, type WatchEntity, type WatchRoomId, type WatchSim } from './rooms'
@@ -436,7 +439,10 @@ export class WatchDirector implements WatchSession {
   private stepLive(dt: number, sim: WatchSim): void {
     const view = roomView(sim, this.room)
     const cart = roomCart(sim, this.room)
-    syncAnchorCtx(this.ctx, view, sim.entities, cart)
+    // the anchors follow the theatre's patient cart, or the CT table's travel, the case's target and the needle being worked on
+    syncAnchorCtx(this.ctx, view, sim.entities, this.room === 'or' ? cart : null)
+    if (this.room === 'cryo') syncCryoAnchors(this.ctx, sim.cryoSuite.state)
+    // the camera keeps out of the moving cart (the theatre's) or the CT cradle
     if (cart !== null && this.roomObs.cartSlot >= 0) moveObstacle(this.roomObs.obstacles, this.roomObs.cartSlot, cart.x, cart.z, cart.heading)
     this.trackCase(view, dt)
     if (this.phaseNow !== 'live') return

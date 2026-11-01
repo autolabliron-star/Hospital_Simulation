@@ -21,6 +21,13 @@
  * to the sim. The legs swing into the boots and the arms tuck over about 1.5 s, the whole body tips with the table:
  *   __hospitalCrowd.forcePatient('<patient id>', { position: 'lithotomy', arms: 'tucked', headTiltDeg: -25 })
  * (the live table top and the boots follow `procedure.patient`, not this: force the table with the sim's own pose, or look at the body alone.)
+ *
+ * R5 wave 3 (the CT cryo table and the ultrasound couch): `forcePatient` works for a patient on those two tables too (seats `scanTable:cryo` and `usCouch:us`: the PROCEDURE tables).
+ * They are level; the pose lays the body, over about 3 s for a roll (the turn onto the front, the side) and 1.5 s for the arms, and `rollDeg` is a wedge under the body:
+ *   __hospitalCrowd.forcePatient('<patient id>', { position: 'prone', arms: 'aboveHead' })                  // lung, liver: face down, the head turned, the arms over the head
+ *   __hospitalCrowd.forcePatient('<patient id>', { position: 'obliqueLeftUp', arms: 'aboveHead' })          // kidney: on the right side, the left flank up toward the robot
+ *   __hospitalCrowd.forcePatient('<patient id>', { position: 'supine', arms: 'oneUp', rollDeg: -8 })        // ProSense: the left arm up behind the head, rolled slightly to the right
+ * The drapes, the prepped window and the marks of those two rooms follow `procedure.patient` (the sim's own), like the OR's: `forcePatient` poses the body only.
  */
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
@@ -52,7 +59,7 @@ export function People() {
           if (act === null && attire === undefined && airway === undefined) rig.model.forceAct(id, null)
           else rig.model.forceAct(id, { act: act === null ? undefined : act, attire, airway })
         },
-        // R5 wave 2: force a patient's pose on the OR table (see the header); null clears it
+        // R5 wave 2 and 3: force a patient's pose on the OR table, the CT cryo table or the ultrasound couch (see the header); null clears it
         forcePatient: (id: string, pose: Partial<PatientPoseView> | null) => rig.model.forcePatient(id, pose),
         clearForced: () => rig.model.clearForced(),
         // R5: who is within r metres of a SIM point (to pick a staff member to force, and a work point in front of them)

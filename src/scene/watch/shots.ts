@@ -23,6 +23,9 @@
  * Every step of every script is checked in node (shots.test.ts) with the team where the script puts them: a clear candidate exists, and it is inside
  * the room, under the ceiling, out of the furniture, the cart and the lights, clear of the team and of their bodies, with the step's focus in frame and
  * no wall between the eye and what it looks at.
+ *
+ * R5 wave 3 adds the CT cryo suite (`CT_SHOTS`) and the ultrasound room (`US_SHOTS`). The wall probe treats the control room's observation glass as a
+ * wall, so the scan room's shots stay in the scan room and the planning steps are framed from inside the control room (its own area).
  */
 import type { BoomProbe } from '@/scene/player/boomProbe'
 import type { InsetId } from '@/scene/registries/insetSources'
@@ -108,7 +111,61 @@ const OR_SHOTS: readonly ShotSpec[] = [
   { id: 'or.sink', room: 'or', area: 'l2Hall', kind: 'close', look: 'sink', eye: { x: 101.6, y: 1.65, z: 0.15 }, fov: 44 },
 ]
 
-export const SHOTS: Readonly<Record<string, ShotSpec>> = Object.fromEntries(OR_SHOTS.map((s) => [s.id, s]))
+// ---------------------------------------------------------------------------------------------
+// The CT cryo suite (sim coordinates of level 2: sim x = drawn x + 150). The scan room l2Cryo is x 88..97, z 13..22: the CT gantry at its west end (x 90, the
+// bore along x), the table east of it (out at x 93, the patient head west, the feet east), the needle robot north of the table, the cryo console in the
+// north-west, the anaesthesia machine south of the head end, the cabinet along the south wall, the door in the east wall (x 97, z 16.8) and the inner door
+// to the control room at x 95.8, z 13. The control room l2CryoControl is x 88..97, z 10..13: the CT console's seat at x 90 and the robot station's at
+// x 92.7 (z 11.75), their screens on the desks against the glass (z 12.55).
+// ---------------------------------------------------------------------------------------------
+
+const CT_SHOTS: readonly ShotSpec[] = [
+  // the whole scan room from its south-east corner, high: the table and the team round it, the gantry at the left, the control room's glass across the back
+  { id: 'ct.establish', room: 'cryo', area: 'l2Cryo', kind: 'wide', look: 'ctRoom', eye: { x: 96.5, y: 2.45, z: 21.5 }, fov: 50, push: 0.4 },
+  // the table and the patient from the foot end's south side, high (the radiographer at the foot and the nurse at the south side are to the sides of the frame)
+  { id: 'ct.table', room: 'cryo', area: 'l2Cryo', kind: 'close', look: 'ctTable', eye: { x: 95.0, y: 2.1, z: 19.2 }, fov: 46, push: 0.15 },
+  // the head end for the airway (the mask, the tube, the drip) from the robot's side, high: the nurse and the anaesthetist stand on the far side of the face
+  { id: 'ct.head', room: 'cryo', area: 'l2Cryo', kind: 'close', look: 'ctHead', eye: { x: 91.1, y: 2.05, z: 15.7 }, fov: 44, push: 0.15 },
+  // the turn onto the front or back: the whole team round the table and the patient from head to foot, from the south-east
+  { id: 'ct.turn', room: 'cryo', area: 'l2Cryo', kind: 'wide', look: 'ctRoom', eye: { x: 95.6, y: 2.3, z: 20.0 }, fov: 50 },
+  // the needle going in: behind the interventional radiologist's right shoulder, high, looking down at the skin window (the fixed eye: the robot's east side)
+  { id: 'ct.needle', room: 'cryo', area: 'l2Cryo', kind: 'close', look: 'needleEntry', over: 'ir', back: 0.25, side: 0.6, up: 1.9, eye: { x: 93.4, y: 1.9, z: 16.0 }, fov: 42, push: 0.1 },
+  // the robot's guide swinging over the field: the same side, a little further back, so the arm and the skin window are both in the picture
+  { id: 'ct.robot', room: 'cryo', area: 'l2Cryo', kind: 'close', look: 'robotGuide', over: 'ir', back: 0.35, side: 0.7, up: 1.95, eye: { x: 93.6, y: 1.95, z: 15.8 }, fov: 46 },
+  // the freezes and thaws: the table from the south-east with the CT picture in a small corner (the ice ball growing), then the picture big
+  { id: 'ct.ice', room: 'cryo', area: 'l2Cryo', kind: 'close', look: 'iceBall', eye: { x: 94.5, y: 1.95, z: 19.2 }, fov: 46, inset: 'ctLive', push: 0.15 },
+  { id: 'ct.iceBig', room: 'cryo', area: 'l2Cryo', kind: 'close', look: 'iceBall', eye: { x: 94.5, y: 1.95, z: 19.2 }, fov: 46, inset: 'ctLive', insetBig: true },
+  // the radiologist at the cryo console (the thaw by the heater), from behind their shoulder, with the CT picture in a corner
+  { id: 'ct.console', room: 'cryo', area: 'l2Cryo', kind: 'close', look: 'cryoScreen', over: 'ir', back: 0.4, side: 0.65, up: 1.95, eye: { x: 91.65, y: 1.95, z: 15.9 }, fov: 44, inset: 'ctLive' },
+  // a scan: from the foot end, low on the bore's axis, the table sliding into the gantry (the scan room is empty then: the team is behind the glass); the CT picture big once it is in
+  { id: 'ct.bore', room: 'cryo', area: 'l2Cryo', kind: 'wide', look: 'ctGantry', eye: { x: 96.2, y: 1.75, z: 17.9 }, fov: 50, push: 0.3 },
+  { id: 'ct.boreCt', room: 'cryo', area: 'l2Cryo', kind: 'wide', look: 'ctGantry', eye: { x: 96.2, y: 1.75, z: 17.9 }, fov: 50, inset: 'ctLive', insetBig: true },
+  // the planning: in the control room behind the radiologist's right shoulder at the robot station, the plan on its screen (and in a corner, then big)
+  { id: 'ct.plan', room: 'cryo', area: 'l2CryoControl', kind: 'close', look: 'planScreen', over: 'ir', back: 0.45, side: 0.55, up: 1.75, eye: { x: 92.15, y: 1.75, z: 11.3 }, fov: 44, inset: 'ctPlan' },
+  { id: 'ct.planBig', room: 'cryo', area: 'l2CryoControl', kind: 'close', look: 'planScreen', over: 'ir', back: 0.45, side: 0.55, up: 1.75, eye: { x: 92.15, y: 1.75, z: 11.3 }, fov: 44, inset: 'ctPlan', insetBig: true },
+]
+
+// ---------------------------------------------------------------------------------------------
+// The ultrasound room (level 1): x -34..-28, z 2..12, the door in its north wall (x -32.6, z 2). The couch at (-31.6, 8.6), the patient's head south, her left
+// (the treated breast, at (-31.7, 8.9)) west; the radiologist's stool-side spot west of it, the ProSense console at the south-west (-33.45, 10.5), the
+// ultrasound cart east of the couch's head end.
+// ---------------------------------------------------------------------------------------------
+
+const US_SHOTS: readonly ShotSpec[] = [
+  // the whole room from its south-east corner, high: the couch, the team round it, the cart, the door far at the left
+  { id: 'us.establish', room: 'us', area: 'ultrasound', kind: 'wide', look: 'usRoom', eye: { x: -28.4, y: 2.4, z: 11.6 }, fov: 50, push: 0.4 },
+  // the field: over the radiologist's right shoulder, high, looking down at the breast, the transducer in her hand and the cryoprobe
+  { id: 'us.field', room: 'us', area: 'ultrasound', kind: 'close', look: 'breast', over: 'breastRadiologist', back: 0.3, side: 0.6, up: 1.85, eye: { x: -32.3, y: 1.85, z: 9.9 }, fov: 42, push: 0.1 },
+  // the same, with the ultrasound picture in a corner, then big (the survey, the placement and the freezes: the picture is the story)
+  { id: 'us.fieldUs', room: 'us', area: 'ultrasound', kind: 'close', look: 'breast', over: 'breastRadiologist', back: 0.3, side: 0.6, up: 1.85, eye: { x: -32.3, y: 1.85, z: 9.9 }, fov: 42, inset: 'us' },
+  { id: 'us.fieldUsBig', room: 'us', area: 'ultrasound', kind: 'close', look: 'breast', over: 'breastRadiologist', back: 0.3, side: 0.6, up: 1.85, eye: { x: -32.3, y: 1.85, z: 9.9 }, fov: 42, inset: 'us', insetBig: true },
+  // the ProSense console: over the sonographer's right shoulder at its screen (the timer, the programme)
+  { id: 'us.prosense', room: 'us', area: 'ultrasound', kind: 'close', look: 'prosenseScreen', over: 'sonographer', back: 0.35, side: 0.55, up: 1.75, eye: { x: -33.0, y: 1.75, z: 9.1 }, fov: 44 },
+]
+
+const ALL_SHOTS: readonly ShotSpec[] = [...OR_SHOTS, ...CT_SHOTS, ...US_SHOTS]
+
+export const SHOTS: Readonly<Record<string, ShotSpec>> = Object.fromEntries(ALL_SHOTS.map((s) => [s.id, s]))
 
 const one = (shot: string): ShotPlan => [{ shot, from: 0 }]
 
@@ -135,8 +192,42 @@ const BY_FOCUS: Readonly<Record<WatchRoomId, Readonly<Partial<Record<FocusId, Sh
     backTable: one('or.backTable'),
     sink: one('or.sink'),
   },
-  cryo: {},
-  us: {},
+  cryo: {
+    room: one('ct.establish'),
+    stretcher: one('ct.establish'),
+    ctRoom: one('ct.establish'),
+    ctTable: one('ct.table'),
+    ctHead: one('ct.head'),
+    // a scan: the table sliding in (3D), then the CT picture big
+    ctGantry: [
+      { shot: 'ct.bore', from: 0 },
+      { shot: 'ct.boreCt', from: 0.22 },
+    ],
+    needle: one('ct.needle'),
+    // a freeze or a thaw: the table with the CT picture small, then the picture big
+    iceBall: [
+      { shot: 'ct.ice', from: 0 },
+      { shot: 'ct.iceBig', from: 0.3 },
+    ],
+    cryoConsole: one('ct.console'),
+    // the planning: the plan at the robot station (small, then big)
+    controlRoom: [
+      { shot: 'ct.plan', from: 0 },
+      { shot: 'ct.planBig', from: 0.35 },
+    ],
+  },
+  us: {
+    room: one('us.establish'),
+    stretcher: one('us.establish'),
+    usRoom: one('us.establish'),
+    breast: one('us.field'),
+    prosenseConsole: one('us.prosense'),
+    // the freezes and thaws: the field with the ultrasound picture small, then big
+    usScreen: [
+      { shot: 'us.fieldUs', from: 0 },
+      { shot: 'us.fieldUsBig', from: 0.2 },
+    ],
+  },
 }
 
 /** Per script step, where the focus alone does not frame it best. */
@@ -148,10 +239,30 @@ const ARMS_STEPS: Readonly<Record<string, ShotPlan>> = {
   releaseArms: one('or.armsHigh'),
 }
 
+/** The CT steps framed other than by their focus: the robot swinging its guide over the field, and the team turning the patient (the whole table, head to foot). */
+const ct = (turn: readonly string[]): Readonly<Record<string, ShotPlan>> => ({ robotAims: one('ct.robot'), ...Object.fromEntries(turn.map((id) => [id, one('ct.turn')])) })
+
+/** The ProSense steps whose picture is the ultrasound's (the survey, the local anaesthetic, the nick, the probe going in, the saline, the probe moved): the field with the picture small, then big. */
+const usPicture = (): Readonly<Record<string, ShotPlan>> =>
+  Object.fromEntries(
+    ['surveyMarks', 'localAnaesthetic', 'skinNick', 'probeIn', 'saline', 'relocate'].map((id) => [
+      id,
+      [
+        { shot: 'us.fieldUs', from: 0 },
+        { shot: 'us.fieldUsBig', from: 0.25 },
+      ] as ShotPlan,
+    ]),
+  )
+
 const OVERRIDES: Readonly<Partial<Record<ProcedureId, Readonly<Record<string, ShotPlan>>>>> = {
   'or-cholecystectomy': ARMS_STEPS,
   'or-hysterectomy': ARMS_STEPS,
   'or-prostatectomy': ARMS_STEPS,
+  'cryo-kidney': ct(['rollBack']),
+  'cryo-lung': ct(['turnProne', 'turnBack']),
+  'cryo-liver': ct(['turnProne', 'turnBack']),
+  'us-breastCancer': usPicture(),
+  'us-fibroadenoma': usPicture(),
 }
 
 /** The override plans (a step framed for something other than its focus: the arms while the surgeon walks to the console): no focus to keep in frame. */
@@ -162,12 +273,11 @@ export function isOverridePlan(plan: ShotPlan): boolean {
   return OVERRIDE_PLANS.has(plan)
 }
 
-/** Each room's shot when nothing else applies (no case in the room yet, or the case is over). The cryo and ultrasound entries are placeholders until their
- * waves bring their shot sets (those rooms are not in `WATCH_ROOMS` yet, so nothing reads them). */
+/** Each room's shot when nothing else applies (no case in the room yet, or the case is over): its establishing wide shot. */
 export const ROOM_DEFAULT: Readonly<Record<WatchRoomId, ShotPlan>> = {
   or: one('or.establish'),
-  cryo: one('or.establish'),
-  us: one('or.establish'),
+  cryo: one('ct.establish'),
+  us: one('us.establish'),
 }
 
 /**
@@ -220,7 +330,7 @@ export function floorOf(plan: ShotPlan, shot: ShotSpec | null): number {
 
 /** Every shot id a room can use (for the tests). */
 export function shotsOfRoom(room: WatchRoomId): ShotSpec[] {
-  return OR_SHOTS.filter((s) => s.room === room)
+  return ALL_SHOTS.filter((s) => s.room === room)
 }
 
 // ---------------------------------------------------------------------------------------------

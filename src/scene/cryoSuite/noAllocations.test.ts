@@ -1,7 +1,8 @@
 /**
  * R4: the cryo suite's per-frame paths allocate nothing: no `new`, no array or object literals, no spreads, no closures and no array methods inside
  * the functions that run every frame (the scan of src/scene/surgery/noAllocations.test.ts): the rig's step and the pose solver it calls, the screens'
- * repaint gate (a repaint itself is at most 4 Hz and may build strings), and the layer's two frame callbacks, at negative priorities.
+ * repaint gates (a repaint itself is at most 4 Hz and may build strings), the anaesthesia monitor's held-breath memory and waveforms, the watch insets'
+ * gate, and the layer's two frame callbacks, at negative priorities.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -53,8 +54,13 @@ const FLAGGED: [RegExp, string][] = [
 
 const PATHS: Record<string, string[]> = {
   'rig.ts': ['step', 'writeArm', 'writeNeedle', 'bandCode', 'scanning'],
-  'pose.ts': ['cryoTableX', 'pathGuideInto', 'forwardArm', 'setP', 'wrap', 'solveArm', 'stowGuideInto', 'standbyGuideInto', 'normalize', 'blendGuide', 'robotNeedle', 'armTargetInto', 'easeGuide', 'needlePoseInto'],
-  'screens.ts': ['update', 'shouldRepaint', 'screenKeyInto'],
+  'pose.ts': ['cryoTableX', 'patientPointInto', 'pathGuideInto', 'forwardArm', 'setP', 'wrap', 'solveArm', 'stowGuideInto', 'standbyGuideInto', 'normalize', 'blendGuide', 'robotNeedle', 'moveLength', 'aimLengthOf', 'retractLengthOf', 'armTargetInto', 'easeGuide', 'needlePoseInto'],
+  'screens.ts': ['update', 'shouldRepaint', 'screenKeyInto', 'monitorKeyInto', 'shouldRepaintMonitor', 'commitMonitor'],
+  // R5 wave 3: the anaesthesia monitor's per-frame parts (the held breath's memory and the waveforms its repaint samples a few hundred times), the in-use
+  // test its gate and the ventilator's sound ask, the watch insets' gate (their painters are the screens' own, at 4 Hz), the machine's draw (once, at creation)
+  'anaesMonitor.ts': ['observeMonitor', 'heldAt', 'breathOrigin', 'ecgFrac', 'pulseFrac', 'co2Frac', 'pawFrac'],
+  'anaesInUse.ts': ['anaesInUse', 'ventilated'],
+  'insets.ts': ['refreshInset', 'update'],
   'presence.ts': ['playerInSuite', 'lookingAtSuite'],
   '../surgery/matrices.ts': ['hideInstance', 'put', 'putSegment'],
 }
@@ -105,5 +111,19 @@ describe('the per-frame paths of the cryo suite allocate nothing', () => {
     expect(raw).toContain('FRAME_PRIORITY.cryoScreens')
     // nothing while level 2 is hidden
     expect(raw.match(/levelView\.shown !== 2\) return/g)).toHaveLength(2)
+  })
+
+  it('R5 wave 3: CryoSuiteLayer registers the CT insets at mount and removes them at unmount, and runs the monitor\'s clock and the insets from the screens\' callback', () => {
+    const raw = readFileSync(join(ROOT, 'CryoSuiteLayer.tsx'), 'utf8')
+    const effect = raw.slice(raw.indexOf('useEffect(() => {'), raw.indexOf('}, [rig, screens, insets])'))
+    expect(effect).toContain('const off = insets.register()')
+    expect(effect).toMatch(/return \(\) => \{[\s\S]*off\(\)[\s\S]*screens\.dispose\(\)/)
+    const screensCallback = raw.slice(raw.lastIndexOf('FRAME_PRIORITY.cryoRig'), raw.lastIndexOf('FRAME_PRIORITY.cryoScreens'))
+    expect(screensCallback).toContain('insets.update(')
+    expect(screensCallback).toContain('screens.update(')
+    // the monitor's clock stops while the sim is paused, and the screens are hot while the watch camera is on the room
+    expect(screensCallback).toContain('loop.paused')
+    expect(screensCallback).toContain("watchLive.room === 'cryo'")
+    expect(screensCallback).not.toContain('visualDt')
   })
 })

@@ -35,8 +35,11 @@ describe('the rig\'s build', () => {
     expect(rig.glow.material).toBe(MACHINE_GLOW)
     expect(rig.boxes.material).toBe(MAT.tinted)
     expect(rig.cyls.material).toBe(MAT.tinted)
-    expect(BOX_COUNT).toBeLessThanOrEqual(12)
-    expect(CYL_COUNT).toBeLessThanOrEqual(16)
+    // (R5 wave 3: the arm's 12 slots and the anaesthesia machine's, anaesMachine.test.ts: instances, not draw calls)
+    expect(BOX_COUNT).toBeLessThanOrEqual(40)
+    expect(CYL_COUNT).toBeLessThanOrEqual(40)
+    expect(rig.boxes.count).toBe(BOX_COUNT)
+    expect(rig.cyls.count).toBe(CYL_COUNT)
     expect(MAX_NEEDLES).toBe(6)
     // the screens' material is the imaging monitors' kind: a map, no tone mapping, vertex colours
     expect(screens.material.map).toBe(screens.texture)

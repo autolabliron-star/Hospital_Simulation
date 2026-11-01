@@ -262,6 +262,7 @@ export type Title = 'surgeon' | 'assistant' | 'anaesthetist' | 'scrub' | 'circul
   | 'ir'
   | 'ctRadiographer'
   | 'sedation'
+  | 'cryoAnaes'
   | 'wardPorter'
 
 export class Staffer extends Actor {

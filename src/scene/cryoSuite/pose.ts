@@ -1,9 +1,11 @@
 /**
  * R4: the cryoablation suite's poses, pure (no three.js): where the CT table is, where each needle is in the room, and the needle-guidance robot's arm.
  *
- * Coordinates are SIM (the layer's group puts them on level 2): x east, y up from the level-2 floor, z south. The patient lies head WEST with the left
- * flank NORTH (CRYO_SUITE), so a needle path given in the planning slice (mm from the tumour centre: +x the patient's left, +y posterior; dz toward the
- * head) maps to the room as: x = target.x - dz, y = target.y - y, z = target.z - x (the posterior side is down, on the table).
+ * Coordinates are SIM (the layer's group puts them on level 2): x east, y up from the level-2 floor, z south. The patient lies head WEST (CRYO_SUITE). A needle
+ * path given in the planning slice (mm from the tumour centre: +x the patient's left, +y posterior; dz toward the head) is carried into the room through the
+ * patient's ROLL by the sim's one map (src/sim/procedure/ctSlice.ts: the kidney's patient on her right side, the left flank up and north; the lung's and the
+ * liver's face down, posterior up), the same one the sim's `needleEntry` and the drapes' window use, so the arm aims where the sim says the needle enters. The
+ * state's `target` picks the patient's position; between cases it is the kidney's.
  *
  * The arm is a genuine 5-axis chain from `CRYO_SUITE.robot.mount`:
  *   J1  yaw about the vertical at the shoulder S (a column `ARM.column` above the mount)
@@ -18,7 +20,8 @@
  * Nothing here allocates once the outputs exist (`newArmPose`, `newGuide`): the rig calls `armTargetInto` and `solveArm` every frame.
  */
 import { CRYO_SUITE } from '@/sim/places'
-import type { CryoNeedleState, CryoRobotPhase, CryoSuiteState } from '@/sim/types'
+import { ctBodyOffsetOf, ctSliceDirInto, ctSliceInto } from '@/sim/procedure/ctSlice'
+import type { CryoNeedleState, CryoRobotPhase, CryoSuiteState, CryoTarget } from '@/sim/types'
 
 /** Metres per mm. */
 export const MM = 0.001
@@ -30,8 +33,11 @@ export const ARM = {
   upper: 0.62,
   fore: 0.56,
   hand: 0.16,
-  /** The guide's centre sits this far outside the skin entry, on the path. */
-  standoff: 0.05,
+  /**
+   * The guide's centre sits this far outside the skin entry, on the path: more than the forearm's radius (LINK.fore / 2 = 4.5 cm) over the wrist's reach to the side, so the arm
+   * keeps out of a body whose skin is within a centimetre or two of the nominal one (the avatars' differ by a few more).
+   */
+  standoff: 0.07,
   /** The guide sleeve's length along the path. */
   guideLen: 0.07,
 } as const
@@ -39,14 +45,17 @@ export const ARM = {
 /** A cryoneedle: the shaft from the tip back to the handle, and the handle. */
 export const NEEDLE = { length: 0.175, dia: 0.0045, handleLen: 0.07, handleDia: 0.018 } as const
 
-/** How long the robot's moves take on screen (sim seconds since `robot.since`). */
+/**
+ * How long the robot's moves take on screen (sim seconds since `robot.since`) when the state does not say: the deploy, an aim (the living day's: `aimTravel` + `aimSettle`, the sim's
+ * `AIM_SECONDS` 18) and the retract. A scripted case (a watch case) has its own: the aim of the first needle is the script's 26 to 28 s and each repeat's 8 s, and the arm takes exactly
+ * the time the sim gives it (`aimLengthOf`, `retractLengthOf`), arriving as the phase turns 'aligned'.
+ */
 export const ROBOT_TIMING = { deploy: 8, aimTravel: 12, aimSettle: 6, retract: 6 } as const
+/** The share of an aim the arm spends travelling to the approach point (the rest is spent settling in along the axis: 12 of the default 18 s). */
+export const AIM_TRAVEL_SHARE = ROBOT_TIMING.aimTravel / (ROBOT_TIMING.aimTravel + ROBOT_TIMING.aimSettle)
 
 const T = CRYO_SUITE.ct.table
-const TARGET = CRYO_SUITE.target
 const MOUNT = CRYO_SUITE.robot.mount
-/** The target's x offset from the table's centre (the kidney lies 0.25 m toward the head from the body's centre). */
-export const TARGET_DX = TARGET.x - T.out.x
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
 const smooth01 = (v: number): number => {
@@ -65,12 +74,9 @@ export interface P3 {
   z: number
 }
 
-/** A point of the planning slice (mm from the tumour centre) in the room, with the table at `tablePos`. */
-export function patientPointInto(tablePos: number, mmX: number, mmY: number, dz: number, out: P3): P3 {
-  out.x = cryoTableX(tablePos) + TARGET_DX - dz * MM
-  out.y = TARGET.y - mmY * MM
-  out.z = TARGET.z - mmX * MM
-  return out
+/** A point of the planning slice (mm from the tumour centre) in the room, for `target`'s patient with the table at `tablePos`: the sim's own map (ctSlice.ts). */
+export function patientPointInto(target: CryoTarget, tablePos: number, mmX: number, mmY: number, dz: number, out: P3): P3 {
+  return ctSliceInto(target, tablePos, mmX, mmY, dz, out)
 }
 
 /** A guide pose: its centre and its axis (unit, pointing from the skin toward the tip). */
@@ -81,32 +87,25 @@ export interface Guide {
 
 export const newGuide = (): Guide => ({ g: { x: 0, y: 0, z: 0 }, u: { x: 0, y: -1, z: 0 } })
 
-/** The planned path of a needle as a guide pose (the table at `tablePos`): the axis from entry to tip, the centre `ARM.standoff` + `back` outside the entry. */
-export function pathGuideInto(n: CryoNeedleState, tablePos: number, back: number, out: Guide): Guide {
-  const ex = cryoTableX(tablePos) + TARGET_DX - n.dz * MM
-  const ey = TARGET.y - n.entry.y * MM
-  const ez = TARGET.z - n.entry.x * MM
-  // the tip shares the needle's dz (the path lies in its own axial plane)
-  let ux = 0
-  let uy = (n.entry.y - n.tip.y) * MM
-  let uz = (n.entry.x - n.tip.x) * MM
-  const len = Math.sqrt(ux * ux + uy * uy + uz * uz)
-  if (len < 1e-6) {
-    ux = 0
-    uy = 0
-    uz = 1
-  } else {
-    ux /= len
-    uy /= len
-    uz /= len
-  }
-  out.u.x = ux
-  out.u.y = uy
-  out.u.z = uz
+/** Scratch points of `pathGuideInto` (module-level, so a frame allocates nothing). */
+const _entry: P3 = { x: 0, y: 0, z: 0 }
+const _axis: P3 = { x: 0, y: 0, z: 0 }
+
+/**
+ * The planned path of a needle as a guide pose (the table at `tablePos`): the axis from entry to tip, the centre `ARM.standoff` + `back` outside the entry. The entry and the axis are
+ * the planning slice seen through `target`'s roll (ctSlice.ts), the tip sharing the needle's `dz` (the path lies in its own axial plane).
+ */
+export function pathGuideInto(target: CryoTarget, n: CryoNeedleState, tablePos: number, back: number, out: Guide): Guide {
+  ctSliceInto(target, tablePos, n.entry.x, n.entry.y, n.dz, _entry)
+  ctSliceDirInto(target, n.tip.x - n.entry.x, n.tip.y - n.entry.y, _axis)
+  if (_axis.y === 0 && _axis.z === 0) _axis.z = 1
+  out.u.x = _axis.x
+  out.u.y = _axis.y
+  out.u.z = _axis.z
   const k = ARM.standoff + back
-  out.g.x = ex - ux * k
-  out.g.y = ey - uy * k
-  out.g.z = ez - uz * k
+  out.g.x = _entry.x - _axis.x * k
+  out.g.y = _entry.y - _axis.y * k
+  out.g.z = _entry.z - _axis.z * k
   return out
 }
 
@@ -234,9 +233,10 @@ export function stowGuideInto(out: Guide): Guide {
   return out
 }
 
-/** Ready over the flank: the guide hovering well above the patient, pointing down toward the kidney. */
-export function standbyGuideInto(out: Guide): Guide {
-  setP(out.g, TARGET.x, 1.5, TARGET.z - 0.42)
+/** Ready over the patient: the guide hovering well above the tumour of `target` (table out), on the robot's side, pointing down toward it. */
+export function standbyGuideInto(target: CryoTarget, out: Guide): Guide {
+  const g = CRYO_SUITE.targets[target].tumour
+  setP(out.g, g.x, 1.5, g.z - 0.42)
   setP(out.u, 0, -0.7, 0.714)
   normalize(out.u)
   return out
@@ -281,30 +281,64 @@ function robotNeedle(s: CryoSuiteState): number {
   return k >= s.needles.length ? s.needles.length - 1 : k
 }
 
+/** How far the procedure's step may differ from the robot's own clock and still be the one the robot works in (s), and the longest a move the state gives may be (s). */
+const CLOCK_SLACK = 1.5
+const LONGEST_MOVE = 300
+/** The shortest a move may take on screen (s): a script that gave the arm less is stretched a little rather than snapped. */
+const SHORTEST_MOVE = 1.5
+
 /**
- * Where the guide should be now, from the state alone (deterministic): stowed over the base, deploying to the standby over the flank, aiming (to the
- * path's approach point, then in along the axis), aligned on the path, retracting (out along the axis, then up to the standby). The table at
- * `tablePos` carries the paths; the sim never aims with the table in.
+ * How long the robot's current move runs, from the state alone. A scripted case (`procedure`: the step the robot works in) says it: the robot aims during the first step of a needle's
+ * run (it starts when the phase does: `robot.since`) and steps back during the last one (it ends at the step's end), so the move is the time to the step's end. Without a script (the
+ * living day's unscripted case, a fixture) `fallback` is what the scene always took. A step that does not start with the robot's phase is not the robot's step: `fallback`.
+ */
+function moveLength(s: CryoSuiteState, aiming: boolean, fallback: number): number {
+  const pr = s.procedure
+  if (pr.procedureId === null) return fallback
+  const len = pr.stepEnds - s.robot.since
+  if (!(len > 0) || len > LONGEST_MOVE) return fallback
+  // the aim begins with its step; the retract ends with it (and begins inside it)
+  if (aiming && Math.abs(pr.stepSince - s.robot.since) > CLOCK_SLACK) return fallback
+  return len < SHORTEST_MOVE ? SHORTEST_MOVE : len
+}
+
+/** How long the robot's aim at its current needle takes (s): the script's time to 'aligned' for a watch case, else `ROBOT_TIMING`'s 18. */
+export function aimLengthOf(s: CryoSuiteState): number {
+  return moveLength(s, true, ROBOT_TIMING.aimTravel + ROBOT_TIMING.aimSettle)
+}
+
+/** How long the robot's retract takes (s): the script's, which is never more than `ROBOT_TIMING.retract`, or that. */
+export function retractLengthOf(s: CryoSuiteState): number {
+  const l = moveLength(s, false, ROBOT_TIMING.retract)
+  return l > ROBOT_TIMING.retract ? ROBOT_TIMING.retract : l
+}
+
+/**
+ * Where the guide should be now, from the state alone (deterministic): stowed over the base, deploying to the standby over the patient, aiming (to the path's approach point, then
+ * in along the axis, arriving as the sim turns 'aligned': `aimLengthOf`), aligned on the path, retracting (out along the axis, then up to the standby). The table at `tablePos`
+ * carries the paths; the sim never aims with the table in. The paths are those of the case's `target` (the kidney's between cases).
  */
 export function armTargetInto(s: CryoSuiteState, t: number, out: Guide): Guide {
   const phase: CryoRobotPhase = s.robot.phase
   const since = t - s.robot.since
   stowGuideInto(_stow)
-  standbyGuideInto(_standby)
+  standbyGuideInto(s.target, _standby)
   const k = robotNeedle(s)
   if (phase === 'stowed') return blendGuide(_stow, _stow, 0, out)
   if (phase === 'deploying' || k < 0) return blendGuide(_stow, _standby, smooth01(since / ROBOT_TIMING.deploy), out)
   const n = s.needles[k]
-  pathGuideInto(n, s.tablePos, APPROACH_BACK, _pre)
-  pathGuideInto(n, s.tablePos, 0, _on)
+  pathGuideInto(s.target, n, s.tablePos, APPROACH_BACK, _pre)
+  pathGuideInto(s.target, n, s.tablePos, 0, _on)
   if (phase === 'aligned') return blendGuide(_on, _on, 0, out)
   if (phase === 'aiming') {
-    const a = since / ROBOT_TIMING.aimTravel
-    if (a < 1) return blendGuide(_standby, _pre, smooth01(a), out)
-    return blendGuide(_pre, _on, smooth01((since - ROBOT_TIMING.aimTravel) / ROBOT_TIMING.aimSettle), out)
+    const a = since / aimLengthOf(s)
+    if (a >= 1) return blendGuide(_on, _on, 0, out)
+    if (a < AIM_TRAVEL_SHARE) return blendGuide(_standby, _pre, smooth01(a / AIM_TRAVEL_SHARE), out)
+    return blendGuide(_pre, _on, smooth01((a - AIM_TRAVEL_SHARE) / (1 - AIM_TRAVEL_SHARE)), out)
   }
-  // retracting: out along the axis, then up to the standby
-  const r = since / ROBOT_TIMING.retract
+  // retracting: out along the axis, then up to the standby, over the time the sim gives
+  const r = since / retractLengthOf(s)
+  if (r >= 1) return blendGuide(_standby, _standby, 0, out)
   if (r < 0.4) return blendGuide(_on, _pre, smooth01(r / 0.4), out)
   return blendGuide(_pre, _standby, smooth01((r - 0.4) / 0.6), out)
 }
@@ -343,7 +377,7 @@ export function needlePoseInto(s: CryoSuiteState, k: number, out: NeedlePose): N
   const ready = s.robot.phase === 'aligned' && robotNeedle(s) === k
   out.shown = n !== undefined && (n.inserted > 0.001 || ready)
   if (!out.shown) return out
-  pathGuideInto(n, s.tablePos, -ARM.standoff, _ng) // the guide pose at the skin entry: g = the entry
+  pathGuideInto(s.target, n, s.tablePos, -ARM.standoff, _ng) // the guide pose at the skin entry: g = the entry
   const depth = Math.hypot(n.tip.x - n.entry.x, n.tip.y - n.entry.y) * MM * clamp01(n.inserted)
   setP(out.u, _ng.u.x, _ng.u.y, _ng.u.z)
   setP(out.tip, _ng.g.x + _ng.u.x * depth, _ng.g.y + _ng.u.y * depth, _ng.g.z + _ng.u.z * depth)
@@ -364,18 +398,23 @@ export interface Box3 {
   z1: number
 }
 
-/** The patient's body on the table at `tablePos` (head west), and the table (pedestal and cradle). */
-export function patientBoxInto(tablePos: number, out: Box3): Box3 {
+/** The patient's body, from the head end to the feet, about the table's centre (m): the crown 0.95 m toward the head, the feet 0.85 m toward the feet. */
+const BODY_HEAD = 0.95
+const BODY_FEET = 0.85
+
+/**
+ * How far (metres) a point is from the patient's body on the table at `tablePos` (negative inside): the nominal torso of `target`'s position (sim ctSlice.ts: an ellipse about the roll's
+ * pivot, rolled onto the right side for the kidney, face down for the lung and the liver) as a cylinder from the crown to the feet. What the arm's links must keep out of.
+ */
+export function bodyDistance(target: CryoTarget, tablePos: number, x: number, y: number, z: number): number {
   const cx = cryoTableX(tablePos)
-  out.x0 = cx - 0.95
-  out.x1 = cx + 0.85
-  out.y0 = T.height
-  out.y1 = T.height + 0.24
-  out.z0 = T.out.z - 0.18
-  out.z1 = T.out.z + 0.18
-  return out
+  const across = ctBodyOffsetOf(target, y, z)
+  const along = x < cx - BODY_HEAD ? cx - BODY_HEAD - x : x > cx + BODY_FEET ? x - cx - BODY_FEET : 0
+  if (along === 0) return across
+  return across > 0 ? Math.sqrt(across * across + along * along) : along
 }
 
+/** The table (pedestal and cradle). */
 export function tableBoxInto(tablePos: number, out: Box3): Box3 {
   const cx = cryoTableX(tablePos)
   out.x0 = Math.min(cx - 1.1, T.out.x - 1.4)
